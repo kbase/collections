@@ -12,8 +12,8 @@ Currently collections only contain KBase staff curated data.
 
 TODO more details
 
-/service - service code
-/loaders/[collection ID] - loader code for collections, e.g. /loaders/gtdb
+* /service - service code
+* /loaders/[collection ID] - loader code for collections, e.g. /loaders/gtdb
 
 ## Development
 
