@@ -58,4 +58,3 @@ PYTHONPATH=. pytest test
 
 * Set up test GHA
   * Set up code coverage
-* Set up LGTM (look into the github integration - can we use that now and not have to convert?)
