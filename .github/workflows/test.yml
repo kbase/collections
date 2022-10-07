@@ -32,14 +32,16 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    - name: Install dependecies with pipenv
-      uses: VaultVulp/action-pipenv@v2.0.1
-      with:
-        command: sync --system --dev
+    - name: Install dependecies
+      # tried VaultVulp/action-pipenv but pytest wasn't on the path post action
+      shell: bash
+      run: |
+        pip install pipenv
+        pipenv sync --system --dev
 
     - name: Run tests
       shell: bash
-      run: pytest --cov=service --cov=common --cov=loaders --cov-report=xml test
+      run: PYTHONPATH=. pytest --cov=service --cov=common --cov=loaders --cov-report=xml test
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
