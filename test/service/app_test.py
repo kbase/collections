@@ -9,6 +9,6 @@ def test_read_main():
     assert response.status_code == 200
     assert response.json() == {
         'git_hash': 'fake_commit',
-        'service': 'Collections',
+        'service_name': 'Collections',
         'version': '0.1.0-prototype1'
     }
