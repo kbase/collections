@@ -12,7 +12,7 @@ def test_read_main():
     servertime = res.pop('server_time')
     assert res == {
         'git_hash': 'fake_commit',
-        'service_name': 'Collections',
+        'service_name': 'Collections Prototype',
         'version': '0.1.0-prototype1'
     }
     assert_close_to_now(servertime)
