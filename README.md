@@ -10,10 +10,11 @@ Currently collections only contain KBase staff curated data.
 
 ## File structure
 
-TODO more details
-
-* /service - service code
-* /loaders/[collection ID] - loader code for collections, e.g. /loaders/gtdb
+* `/service` - service code
+* `/loaders/[collection ID]` - loader code for collections, e.g. `/loaders/gtdb`
+* `/common` - shared loader and service code
+* `/test/` - test code. Subdirectories should mirror the folder structure above, e.g.
+  `/test/service` contains service test code
 
 ## Development
 
@@ -21,9 +22,17 @@ TODO more details
 
 * In this alpha / prototype stage, we will be PRing (do not push directly) to `main`. In the
   future, once we want to deploy beyond CI, we will add a `develop` branch.
-* The PR creator merges the PR and deletes branches.
+* The PR creator merges the PR and deletes branches (after builds / tests / linters complete).
 
-### Code requirements:
+### Versioning
+
+* The code is versioned according to [Semantic Versioning](https://semver.org/).
+* The version must be updated in
+  * `/common/version.py`
+  * `/RELEASE_NOTES.md`
+  * any test files that test the version
+
+### Code requirements for prototype code:
 
 * Any code committed must at least have a test file that imports it and runs a noop test so that
   the code is shown with no coverage in the coverage statistics. This will make it clear what
@@ -35,8 +44,18 @@ TODO more details
   case basis, add release notes and bump the prototype version (e.g. 0.1.0-prototype3 ->
   0.1.0-prototype4) for changes that should be documented.
 
+### Running tests
+
+Python 3.10 must be installed on the system.
+
+```
+pipenv sync --dev  # only the first time or when Pipfile.lock changes
+pipenv shell
+PYTHONPATH=. pytest test
+```
+
 ## TODO
 
-* Set up devops build GHAs
 * Set up test GHA
+  * Set up code coverage
 * Set up LGTM (look into the github integration - can we use that now and not have to convert?)
