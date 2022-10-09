@@ -1,11 +1,12 @@
 '''
 API for the collections service.
 '''
+import os
 
+from common.git_commit import GIT_COMMIT
+from common.version import VERSION
 from datetime import datetime, timezone
 from fastapi import FastAPI
-from common.version import VERSION
-from common.git_commit import GIT_COMMIT
 from pydantic import BaseModel, Field
 
 
@@ -20,7 +21,12 @@ class Root(BaseModel):
     server_time: str = Field(example="2022-10-07T17:58:53.188698+00:00")
 
 
-app = FastAPI()
+# TODO rethink how to do this. Config file? How to test? Maybe manually is the only reasonable
+# option
+if os.environ.get("FASTAPI_ROOT_PATH"):
+    app = FastAPI(root_path=os.environ["FASTAPI_ROOT_PATH"])
+else:
+    app = FastAPI()
 
 
 @app.get("/", response_model=Root)
