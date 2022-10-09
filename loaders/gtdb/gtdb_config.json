@@ -1,0 +1,8 @@
+{
+  "LOAD_VERSION": 207,
+  "KBASE_COLLECTION": 'gtdb',
+  "LOAD_FILES": [
+    '~/SCIENCE/taxonomy/gtdb/bac120_taxonomy_r207.tsv',
+    '~/SCIENCE/taxonomy/gtdb/ar53_taxonomy_r207.tsv'
+  ]
+}
