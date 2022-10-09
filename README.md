@@ -56,7 +56,6 @@ PYTHONPATH=. pytest test
 
 ## TODO
 
-* Set up test GHA
-  * Set up code coverage
 * templating - jinja / envsubst / ?
 * Logging ip properly (X-RealIP, X-Forwarded-For)
+* Coverage badge in Readme
