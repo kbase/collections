@@ -1,6 +1,14 @@
 {
-  "CONFIG_FILE": '~/SCIENCE/taxonomy/gtdb/load_config.toml'
-  "HOST": 'http://localhost:48000',
-  "DATABASE": 'gavin_test',
-  "ARANGO_COLLECTION": 'coll_taxonomy_frequency2'
+  "production": {
+    "CONFIG_FILE": "~/SCIENCE/taxonomy/gtdb/load_config.toml",
+    "HOST": "http://localhost:48000",
+    "DATABASE": "gavin_test",
+    "ARANGO_COLLECTION": "coll_taxonomy_frequency2"
+  },
+  "test": {
+    "CONFIG_FILE": "~/SCIENCE/taxonomy/gtdb/load_config.toml",
+    "HOST": "http://localhost:48000",
+    "DATABASE": "gavin_test",
+    "ARANGO_COLLECTION": "coll_taxonomy_frequency2"
+  }
 }
