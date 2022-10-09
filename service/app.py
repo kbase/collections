@@ -25,7 +25,6 @@ _FASTAPI_ROOT_PATH = "FASTAPI_ROOT_PATH"
 if os.environ.get(_FASTAPI_ROOT_PATH):
     app_config.update({
         "root_path": os.environ[_FASTAPI_ROOT_PATH],
-        "root_path_in_servers": False
     })
 
 
