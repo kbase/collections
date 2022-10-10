@@ -15,11 +15,12 @@ class ConfigParserTest(unittest.TestCase):
     def test_global_config(self):
 
         config_global = self.configParser.config
-        expected_keys = ['CONFIG_FILE', 'HOST', 'DATABASE', 'ARANGO_COLLECTION']
-        assert set(expected_keys) <= set(config_global.keys())
 
-        expected_config_file = '~/SCIENCE/taxonomy/gtdb/load_config.toml'
-        assert config_global['CONFIG_FILE'] == expected_config_file
+        expected_keys = ['HOST', 'DATABASE', 'USERNAME', 'PASSWORD', 'ARANGO_COLLECTION']
+        assert set(expected_keys) <= set(config_global.keys())
 
         expected_host = 'http://localhost:48000'
         assert config_global['HOST'] == expected_host
+
+        expected_db = 'gavin_test'
+        assert config_global['DATABASE'] == expected_db

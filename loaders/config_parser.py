@@ -1,8 +1,9 @@
 import inspect
 import json
+import yaml
 import os
 
-GLOBAL_CONFIG_FILE = 'loaders_config.json'
+GLOBAL_CONFIG_FILE = 'loaders_config.yml'
 
 
 class ConfigParser:
@@ -26,7 +27,7 @@ class ConfigParser:
         config.update(global_config)
 
         # parse collection config
-        collection_config_file = [f for f in os.listdir(caller_file_dir) if f.endswith('.json')]
+        collection_config_file = [f for f in os.listdir(caller_file_dir) if f.lower().endswith('.yml') or f.lower().endswith('.yaml')]
 
         if len(collection_config_file) > 1:
             raise ValueError("Expecting ONE and only ONE collection config file. Received: {}".format(
@@ -45,7 +46,15 @@ class ConfigParser:
     @staticmethod
     def _parse_file(file_path):
 
-        with open(file_path, 'r') as f:
-            data = json.loads(f.read())
+        # with open(file_path, 'r') as f:
+        #     data = json.loads(f.read())
+        #
+        # return data
+
+        with open(file_path, 'r') as stream:
+            try:
+                data = yaml.safe_load(stream)
+            except yaml.YAMLError as exc:
+                raise ValueError('Cannot read config file') from exc
 
         return data

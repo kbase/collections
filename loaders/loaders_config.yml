@@ -1,0 +1,14 @@
+---
+production:
+  HOST: http://localhost:48000
+  DATABASE: gavin_test
+  USERNAME: test
+  PASSWORD: test123
+  ARANGO_COLLECTION: coll_taxonomy_frequency2
+
+test:
+  HOST: http://localhost:48000
+  DATABASE: gavin_test
+  USERNAME: test
+  PASSWORD: test123
+  ARANGO_COLLECTION: coll_taxonomy_frequency2
