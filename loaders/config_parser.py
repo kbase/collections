@@ -46,11 +46,6 @@ class ConfigParser:
     @staticmethod
     def _parse_file(file_path):
 
-        # with open(file_path, 'r') as f:
-        #     data = json.loads(f.read())
-        #
-        # return data
-
         with open(file_path, 'r') as stream:
             try:
                 data = yaml.safe_load(stream)
