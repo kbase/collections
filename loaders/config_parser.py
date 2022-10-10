@@ -1,5 +1,4 @@
 import inspect
-import json
 import yaml
 import os
 
@@ -27,7 +26,8 @@ class ConfigParser:
         config.update(global_config)
 
         # parse collection config
-        collection_config_file = [f for f in os.listdir(caller_file_dir) if f.lower().endswith('.yml') or f.lower().endswith('.yaml')]
+        collection_config_file = [f for f in os.listdir(caller_file_dir) if
+                                  f.lower().endswith('.yml') or f.lower().endswith('.yaml')]
 
         if len(collection_config_file) > 1:
             raise ValueError("Expecting ONE and only ONE collection config file. Received: {}".format(
