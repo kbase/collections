@@ -15,7 +15,7 @@ COPY ./ /kb/collections/
 
 # Write the git commit for the service
 ARG VCS_REF=no_git_commit_passed_to_build
-RUN echo "GIT_COMMIT=\"$VCS_REF\"" > common/git_commit.py
+RUN echo "GIT_COMMIT=\"$VCS_REF\"" > src/common/git_commit.py
 
 # FastAPI recommends running a single process service per docker container instance as below,
 # and scaling via adding more containers. If we need to run multiple processes, use guvicorn as
