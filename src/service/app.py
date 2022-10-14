@@ -3,8 +3,8 @@ API for the collections service.
 '''
 import os
 
-from common.git_commit import GIT_COMMIT
-from common.version import VERSION
+from src.common.git_commit import GIT_COMMIT
+from src.common.version import VERSION
 from datetime import datetime, timezone
 from fastapi import FastAPI
 from pydantic import BaseModel, Field

@@ -1,5 +1,5 @@
 # not sure I really like having a global app... but that's how python does it
-from service.app import app
+from src.service.app import app
 from fastapi.testclient import TestClient
 
 from conftest import assert_close_to_now

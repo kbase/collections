@@ -1,5 +1,5 @@
 import unittest
-from common.storage.arango_storage import ArangoStorage
+from src.common.storage.arango_storage import ArangoStorage
 
 
 class ArangoStorageTest(unittest.TestCase):
