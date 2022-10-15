@@ -10,11 +10,13 @@ Currently collections only contain KBase staff curated data.
 
 ## File structure
 
-* `/service` - service code
-* `/loaders/[collection ID]` - loader code for collections, e.g. `/loaders/gtdb`
-* `/common` - shared loader and service code
-* `/test/` - test code. Subdirectories should mirror the folder structure above, e.g.
-  `/test/service` contains service test code
+* `/src/service` - service code
+* `/src/loaders/[collection ID]` - loader code for collections, e.g. `/loaders/gtdb`
+* `/src/common` - shared loader and service code
+  `/src/common/storage` - data connection and access methods
+* `/test/src` - test code. Subdirectories should mirror the folder structure above, e.g.
+  `/test/src/service` contains service test code
+
 
 ## Development
 
@@ -28,7 +30,7 @@ Currently collections only contain KBase staff curated data.
 
 * The code is versioned according to [Semantic Versioning](https://semver.org/).
 * The version must be updated in
-  * `/common/version.py`
+  * `/src/common/version.py`
   * `/RELEASE_NOTES.md`
   * any test files that test the version
 
