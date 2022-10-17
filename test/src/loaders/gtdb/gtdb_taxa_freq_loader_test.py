@@ -20,7 +20,7 @@ def setup_and_teardown():
     caller_file_dir = os.path.dirname(caller_filename_full)
 
     project_dir = Path(caller_file_dir).resolve().parents[3]
-    script_file = '{}/src/loaders/gtdb/gtdb_taxa_freq_loader.py'.format(project_dir)
+    script_file = f'{project_dir}/src/loaders/gtdb/gtdb_taxa_freq_loader.py'
 
     yield tmp_dir, caller_file_dir, script_file
 
