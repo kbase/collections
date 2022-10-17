@@ -83,7 +83,7 @@ def _convert_to_json(docs, outfile):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Prepare GTDB taxa frequency data in JSON format for arango import.')
+    parser = argparse.ArgumentParser(description='PROTOTYPE - Prepare GTDB taxa frequency data in JSON format for arango import.')
 
     # Required positional argument
     parser.add_argument('load_files', type=argparse.FileType('r'), nargs='+',

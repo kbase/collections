@@ -9,7 +9,7 @@ import jsonlines
 import pytest
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def setup_and_teardown():
     print('starting GTDB taxa frequency test')
     tmp_dir = 'result_{}'.format(str(uuid.uuid4()))
