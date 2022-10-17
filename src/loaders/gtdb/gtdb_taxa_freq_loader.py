@@ -1,21 +1,24 @@
 import argparse
 import hashlib
-import json
 from collections import defaultdict
 
+import jsonlines
+
 """
+PROTOTYPE
+
 Prepare GTDB taxa frequency data in JSON format for arango import.
 
-usage: gtdb_taxa_freq_loader.py [-h]
-                              [--kbase_collection KBASE_COLLECTION]
-                              [-o OUTPUT]
-                              load_files
-                              [load_files ...]
-                              release_version
+usage: gtdb_taxa_freq_loader.py [-h] --release_version
+                                RELEASE_VERSION
+                                [--kbase_collection KBASE_COLLECTION]
+                                [-o OUTPUT]
+                                load_files
+                                [load_files ...]
  
-e.g. gtdb_taxa_freq_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv 207
-     gtdb_taxa_freq_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv 207 --kbase_collection gtdb
-     gtdb_taxa_freq_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv 207 --kbase_collection gtdb --output  gtdb_taxa_frequency.json
+e.g. gtdb_taxa_freq_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --release_version 207
+     gtdb_taxa_freq_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --release_version 207 --kbase_collection gtdb
+     gtdb_taxa_freq_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --release_version 207 --kbase_collection gtdb --output  gtdb_taxa_frequency.json
 """
 
 _ABBRV_SPECIES = "s"
@@ -37,7 +40,7 @@ def _get_lineage(linstr):
     for lin in ln:
         taxa_abbrev, taxa_name = lin.split("__")
         ret.append({"abbrev": taxa_abbrev, "name": taxa_name})
-    if ret[-1]["abbrev"] != "s":
+    if ret[-1]["abbrev"] != _ABBRV_SPECIES:
         raise ValueError(f"Lineage {linstr} does not end with species")
     return ret
 
@@ -74,9 +77,9 @@ def _create_docs(nodes, release_version, kbase_collection):
 
 
 def _convert_to_json(docs, outfile):
-    json_object = json.dumps(docs, indent=4)
-    outfile.write(json_object)
-    outfile.close()
+    writer = jsonlines.Writer(outfile)
+    writer.write_all(docs)
+    writer.close()
 
 
 def main():
@@ -85,7 +88,9 @@ def main():
     # Required positional argument
     parser.add_argument('load_files', type=argparse.FileType('r'), nargs='+',
                         help='GTDB taxonomy files')
-    parser.add_argument('release_version', type=int, nargs=1,
+
+    # Required flag argument
+    parser.add_argument('--release_version', required=True, type=int, nargs=1,
                         help='GTDB release version')  # TODO parse from load_files name
 
     # Optional argument
