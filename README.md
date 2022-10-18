@@ -13,7 +13,7 @@ Currently collections only contain KBase staff curated data.
 * `/src/service` - service code
 * `/src/loaders/[collection ID]` - loader code for collections, e.g. `/loaders/gtdb`
 * `/src/common` - shared loader and service code
-  `/src/common/storage` - data connection and access methods
+* `/src/common/storage` - data connection and access methods
 * `/test/src` - test code. Subdirectories should mirror the folder structure above, e.g.
   `/test/src/service` contains service test code
 
