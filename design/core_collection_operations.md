@@ -1,6 +1,6 @@
 # Design of core collection operations
 
-This document decribes an inital design of the core, general data collections operations - e.g.
+This document describes an inital design of the core, general data collections operations - e.g.
 operations that aren't specific to a particular collection.
 
 ## Assumptions
@@ -124,7 +124,7 @@ For a minimal start, more will be added later (e.g. data comparison methods, con
 
 #### List collections
 
-* For now returns all active collections based on the < 1000 collectoins assumption.
+* For now returns all active collections based on the < 1000 collections assumption.
 
 ```
 GET /collection
