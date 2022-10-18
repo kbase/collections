@@ -28,7 +28,7 @@ def setup_and_teardown():
 
 
 def _exam_result_file(result_file, expected_docs_length, expected_doc_keys,
-                      expected_release_version, expected_collection):
+                      expected_load_version, expected_collection):
     with jsonlines.open(result_file, 'r') as jsonl_f:
         data = [obj for obj in jsonl_f]
 
@@ -39,7 +39,7 @@ def _exam_result_file(result_file, expected_docs_length, expected_doc_keys,
 
     versions = set([d['load_version'] for d in data])
     collections = set([d['collection'] for d in data])
-    assert versions == {expected_release_version}
+    assert versions == {expected_load_version}
     assert collections == {expected_collection}
 
 
@@ -53,10 +53,10 @@ def test_create_json_default(setup_and_teardown):
     tmp_dir, caller_file_dir, script_file = setup_and_teardown
 
     result_file = os.path.join(tmp_dir, 'test.json')
-    release_version = 100
+    load_version = '100-dev'
     command = ['python', script_file,
                os.path.join(caller_file_dir, 'ar53_taxonomy_r207.tsv'),
-               '--release_version', str(release_version),
+               '--load_version', load_version,
                '-o', result_file]
 
     _exe_command(command)
@@ -65,19 +65,19 @@ def test_create_json_default(setup_and_teardown):
     expected_doc_keys = {'_key', 'collection', 'load_version', 'rank', 'name', 'count'}
     expected_collection = 'gtdb'
     _exam_result_file(result_file, expected_docs_length, expected_doc_keys,
-                      release_version, expected_collection)
+                      load_version, expected_collection)
 
 
 def test_create_json_option_input(setup_and_teardown):
     tmp_dir, caller_file_dir, script_file = setup_and_teardown
 
     result_file = os.path.join(tmp_dir, 'test2.json')
-    release_version = 300
+    load_version = '300-beta'
     kbase_collections = 'test_gtdb'
     command = ['python', script_file,
                os.path.join(caller_file_dir, 'ar53_taxonomy_r207.tsv'),
                os.path.join(caller_file_dir, 'ar53_taxonomy_r207.tsv'),
-               '--release_version', str(release_version),
+               '--load_version', load_version,
                '--output', result_file,
                '--kbase_collection', kbase_collections]
 
@@ -86,4 +86,4 @@ def test_create_json_option_input(setup_and_teardown):
     expected_docs_length = 5420
     expected_doc_keys = {'_key', 'collection', 'load_version', 'rank', 'name', 'count'}
     _exam_result_file(result_file, expected_docs_length, expected_doc_keys,
-                      release_version, kbase_collections)
+                      load_version, kbase_collections)
