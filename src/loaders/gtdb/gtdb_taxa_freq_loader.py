@@ -91,8 +91,8 @@ def main():
                         help='GTDB taxonomy files')
 
     # Required flag argument
-    parser.add_argument('--load_version', required=True, type=str, nargs=1,
-                        help='GTDB load version')  # TODO parse from load_files name
+    parser.add_argument(
+        '--load_version', required=True, type=str, nargs=1, help='KBase load version')
 
     # Optional argument
     parser.add_argument('--kbase_collection', type=str, default='gtdb',
