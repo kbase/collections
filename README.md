@@ -17,7 +17,6 @@ Currently collections only contain KBase staff curated data.
 * `/test/src` - test code. Subdirectories should mirror the folder structure above, e.g.
   `/test/src/service` contains service test code
 
-
 ## Development
 
 ### Adding code
@@ -60,4 +59,11 @@ PYTHONPATH=. pytest test
 
 * templating - jinja / envsubst / ?
 * Logging ip properly (X-RealIP, X-Forwarded-For)
+* Error handling and representation in the API
+
+### Prior to declaring this a non-prototype
+
 * Coverage badge in Readme
+* Run through all code, refactor to production quality
+* Add tests where missing (which is a lot)
+  * Async testing help https://tonybaloney.github.io/posts/async-test-patterns-for-pytest-and-unittest.html
