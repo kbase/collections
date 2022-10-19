@@ -6,14 +6,18 @@ import os
 from src.common.git_commit import GIT_COMMIT
 from src.common.version import VERSION
 from datetime import datetime, timezone
-from fastapi import FastAPI, Depends, Request
+from fastapi import FastAPI, Depends, Request, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError, HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.security.http import HTTPBearer, HTTPBasicCredentials
+from http.client import responses
 from pydantic import BaseModel, Field
 
-from src.service.kb_auth import create_auth_client, AdminPermission
+from src.service import kb_auth
+from src.service import errors
 
 
-# TODO ERROR_HANDLING - create a general error structure and convert exceptions to it
 # TODO LOGGING - log all write ops
 
 
@@ -45,12 +49,63 @@ authheader = HTTPBearer()
 
 @app.on_event('startup')
 async def build():
-    app.state.kb_auth = await create_auth_client(CI_AUTH_URL, AUTH2_ADMIN_ROLES)
+    app.state.kb_auth = await kb_auth.create_auth_client(CI_AUTH_URL, AUTH2_ADMIN_ROLES)
+
+
+@app.exception_handler(errors.CollectionError)
+async def handle_app_exception(r: Request, exc: errors.CollectionError):
+    if isinstance(exc, errors.InvalidTokenError):
+        status_code = status.HTTP_401_UNAUTHORIZED
+    elif isinstance(exc, errors.UnauthorizedError):
+        status_code = status.HTTP_403_FORBIDDEN
+    elif isinstance(exc, errors.NoDataException):
+        status_code = status.HTTP_404_NOT_FOUND
+    else:
+        status_code = status.HTTP_400_BAD_REQUEST
+    return format_error(status_code, exc.message, exc.error_type)
+    
+
+@app.exception_handler(RequestValidationError)
+async def handle_fastapi_validation_exception(r: Request, exc: RequestValidationError):
+    return format_error(
+        status.HTTP_400_BAD_REQUEST,
+        error_type=errors.REQUEST_VALIDATION_FAILED,
+        request_validation_detail=exc.detail()
+    )
+
+
+@app.exception_handler(Exception)
+async def handle_general_exception(r: Request, exc: Exception):
+    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+    if len(exc.args) == 1 and type(exc.args[0]) == str:
+        return format_error(status_code, exc.args[0])
+    else:
+        return format_error(status_code)
+        
+
+def format_error(
+        status_code: int,
+        message: str = None,
+        error_type: errors.ErrorType = None,
+        request_validation_detail = None
+        ):
+    # TODO DOCS document error structure
+    content = {"httpcode": status_code, "httpstatus": responses[status_code]}
+    if error_type:
+        content.update({
+            "appcode": error_type.error_code, "apperror": error_type.error_type})
+    if message:
+        content.update({"message": message})
+    if request_validation_detail:
+        content.update({"request_validation_detail": request_validation_detail})
+    return JSONResponse(status_code=status_code, content=jsonable_encoder(content))
 
 
 async def get_user(creds:HTTPBasicCredentials):
-    # TODO ERROR_HANDLING handle invalid token
-    return await app.state.kb_auth.get_user(creds.credentials)
+    try:
+        return await app.state.kb_auth.get_user(creds.credentials)
+    except kb_auth.InvalidTokenError:
+        raise errors.InvalidTokenError()
 
 
 def timestamp():
@@ -82,5 +137,5 @@ async def root():
 @app.get("/whoami", response_model = WhoAmI)
 async def whoami(creds: HTTPBasicCredentials=Depends(authheader)):
     admin, user = await get_user(creds)
-    return {"user": user.id, "is_service_admin": AdminPermission.FULL == admin}
+    return {"user": user.id, "is_service_admin": kb_auth.AdminPermission.FULL == admin}
 
