@@ -5,7 +5,15 @@ A client for the KBase Auth2 server.
 # Mostly copied from https://github.com/kbase/sample_service with a few tweaks.
 # TODO make a KBase auth library?
 
+from cacheout.lru import LRUCache
 from enum import IntEnum
+import logging
+import requests
+import time
+from typing import List, Sequence, Tuple
+
+from src.service.arg_checkers import not_falsy as _not_falsy
+from src.service.user import UserID
 
 
 class AdminPermission(IntEnum):
@@ -15,4 +23,90 @@ class AdminPermission(IntEnum):
     NONE = 1
     # leave some space for potential future levels
     FULL = 10
+
+
+class KBaseAuth:
+    ''' A client for contacting the KBase authentication server. '''
+
+    def __init__(
+            self,
+            auth_url: str,
+            full_admin_roles: List[str] = None,
+            cache_max_size: int=10000,
+            cache_expiration: int=300):
+        '''
+        Create the client.
+        :param auth_url: The root url of the authentication service.
+        :param full_admin_roles: The KBase Auth2 roles that imply the user is an administrator.
+        :param cache_max_size: the maximum size of the token cache.
+        :param cache_expiration: the expiration time for the token cache in
+            seconds.
+        '''
+        self._url = _not_falsy(auth_url, 'auth_url')
+        if not self._url.endswith('/'):
+            self._url += '/'
+        self._me_url = self._url + 'api/V2/me'
+        self._full_roles = set(full_admin_roles) if full_admin_roles else set()
+        self._cache_timer = time.time
+        self._admin_cache = LRUCache(timer=self._cache_timer, maxsize=cache_max_size,
+            ttl=cache_expiration)
+
+        r = requests.get(self._url, headers={'Accept': 'application/json'})
+        self._check_error(r)
+        if r.json().get('servicename') != 'Authentication Service':
+            raise IOError(f'The service at {self._url} does not appear to be the KBase ' +
+                          'Authentication Service')
+
+        # could use the server time to adjust for clock skew, probably not worth the trouble
+
+    def _check_error(self, r):
+        if r.status_code != 200:
+            try:
+                j = r.json()
+            except Exception:
+                err = ('Non-JSON response from KBase auth server, status code: ' +
+                       str(r.status_code))
+                logging.getLogger(__name__).info('%s, response:\n%s', err, r.text)
+                raise IOError(err)
+            # assume that if we get json then at least this is the auth server and we can
+            # rely on the error structure.
+            if j['error'].get('appcode') == 10020:  # Invalid token
+                raise InvalidTokenError('KBase auth server reported token is invalid.')
+            # don't really see any other error codes we need to worry about - maybe disabled?
+            # worry about it later.
+            raise IOError('Error from KBase auth server: ' + j['error']['message'])
+
+    def get_user(self, token: str) -> Tuple[AdminPermission, UserID]:
+        '''
+        Get a username from a token as well as the user's administration status.
+        :param token: The user's token.
+        :returns: A tuple consisting of an enum indicating the user's administration permissions,
+          if any, and the username.
+        '''
+        # TODO CODE should check the token for \n etc.
+        _not_falsy(token, 'token')
+
+        admin_cache = self._admin_cache.get(token, default=False)
+        if admin_cache:
+            return admin_cache 
+        r = requests.get(self._me_url, headers={'Authorization': token})
+        self._check_error(r)
+        j = r.json()
+        v = (self._get_role(j['customroles']), UserID(j['user']))
+        self._admin_cache.set(token, v)
+        return v
+
+    def _get_role(self, roles):
+        r = set(roles)
+        if r & self._full_roles:
+            return AdminPermission.FULL
+        return AdminPermission.NONE
+
+
+class AuthenticationError(Exception):
+    ''' An error thrown from the authentication service. '''
+
+
+class InvalidTokenError(AuthenticationError):
+    ''' An error thrown when a token is invalid. '''
 
