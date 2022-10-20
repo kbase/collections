@@ -25,6 +25,9 @@ class ErrorType(Enum):
     INVALID_TOKEN =          (10020, "Invalid token")  # noqa: E222 @IgnorePep8
     """ The token provided is not valid. """
 
+    INVALID_AUTH_HEADER =    (10030, "Invalid authentication header")  # noqa: E222 @IgnorePep8
+    """ The authentication header  is not valid. """
+
     UNAUTHORIZED =           (20000, "Unauthorized")  # noqa: E222 @IgnorePep8
     """ The user is not authorized to perform the requested action. """
 
@@ -58,7 +61,7 @@ class CollectionError(Exception):
     :ivar message: the message for this error.
     """
 
-    def __init__(self, error_type: ErrorType, message: Optional[str] = None) -> None:
+    def __init__(self, error_type: ErrorType, message: Optional[str] = None):
         '''
         Create a Collection error.
         :param error_type: the error type of this error.
@@ -73,16 +76,38 @@ class CollectionError(Exception):
         self.message: Optional[str] = message
 
 
-# leaving out a no token exception for now, I think FastAPI will deal with that.
-# might need some custom error handling to have a standard error structure
+class AuthenticationError(CollectionError):
+    """
+    Super class for authentication related errors.
+    """
+    def __init__(self, error_type: ErrorType, message: Optional[str] = None):
+        super().__init__(error_type, message)
 
 
-class InvalidTokenError(CollectionError):
+class MissingTokenError(AuthenticationError):
+    """
+    An error thrown when a token is required but absent.
+    """
+
+    def __init__(self, message: str = None):
+        super().__init__(ErrorType.NO_TOKEN, message)
+
+
+class InvalidAuthHeader(AuthenticationError):
+    """
+    An error thrown when an authorization header is invalid.
+    """
+
+    def __init__(self, message: str = None):
+        super().__init__(ErrorType.INVALID_AUTH_HEADER, message)
+
+
+class InvalidTokenError(AuthenticationError):
     """
     An error thrown when a user's token is invalid.
     """
 
-    def __init__(self, message: str = None) -> None:
+    def __init__(self, message: str = None):
         super().__init__(ErrorType.INVALID_TOKEN, message)
 
 
@@ -91,7 +116,7 @@ class UnauthorizedError(CollectionError):
     An error thrown when a user attempts a disallowed action.
     """
 
-    def __init__(self, message: str = None) -> None:
+    def __init__(self, message: str = None):
         super().__init__(ErrorType.UNAUTHORIZED, message)
 
 
@@ -100,7 +125,7 @@ class MissingParameterError(CollectionError):
     An error thrown when a required parameter is missing.
     """
 
-    def __init__(self, message: str = None) -> None:
+    def __init__(self, message: str = None):
         super().__init__(ErrorType.MISSING_PARAMETER, message)
 
 
@@ -109,7 +134,7 @@ class IllegalParameterError(CollectionError):
     An error thrown when a provided parameter is illegal.
     """
 
-    def __init__(self, message: str = None) -> None:
+    def __init__(self, message: str = None):
         super().__init__(ErrorType.ILLEGAL_PARAMETER, message)
 
 
@@ -118,7 +143,7 @@ class NoDataException(CollectionError):
     An error thrown when expected data does not exist.
     """
 
-    def __init__(self, error_type: ErrorType, message: str) -> None:
+    def __init__(self, error_type: ErrorType, message: str):
         super().__init__(error_type, message)
 
 
@@ -127,7 +152,7 @@ class NoSuchCollectionError(NoDataException):
     An error thrown when a collection does not exist.
     """
 
-    def __init__(self, message: str) -> None:
+    def __init__(self, message: str):
         super().__init__(ErrorType.NO_SUCH_COLLECTION, message)
 
 
@@ -136,5 +161,5 @@ class NoSuchCollectionVersionError(NoDataException):
     An error thrown when a collection version does not exist.
     """
 
-    def __init__(self, message: str) -> None:
+    def __init__(self, message: str):
         super().__init__(ErrorType.NO_SUCH_COLLECTION_VERSION, message)

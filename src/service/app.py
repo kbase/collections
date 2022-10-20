@@ -3,19 +3,20 @@ API for the collections service.
 '''
 import os
 
-from src.common.git_commit import GIT_COMMIT
-from src.common.version import VERSION
 from datetime import datetime, timezone
 from fastapi import FastAPI, Depends, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError, HTTPException
 from fastapi.responses import JSONResponse
-from fastapi.security.http import HTTPBearer, HTTPBasicCredentials
+from fastapi.security.http import HTTPBasicCredentials
 from http.client import responses
 from pydantic import BaseModel, Field
 
+from src.common.git_commit import GIT_COMMIT
+from src.common.version import VERSION
 from src.service import kb_auth
 from src.service import errors
+from src.service.http_bearer import HTTPBearer
 
 
 # TODO LOGGING - log all write ops
@@ -54,7 +55,7 @@ async def build():
 
 @app.exception_handler(errors.CollectionError)
 async def handle_app_exception(r: Request, exc: errors.CollectionError):
-    if isinstance(exc, errors.InvalidTokenError):
+    if isinstance(exc, errors.AuthenticationError):
         status_code = status.HTTP_401_UNAUTHORIZED
     elif isinstance(exc, errors.UnauthorizedError):
         status_code = status.HTTP_403_FORBIDDEN
