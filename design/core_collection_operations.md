@@ -61,6 +61,11 @@ For a minimal start, more will be added later (e.g. data comparison methods, con
 * ID (lowercase alpha only string, no punctuation other than underscores, otherwise opaque)
 * Name (opaque string)
 * Version (opaque string)
+* Source version (opaque string)
+  * The source version may be the same from collection version to collection version if the
+    same source data is reloaded to, say, fix bugs or add features.
+  * This implies a particular collection version should not mix data from different source
+    versions.
 * Icon url
   * Could probably use FastAPI's built in static server to serve these for now
 * Creation date
@@ -73,6 +78,9 @@ For a minimal start, more will be added later (e.g. data comparison methods, con
     version
   * Similar to the collections version, it also allows for easy rollbacks, and any version
     semantics are up to the user.
+  * In the future, we could add a schema version if the schema needs to change. For now, no
+    schema version implies a schema version of 1.
+    * An altenative would just be to add a version to the product name, like `taxa_freq2`.
 
 ```
 [
