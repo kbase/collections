@@ -49,11 +49,15 @@ still expected to be arbitrary strings (and don't necessarily need to be exposed
 
 ### Semantic versioning
 
-* The user would provide a semantic version when creating a collection version.
-* The service would have to check that the semantic version is higher than any extant versions.
-  * Race conditions may be difficult to deal with here.
-  * Ideally the service would check that the prior version is identical other than a +1 increment
-    to one, and only one, of the semantic version fields.
+* A semantic version would be applied to a collection version on creation.
+* The user would tell the service whether to increment the major, minor, or patch version (MMPV)
+  when creating the version.
+* In a somewhat similar manner to the integer version, the service would keep a semantic version
+  counter that records the most recent MMPV for each collection.
+  * It's not clear how difficult the update would be, although AQL is very flexible. Would
+    require more investigation if we wish to pursue this option.
+* Similarly to the integer version, missing versions are possible.
+* The Sample Service strategy only works for a monotonic integer, and so could not be applied here.
 * In order for the versions to be ordered meaningfully, the version would have to be split into
   major, minor, and patch fields in the database, and all indexes would need to take that into
   account.
