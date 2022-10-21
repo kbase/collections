@@ -169,7 +169,7 @@ GET /collections/{collection_id}
 * General endpoint structure, exact path and query params will depend on the data product
 
 ```
-GET /collections/{collection_id}/data/{data_product_id}/...
+GET /collections/{collection_id}/data/{data_product}/...
 ```
 * Extendable to allow getting a specific collection version (which specifies the data product
   version) in the future.
