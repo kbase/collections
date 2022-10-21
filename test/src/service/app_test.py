@@ -1,11 +1,11 @@
-# not sure I really like having a global app... but that's how python does it
-from src.service.app import app
+from src.service.app import create_app
 from fastapi.testclient import TestClient
 
 from conftest import assert_close_to_now
 
 
 def test_read_main():
+    app = create_app()
     client = TestClient(app)
     response = client.get("/")
     res = response.json()
