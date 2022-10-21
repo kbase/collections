@@ -143,7 +143,7 @@ GET /collections
 * Requires a token with the `COLLECTIONS_ADMIN` (or something) `auth2` role.
 
 ```
-POST /collections/{collection_id}/versions/{version}
+PUT /collections/{collection_id}/versions/{version}
 
 BODY contains collection contents.
 ```
