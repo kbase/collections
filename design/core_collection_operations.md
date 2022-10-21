@@ -135,7 +135,7 @@ For a minimal start, more will be added later (e.g. data comparison methods, con
 * For now returns all active collections based on the < 1000 collections assumption.
 
 ```
-GET /collection
+GET /collections
 ```
 
 #### Save a collection
@@ -143,7 +143,7 @@ GET /collection
 * Requires a token with the `COLLECTIONS_ADMIN` (or something) `auth2` role.
 
 ```
-POST /collection/{collection_id}/version/{version}
+POST /collections/{collection_id}/versions/{version}
 
 BODY contains collection contents.
 ```
@@ -153,13 +153,13 @@ BODY contains collection contents.
 * Requires a token with the `COLLECTIONS_ADMIN` (or something) `auth2` role.
 
 ```
-PUT /collection/{collection_id}/version/{version}/activate
+PUT /collections/{collection_id}/versions/{version}/activate
 ```
 
 #### Get a collection
 
 ```
-GET /collection/{collection_id}
+GET /collections/{collection_id}
 ```
 
 * Extendable to allow getting a specific version in the future.
@@ -169,7 +169,7 @@ GET /collection/{collection_id}
 * General endpoint structure, exact path and query params will depend on the data product
 
 ```
-GET /collection/{collection_id}/data/{data_product_id}/...
+GET /collections/{collection_id}/data/{data_product_id}/...
 ```
 * Extendable to allow getting a specific collection version (which specifies the data product
   version) in the future.
