@@ -111,7 +111,7 @@ def format_error(
     return JSONResponse(status_code=status_code, content=jsonable_encoder(content))
 
 
-async def get_user(creds:HTTPBasicCredentials):
+async def get_user(app: FastAPI, creds:HTTPBasicCredentials):
     try:
         return await app.state.kb_auth.get_user(creds.credentials)
     except kb_auth.InvalidTokenError:
@@ -146,7 +146,7 @@ async def root():
 
 # TODO make a dependency that just returns the user & admin boolean
 @router.get("/whoami", response_model = WhoAmI)
-async def whoami(creds: HTTPBasicCredentials=Depends(authheader)):
-    admin, user = await get_user(creds)
+async def whoami(r: Request, creds: HTTPBasicCredentials=Depends(authheader)):
+    admin, user = await get_user(r.app, creds)
     return {"user": user.id, "is_service_admin": kb_auth.AdminPermission.FULL == admin}
 
