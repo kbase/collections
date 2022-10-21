@@ -9,16 +9,16 @@ PROTOTYPE
 
 Prepare GTDB taxa frequency data in JSON format for arango import.
 
-usage: gtdb_taxa_freq_loader.py [-h] --release_version
-                                RELEASE_VERSION
+usage: gtdb_taxa_freq_loader.py [-h] --load_version
+                                LOAD_VERSION
                                 [--kbase_collection KBASE_COLLECTION]
                                 [-o OUTPUT]
                                 load_files
                                 [load_files ...]
  
-e.g. gtdb_taxa_freq_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --release_version 207
-     gtdb_taxa_freq_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --release_version 207 --kbase_collection gtdb
-     gtdb_taxa_freq_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --release_version 207 --kbase_collection gtdb --output  gtdb_taxa_frequency.json
+e.g. gtdb_taxa_freq_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_version 207
+     gtdb_taxa_freq_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_version 207 --kbase_collection gtdb
+     gtdb_taxa_freq_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_version 207 --kbase_collection gtdb --output  gtdb_taxa_frequency.json
 """
 
 _ABBRV_SPECIES = "s"
@@ -56,17 +56,17 @@ def _parse_files(load_files):
     return nodes
 
 
-def _create_docs(nodes, release_version, kbase_collection):
+def _create_docs(nodes, load_version, kbase_collection):
     docs = list()
 
     for rank in nodes:
         for name in nodes[rank]:
             doc = {
                 "_key": hashlib.md5(
-                    f"{kbase_collection}_{release_version}_{rank}_{name}".encode('utf-8')
+                    f"{kbase_collection}_{load_version}_{rank}_{name}".encode('utf-8')
                 ).hexdigest(),
                 "collection": kbase_collection,
-                "load_version": release_version,
+                "load_version": load_version,
                 "rank": rank,
                 "name": name,
                 "count": nodes[rank][name]
@@ -83,15 +83,16 @@ def _convert_to_json(docs, outfile):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='PROTOTYPE - Prepare GTDB taxa frequency data in JSON format for arango import.')
+    parser = argparse.ArgumentParser(description='PROTOTYPE - Prepare GTDB taxa frequency data in JSON format for '
+                                                 'arango import.')
 
     # Required positional argument
     parser.add_argument('load_files', type=argparse.FileType('r'), nargs='+',
                         help='GTDB taxonomy files')
 
     # Required flag argument
-    parser.add_argument('--release_version', required=True, type=int, nargs=1,
-                        help='GTDB release version')  # TODO parse from load_files name
+    parser.add_argument(
+        '--load_version', required=True, type=str, nargs=1, help='KBase load version')
 
     # Optional argument
     parser.add_argument('--kbase_collection', type=str, default='gtdb',
@@ -100,11 +101,11 @@ def main():
                         help="output JSON file path (default: gtdb_taxa_frequency.json")
 
     args = parser.parse_args()
-    load_files, release_version, kbase_collection = args.load_files, args.release_version[0], args.kbase_collection
+    load_files, load_version, kbase_collection = args.load_files, args.load_version[0], args.kbase_collection
 
     print('start parsing input files')
     nodes = _parse_files(load_files)
-    docs = _create_docs(nodes, release_version, kbase_collection)
+    docs = _create_docs(nodes, load_version, kbase_collection)
     _convert_to_json(docs, args.output)
 
 
