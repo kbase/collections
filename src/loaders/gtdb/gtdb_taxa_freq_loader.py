@@ -80,11 +80,6 @@ def _create_freq_docs(nodes, kbase_collection, load_version):
 
 def _create_rank_docs(kbase_collection, load_version, identical_ranks):
     rank_candidates = list(_TAXA_TYPES.values())
-    rank_selected = [False] * len(rank_candidates)
-
-    for identical_rank in identical_ranks:
-        idx = rank_candidates.index(identical_rank)
-        rank_selected[idx] = True
 
     rank_doc = [{
         "_key": hashlib.md5(
@@ -92,17 +87,9 @@ def _create_rank_docs(kbase_collection, load_version, identical_ranks):
         ).hexdigest(),
         "collection": kbase_collection,
         "load_version": load_version,
-        "ranks": [rank_candidates[i] for i in range(len(rank_selected)) if rank_selected[i]]}]
+        "ranks": [r for r in rank_candidates if r in identical_ranks]}]
 
     return rank_doc
-
-
-def _create_docs(nodes, load_version, kbase_collection):
-
-    freq_docs, identical_ranks = _create_freq_docs(nodes, kbase_collection, load_version)
-    rank_doc = _create_rank_docs(kbase_collection, load_version, identical_ranks)
-
-    return freq_docs, rank_doc
 
 
 def _convert_to_json(docs, outfile):
@@ -134,7 +121,9 @@ def main():
 
     print('start parsing input files')
     nodes = _parse_files(load_files)
-    freq_docs, rank_doc = _create_docs(nodes, load_version, kbase_collection)
+
+    freq_docs, identical_ranks = _create_freq_docs(nodes, kbase_collection, load_version)
+    rank_doc = _create_rank_docs(kbase_collection, load_version, identical_ranks)
     # Create taxa frequency json file
     freq_json = args.output
     with freq_json as out_freq_json:
