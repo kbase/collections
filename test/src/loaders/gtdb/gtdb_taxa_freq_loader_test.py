@@ -43,7 +43,7 @@ def _exam_freq_result_file(result_file, expected_docs_length, expected_doc_keys,
     assert collections == {expected_collection}
 
 
-def _exam_rank_result_file(result_file, expected_load_version, expected_collection, expected_ranks):
+def _exam_rank_result_file(result_file, expected_load_version, expected_collection, expected_ranks_inorder):
     root_ext = os.path.splitext(result_file)
     rank_result_file = root_ext[0] + '_rank' + root_ext[1]
 
@@ -56,7 +56,8 @@ def _exam_rank_result_file(result_file, expected_load_version, expected_collecti
     assert set(first_doc.keys()) == {'_key', 'collection', 'load_version', 'ranks'}
     assert first_doc['load_version'] == expected_load_version
     assert first_doc['collection'] == expected_collection
-    assert set(first_doc['ranks']) == expected_ranks
+    assert len(first_doc['ranks']) == len(expected_ranks_inorder)
+    assert all([a == b for a, b in zip(first_doc['ranks'], expected_ranks_inorder)])
 
 
 def _exe_command(command):
@@ -82,8 +83,8 @@ def test_create_json_default(setup_and_teardown):
     expected_collection = 'gtdb'
     _exam_freq_result_file(result_file, expected_docs_length, expected_doc_keys,
                            load_version, expected_collection)
-    expected_ranks = {'order', 'domain', 'genus', 'class', 'phylum', 'family', 'species'}
-    _exam_rank_result_file(result_file, load_version, expected_collection, expected_ranks)
+    expected_ranks_inorder = ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'species']
+    _exam_rank_result_file(result_file, load_version, expected_collection, expected_ranks_inorder)
 
 
 def test_create_json_option_input(setup_and_teardown):
@@ -105,5 +106,5 @@ def test_create_json_option_input(setup_and_teardown):
     expected_doc_keys = {'_key', 'collection', 'load_version', 'rank', 'name', 'count'}
     _exam_freq_result_file(result_file, expected_docs_length, expected_doc_keys,
                            load_version, kbase_collections)
-    expected_ranks = {'order', 'domain', 'genus', 'class', 'phylum', 'family', 'species'}
-    _exam_rank_result_file(result_file, load_version, kbase_collections, expected_ranks)
+    expected_ranks_inorder = ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'species']
+    _exam_rank_result_file(result_file, load_version, kbase_collections, expected_ranks_inorder)

@@ -57,9 +57,8 @@ def _parse_files(load_files):
     return nodes
 
 
-def _create_docs(nodes, load_version, kbase_collection):
-    freq_docs, ranks = list(), set()
-
+def _create_freq_docs(nodes, kbase_collection, load_version):
+    freq_docs, identical_ranks = list(), set()
     for rank in nodes:
         for name in nodes[rank]:
             doc = {
@@ -74,7 +73,18 @@ def _create_docs(nodes, load_version, kbase_collection):
             }
             freq_docs.append(doc)
 
-        ranks.add(rank)
+        identical_ranks.add(rank)
+
+    return freq_docs, identical_ranks
+
+
+def _create_rank_docs(kbase_collection, load_version, identical_ranks):
+    rank_candidates = list(_TAXA_TYPES.values())
+    rank_selected = [False] * len(rank_candidates)
+
+    for identical_rank in identical_ranks:
+        idx = rank_candidates.index(identical_rank)
+        rank_selected[idx] = True
 
     rank_doc = [{
         "_key": hashlib.md5(
@@ -82,7 +92,15 @@ def _create_docs(nodes, load_version, kbase_collection):
         ).hexdigest(),
         "collection": kbase_collection,
         "load_version": load_version,
-        "ranks": list(ranks)}]
+        "ranks": [rank_candidates[i] for i in range(len(rank_selected)) if rank_selected[i]]}]
+
+    return rank_doc
+
+
+def _create_docs(nodes, load_version, kbase_collection):
+
+    freq_docs, identical_ranks = _create_freq_docs(nodes, kbase_collection, load_version)
+    rank_doc = _create_rank_docs(kbase_collection, load_version, identical_ranks)
 
     return freq_docs, rank_doc
 
@@ -119,12 +137,13 @@ def main():
     freq_docs, rank_doc = _create_docs(nodes, load_version, kbase_collection)
     # Create taxa frequency json file
     freq_json = args.output
-    _convert_to_json(freq_docs, freq_json)
+    with freq_json as out_freq_json:
+        _convert_to_json(freq_docs, out_freq_json)
 
     # Create identical ranks json file
     root_ext = os.path.splitext(freq_json.name)
-    rank_json = open(root_ext[0] + '_rank' + root_ext[1], 'w')
-    _convert_to_json(rank_doc, rank_json)
+    with open(root_ext[0] + '_rank' + root_ext[1], 'w') as out_rank_json:
+        _convert_to_json(rank_doc, out_rank_json)
 
 
 if __name__ == "__main__":
