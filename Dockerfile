@@ -17,6 +17,5 @@ COPY ./ /kb/collections/
 ARG VCS_REF=no_git_commit_passed_to_build
 RUN echo "GIT_COMMIT=\"$VCS_REF\"" > src/common/git_commit.py
 
-#RUN chmod a+x scripts/entrypoint.sh
 ENTRYPOINT ["scripts/entrypoint.sh"]
 
