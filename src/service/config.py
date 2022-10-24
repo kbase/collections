@@ -26,7 +26,7 @@ class CollectionsServiceConfig:
     auth_full_admin_roles: list[str] - the list of Auth2 custom roles that signify that a user is
         a full admin for the collections service
     
-    service_root_path: str  | None- if the service is behind a reverse proxy that rewrites the
+    service_root_path: str  | None - if the service is behind a reverse proxy that rewrites the
         service path, the path to the service. The path is required in order for the OpenAPI
         documentation to function.
     """
@@ -40,7 +40,7 @@ class CollectionsServiceConfig:
         if not config_file:
             raise ValueError("config_file is required")
         # Since this is service startup and presumably the person starting the server is
-        # savvy enough to figure out toml errors, we just throw the erros as is
+        # savvy enough to figure out toml errors, we just throw the errors as is
         config = tomli.load(config_file)
         # I feel like there ought to be a lib to do this kind of stuff... jsonschema doesn't
         # quite do what I want
