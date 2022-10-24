@@ -56,8 +56,7 @@ def _exam_rank_result_file(result_file, expected_load_version, expected_collecti
     assert set(first_doc.keys()) == {'_key', 'collection', 'load_version', 'ranks'}
     assert first_doc['load_version'] == expected_load_version
     assert first_doc['collection'] == expected_collection
-    assert len(first_doc['ranks']) == len(expected_ranks_inorder)
-    assert all([a == b for a, b in zip(first_doc['ranks'], expected_ranks_inorder)])
+    assert first_doc['ranks'] == expected_ranks_inorder
 
 
 def _exe_command(command):
