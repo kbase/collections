@@ -75,4 +75,6 @@ still expected to be arbitrary strings (and don't necessarily need to be exposed
 * This will mean extra endpoints or parameters to allow for operations to specify a version by
   either the tag or the integer.
 
+## Decision
 
+22/10/24: Use an arbitray tag and an integer version per the RE team.

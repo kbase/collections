@@ -28,6 +28,7 @@ operations that aren't specific to a particular collection.
     semantics are supplied by the user.
     * Note that this means semantic versions will not sort in order - the DB and API would need
       specific schemas / code to do that.
+    * The service also provides a monotonically increasing version.
 * Activate a collection version.
   * Administration only operation.
   * Can activate any version at any time.
@@ -61,6 +62,7 @@ For a minimal start, more will be added later (e.g. data comparison methods, con
 * ID (lowercase alpha only string, no punctuation other than underscores, otherwise opaque)
 * Name (opaque string)
 * Version (opaque string)
+* Version (monotonic integer)
 * Source version (opaque string)
   * The source version may be the same from collection version to collection version if the
     same source data is reloaded to, say, fix bugs or add features.
@@ -121,10 +123,6 @@ For a minimal start, more will be added later (e.g. data comparison methods, con
       the equality part of the index. If you want to filter inactive versions, you need a
       separate index without the activity state in the equality part of the index.
     * Also generally more complex than the proposed schema.
-  * Have the service manage the collection version with a monotonically increasing version, like
-    `workspace_deluxe` or `sample_service`
-    * This approach is much more complex and is not necessary for the use case proposed here. It
-      also has the filtering drawback as mentioned above.
 
 ### Endpoints
 
@@ -143,9 +141,11 @@ GET /collections
 * Requires a token with the `COLLECTIONS_ADMIN` (or something) `auth2` role.
 
 ```
-PUT /collections/{collection_id}/versions/{version}
+PUT /collections/{collection_id}/versions/{version_tag}
 
 BODY contains collection contents.
+
+RETURNS the new collection with the service generated version number.
 ```
 
 #### Activate a collection
@@ -153,7 +153,11 @@ BODY contains collection contents.
 * Requires a token with the `COLLECTIONS_ADMIN` (or something) `auth2` role.
 
 ```
-PUT /collections/{collection_id}/versions/{version}/activate
+PUT /collections/{collection_id}/versions/tag/{version_tag}/activate
+
+OR
+
+PUT /collections/{collection_id}/versions/num/{version_num}/activate
 ```
 
 #### Get a collection
@@ -173,3 +177,7 @@ GET /collections/{collection_id}/data/{data_product}/...
 ```
 * Extendable to allow getting a specific collection version (which specifies the data product
   version) in the future.
+
+## Approval
+
+Approved by the RE team on 22/10/24.
