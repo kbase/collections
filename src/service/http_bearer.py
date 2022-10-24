@@ -1,20 +1,33 @@
 """
-Override of FastAPI's HTTPBearer class to allow for more informative errors
+Alteration of FastAPI's HTTPBearer class to handle the KBase authorization
+step and allow for more informative errors
+
+NOTE: expects the kbase auth client in kb_auth.py to be initialized and available at
+app.state.kb_auth - e.g. in the Request argument in request.app.state.kb_auth.
 """
 
-from fastapi.security.http import HTTPBase, HTTPAuthorizationCredentials
+from fastapi.security.http import HTTPBase
 from fastapi.openapi.models import HTTPBearer as HTTPBearerModel
 from fastapi.security.utils import get_authorization_scheme_param
 from fastapi.requests import Request
 from typing import Optional
 from src.service import errors
+from src.service import kb_auth
+from src.service.user import UserID
+from typing import NamedTuple
 
 # Also, for some reason an exception handler for "Exception" wasn't trapping HTTPException classes
 # Modified from https://github.com/tiangolo/fastapi/blob/e13df8ee79d11ad8e338026d99b1dcdcb2261c9f/fastapi/security/http.py#L100
 
 _SCHEME = "Bearer"
 
-class HTTPBearer(HTTPBase):
+
+class KBaseUser(NamedTuple):
+    user: UserID
+    admin_perm: kb_auth.AdminPermission
+
+
+class KBaseHTTPBearer(HTTPBase):
     def __init__(
         self,
         *,
@@ -25,7 +38,7 @@ class HTTPBearer(HTTPBase):
         self.model = HTTPBearerModel(bearerFormat=bearerFormat, description=description)
         self.scheme_name = scheme_name or self.__class__.__name__
 
-    async def __call__(self, request: Request) -> HTTPAuthorizationCredentials:
+    async def __call__(self, request: Request) -> KBaseUser:
         authorization: str = request.headers.get("Authorization")
         if not authorization:
             raise errors.MissingTokenError("Authorization header required")
@@ -36,4 +49,8 @@ class HTTPBearer(HTTPBase):
         if scheme.lower() != _SCHEME.lower():
             # don't put the received scheme in the error message, might be a token
             raise errors.InvalidAuthHeader(f"Authorization header requires {_SCHEME} scheme")
-        return HTTPAuthorizationCredentials(scheme=scheme, credentials=credentials)
+        try:
+            admin_perm, user = await request.app.state.kb_auth.get_user(credentials)
+        except kb_auth.InvalidTokenError:
+            raise errors.InvalidTokenError()
+        return KBaseUser(user, admin_perm)

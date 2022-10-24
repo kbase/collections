@@ -9,7 +9,6 @@ from fastapi import FastAPI, Depends, Request, status, APIRouter
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError, HTTPException
 from fastapi.responses import JSONResponse
-from fastapi.security.http import HTTPBasicCredentials
 from http.client import responses
 from pydantic import BaseModel, Field
 
@@ -17,7 +16,7 @@ from src.common.git_commit import GIT_COMMIT
 from src.common.version import VERSION
 from src.service import kb_auth
 from src.service import errors
-from src.service.http_bearer import HTTPBearer
+from src.service.http_bearer import KBaseHTTPBearer, KBaseUser
 
 
 # TODO LOGGING - log all write ops
@@ -33,7 +32,7 @@ SERVICE_DESCRIPTION = "A repository of data collections and and associated analy
 
 _FASTAPI_ROOT_PATH = "FASTAPI_ROOT_PATH"
 
-authheader = HTTPBearer()
+authheader = KBaseHTTPBearer()
 
 
 def create_app():
@@ -111,13 +110,6 @@ def format_error(
     return JSONResponse(status_code=status_code, content=jsonable_encoder(content))
 
 
-async def get_user(app: FastAPI, creds:HTTPBasicCredentials):
-    try:
-        return await app.state.kb_auth.get_user(creds.credentials)
-    except kb_auth.InvalidTokenError:
-        raise errors.InvalidTokenError()
-
-
 def timestamp():
     return datetime.now(timezone.utc).isoformat()
 
@@ -144,9 +136,10 @@ async def root():
     }
 
 
-# TODO make a dependency that just returns the user & admin boolean
 @router.get("/whoami", response_model = WhoAmI)
-async def whoami(r: Request, creds: HTTPBasicCredentials=Depends(authheader)):
-    admin, user = await get_user(r.app, creds)
-    return {"user": user.id, "is_service_admin": kb_auth.AdminPermission.FULL == admin}
+async def whoami(user: KBaseUser=Depends(authheader)):
+    return {
+        "user": user.user.id,
+        "is_service_admin": kb_auth.AdminPermission.FULL == user.admin_perm
+    }
 
