@@ -27,8 +27,8 @@ def setup_and_teardown():
     shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
-def _exam_result_file(result_file, expected_docs_length, expected_doc_keys,
-                      expected_load_version, expected_collection):
+def _exam_freq_result_file(result_file, expected_docs_length, expected_doc_keys,
+                           expected_load_version, expected_collection):
     with jsonlines.open(result_file, 'r') as jsonl_f:
         data = [obj for obj in jsonl_f]
 
@@ -41,6 +41,22 @@ def _exam_result_file(result_file, expected_docs_length, expected_doc_keys,
     collections = set([d['collection'] for d in data])
     assert versions == {expected_load_version}
     assert collections == {expected_collection}
+
+
+def _exam_rank_result_file(result_file, expected_load_version, expected_collection, expected_ranks_inorder):
+    root_ext = os.path.splitext(result_file)
+    rank_result_file = root_ext[0] + '_rank' + root_ext[1]
+
+    with jsonlines.open(rank_result_file, 'r') as jsonl_f:
+        data = [obj for obj in jsonl_f]
+
+    assert len(data) == 1
+
+    first_doc = data[0]
+    assert set(first_doc.keys()) == {'_key', 'collection', 'load_version', 'ranks'}
+    assert first_doc['load_version'] == expected_load_version
+    assert first_doc['collection'] == expected_collection
+    assert first_doc['ranks'] == expected_ranks_inorder
 
 
 def _exe_command(command):
@@ -64,8 +80,10 @@ def test_create_json_default(setup_and_teardown):
     expected_docs_length = 5420
     expected_doc_keys = {'_key', 'collection', 'load_version', 'rank', 'name', 'count'}
     expected_collection = 'gtdb'
-    _exam_result_file(result_file, expected_docs_length, expected_doc_keys,
-                      load_version, expected_collection)
+    _exam_freq_result_file(result_file, expected_docs_length, expected_doc_keys,
+                           load_version, expected_collection)
+    expected_ranks_inorder = ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'species']
+    _exam_rank_result_file(result_file, load_version, expected_collection, expected_ranks_inorder)
 
 
 def test_create_json_option_input(setup_and_teardown):
@@ -85,5 +103,7 @@ def test_create_json_option_input(setup_and_teardown):
 
     expected_docs_length = 5420
     expected_doc_keys = {'_key', 'collection', 'load_version', 'rank', 'name', 'count'}
-    _exam_result_file(result_file, expected_docs_length, expected_doc_keys,
-                      load_version, kbase_collections)
+    _exam_freq_result_file(result_file, expected_docs_length, expected_doc_keys,
+                           load_version, kbase_collections)
+    expected_ranks_inorder = ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'species']
+    _exam_rank_result_file(result_file, load_version, kbase_collections, expected_ranks_inorder)
