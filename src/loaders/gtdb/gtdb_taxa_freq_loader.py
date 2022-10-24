@@ -1,5 +1,6 @@
 import argparse
 import hashlib
+import os
 from collections import defaultdict
 
 import jsonlines
@@ -7,7 +8,7 @@ import jsonlines
 """
 PROTOTYPE
 
-Prepare GTDB taxa frequency data in JSON format for arango import.
+Prepare GTDB taxa frequency data and identical ranks in JSON format for arango import.
 
 usage: gtdb_taxa_freq_loader.py [-h] --load_version
                                 LOAD_VERSION
@@ -57,7 +58,7 @@ def _parse_files(load_files):
 
 
 def _create_docs(nodes, load_version, kbase_collection):
-    docs = list()
+    freq_docs, ranks = list(), set()
 
     for rank in nodes:
         for name in nodes[rank]:
@@ -71,9 +72,19 @@ def _create_docs(nodes, load_version, kbase_collection):
                 "name": name,
                 "count": nodes[rank][name]
             }
-            docs.append(doc)
+            freq_docs.append(doc)
 
-    return docs
+        ranks.add(rank)
+
+    rank_doc = [{
+        "_key": hashlib.md5(
+            f"{kbase_collection}_{load_version}".encode('utf-8')
+        ).hexdigest(),
+        "collection": kbase_collection,
+        "load_version": load_version,
+        "ranks": list(ranks)}]
+
+    return freq_docs, rank_doc
 
 
 def _convert_to_json(docs, outfile):
@@ -105,8 +116,15 @@ def main():
 
     print('start parsing input files')
     nodes = _parse_files(load_files)
-    docs = _create_docs(nodes, load_version, kbase_collection)
-    _convert_to_json(docs, args.output)
+    freq_docs, rank_doc = _create_docs(nodes, load_version, kbase_collection)
+    # Create taxa frequency json file
+    freq_json = args.output
+    _convert_to_json(freq_docs, freq_json)
+
+    # Create identical ranks json file
+    root_ext = os.path.splitext(freq_json.name)
+    rank_json = open(root_ext[0] + '_rank' + root_ext[1], 'w')
+    _convert_to_json(rank_doc, rank_json)
 
 
 if __name__ == "__main__":
