@@ -1,0 +1,29 @@
+[Arango]
+    
+# The URL of an arango coordinator
+url = "{{ KBCOLL_ARANGO_URL }}"
+
+# The name of the ArangoDB database that will be updated
+database = "{{ KBCOLL_ARANGO_DB }}"
+
+# The username, if any, of a user with credientials enabling database write. Omit to connect with
+# default credentials.
+username = "{{ KBCOLL_ARANGO_USER or ""}}"
+
+# The password for the user, if any. Required if the username is provided.
+password = "{{ KBCOLL_ARANGO_PWD or "" }}"
+
+[Authentication]
+
+# The URL of a KBase auth2 service
+url = "{{ KBCOLL_KBASE_AUTH2_URL or "https://ci.kbase.us/services/auth" }}"
+
+# KBase auth2 custom roles that signify that a user is an admin for the collections service
+# This is a comma delimited list, e.g. "KBASE_ADMIN, COLLECTION_SERVICE_ADMIN"
+admin_roles_full = "{{ KBCOLL_KBASE_AUTH2_ADMIN_ROLES or ""}}"
+
+[Service]
+
+# If the service is behind a reverse proxy that rewrites the service path, that path needs
+# to be defined here in order for the OpenAPI documentation to function.
+root_path = "{{ KBCOLL_SERVICE_ROOT_PATH or "" }}"
