@@ -3,6 +3,7 @@ API for the collections service.
 '''
 
 import os
+import sys
 
 from datetime import datetime, timezone
 from fastapi import FastAPI, Depends, Request, status, APIRouter
@@ -16,34 +17,33 @@ from src.common.git_commit import GIT_COMMIT
 from src.common.version import VERSION
 from src.service import kb_auth
 from src.service import errors
+from src.service.config import CollectionsServiceConfig
 from src.service.http_bearer import KBaseHTTPBearer, KBaseUser
 
 
 # TODO LOGGING - log all write ops
 
-router = APIRouter()
-
-# TODO CONFIG these should be configured vs hard coded
-AUTH2_ADMIN_ROLES = ["KBASE_ADMIN", "COLLECTIONS_SERVICE_ADMIN"]
-CI_AUTH_URL = "https://ci.kbase.us/services/auth"
+_KB_DEPLOYMENT_CONFIG = "KB_DEPLOYMENT_CONFIG"
 
 SERVICE_NAME = "Collections Prototype"
 SERVICE_DESCRIPTION = "A repository of data collections and and associated analyses"
 
-_FASTAPI_ROOT_PATH = "FASTAPI_ROOT_PATH"
 
-authheader = KBaseHTTPBearer()
+def create_app(noop=False):
+    if noop:
+        # temporary for prototype status. Eventually need full test suite with 
+        # config file, all service dependencies, etc.
+        return
 
-
-def create_app():
-    # TODO CONFIG get config
+    with open(os.environ[_KB_DEPLOYMENT_CONFIG], 'rb') as cfgfile:
+        cfg = CollectionsServiceConfig(cfgfile)
+    cfg.print_config(sys.stdout)
 
     app = FastAPI(
         title = SERVICE_NAME,
         description = SERVICE_DESCRIPTION,
         version = VERSION,
-        # TODO CONFIG move to config file
-        root_path = os.environ.get(_FASTAPI_ROOT_PATH) or "",
+        root_path = cfg.service_root_path or "",
         exception_handlers = {
             errors.CollectionError: handle_app_exception,
             RequestValidationError: handle_fastapi_validation_exception,
@@ -52,14 +52,18 @@ def create_app():
     )
     app.include_router(router)
     async def build_app_wrapper():
-        await build_app(app)
+        await build_app(app, cfg)
 
     app.add_event_handler("startup", build_app_wrapper)
     return app
 
 
-async def build_app(app):
-    app.state.kb_auth = await kb_auth.create_auth_client(CI_AUTH_URL, AUTH2_ADMIN_ROLES)
+async def build_app(app, cfg):
+    app.state.kb_auth = await kb_auth.create_auth_client(cfg.auth_url, cfg.auth_full_admin_roles)
+
+
+router = APIRouter()
+authheader = KBaseHTTPBearer()
 
 
 def handle_app_exception(r: Request, exc: errors.CollectionError):
