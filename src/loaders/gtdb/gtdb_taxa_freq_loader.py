@@ -1,5 +1,6 @@
 import argparse
 import hashlib
+import os
 from collections import defaultdict
 
 import jsonlines
@@ -7,7 +8,7 @@ import jsonlines
 """
 PROTOTYPE
 
-Prepare GTDB taxa frequency data in JSON format for arango import.
+Prepare GTDB taxa frequency data and identical ranks in JSON format for arango import.
 
 usage: gtdb_taxa_freq_loader.py [-h] --load_version
                                 LOAD_VERSION
@@ -56,9 +57,8 @@ def _parse_files(load_files):
     return nodes
 
 
-def _create_docs(nodes, load_version, kbase_collection):
-    docs = list()
-
+def _create_freq_docs(nodes, kbase_collection, load_version):
+    freq_docs, identical_ranks = list(), set()
     for rank in nodes:
         for name in nodes[rank]:
             doc = {
@@ -71,9 +71,25 @@ def _create_docs(nodes, load_version, kbase_collection):
                 "name": name,
                 "count": nodes[rank][name]
             }
-            docs.append(doc)
+            freq_docs.append(doc)
 
-    return docs
+        identical_ranks.add(rank)
+
+    return freq_docs, identical_ranks
+
+
+def _create_rank_docs(kbase_collection, load_version, identical_ranks):
+    rank_candidates = list(_TAXA_TYPES.values())
+
+    rank_doc = [{
+        "_key": hashlib.md5(
+            f"{kbase_collection}_{load_version}".encode('utf-8')
+        ).hexdigest(),
+        "collection": kbase_collection,
+        "load_version": load_version,
+        "ranks": [r for r in rank_candidates if r in identical_ranks]}]
+
+    return rank_doc
 
 
 def _convert_to_json(docs, outfile):
@@ -105,8 +121,18 @@ def main():
 
     print('start parsing input files')
     nodes = _parse_files(load_files)
-    docs = _create_docs(nodes, load_version, kbase_collection)
-    _convert_to_json(docs, args.output)
+
+    freq_docs, identical_ranks = _create_freq_docs(nodes, kbase_collection, load_version)
+    rank_doc = _create_rank_docs(kbase_collection, load_version, identical_ranks)
+    # Create taxa frequency json file
+    freq_json = args.output
+    with freq_json as out_freq_json:
+        _convert_to_json(freq_docs, out_freq_json)
+
+    # Create identical ranks json file
+    root_ext = os.path.splitext(freq_json.name)
+    with open(root_ext[0] + '_rank' + root_ext[1], 'w') as out_rank_json:
+        _convert_to_json(rank_doc, out_rank_json)
 
 
 if __name__ == "__main__":
