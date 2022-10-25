@@ -103,7 +103,11 @@ def format_error(
     # TODO DOCS document error structure, see https://fastapi.tiangolo.com/advanced/additional-responses/
     # Will need to do this for each endpoint unfortunately
     # Also see https://github.com/tiangolo/fastapi/issues/1376
-    content = {"httpcode": status_code, "httpstatus": responses[status_code]}
+    content = {
+        "httpcode": status_code,
+        "httpstatus": responses[status_code],
+        "time": timestamp()
+    }
     if error_type:
         content.update({
             "appcode": error_type.error_code, "apperror": error_type.error_type})
@@ -111,7 +115,7 @@ def format_error(
         content.update({"message": message})
     if request_validation_detail:
         content.update({"request_validation_detail": request_validation_detail})
-    return JSONResponse(status_code=status_code, content=jsonable_encoder(content))
+    return JSONResponse(status_code=status_code, content=jsonable_encoder({"error": content}))
 
 
 def timestamp():
