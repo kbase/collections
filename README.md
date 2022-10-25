@@ -38,6 +38,8 @@ Currently collections only contain KBase staff curated data.
 * Any code committed must at least have a test file that imports it and runs a noop test so that
   the code is shown with no coverage in the coverage statistics. This will make it clear what
   code needs tests when we move beyond the prototype stage.
+* Each module should have its own test file. Eventually these will be expanded into unit tests
+  (or integration tests in the case of app.py)
 * Any code committed must have regular code and user documentation so that future devs
   converting the code to production can understand it.
 * Release notes are not strictly necessary while deploying to CI, but a concrete version (e.g.
