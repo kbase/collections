@@ -1,0 +1,28 @@
+version: '3'
+
+# This docker-compose is for developer convenience, not for running in production.
+
+services:
+
+  # For running the FastAPI server
+  collections_api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:5000:5000"
+    depends_on:
+      - arangodb
+    environment:
+      - KBCOLL_ARANGO_URL=http://arangodb:8529
+      - KBCOLL_ARANGO_DB=collections_test
+      - KBASE_AUTH_URL=https://ci.kbase.us/services/auth
+      - KBCOLL_KBASE_AUTH2_ADMIN_ROLES=COLLECTIONS_SERVICE_ADMIN
+
+  # Arangodb server in cluster mode
+  arangodb:
+    image: arangodb:3.9
+    ports:
+      - "127.0.0.1:8529:8529"
+    environment:
+      - ARANGO_NO_AUTH=1
