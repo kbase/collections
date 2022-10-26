@@ -49,19 +49,21 @@ def not_falsy_in_iterable(
     return iterable
 
 
-def _contains_control_characters(string: str) -> bool:
+def contains_control_characters(string: str, allow_tab_newline=False) -> int:
     '''
     Check if a string contains control characters, as denoted by the Unicode character category
     starting with a C.
     :param string: the string to check.
+    :param allow_tab_newline: True to allow tab (\t) and newline (\n) control characters.
     :returns: True if the string contains control characters, False otherwise.
     '''
     # make public if needed
     # See https://stackoverflow.com/questions/4324790/removing-control-characters-from-a-string-in-python  # noqa: E501
-    for c in string:
+    for i, c in enumerate(string):
         if unicodedata.category(c)[0] == 'C':
-            return True
-    return False
+            if not allow_tab_newline or (c != '\t' and c != '\n'):
+                return i
+    return -1
 
 
 def _no_control_characters(string: str, name: str) -> str:
@@ -74,7 +76,7 @@ def _no_control_characters(string: str, name: str) -> str:
     :returns: the string.
     '''
     # make public if needed
-    if _contains_control_characters(string):
+    if contains_control_characters(string) > -1:
         raise IllegalParameterError(name + ' contains control characters')
     return string
 
