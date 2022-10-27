@@ -34,6 +34,14 @@ _QUERY_GET_NEXT_VERSION = f"""
         RETURN NEW
 """
 
+# Will probably want alternate sorts in the future, will need indexes etc.
+# Cross bridge etc.
+_QUERY_LIST_COLLECTIONS = f"""
+    FOR d in @@{_FLD_COLLECTION}
+        SORT d.{_FLD_KEY} ASC
+        RETURN d
+"""
+
 # TODO SCHEMA may want a schema checker at some point... YAGNI for now. See sample service
 
 # Assume here that we're never going to make an alternate implementation of this interface.
@@ -96,6 +104,10 @@ def _remove_arango_keys(doc: dict):
     return doc
 
 
+def _doc_to_active_coll(doc: dict):
+    return models.ActiveCollection.construct(**_remove_arango_keys(doc))
+
+
 class ArangoStorage:
     """
     An arango wrapper for collections storage.
@@ -148,7 +160,11 @@ class ArangoStorage:
         await col.insert(doc, overwrite=True)
 
     async def get_collections_active(self) -> list[models.ActiveCollection]:
-        pass # TODO COLL implement list colls
+        bind_vars = {
+            f"@{_FLD_COLLECTION}": _COLL_ACTIVE
+        }
+        cur = await self._db.aql.execute(_QUERY_LIST_COLLECTIONS, bind_vars=bind_vars)
+        return [_doc_to_active_coll(d) async for d in cur]
 
     async def get_collection_active(self, collection_id: str) -> models.ActiveCollection:
         """ Get an active collection. """
@@ -157,7 +173,7 @@ class ArangoStorage:
         if doc is None:
             raise errors.NoSuchCollectionError(
                 f"There is no active collection {collection_id}")
-        return models.ActiveCollection.construct(**_remove_arango_keys(doc))
+        return _doc_to_active_coll(doc)
 
     async def get_collection_version_by_tag(self, collection_id: str, ver_tag: str
     ) -> models.SavedCollection:
