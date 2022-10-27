@@ -1,10 +1,10 @@
 import argparse
 import hashlib
 
-import jsonlines
 import pandas as pd
 
 import gtdb_genome_stats_helper as helper
+from gtdb_loader_helper import convert_to_json
 
 """
 PROTOTYPE
@@ -92,12 +92,6 @@ def _df_to_docs(df, kbase_collection, load_version, header_mapper):
     return docs
 
 
-def _convert_to_json(docs, outfile):
-    writer = jsonlines.Writer(outfile)
-    writer.write_all(docs)
-    writer.close()
-
-
 def main():
     if not all([header in EXIST_FEATURES.union(NON_EXIST_FEATURES) for header in HEADER_MAPPER.keys()]):
         raise ValueError('Please make sure HEADER_MAPPER keys are all included in the FEATURES')
@@ -131,7 +125,7 @@ def main():
 
     genome_stats_json = args.output
     with genome_stats_json as out_freq_json:
-        _convert_to_json(docs, out_freq_json)
+        convert_to_json(docs, out_freq_json)
 
 
 if __name__ == "__main__":
