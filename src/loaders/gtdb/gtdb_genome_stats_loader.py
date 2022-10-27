@@ -123,9 +123,8 @@ def main():
             inplace=True)  # drop features added for computation
     docs = _df_to_docs(df, kbase_collection, load_version, HEADER_MAPPER)
 
-    genome_stats_json = args.output
-    with genome_stats_json as out_freq_json:
-        convert_to_json(docs, out_freq_json)
+    with args.output as genome_stats_json:
+        convert_to_json(docs, genome_stats_json)
 
 
 if __name__ == "__main__":
