@@ -11,6 +11,17 @@ PROTOTYPE
 
 Prepare GTDB genome statistics data in JSON format for arango import.
 
+This script will first parse genome features from the GTDB metadata files. Those features should be put into
+EXIST_FEATURES. 
+
+It will then try to compute other(non-existing) features. The name of non-existing features should be put into 
+NON_EXIST_FEATURES. Each non-existing features should have a corresponding function defined in gtdb_genome_stats_helper.
+NOTE: the function name should be exactly the same as the non-existing feature name.
+
+Any features that are used for computing the non-existing features should be added to HELPER_FEATURES. They will be
+eventually dropped from the result dataframe.
+
+
 usage: gtdb_genome_stats_loader.py [-h]
                                    --load_version
                                    LOAD_VERSION
@@ -28,6 +39,7 @@ e.g. gtdb_genome_stats_loader.py bac120_metadata_r207.tsv ar53_metadata_r207.tsv
 EXIST_FEATURES = {'accession', 'checkm_completeness', 'ncbi_contig_n50'
                   }  # genome statistics already existing in the metadata files
 NON_EXIST_FEATURES = {'high_checkm_marker_count'}  # genome statistics to be computed
+HELPER_FEATURES = {'checkm_marker_count'}  # additional features needed to compute statistics
 
 # change header to specific context (default mapper: capitalize first character)
 HEADER_MAPPER = {'accession': 'Genome Name',
@@ -48,8 +60,7 @@ def _compute_stats(df, computations):
 
 def _parse_from_metadata_file(load_files, exist_features, additional_features):
     frames = [pd.read_csv(load_file, sep='\t', header=0, usecols=exist_features.union(additional_features)) for
-              load_file
-              in load_files]
+              load_file in load_files]
     df = pd.concat(frames, ignore_index=True)
 
     return df
@@ -112,10 +123,9 @@ def main():
     load_files, load_version, kbase_collection = args.load_files, args.load_version[0], args.kbase_collection
 
     print('start parsing input files')
-    additional_features = {'checkm_marker_count'}  # additional features needed to compute statistics
-    df = _parse_from_metadata_file(load_files, EXIST_FEATURES, additional_features)
+    df = _parse_from_metadata_file(load_files, EXIST_FEATURES, HELPER_FEATURES)
     df = _compute_stats(df, NON_EXIST_FEATURES)
-    df.drop(columns=additional_features - EXIST_FEATURES - NON_EXIST_FEATURES,
+    df.drop(columns=HELPER_FEATURES - EXIST_FEATURES - NON_EXIST_FEATURES,
             inplace=True)  # drop features added for computation
     docs = _df_to_docs(df, kbase_collection, load_version, HEADER_MAPPER)
 

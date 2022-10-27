@@ -1,7 +1,7 @@
 """
-Methods in this module are designed to compute a genome feature.
+Methods in this script are designed to compute a genome feature.
 
-Methods should return a series containing only the computed genome feature.
+Methods should return a series containing only the computed genome feature. It will then be appended to the result frame.
 """
 
 
