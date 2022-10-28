@@ -1,7 +1,8 @@
 """
 Methods in this script are designed to compute a genome feature.
 
-Methods should return a series containing only the computed genome feature. It will then be appended to the result frame.
+Methods accept a pandas dataframe and should return a pandas series containing only the computed genome feature. It will
+then be appended to the result frame.
 """
 
 

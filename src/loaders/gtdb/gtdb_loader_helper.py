@@ -1,7 +1,7 @@
 import jsonlines
 
 """
-this module contains helper functions used for gtdb loaders (e.g. gtdb_genome_stats_helper, gtdb_taxa_freq_loader, etc.)
+This module contains helper functions used for gtdb loaders (e.g. gtdb_genome_stats_helper, gtdb_taxa_freq_loader, etc.)
 """
 
 
