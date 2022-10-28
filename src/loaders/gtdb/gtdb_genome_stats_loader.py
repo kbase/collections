@@ -47,6 +47,16 @@ HEADER_MAPPER = {'accession': 'Genome Name',
 
 
 def _compute_stats(df, computations):
+    """
+    Applies computation method on dataframe to create new columns storing the result of the computation
+
+    NOTE: All computation method should be defined in gtdb_load_helper module
+          The computation method should return a series which will be then appended to the dataframe
+
+    Args:
+        df:  A data frame object
+        computations: List of computation method. (NOTE: Methods should be defined in the gtdb_load_helper module)
+    """
     for computation in computations:
         try:
             comp_ops = getattr(helper, computation)
@@ -59,6 +69,11 @@ def _compute_stats(df, computations):
 
 
 def _parse_from_metadata_file(load_files, exist_features, additional_features):
+    """
+    Fetches certain columns (combination of exist_features and additional_features) from GTDB metadata file
+    and saves result as a pandas data from
+    """
+
     frames = [pd.read_csv(load_file, sep='\t', header=0, usecols=exist_features.union(additional_features)) for
               load_file in load_files]
     df = pd.concat(frames, ignore_index=True)
@@ -67,12 +82,31 @@ def _parse_from_metadata_file(load_files, exist_features, additional_features):
 
 
 def _rename_col(df, header_mapper):
+    """
+    Formats data frame's column for easier readability
+
+    Creates a default mapper that capitalizes headers (e.g. {'aa_bb_cc': 'Aa Bb Cc'} given 'aa_bb_cc' is one of
+    dataframe's column) and then updates the mapper with user's mapper. After than changes dataframe's header in place.
+
+     Args:
+        df:  A data frame object
+        header_mapper: A user input mapper to map specific col to user desired name
+
+     Returns:
+         None (updates dataframe in place)
+    """
+
+    # default mapper (e.g. {'aa_bb_cc': 'Aa Bb Cc'})
+    # Note: all columns are following 'a_b_c' format in the original GTDB metadata file
     mapper = {col: ' '.join(list(map(lambda x: x.capitalize(), col.split('_')))) for col in df.columns}
     mapper.update(header_mapper)
     df.rename(columns=mapper, errors="raise", inplace=True)
 
 
 def _row_to_doc(row, kbase_collection, load_version):
+    """
+    Transforms row (from a dataframe) into ArangoDB collection document
+    """
     doc = {
         "_key": hashlib.md5(
             f"{kbase_collection}_{load_version}_{row.name}".encode('utf-8')
