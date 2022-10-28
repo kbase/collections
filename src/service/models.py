@@ -16,9 +16,6 @@ from typing import Optional
 from src.service.arg_checkers import contains_control_characters
 
 # TODO TEST all these regexes and constraints will need a good chunk of testing.
-# TODO PERFORMANCE is there a way to turn off constraint checking when coming from the DB?
-# Probably not enough of a hit to worry about
-
 
 _REGEX_NO_WHITESPACE = "^[^\\s]+$"
 
@@ -28,6 +25,13 @@ _REGEX_NO_WHITESPACE = "^[^\\s]+$"
 # ones below). If that's the case, might was well just use the control character checker
 # we already have and which is pretty simple, and which can be easily customized to allow
 # other control characters if needed (not likely).
+
+
+# Model fields for use elsewhere
+# If the model fields change, they must be changed here as well or things might break
+# Is there a better way to do this? Seems absurdly hacky
+FIELD_COLLECTION_ID = "id"
+FIELD_VER_NUM = "ver_num"
 
 
 class DataProduct(BaseModel):
@@ -103,6 +107,8 @@ class Collection(BaseModel):
 
     @validator("name", "desc", pre=True)
     def _strip_and_fail_on_control_characters_with_exceptions(cls, v):
+        if v is None:
+            return None
         v = v.strip()
         pos = contains_control_characters(v, allow_tab_newline=True)
         if pos > -1: 
@@ -124,7 +130,7 @@ class Collection(BaseModel):
 # necessary.
 class SavedCollection(Collection):
     """
-    A collection document returned from the collections service.
+    A collection version returned from the collections service.
     """
     ver_num: int = Field(
         example=5,
@@ -134,16 +140,22 @@ class SavedCollection(Collection):
         example="2022-10-07T17:58:53.188698+00:00",
         description="The date the collection version was created in ISO8061 format"
     )
-    date_active: Optional[str] = Field(
+    user_create: str = Field(
+        example="kbasehelp",
+        description="The user that created the collection version."
+    )
+
+
+class ActiveCollection(SavedCollection):
+    """
+    An active collection version document returned from the collections service.
+    """
+    date_active: str = Field(
         example="2022-10-07T17:58:53.188698+00:00",
         description="The date the collection version was set as the active version in "
             + "ISO8601 format. Absent if not the active version"
     )
-    user_save: str = Field(
-        example="kbasehelp",
-        description="The user that created the collection version."
-    )
-    user_activate: Optional[str] = Field(
+    user_active: str = Field(
         example="kbasehelp",
         description="The user that activated the collection version."
     )
