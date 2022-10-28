@@ -1,4 +1,3 @@
-import inspect
 import os
 import shutil
 import subprocess
@@ -15,8 +14,7 @@ def setup_and_teardown():
     tmp_dir = 'result_{}'.format(str(uuid.uuid4()))
     os.makedirs(tmp_dir, exist_ok=True)
 
-    caller_frame = inspect.stack()[0]
-    caller_filename_full = caller_frame.filename
+    caller_filename_full = Path(__file__).resolve()
     caller_file_dir = os.path.dirname(caller_filename_full)
 
     project_dir = Path(caller_file_dir).resolve().parents[3]
