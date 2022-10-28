@@ -46,6 +46,9 @@ class ErrorType(Enum):
     NO_SUCH_COLLECTION_VERSION = (40010, "No such collection version")  # noqa: E222 @IgnorePep8
     """ The requested collection version does not exist. """
 
+    COLLECTION_VERSION_EXISTS = (5000, "Collection version exists")  # noqa: E222 @IgnorePep8
+    """ The requested collection version already exists. """
+
     UNSUPPORTED_OP =         (100000, "Unsupported operation")  # noqa: E222 @IgnorePep8
     """ The requested operation is not supported. """
 
@@ -163,3 +166,12 @@ class NoSuchCollectionVersionError(NoDataException):
 
     def __init__(self, message: str):
         super().__init__(ErrorType.NO_SUCH_COLLECTION_VERSION, message)
+
+
+class CollectionVersionExistsError(CollectionError):
+    """
+    An error thrown when a collection version already exists.
+    """
+
+    def __init__(self, message: str):
+        super().__init__(ErrorType.COLLECTION_VERSION_EXISTS, message)
