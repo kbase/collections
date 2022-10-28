@@ -153,7 +153,7 @@ class ActiveCollection(SavedCollection):
     date_active: str = Field(
         example="2022-10-07T17:58:53.188698+00:00",
         description="The date the collection version was set as the active version in "
-            + "ISO8601 format. Absent if not the active version"
+            + "ISO8601 format."
     )
     user_active: str = Field(
         example="kbasehelp",
