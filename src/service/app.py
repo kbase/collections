@@ -2,8 +2,10 @@
 API for the collections service.
 '''
 
+import aioarango
 import os
 import sys
+import time
 
 from datetime import datetime, timezone
 from fastapi import FastAPI, Depends, Request, status, APIRouter
@@ -17,8 +19,10 @@ from src.common.git_commit import GIT_COMMIT
 from src.common.version import VERSION
 from src.service import kb_auth
 from src.service import errors
+from src.service import models
 from src.service.config import CollectionsServiceConfig
 from src.service.http_bearer import KBaseHTTPBearer, KBaseUser
+from src.service.storage_arango import create_storage
 
 
 # TODO LOGGING - log all write ops
@@ -60,6 +64,37 @@ def create_app(noop=False):
 
 async def build_app(app, cfg):
     app.state.kb_auth = await kb_auth.create_auth_client(cfg.auth_url, cfg.auth_full_admin_roles)
+    cli = aioarango.ArangoClient(hosts=cfg.arango_url)
+    if cfg.create_db_on_startup:
+        sysdb = await _get_arango_db(cli, "_system", cfg)
+        try:
+            await sysdb.create_database(cfg.arango_db)
+        except aioarango.exceptions.DatabaseCreateError as e:
+            if e.error_code != 1207:  # duplicate name error, ignore, db exists
+                raise
+    db = await _get_arango_db(cli, cfg.arango_db, cfg)
+    app.state.storage = await create_storage(
+        db, create_collections_on_startup=cfg.create_db_on_startup)
+
+
+_BACKOFF = [0, 1, 2, 5, 10, 30]
+
+
+async def _get_arango_db(cli: aioarango.ArangoClient, db: str, cfg: CollectionsServiceConfig):
+    for t in _BACKOFF:
+        if t > 0:
+            print(f"Waiting for {t}s and retrying db connection")
+            time.sleep(t)
+        try:
+            if cfg.arango_user:
+                rdb = await cli.db(
+                    db, verify=True, username=cfg.arango_user, password=cfg.arango_pwd)
+            else:
+                rdb = await cli.db(db, verify=True)
+            return rdb
+        except aioarango.exceptions.ServerConnectionError as e:
+            print(e)
+    raise ValueError(f"Could not connect to Arango at {cfg.arango_url}")
 
 
 router = APIRouter()
@@ -134,7 +169,7 @@ class WhoAmI(BaseModel):
     is_service_admin: bool = Field(example=False)
 
 
-@router.get("/", response_model=Root)
+@router.get("/", response_model=Root, tags=["General"])
 async def root():
     return {
         "service_name": SERVICE_NAME,
@@ -144,10 +179,18 @@ async def root():
     }
 
 
-@router.get("/whoami", response_model = WhoAmI)
+@router.get("/whoami", response_model = WhoAmI, tags=["General"])
 async def whoami(user: KBaseUser=Depends(authheader)):
     return {
         "user": user.user.id,
         "is_service_admin": kb_auth.AdminPermission.FULL == user.admin_perm
     }
+
+
+
+# TODO DOCS the response schema title is gross. How to fix?
+@router.get("/collections", response_model = list[models.ActiveCollection], tags=["Collections"])
+async def collections(r: Request) -> list[models.ActiveCollection]:
+    return await r.app.state.storage.get_collections_active()
+    
 

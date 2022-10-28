@@ -29,6 +29,8 @@ class CollectionsServiceConfig:
     service_root_path: str  | None - if the service is behind a reverse proxy that rewrites the
         service path, the path to the service. The path is required in order for the OpenAPI
         documentation to function.
+    create_db_on_startup: bool - True if the service should create the database on startup.
+        Generally this should be false to allow admins to set up sharding as desired.
     """
 
     def __init__(self, config_file: BinaryIO):
@@ -59,6 +61,8 @@ class CollectionsServiceConfig:
         self.auth_full_admin_roles = _get_list_string(config, _SEC_AUTH, "admin_roles_full")
 
         self.service_root_path = _get_string_optional(config, _SEC_SERVICE, "root_path")
+        self.create_db_on_startup = _get_string_optional(
+            config, _SEC_SERVICE, "create_db_on_startup") == "true"
 
     def print_config(self, output: TextIO):
         """
@@ -78,6 +82,7 @@ class CollectionsServiceConfig:
             f"Authentication URL: {self.auth_url}\n",
             f"Authentication full admin roles: {self.auth_full_admin_roles}\n",
             f"Service root path: {self.service_root_path}\n",
+            f"Create database on start: {self.create_db_on_startup}\n"
             "*** End Service Configuration ***\n\n"
         ])
 

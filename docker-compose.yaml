@@ -18,6 +18,7 @@ services:
       - KBCOLL_ARANGO_DB=collections_test
       - KBASE_AUTH_URL=https://ci.kbase.us/services/auth
       - KBCOLL_KBASE_AUTH2_ADMIN_ROLES=COLLECTIONS_SERVICE_ADMIN
+      - KBCOLL_CREATE_DB_ON_STARTUP=true
 
   # Arangodb server in cluster mode
   arangodb:

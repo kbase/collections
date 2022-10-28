@@ -27,3 +27,8 @@ admin_roles_full = "{{ KBCOLL_KBASE_AUTH2_ADMIN_ROLES or ""}}"
 # If the service is behind a reverse proxy that rewrites the service path, that path needs
 # to be defined here in order for the OpenAPI documentation to function.
 root_path = "{{ KBCOLL_SERVICE_ROOT_PATH or "" }}"
+
+# Set to "true" to have the service create the database and collections on startup. Generally
+# this should be left as "false" since the database admins will want to create collections with
+# their sharding preferences.
+create_db_on_startup = "{{ KBCOLL_CREATE_DB_ON_STARTUP or "false" }}"
