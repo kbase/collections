@@ -17,7 +17,7 @@ from src.service.arg_checkers import contains_control_characters
 
 # TODO TEST all these regexes and constraints will need a good chunk of testing.
 
-_REGEX_NO_WHITESPACE = "^[^\\s]+$"
+REGEX_NO_WHITESPACE = "^[^\\s]+$"
 
 # regarding control character handling - you can check for control characters with the regex
 # \pC escape - BUT Pydantic uses the built in re library which doesn't support it. The
@@ -31,7 +31,10 @@ _REGEX_NO_WHITESPACE = "^[^\\s]+$"
 # If the model fields change, they must be changed here as well or things might break
 # Is there a better way to do this? Seems absurdly hacky
 FIELD_COLLECTION_ID = "id"
+FIELD_VER_TAG = "ver_tag"
 FIELD_VER_NUM = "ver_num"
+FIELD_DATE_CREATE = "date_create"
+FIELD_USER_CREATE = "user_create"
 
 
 class DataProduct(BaseModel):
@@ -62,31 +65,16 @@ class Collection(BaseModel):
     """
     A collection document provided to the collections service to save.
     """
-    id: str = Field(
-        min_length=1,
-        max_length=20,
-        regex=r"^\w+$",
-        example="GTDB",
-        description="The unique ID of the collection."
-    )
     name: str = Field(
         min_length=1,
         max_length=50,
         example="Genome Taxonomy Database",
         description="The name of the collection."
     )
-    ver_tag: str = Field(
-        min_length=1,
-        max_length=50,
-        regex=_REGEX_NO_WHITESPACE,
-        example="r207.kbase.2",
-        description="A user assigned unique but otherwise arbitrary tag for the collection "
-            + "version."
-    )
     ver_src: str = Field(
         min_length=1,
         max_length=50,
-        regex=_REGEX_NO_WHITESPACE,
+        regex=REGEX_NO_WHITESPACE,
         example="r207",
         description="The version of the collection at the collection data source."
     )
@@ -101,10 +89,6 @@ class Collection(BaseModel):
     )
     # TODO FIELDS icon url (and see about serving icons temporarily with the FAPI static server)
 
-    @validator("id", pre=True)
-    def _strip(cls, v):
-        return v.strip()
-
     @validator("name", "desc", pre=True)
     def _strip_and_fail_on_control_characters_with_exceptions(cls, v):
         if v is None:
@@ -115,7 +99,7 @@ class Collection(BaseModel):
             raise ValueError(f"contains a non tab or newline control character at position {pos}")
         return v
 
-    @validator("ver_tag", "ver_src", pre=True)
+    @validator("ver_src", pre=True)
     def _strip_and_fail_on_control_characters(cls, v):
         v = v.strip()
         pos = contains_control_characters(v)
@@ -132,6 +116,15 @@ class SavedCollection(Collection):
     """
     A collection version returned from the collections service.
     """
+    id: str = Field(
+        example="GTDB",
+        description="The unique ID of the collection."
+    )
+    ver_tag: str = Field(
+        example="r207.kbase.2",
+        description="A user assigned unique but otherwise arbitrary tag for the collection "
+            + "version."
+    )
     ver_num: int = Field(
         example=5,
         description="The numeric version of the collection, assigned by the collection service"
