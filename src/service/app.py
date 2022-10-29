@@ -80,6 +80,7 @@ async def _build_app(app, cfg):
     db = await _get_arango_db(cli, cfg.arango_db, cfg)
     app.state.storage = await create_storage(
         db, create_collections_on_startup=cfg.create_db_on_startup)
+    sys.stdout.flush()
 
 
 _BACKOFF = [0, 1, 2, 5, 10, 30]
