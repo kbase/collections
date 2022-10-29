@@ -218,22 +218,21 @@ async def save_collection(
     # https://github.com/tiangolo/fastapi/issues/1376
     r: Request,
     col: models.Collection,
-    collection_id: str = Path(  # The example and description is duplicated in models
+    collection_id: str = Path(
         min_length=1,
         max_length=20,
         regex=r"^\w+$",
-        example="GTDB",
-        description="The unique ID of the collection."
+        example=models.FIELD_COLLECTION_ID_EXAMPLE,
+        description=models.FIELD_COLLECTION_ID_DESCRIPTION
     ),
-    ver_tag: str = Path(  # The example and description is duplicated in models
+    ver_tag: str = Path(
         min_length=1,
         max_length=50,
         # pydantic uses the stdlib re under the hood, which doesn't understand \pC, so
         # we check for control chars manually below
         regex=models.REGEX_NO_WHITESPACE,  
-        example="r207.kbase.2",
-        description="A user assigned unique but otherwise arbitrary tag for the collection "
-            + "version."
+        example=models.FIELD_VER_TAG_EXAMPLE,
+        description=models.FIELD_VER_TAG_DESCRIPTION
     ),
     user: KBaseUser=Depends(_authheader)
 ):

@@ -36,6 +36,13 @@ FIELD_VER_NUM = "ver_num"
 FIELD_DATE_CREATE = "date_create"
 FIELD_USER_CREATE = "user_create"
 
+# Model metadata for use elsewhere
+FIELD_COLLECTION_ID_EXAMPLE = "GTDB"
+FIELD_COLLECTION_ID_DESCRIPTION = "The unique ID of the collection."
+FIELD_VER_TAG_EXAMPLE = "r207.kbase.2"
+FIELD_VER_TAG_DESCRIPTION = ("A user assigned unique but otherwise arbitrary tag for the "
+    + "collection version.")
+
 
 class DataProduct(BaseModel):
     """The ID and version of a data product associated with a collection"""
@@ -117,13 +124,12 @@ class SavedCollection(Collection):
     A collection version returned from the collections service.
     """
     id: str = Field(
-        example="GTDB",
-        description="The unique ID of the collection."
+        example=FIELD_COLLECTION_ID_EXAMPLE,
+        description=FIELD_COLLECTION_ID_DESCRIPTION
     )
     ver_tag: str = Field(
-        example="r207.kbase.2",
-        description="A user assigned unique but otherwise arbitrary tag for the collection "
-            + "version."
+        example=FIELD_VER_TAG_EXAMPLE,
+        description=FIELD_VER_TAG_DESCRIPTION
     )
     ver_num: int = Field(
         example=5,
