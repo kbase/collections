@@ -22,7 +22,7 @@ _FLD_COLLECTION_ID = "collection_id"
 _FLD_COUNTER = "counter"
 
 _ARANGO_SPECIAL_KEYS = [_FLD_KEY, "_id", "_rev"]
-_ARANGO_ERR_NAME_EXISTS = 1207
+ARANGO_ERR_NAME_EXISTS = 1207
 _ARANGO_ERR_UNIQUE_CONSTRAINT = 1210
 
 _QUERY_GET_NEXT_VERSION = f"""
@@ -85,7 +85,7 @@ async def _create_collection(db: StandardDatabase, col_name: str):
     try:
         await db.create_collection(col_name)
     except CollectionCreateError as e:
-        if e.error_code != _ARANGO_ERR_NAME_EXISTS:
+        if e.error_code != ARANGO_ERR_NAME_EXISTS:
             raise  # if collection exists, ignore, otherwise raise
 
 
