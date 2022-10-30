@@ -24,6 +24,7 @@ from src.service import models_errors
 from src.service.arg_checkers import contains_control_characters
 from src.service.config import CollectionsServiceConfig
 from src.service.http_bearer import KBaseHTTPBearer, KBaseUser
+from src.service.storage_arango import ArangoStorage
 
 
 # TODO LOGGING - log all write ops
@@ -150,6 +151,54 @@ def _err_on_control_chars(s: str, name: str):
             f"{name} contains a control character at position {pos}")
 
 
+def _precheck_admin_and_get_storage(
+    r: Request, user: KBaseUser, ver_tag: str, op: str
+) -> ArangoStorage:
+    _ensure_admin(user, f"Only collections service admins can {op}")
+    _err_on_control_chars(ver_tag, "ver_tag")
+    return app_state.get_storage(r)
+
+
+async def _activate_collection_version(
+    user: KBaseUser, store: ArangoStorage, col: models.SavedCollection
+) -> models.ActiveCollection:
+    doc = col.dict()
+    doc.update({
+        models.FIELD_DATE_ACTIVE: _timestamp(),
+        models.FIELD_USER_ACTIVE: user.user.id
+    })
+    ac = models.ActiveCollection.construct(**doc)
+    await store.save_collection_active(ac)
+    return ac
+
+
+_PATH_COLLECTION_ID = Path(
+    min_length=1,
+    max_length=20,
+    regex=r"^\w+$",
+    example=models.FIELD_COLLECTION_ID_EXAMPLE,
+    description=models.FIELD_COLLECTION_ID_DESCRIPTION
+)
+
+
+_PATH_VER_TAG = Path(
+    min_length=1,
+    max_length=50,
+    # pydantic uses the stdlib re under the hood, which doesn't understand \pC, so
+    # routes need to manually check for control characters
+    regex=models.REGEX_NO_WHITESPACE,  
+    example=models.FIELD_VER_TAG_EXAMPLE,
+    description=models.FIELD_VER_TAG_DESCRIPTION
+)
+
+
+_PATH_VER_NUM = Path(
+    ge=1,  # gt doesn't seem to be working correctly as of now
+    example=models.FIELD_VER_NUM_EXAMPLE,
+    description=models.FIELD_VER_NUM_DESCRIPTION
+)
+
+
 class Root(BaseModel):
     service_name: str = Field(example=SERVICE_NAME)
     version: str = Field(example=VERSION)
@@ -162,7 +211,16 @@ class WhoAmI(BaseModel):
     is_service_admin: bool = Field(example=False)
 
 
-@_router.get("/", response_model=Root, tags=["General"])
+class CollectionsList(BaseModel):
+    colls: list[models.ActiveCollection]
+
+
+_TAG_GENERAL = "General"
+_TAG_COLLECTIONS = "Collections"
+_TAG_COLLECTIONS_ADMIN = "Collections, Admin"
+
+
+@_router.get("/", response_model=Root, tags=[_TAG_GENERAL])
 async def root():
     return {
         "service_name": SERVICE_NAME,
@@ -172,7 +230,7 @@ async def root():
     }
 
 
-@_router.get("/whoami", response_model = WhoAmI, tags=["General"])
+@_router.get("/whoami", response_model = WhoAmI, tags=[_TAG_GENERAL])
 async def whoami(user: KBaseUser=Depends(_authheader)):
     return {
         "user": user.user.id,
@@ -180,38 +238,33 @@ async def whoami(user: KBaseUser=Depends(_authheader)):
     }
 
 
+# TODO DOCS the response schema title is gross. How to fix?
+@_router.get(
+    "/collections",
+    name = "List collections",
+    response_model = CollectionsList,
+    tags=[_TAG_COLLECTIONS])
+async def collections(r: Request):
+    cols = await app_state.get_storage(r).get_collections_active()
+    return {"colls": cols}
+
+
 @_router.put(
     "/collections/{collection_id}/versions/{ver_tag}/",
     response_model=models.SavedCollection,
-    tags=["Collections"]
+    tags=[_TAG_COLLECTIONS_ADMIN]
 )
 async def save_collection(
     r: Request,
     col: models.Collection,
-    collection_id: str = Path(
-        min_length=1,
-        max_length=20,
-        regex=r"^\w+$",
-        example=models.FIELD_COLLECTION_ID_EXAMPLE,
-        description=models.FIELD_COLLECTION_ID_DESCRIPTION
-    ),
-    ver_tag: str = Path(
-        min_length=1,
-        max_length=50,
-        # pydantic uses the stdlib re under the hood, which doesn't understand \pC, so
-        # we check for control chars manually below
-        regex=models.REGEX_NO_WHITESPACE,  
-        example=models.FIELD_VER_TAG_EXAMPLE,
-        description=models.FIELD_VER_TAG_DESCRIPTION
-    ),
+    collection_id: str = _PATH_COLLECTION_ID,
+    ver_tag: str = _PATH_VER_TAG,
     user: KBaseUser=Depends(_authheader)
 ):
     # Maybe the method implementations should go into a different module / class...
     # But the method implementation is intertwined with the path validation
-    _ensure_admin(user, "Only collections service admins can save data")
-    _err_on_control_chars(ver_tag, "ver_tag")
+    store = _precheck_admin_and_get_storage(r, user, ver_tag, "save data")
     doc = col.dict()
-    store = app_state.get_storage(r)
     exists = await store.has_collection_version_by_tag(collection_id, ver_tag)
     if exists:
         raise errors.CollectionVersionExistsError(
@@ -237,7 +290,72 @@ async def save_collection(
     return sc
 
 
-# TODO DOCS the response schema title is gross. How to fix?
-@_router.get("/collections", response_model = list[models.ActiveCollection], tags=["Collections"])
-async def collections(r: Request) -> list[models.ActiveCollection]:
-    return await app_state.get_storage(r).get_collections_active()
+@_router.get("/collections/{collection_id}/versions/tag/{ver_tag}/",
+    response_model=models.SavedCollection,
+    tags=[_TAG_COLLECTIONS_ADMIN]
+)
+async def get_collection_by_ver_tag(
+    r: Request,
+    collection_id: str = _PATH_COLLECTION_ID,
+    ver_tag: str = _PATH_VER_TAG,
+    user: KBaseUser=Depends(_authheader)
+) -> models.SavedCollection:
+    store = _precheck_admin_and_get_storage(r, user, ver_tag, "view collection versions")
+    return await store.get_collection_version_by_tag(collection_id, ver_tag)
+
+
+@_router.put("/collections/{collection_id}/versions/tag/{ver_tag}/activate/",
+    response_model=models.ActiveCollection,
+    tags=[_TAG_COLLECTIONS_ADMIN]
+)
+async def activate_collection_by_ver_tag(
+    r: Request,
+    collection_id: str = _PATH_COLLECTION_ID,
+    ver_tag: str = _PATH_VER_TAG,
+    user: KBaseUser=Depends(_authheader)
+) -> models.ActiveCollection:
+    store = _precheck_admin_and_get_storage(r, user, ver_tag, "activate a collection version")
+    col = await store.get_collection_version_by_tag(collection_id, ver_tag)
+    return await _activate_collection_version(user, store, col)
+
+
+@_router.get("/collections/{collection_id}/versions/num/{ver_num}/",
+    response_model=models.SavedCollection,
+    tags=[_TAG_COLLECTIONS_ADMIN]
+)
+async def get_collection_by_ver_num(
+    r: Request,
+    collection_id: str = _PATH_COLLECTION_ID,
+    ver_num: int = _PATH_VER_NUM,
+    user: KBaseUser=Depends(_authheader)
+) -> models.SavedCollection:
+    store = _precheck_admin_and_get_storage(r, user, "", "view collection versions")
+    return await store.get_collection_version_by_num(collection_id, ver_num)
+
+
+@_router.put("/collections/{collection_id}/versions/num/{ver_num}/activate/",
+    response_model=models.ActiveCollection,
+    tags=[_TAG_COLLECTIONS_ADMIN]
+)
+async def activate_collection_by_ver_num(
+    r: Request,
+    collection_id: str = _PATH_COLLECTION_ID,
+    ver_num: int = _PATH_VER_NUM,
+    user: KBaseUser=Depends(_authheader)
+) -> models.ActiveCollection:
+    store = _precheck_admin_and_get_storage(r, user, "", "activate a collection version")
+    col = await store.get_collection_version_by_num(collection_id, ver_num)
+    return await _activate_collection_version(user, store, col)
+
+
+# TODO DOCS note firmly that collection versions shouldn't mix data from different
+# versions of the source data
+# TODO REFACTOR auth handling. Calling check_admin anyway, might was well do it all there
+# rather than with an overly complex Depends... but that's needed for OpenAPI to know about
+# the header. hmm. Also may need to be optional for some cases, now it's all or nothing
+# https://stackoverflow.com/questions/70926257/how-to-pass-authorization-header-from-swagger-doc-in-python-fast-api
+# TODO REFACTOR move routes into separate modules, routes and routes_common for things
+# that data products may need
+# TODO API get active collection
+# TODO API get max version / versions of collection, needs paging
+# TODO STRUCTURE figure out how to structure data product code, ideally shoudln't touch main code
