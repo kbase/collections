@@ -175,6 +175,11 @@ class ArangoStorage:
                 f"There is no active collection {collection_id}")
         return _doc_to_active_coll(doc)
 
+    async def has_collection_version_by_tag(self, collection_id: str, ver_tag: str) -> bool:
+        """ Check if a collection version exists. """
+        col = self._db.collection(_COLL_VERSIONS)
+        return await col.has(_version_key(collection_id, ver_tag))
+
     async def get_collection_version_by_tag(self, collection_id: str, ver_tag: str
     ) -> models.SavedCollection:
         """ Get a collection version by its version tag. """

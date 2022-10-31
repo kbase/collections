@@ -69,5 +69,5 @@ PYTHONPATH=. pytest test
 
 * Coverage badge in Readme
 * Run through all code, refactor to production quality
-* Add tests where missing (which is a lot)
+* Add tests where missing (which is a lot) and inspect current tests for completeness
   * Async testing help https://tonybaloney.github.io/posts/async-test-patterns-for-pytest-and-unittest.html
