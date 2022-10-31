@@ -2,8 +2,6 @@
 API for the collections service.
 '''
 
-import aioarango
-import asyncio
 import os
 import sys
 
@@ -18,6 +16,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from src.common.git_commit import GIT_COMMIT
 from src.common.version import VERSION
+from src.service import app_state
 from src.service import kb_auth
 from src.service import errors
 from src.service import models
@@ -25,7 +24,6 @@ from src.service import models_errors
 from src.service.arg_checkers import contains_control_characters
 from src.service.config import CollectionsServiceConfig
 from src.service.http_bearer import KBaseHTTPBearer, KBaseUser
-from src.service.storage_arango import create_storage, ARANGO_ERR_NAME_EXISTS, ArangoStorage
 
 
 # TODO LOGGING - log all write ops
@@ -70,73 +68,13 @@ def create_app(noop=False):
     app.include_router(_router)
 
     async def build_app_wrapper():
-        await _build_app(app, cfg)
+        await app_state.build_app(app, cfg)
     app.add_event_handler("startup", build_app_wrapper)
 
     async def clean_app_wrapper():
-        await _clean_app(app)
+        await app_state.clean_app(app)
     app.add_event_handler("shutdown", clean_app_wrapper)
     return app
-
-
-async def _build_app(app, cfg):
-    app.state.kb_auth = await kb_auth.create_auth_client(cfg.auth_url, cfg.auth_full_admin_roles)
-    cli, storage = await _build_storage(cfg)
-    app.state.arango_cli = cli
-    app.state.storage = storage
-
-
-async def _clean_app(app):
-    if app.state.arango_cli:
-        await app.state.arango_cli.close()
-
-
-async def _build_storage(cfg):
-    if cfg.dont_connect_to_external_services:
-        return False, False
-    cli = aioarango.ArangoClient(hosts=cfg.arango_url)
-    try:
-        if cfg.create_db_on_startup:
-            sysdb = await _get_arango_db(cli, "_system", cfg)
-            try:
-                await sysdb.create_database(cfg.arango_db)
-            except aioarango.exceptions.DatabaseCreateError as e:
-                if e.error_code != ARANGO_ERR_NAME_EXISTS:  # ignore, db exists
-                    raise
-        db = await _get_arango_db(cli, cfg.arango_db, cfg)
-        storage = await create_storage(db, create_collections_on_startup=cfg.create_db_on_startup)
-        return cli, storage
-    except:
-        await cli.close()
-        raise
-
-
-async def _get_arango_db(cli: aioarango.ArangoClient, db: str, cfg: CollectionsServiceConfig):
-    err = None
-    for t in [1, 2, 5, 10, 30]:
-        try:
-            if cfg.arango_user:
-                rdb = await cli.db(
-                    db, verify=True, username=cfg.arango_user, password=cfg.arango_pwd)
-            else:
-                rdb = await cli.db(db, verify=True)
-            return rdb
-        except aioarango.exceptions.ServerConnectionError as e:
-            err = e
-            print(  f"Failed to connect to Arango database at {cfg.arango_url}\n"
-                  + f"    Error: {err}\n"
-                  + f"    Waiting for {t}s and retrying db connection"
-            )
-            sys.stdout.flush()
-            # TODO CODE both time.sleep() and this block SIGINT. How to fix?
-            await asyncio.sleep(t)
-    raise ValueError(f"Could not connect to Arango at {cfg.arango_url}") from err
-
-
-def _get_storage(r: Request) -> ArangoStorage:
-    if not r.app.state.storage:
-        raise ValueError("Service is running in databaseless mode")
-    return r.app.state.storage
 
 
 _router = APIRouter()
@@ -273,7 +211,7 @@ async def save_collection(
     _ensure_admin(user, "Only collections service admins can save data")
     _err_on_control_chars(ver_tag, "ver_tag")
     doc = col.dict()
-    store = _get_storage(r)
+    store = app_state.get_storage(r)
     exists = await store.has_collection_version_by_tag(collection_id, ver_tag)
     if exists:
         raise errors.CollectionVersionExistsError(
@@ -302,4 +240,4 @@ async def save_collection(
 # TODO DOCS the response schema title is gross. How to fix?
 @_router.get("/collections", response_model = list[models.ActiveCollection], tags=["Collections"])
 async def collections(r: Request) -> list[models.ActiveCollection]:
-    return await _get_storage(r).get_collections_active()
+    return await app_state.get_storage(r).get_collections_active()

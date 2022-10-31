@@ -1,20 +1,17 @@
 """
 Alteration of FastAPI's HTTPBearer class to handle the KBase authorization
 step and allow for more informative errors
-
-NOTE: expects the kbase auth client in kb_auth.py to be initialized and available at
-app.state.kb_auth - e.g. in the Request argument in request.app.state.kb_auth.
 """
 
 from fastapi.security.http import HTTPBase
 from fastapi.openapi.models import HTTPBearer as HTTPBearerModel
 from fastapi.security.utils import get_authorization_scheme_param
 from fastapi.requests import Request
-from typing import Optional
+from src.service import app_state
 from src.service import errors
 from src.service import kb_auth
 from src.service.user import UserID
-from typing import NamedTuple
+from typing import Optional, NamedTuple
 
 # Also, for some reason an exception handler for "Exception" wasn't trapping HTTPException classes
 # Modified from https://github.com/tiangolo/fastapi/blob/e13df8ee79d11ad8e338026d99b1dcdcb2261c9f/fastapi/security/http.py#L100
@@ -50,7 +47,7 @@ class KBaseHTTPBearer(HTTPBase):
             # don't put the received scheme in the error message, might be a token
             raise errors.InvalidAuthHeader(f"Authorization header requires {_SCHEME} scheme")
         try:
-            admin_perm, user = await request.app.state.kb_auth.get_user(credentials)
+            admin_perm, user = await app_state.get_kbase_auth(request).get_user(credentials)
         except kb_auth.InvalidTokenError:
             raise errors.InvalidTokenError()
         return KBaseUser(user, admin_perm)
