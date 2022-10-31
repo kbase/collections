@@ -3,7 +3,7 @@ Pydantic models for service error structures.
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional, Union
+from typing import Optional
 from src.service.errors import ErrorType
 
 
@@ -23,7 +23,7 @@ class RequestValidationDetail(BaseModel):
     # Structure from https://github.com/tiangolo/fastapi/blob/f67b19f0f73ebdca01775b8c7e531e51b9cecfae/fastapi/openapi/utils.py#L34-L59
     # Note I have witnessed other fields in the response as well, which apparently aren't
     # included in the spec
-    loc: list[Union[str, int]] = Field(
+    loc: list[str | int] = Field(
         example=["body", "data_products", 2, "version"],
         description="The location where the validation error occured"
     )

@@ -20,6 +20,8 @@ _FLD_KEY = "_key"
 _FLD_COLLECTION = "collection"
 _FLD_COLLECTION_ID = "collection_id"
 _FLD_COUNTER = "counter"
+_FLD_VER_NUM = "ver_num"
+_FLD_LIMIT = "limit"
 
 _ARANGO_SPECIAL_KEYS = [_FLD_KEY, "_id", "_rev"]
 ARANGO_ERR_NAME_EXISTS = 1207
@@ -83,6 +85,10 @@ def _doc_to_active_coll(doc: dict):
     return models.ActiveCollection.construct(**_remove_arango_keys(doc))
 
 
+def _doc_to_saved_coll(doc: dict):
+    return models.SavedCollection.construct(**_remove_arango_keys(doc))
+
+
 class ArangoStorage:
     """
     An arango wrapper for collections storage.
@@ -128,6 +134,14 @@ class ArangoStorage:
         cur = await self._db.aql.execute(_QUERY_GET_NEXT_VERSION, bind_vars=bind_vars)
         verdoc = await cur.next()
         return verdoc[_FLD_COUNTER]
+
+    async def get_current_version(self, collection_id: str) -> int:
+        """ Get the current version counter value for a collection. """
+        col = self._db.collection(_COLL_COUNTERS)
+        countdoc = await col.get(collection_id)
+        if not countdoc:
+            raise errors.NoSuchCollectionError(f"There is no collection {collection_id}")
+        return countdoc[_FLD_COUNTER]
 
     async def save_collection_version(self, collection: models.SavedCollection) -> None:
         """
@@ -192,7 +206,7 @@ class ArangoStorage:
         # if we really want to be careful here we could check that the id and tag match
         # the returned doc, since theoretically it might be possible to construct an id and tag
         # that collide with the md5 of another id and tag. YAGNI for now.
-        return models.SavedCollection.construct(**_remove_arango_keys(doc))
+        return _doc_to_saved_coll(doc)
 
     async def get_collection_version_by_num(self, collection_id: str, ver_num: int
     ) -> models.SavedCollection:
@@ -210,4 +224,43 @@ class ArangoStorage:
             raise errors.NoSuchCollectionVersionError(
                 f"No collection {collection_id} with version number {ver_num}")
         doc = await cur.next()
-        return models.SavedCollection.construct(**_remove_arango_keys(doc))
+        return _doc_to_saved_coll(doc)
+    
+    async def get_collection_versions(
+        self, collection_id: str, max_ver: int = None, limit: int = 1000
+    ) -> list[models.SavedCollection]:
+        """
+        List versions of a collection, sorted from highest to lowest.
+
+        collection_id - the ID of the collection.
+        max_ver - the maximum version to return. This can be used to page through the results.
+        limit - the maximum number of versions to return. Default and maximum value is 1000.
+        """
+        if not limit or limit < 1:
+            limit = 1000
+        if limit > 1000:
+            raise errors.IllegalParameterError("Limit must be <= 1000")
+        if not max_ver or max_ver < 1:
+            max_ver = None
+        bind_vars = {
+            f"@{_FLD_COLLECTION}": _COLL_VERSIONS,
+            _FLD_COLLECTION_ID: collection_id,
+            _FLD_LIMIT: limit
+        }
+        aql = f"""
+                FOR d IN @@{_FLD_COLLECTION}
+                    FILTER d.{models.FIELD_COLLECTION_ID} == @{_FLD_COLLECTION_ID}
+              """
+        if max_ver:
+            bind_vars[_FLD_VER_NUM] = max_ver
+            aql += f"""
+                    FILTER d.{models.FIELD_VER_NUM} <= @{_FLD_VER_NUM}
+                    """
+        aql += f"""
+                    SORT d.{models.FIELD_VER_NUM} DESC
+                    LIMIT @{_FLD_LIMIT}
+                    RETURN d
+                """
+        cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
+        return [_doc_to_saved_coll(d) async for d in cur]
+
