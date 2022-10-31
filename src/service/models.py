@@ -150,11 +150,11 @@ class ActiveCollection(SavedCollection):
     An active collection version document returned from the collections service.
     """
     date_active: str = Field(
-        example="2022-10-07T17:58:53.188698+00:00",
+        example="2022-10-07T17:59:53.188698+00:00",
         description="The date the collection version was set as the active version in "
             + "ISO8601 format."
     )
     user_active: str = Field(
-        example="kbasehelp",
+        example="otherkbasehelp",
         description="The user that activated the collection version."
     )

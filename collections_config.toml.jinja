@@ -32,3 +32,13 @@ root_path = "{{ KBCOLL_SERVICE_ROOT_PATH or "" }}"
 # this should be left as "false" since the database admins will want to create collections with
 # their sharding preferences.
 create_db_on_startup = "{{ KBCOLL_CREATE_DB_ON_STARTUP or "false" }}"
+
+# Set to "true" to not connect to the any external services except for authorization,
+# including the database. This will cause all calls to the service that require external
+# service access to fail but is useful for quickly checking OpenAPI documentation
+# or general methods that don't access external services.
+# The service can be run via:
+# docker run --env-file <your .env file> --publish 5000:5000 <image hash>
+# Example:
+# docker run --env-file collections.env --publish 5000:5000 3b6523ebf6b8
+dont_connect_to_external_services = "{{ KBCOLL_DONT_CONNECT_TO_EXT_SERVICES or "false" }}"
