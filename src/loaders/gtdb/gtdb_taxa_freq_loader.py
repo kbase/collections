@@ -3,7 +3,7 @@ import hashlib
 import os
 from collections import defaultdict
 
-import jsonlines
+from gtdb_loader_helper import convert_to_json
 
 """
 PROTOTYPE
@@ -92,12 +92,6 @@ def _create_rank_docs(kbase_collection, load_version, identical_ranks):
     return rank_doc
 
 
-def _convert_to_json(docs, outfile):
-    writer = jsonlines.Writer(outfile)
-    writer.write_all(docs)
-    writer.close()
-
-
 def main():
     parser = argparse.ArgumentParser(description='PROTOTYPE - Prepare GTDB taxa frequency data in JSON format for '
                                                  'arango import.')
@@ -127,12 +121,12 @@ def main():
     # Create taxa frequency json file
     freq_json = args.output
     with freq_json as out_freq_json:
-        _convert_to_json(freq_docs, out_freq_json)
+        convert_to_json(freq_docs, out_freq_json)
 
     # Create identical ranks json file
     root_ext = os.path.splitext(freq_json.name)
     with open(root_ext[0] + '_rank' + root_ext[1], 'w') as out_rank_json:
-        _convert_to_json(rank_doc, out_rank_json)
+        convert_to_json(rank_doc, out_rank_json)
 
 
 if __name__ == "__main__":
