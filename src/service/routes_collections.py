@@ -2,7 +2,7 @@
 Routes for general collections endpoints, as opposed to endpoint for a particular data product.
 """
 
-from fastapi import APIRouter, Request, Depends, Path
+from fastapi import APIRouter, Request, Depends, Path, Query
 from pydantic import BaseModel, Field
 from src.common.git_commit import GIT_COMMIT
 from src.common.version import VERSION
@@ -80,6 +80,14 @@ _PATH_VER_NUM = Path(
     description=models.FIELD_VER_NUM_DESCRIPTION
 )
 
+_QUERY_MAX_VER = Query(
+    default=None,
+    ge=1,  # gt doesn't seem to be working correctly as of now
+    example=57,
+    description="The maximum collection version to return. This can be used to page through "
+        + "the versions"
+)
+
 
 class Root(BaseModel):
     service_name: str = Field(example=SERVICE_NAME)
@@ -95,6 +103,15 @@ class WhoAmI(BaseModel):
 
 class CollectionsList(BaseModel):
     colls: list[models.ActiveCollection]
+
+
+class CollectionVersions(BaseModel):
+    counter: int = Field(
+        example=42,
+        description="The value of the version counter for the collection, indicating the "
+             + "maximum version that could possibly exist"
+    )
+    vers: list[models.SavedCollection]
 
 
 _TAG_GENERAL = "General"
@@ -241,3 +258,22 @@ async def activate_collection_by_ver_num(
     store = _precheck_admin_and_get_storage(r, user, "", "activate a collection version")
     col = await store.get_collection_version_by_num(collection_id, ver_num)
     return await _activate_collection_version(user, store, col)
+
+
+@ROUTER.get(
+    "/collections/{collection_id}/versions",
+    response_model=CollectionVersions,
+    tags=[_TAG_COLLECTIONS_ADMIN],
+    description="Get the list of versions for a collection, sorted in descending order "
+        + "of the version number. Returns at most 1000 versions."
+)
+async def get_collection_versions(
+    r: Request,
+    collection_id: str = _PATH_COLLECTION_ID,
+    max_ver: int | None = _QUERY_MAX_VER,
+    user: KBaseUser=Depends(_authheader),
+) -> CollectionVersions:
+    store = _precheck_admin_and_get_storage(r, user, "", "view collection versions")
+    versions = await store.get_collection_versions(collection_id, max_ver=max_ver)
+    counter = await store.get_current_version(collection_id)
+    return CollectionVersions(counter=counter, vers=versions)

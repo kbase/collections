@@ -138,7 +138,6 @@ def _format_error(
 # https://stackoverflow.com/questions/70926257/how-to-pass-authorization-header-from-swagger-doc-in-python-fast-api
 # TODO REFACTOR move routes into separate modules, routes and routes_common for things
 # that data products may need
-# TODO API get max version / versions of collection, needs paging
 # TODO STRUCTURE figure out how to structure data product code, ideally shoudln't touch main code
 # TODO DATAPROD make common file of collection names and fields, since the loader and service
 # will need to coordinate there. Use common prefix for all collection names
