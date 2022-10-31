@@ -217,7 +217,7 @@ class CollectionsList(BaseModel):
 
 _TAG_GENERAL = "General"
 _TAG_COLLECTIONS = "Collections"
-_TAG_COLLECTIONS_ADMIN = "Collections, Admin"
+_TAG_COLLECTIONS_ADMIN = "Collection Administration"
 
 
 @_router.get("/", response_model=Root, tags=[_TAG_GENERAL])
@@ -249,6 +249,15 @@ async def collections(r: Request):
     return {"colls": cols}
 
 
+@_router.get(
+    "/collections/{collection_id}/",
+    response_model=models.ActiveCollection,
+    tags=[_TAG_COLLECTIONS])
+async def get_collection(r: Request, collection_id: str = _PATH_COLLECTION_ID
+) -> models.ActiveCollection:
+    return await app_state.get_storage(r).get_collection_active(collection_id)
+
+
 @_router.put(
     "/collections/{collection_id}/versions/{ver_tag}/",
     response_model=models.SavedCollection,
@@ -260,7 +269,7 @@ async def save_collection(
     collection_id: str = _PATH_COLLECTION_ID,
     ver_tag: str = _PATH_VER_TAG,
     user: KBaseUser=Depends(_authheader)
-):
+) -> models.SavedCollection:
     # Maybe the method implementations should go into a different module / class...
     # But the method implementation is intertwined with the path validation
     store = _precheck_admin_and_get_storage(r, user, ver_tag, "save data")
@@ -290,7 +299,8 @@ async def save_collection(
     return sc
 
 
-@_router.get("/collections/{collection_id}/versions/tag/{ver_tag}/",
+@_router.get(
+    "/collections/{collection_id}/versions/tag/{ver_tag}/",
     response_model=models.SavedCollection,
     tags=[_TAG_COLLECTIONS_ADMIN]
 )
@@ -304,7 +314,8 @@ async def get_collection_by_ver_tag(
     return await store.get_collection_version_by_tag(collection_id, ver_tag)
 
 
-@_router.put("/collections/{collection_id}/versions/tag/{ver_tag}/activate/",
+@_router.put(
+    "/collections/{collection_id}/versions/tag/{ver_tag}/activate/",
     response_model=models.ActiveCollection,
     tags=[_TAG_COLLECTIONS_ADMIN]
 )
@@ -319,7 +330,8 @@ async def activate_collection_by_ver_tag(
     return await _activate_collection_version(user, store, col)
 
 
-@_router.get("/collections/{collection_id}/versions/num/{ver_num}/",
+@_router.get(
+    "/collections/{collection_id}/versions/num/{ver_num}/",
     response_model=models.SavedCollection,
     tags=[_TAG_COLLECTIONS_ADMIN]
 )
@@ -333,7 +345,8 @@ async def get_collection_by_ver_num(
     return await store.get_collection_version_by_num(collection_id, ver_num)
 
 
-@_router.put("/collections/{collection_id}/versions/num/{ver_num}/activate/",
+@_router.put(
+    "/collections/{collection_id}/versions/num/{ver_num}/activate/",
     response_model=models.ActiveCollection,
     tags=[_TAG_COLLECTIONS_ADMIN]
 )
@@ -356,6 +369,5 @@ async def activate_collection_by_ver_num(
 # https://stackoverflow.com/questions/70926257/how-to-pass-authorization-header-from-swagger-doc-in-python-fast-api
 # TODO REFACTOR move routes into separate modules, routes and routes_common for things
 # that data products may need
-# TODO API get active collection
 # TODO API get max version / versions of collection, needs paging
 # TODO STRUCTURE figure out how to structure data product code, ideally shoudln't touch main code
