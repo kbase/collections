@@ -1,0 +1,70 @@
+import os
+import shutil
+import subprocess
+import uuid
+from pathlib import Path
+
+import jsonlines
+import pytest
+
+
+@pytest.fixture(scope="module")
+def setup_and_teardown():
+    print('starting GTDB genome statistics test')
+    tmp_dir = 'result_{}'.format(str(uuid.uuid4()))
+    os.makedirs(tmp_dir, exist_ok=True)
+
+    caller_filename_full = Path(__file__).resolve()
+    caller_file_dir = os.path.dirname(caller_filename_full)
+
+    project_dir = Path(caller_file_dir).resolve().parents[3]
+    script_file = f'{project_dir}/src/loaders/gtdb/gtdb_genome_stats_loader.py'
+
+    yield tmp_dir, caller_file_dir, script_file
+
+    shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+def _exam_genome_stats_file(result_file, expected_docs_length, expected_doc_keys,
+                            expected_load_version, expected_collection):
+    with jsonlines.open(result_file, 'r') as jsonl_f:
+        data = [obj for obj in jsonl_f]
+
+    assert len(data) == expected_docs_length
+
+    first_doc = data[0]
+    assert set(first_doc.keys()) == expected_doc_keys
+
+    versions = set([d['Load Version'] for d in data])
+    collections = set([d['Collection'] for d in data])
+    assert versions == {expected_load_version}
+    assert collections == {expected_collection}
+
+
+def _exe_command(command):
+    p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+    stdout, stderr = p.communicate()
+    print(str(stdout), str(stderr))
+
+
+def test_create_json_default(setup_and_teardown):
+    tmp_dir, caller_file_dir, script_file = setup_and_teardown
+
+    result_file = os.path.join(tmp_dir, 'test.json')
+    load_version = '100-dev'
+    kbase_collections = 'sample_gtdb'
+    command = ['python', script_file,
+               os.path.join(caller_file_dir, 'SAMPLE_ar53_metadata_r207.tsv'),
+               os.path.join(caller_file_dir, 'SAMPLE_bac120_metadata_r207.tsv'),
+               '--load_version', load_version,
+               '--kbase_collection', kbase_collections,
+               '-o', result_file]
+
+    _exe_command(command)
+
+    expected_docs_length = 20
+    expected_doc_keys = {'_key', 'Collection', 'Load Version', 'Genome Name', 'Completeness',
+                         'Ncbi Contig N50', 'High Checkm Marker Count'}
+
+    _exam_genome_stats_file(result_file, expected_docs_length, expected_doc_keys,
+                            load_version, kbase_collections)
