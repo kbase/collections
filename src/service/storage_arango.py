@@ -48,31 +48,6 @@ _QUERY_LIST_COLLECTIONS = f"""
 # Seems incredibly unlikely
 
 
-async def create_storage(
-        db: StandardDatabase,
-        create_collections_on_startup: bool = False):
-    """
-    Create the wrapper.
-
-    db - the database where the data is stored. The DB must exist.
-    create_collections_on_startup - on starting the wrapper, create all collections and indexes
-        rather than just checking for their existence. Usually this should be false to
-        allow for system administrators to set up sharding to their liking, but auto
-        creation is useful for quickly standing up a test service.
-    """
-    if create_collections_on_startup:
-        await _create_collection(db, _COLL_COUNTERS)  # no indexes necessary
-        await _create_collection(db, _COLL_ACTIVE)  # no indexes necessary yet
-        await _create_collection(db, _COLL_VERSIONS)
-    else:
-        await _check_collection_exists(db, _COLL_COUNTERS)
-        await _check_collection_exists(db, _COLL_ACTIVE)
-        await _check_collection_exists(db, _COLL_VERSIONS)
-    vercol = db.collection(_COLL_VERSIONS)
-    await vercol.add_persistent_index([models.FIELD_COLLECTION_ID, models.FIELD_VER_NUM])
-    return ArangoStorage(db)
-
-
 async def _check_collection_exists(db: StandardDatabase, col_name: str):
     if not await db.has_collection(col_name):
         raise ValueError(f"Collection {col_name} does not exist")
@@ -112,6 +87,33 @@ class ArangoStorage:
     """
     An arango wrapper for collections storage.
     """
+
+    @classmethod
+    async def create(
+        cls,
+        db: StandardDatabase,
+        create_collections_on_startup: bool = False
+    ):
+        """
+        Create the ArangoDB wrapper.
+
+        db - the database where the data is stored. The DB must exist.
+        create_collections_on_startup - on starting the wrapper, create all collections and indexes
+            rather than just checking for their existence. Usually this should be false to
+            allow for system administrators to set up sharding to their liking, but auto
+            creation is useful for quickly standing up a test service.
+        """
+        if create_collections_on_startup:
+            await _create_collection(db, _COLL_COUNTERS)  # no indexes necessary
+            await _create_collection(db, _COLL_ACTIVE)  # no indexes necessary yet
+            await _create_collection(db, _COLL_VERSIONS)
+        else:
+            await _check_collection_exists(db, _COLL_COUNTERS)
+            await _check_collection_exists(db, _COLL_ACTIVE)
+            await _check_collection_exists(db, _COLL_VERSIONS)
+        vercol = db.collection(_COLL_VERSIONS)
+        await vercol.add_persistent_index([models.FIELD_COLLECTION_ID, models.FIELD_VER_NUM])
+        return ArangoStorage(db)
 
     def __init__(self, db: StandardDatabase):
         self._db = db

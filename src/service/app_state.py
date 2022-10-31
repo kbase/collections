@@ -8,15 +8,15 @@ import sys
 
 from fastapi import FastAPI, Request
 from src.service.config import CollectionsServiceConfig
-from src.service import kb_auth
-from src.service.storage_arango import create_storage, ArangoStorage, ARANGO_ERR_NAME_EXISTS
+from src.service.kb_auth import KBaseAuth
+from src.service.storage_arango import ArangoStorage, ARANGO_ERR_NAME_EXISTS
 
 # The main point of this module is to handle all the stuff we add to app.state in one place
 # to keep it consistent and allow for refactoring without breaking other code
 
 async def build_app(app: FastAPI, cfg: CollectionsServiceConfig) -> None:
     """ Build the application state. """
-    app.state._kb_auth = await kb_auth.create_auth_client(cfg.auth_url, cfg.auth_full_admin_roles)
+    app.state._kb_auth = await KBaseAuth.create(cfg.auth_url, cfg.auth_full_admin_roles)
     cli, storage = await _build_storage(cfg)
     app.state._arango_cli = cli
     app.state._storage = storage
@@ -44,7 +44,8 @@ async def _build_storage(cfg: CollectionsServiceConfig
                 if e.error_code != ARANGO_ERR_NAME_EXISTS:  # ignore, db exists
                     raise
         db = await _get_arango_db(cli, cfg.arango_db, cfg)
-        storage = await create_storage(db, create_collections_on_startup=cfg.create_db_on_startup)
+        storage = await ArangoStorage.create(
+            db, create_collections_on_startup=cfg.create_db_on_startup)
         return cli, storage
     except:
         await cli.close()
@@ -74,7 +75,7 @@ async def _get_arango_db(cli: aioarango.ArangoClient, db: str, cfg: CollectionsS
     raise ValueError(f"Could not connect to Arango at {cfg.arango_url}") from err
 
 
-def get_kbase_auth(r: Request) -> kb_auth.KBaseAuth:
+def get_kbase_auth(r: Request) -> KBaseAuth:
     """ Get the KBase authentication instance for the application. """
     return r.app.state._kb_auth
 
