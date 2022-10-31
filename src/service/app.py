@@ -3,9 +3,9 @@ API for the collections service.
 '''
 
 import aioarango
+import asyncio
 import os
 import sys
-import time
 
 from datetime import datetime, timezone
 from fastapi import FastAPI, Depends, Request, status, APIRouter, Path
@@ -14,12 +14,14 @@ from fastapi.exceptions import RequestValidationError, HTTPException
 from fastapi.responses import JSONResponse
 from http.client import responses
 from pydantic import BaseModel, Field
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from src.common.git_commit import GIT_COMMIT
 from src.common.version import VERSION
 from src.service import kb_auth
 from src.service import errors
 from src.service import models
+from src.service import models_errors
 from src.service.arg_checkers import contains_control_characters
 from src.service.config import CollectionsServiceConfig
 from src.service.http_bearer import KBaseHTTPBearer, KBaseUser
@@ -47,6 +49,7 @@ def create_app(noop=False):
     with open(os.environ[_KB_DEPLOYMENT_CONFIG], 'rb') as cfgfile:
         cfg = CollectionsServiceConfig(cfgfile)
     cfg.print_config(sys.stdout)
+    sys.stdout.flush()
 
     app = FastAPI(
         title = SERVICE_NAME,
@@ -56,7 +59,12 @@ def create_app(noop=False):
         exception_handlers = {
             errors.CollectionError: _handle_app_exception,
             RequestValidationError: _handle_fastapi_validation_exception,
+            StarletteHTTPException: _handle_http_exception,
             Exception: _handle_general_exception
+        },
+        responses = {
+            "4XX": {"model": models_errors.ClientError},
+            "5XX": {"model": models_errors.ServerError}
         }
     )
     app.include_router(_router)
@@ -120,7 +128,8 @@ async def _get_arango_db(cli: aioarango.ArangoClient, db: str, cfg: CollectionsS
                   + f"    Waiting for {t}s and retrying db connection"
             )
             sys.stdout.flush()
-            time.sleep(t)
+            # TODO CODE both time.sleep() and this block SIGINT. How to fix?
+            await asyncio.sleep(t)
     raise ValueError(f"Could not connect to Arango at {cfg.arango_url}") from err
 
 
@@ -153,6 +162,10 @@ def _handle_fastapi_validation_exception(r: Request, exc: RequestValidationError
         request_validation_detail=exc.errors()
     )
 
+def _handle_http_exception(r: Request, exc: StarletteHTTPException):
+    # may need to expand this in the future, mainly handles 404s
+    return _format_error(exc.status_code, message=str(exc.detail))
+
 
 def _handle_general_exception(r: Request, exc: Exception):
     status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -168,9 +181,6 @@ def _format_error(
         error_type: errors.ErrorType = None,
         request_validation_detail = None
         ):
-    # TODO DOCS document error structure, see https://fastapi.tiangolo.com/advanced/additional-responses/
-    # Will need to do this for each endpoint unfortunately
-    # Also see https://github.com/tiangolo/fastapi/issues/1376
     content = {
         "httpcode": status_code,
         "httpstatus": responses[status_code],
@@ -238,8 +248,6 @@ async def whoami(user: KBaseUser=Depends(_authheader)):
     tags=["Collections"]
 )
 async def save_collection(
-    # TODO ERRORS get rid of the 422 error data structure in OpenAPI docs, not using that
-    # https://github.com/tiangolo/fastapi/issues/1376
     r: Request,
     col: models.Collection,
     collection_id: str = Path(
