@@ -10,7 +10,7 @@ that older data in the database will no longer be fetched correctly - but automa
 may still pass. In this case, a translation from the older data is required.
 """
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, HttpUrl
 from typing import Optional
 
 from src.service.arg_checkers import contains_control_characters
@@ -96,10 +96,13 @@ class Collection(BaseModel):
         example="This is a collection of used hot dogs collected from Coney Island in 1892.",
         description="A free text description of the collection."
     )
+    icon_url: Optional[HttpUrl] = Field(
+        example="https://live.staticflickr.com/3091/2883561418_dafc36c92b_z.jpg",
+        description="A url to an image icon for the collection."
+    )
     data_products: list[DataProduct] = Field(
         description="The data products associated with the collection"
     )
-    # TODO FIELDS icon url (and see about serving icons temporarily with the FAPI static server)
 
     @validator("name", "desc", pre=True)
     def _strip_and_fail_on_control_characters_with_exceptions(cls, v):

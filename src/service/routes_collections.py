@@ -137,13 +137,11 @@ async def whoami(user: KBaseUser=Depends(_authheader)):
     }
 
 
-# TODO DOCS the response schema title is gross. How to fix?
 @ROUTER.get(
     "/collections",
-    name = "List collections",
     response_model = CollectionsList,
     tags=[_TAG_COLLECTIONS])
-async def collections(r: Request):
+async def list_collections(r: Request):
     cols = await app_state.get_storage(r).get_collections_active()
     return {"colls": cols}
 
