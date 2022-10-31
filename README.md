@@ -63,7 +63,6 @@ PYTHONPATH=. pytest test
   * Add request ID to logs and return in errors
   * Compare log entries to SDK and see what we should keep
     * Take a look at the jgi-kbase IDmapper service
-* Document error structure
 
 ### Prior to declaring this a non-prototype
 
