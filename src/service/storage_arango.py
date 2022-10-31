@@ -116,7 +116,6 @@ class ArangoStorage:
     def __init__(self, db: StandardDatabase):
         self._db = db
         # TODO DB make some sort of pluginish system for data products
-        # TODO ENDPOINTS document endpoint in new endpointsfile (in /docs/endpoint.md)
 
     async def get_next_version(self, collection_id: str) -> int:
         """ Get the next available version number for a collection. """
