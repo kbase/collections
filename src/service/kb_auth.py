@@ -25,27 +25,6 @@ class AdminPermission(IntEnum):
     FULL = 10
 
 
-async def create_auth_client(
-        auth_url: str,
-        full_admin_roles: List[str] = None,
-        cache_max_size: int=10000,
-        cache_expiration: int=300):
-    '''
-    Create the client.
-    :param auth_url: The root url of the authentication service.
-    :param full_admin_roles: The KBase Auth2 roles that imply the user is an administrator.
-    :param cache_max_size: the maximum size of the token cache.
-    :param cache_expiration: the expiration time for the token cache in
-        seconds.
-    '''
-    if not _not_falsy(auth_url, "auth_url").endswith('/'):
-        auth_url += '/'
-    j = await _get(auth_url, {'Accept': 'application/json'})
-    return KBaseAuth(
-        auth_url, full_admin_roles, cache_max_size, cache_expiration, j.get('servicename')
-    )
-
-
 async def _get(url, headers):
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as r:
@@ -73,6 +52,29 @@ async def _check_error(r):
 
 class KBaseAuth:
     ''' A client for contacting the KBase authentication server. '''
+
+    @classmethod
+    async def create(
+        cls,
+        auth_url: str,
+        full_admin_roles: List[str] = None,
+        cache_max_size: int=10000,
+        cache_expiration: int=300
+    ):
+        '''
+        Create the client.
+        :param auth_url: The root url of the authentication service.
+        :param full_admin_roles: The KBase Auth2 roles that imply the user is an administrator.
+        :param cache_max_size: the maximum size of the token cache.
+        :param cache_expiration: the expiration time for the token cache in
+            seconds.
+        '''
+        if not _not_falsy(auth_url, "auth_url").endswith('/'):
+            auth_url += '/'
+        j = await _get(auth_url, {'Accept': 'application/json'})
+        return KBaseAuth(
+            auth_url, full_admin_roles, cache_max_size, cache_expiration, j.get('servicename')
+        )
 
     def __init__(
             self,
