@@ -8,6 +8,30 @@ Contains service API and loader code for collections of data that
 
 Currently collections only contain KBase staff curated data.
 
+## Usage
+
+OpenAPI documentation is provided at the `/docs` endpoint of the server (in KBase, this is
+at `<host>/service/collectionsservice/docs`, for example
+[https://ci.kbase.us/services/collectionsservice/docs](https://ci.kbase.us/services/collectionsservice/docs)).
+
+### Error codes
+
+Error codes are listed in [errors.py](src/service/errors.py).
+
+## Administration
+
+To start the service Docker container:
+
+* The collections listed in
+  [collection_and_field_names.py](src/common/storage/collection_and_field_names.py) must be
+  created in ArangoDB. The collections are not created automatically to allow service admins
+  to specify sharding to their liking. Indexes are created automatically, assuming the collections
+  exist.
+* The environment variables listed in
+  [collections_config.toml.jinja](collections_config.toml.jinja)
+  must be provided to the Docker container, unless their default values are acceptable.
+  In particular, database access and credential information must be provided.
+
 ## File structure
 
 * `/src/service` - service code

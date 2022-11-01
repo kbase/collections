@@ -37,8 +37,8 @@ def _exam_freq_result_file(result_file, expected_docs_length, expected_doc_keys,
     first_doc = data[0]
     assert set(first_doc.keys()) == expected_doc_keys
 
-    versions = set([d['load_version'] for d in data])
-    collections = set([d['collection'] for d in data])
+    versions = set([d['load_ver'] for d in data])
+    collections = set([d['coll'] for d in data])
     assert versions == {expected_load_version}
     assert collections == {expected_collection}
 
@@ -53,9 +53,9 @@ def _exam_rank_result_file(result_file, expected_load_version, expected_collecti
     assert len(data) == 1
 
     first_doc = data[0]
-    assert set(first_doc.keys()) == {'_key', 'collection', 'load_version', 'ranks'}
-    assert first_doc['load_version'] == expected_load_version
-    assert first_doc['collection'] == expected_collection
+    assert set(first_doc.keys()) == {'_key', 'coll', 'load_ver', 'ranks'}
+    assert first_doc['load_ver'] == expected_load_version
+    assert first_doc['coll'] == expected_collection
     assert first_doc['ranks'] == expected_ranks_inorder
 
 
@@ -78,7 +78,7 @@ def test_create_json_default(setup_and_teardown):
     _exe_command(command)
 
     expected_docs_length = 5420
-    expected_doc_keys = {'_key', 'collection', 'load_version', 'rank', 'name', 'count'}
+    expected_doc_keys = {'_key', 'coll', 'load_ver', 'rank', 'name', 'count'}
     expected_collection = 'gtdb'
     _exam_freq_result_file(result_file, expected_docs_length, expected_doc_keys,
                            load_version, expected_collection)
@@ -102,7 +102,7 @@ def test_create_json_option_input(setup_and_teardown):
     _exe_command(command)
 
     expected_docs_length = 5420
-    expected_doc_keys = {'_key', 'collection', 'load_version', 'rank', 'name', 'count'}
+    expected_doc_keys = {'_key', 'coll', 'load_ver', 'rank', 'name', 'count'}
     _exam_freq_result_file(result_file, expected_docs_length, expected_doc_keys,
                            load_version, kbase_collections)
     expected_ranks_inorder = ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'species']

@@ -35,8 +35,8 @@ def _exam_genome_stats_file(result_file, expected_docs_length, expected_doc_keys
     first_doc = data[0]
     assert set(first_doc.keys()) == expected_doc_keys
 
-    versions = set([d['Load Version'] for d in data])
-    collections = set([d['Collection'] for d in data])
+    versions = set([d['load_ver'] for d in data])
+    collections = set([d['coll'] for d in data])
     assert versions == {expected_load_version}
     assert collections == {expected_collection}
 
@@ -63,7 +63,7 @@ def test_create_json_default(setup_and_teardown):
     _exe_command(command)
 
     expected_docs_length = 20
-    expected_doc_keys = {'_key', 'Collection', 'Load Version', 'Genome Name', 'Completeness',
+    expected_doc_keys = {'_key', 'coll', 'load_ver', 'Genome Name', 'Completeness',
                          'Ncbi Contig N50', 'High Checkm Marker Count'}
 
     _exam_genome_stats_file(result_file, expected_docs_length, expected_doc_keys,
