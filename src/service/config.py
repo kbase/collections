@@ -81,7 +81,7 @@ class CollectionsServiceConfig:
             f"Arango database: {self.arango_db}\n",
         ])
         if self.arango_user:
-            output.writelnes([
+            output.writelines([
                 f"Arango username: {self.arango_user}\n",
                 f"Arango password: [REDACTED FOR YOUR SAFETY AND ENJOYMENT]\n",
             ])
