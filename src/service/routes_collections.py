@@ -107,6 +107,13 @@ class CollectionsList(BaseModel):
     colls: list[models.ActiveCollection]
 
 
+class CollectionIDs(BaseModel):
+    colids: list[str] = Field(
+        example=["GTDB", "PMI"],
+        description="A list of collection IDs"
+    )
+
+
 class CollectionVersions(BaseModel):
     counter: int = Field(
         example=42,
@@ -132,6 +139,12 @@ async def whoami(user: KBaseUser=Depends(_authheader)):
         "user": user.user.id,
         "is_service_admin": kb_auth.AdminPermission.FULL == user.admin_perm
     }
+
+
+@ROUTER_COLLECTIONS.get("/collectionids", response_model = CollectionIDs)
+async def get_collection_ids(r: Request):
+    ids = await app_state.get_storage(r).get_collection_ids()
+    return {"colids": ids}
 
 
 @ROUTER_COLLECTIONS.get("/collections", response_model = CollectionsList)
@@ -190,6 +203,13 @@ async def save_collection(
     sc = models.SavedCollection.construct(**doc)
     await store.save_collection_version(sc)
     return sc
+
+
+@ROUTER_COLLECTIONS_ADMIN.get("/collectionids/all/", response_model = CollectionIDs)
+async def get_all_collection_ids(r: Request, user: KBaseUser=Depends(_authheader)):
+    store = _precheck_admin_and_get_storage(r, user, "", "view collection versions")
+    ids = await store.get_collection_ids(all_=True)
+    return {"colids": ids}
 
 
 @ROUTER_COLLECTIONS_ADMIN.get(
