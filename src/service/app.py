@@ -135,8 +135,6 @@ def _format_error(
 
 
 # TODO DOCS document collection names and note admins need to create them
-# TODO DOCS note firmly that collection versions shouldn't mix data from different
-# versions of the source data
 # TODO ENDPOINT list collection names that have versions
 # TODO REFACTOR auth handling. Calling check_admin anyway, might was well do it all there
 # rather than with an overly complex Depends... but that's needed for OpenAPI to know about

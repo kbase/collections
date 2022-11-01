@@ -149,6 +149,12 @@ async def get_collection(r: Request, collection_id: str = _PATH_COLLECTION_ID
 @ROUTER_COLLECTIONS_ADMIN.put(
     "/collections/{collection_id}/versions/{ver_tag}/",
     response_model=models.SavedCollection,
+    description="Save a collection version, which is initially inactive and and can be activated "
+        + "via the admin endpoints.\n\n"
+        + "**NOTE**: the service has no way to tell whether the collection is mixing different "
+        + "versions of the source data in the data products; it is up to the user to "
+        + "ensure that data products for a single collection version are all using the same "
+        + "version of the source data."
 )
 async def save_collection(
     r: Request,
