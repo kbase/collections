@@ -16,6 +16,8 @@ services:
     environment:
       - KBCOLL_ARANGO_URL=http://arangodb:8529
       - KBCOLL_ARANGO_DB=collections_test
+      - KBCOLL_ARANGO_USER=root
+      - KBCOLL_ARANGO_PWD=foobar
       - KBASE_AUTH_URL=https://ci.kbase.us/services/auth
       - KBCOLL_KBASE_AUTH2_ADMIN_ROLES=COLLECTIONS_SERVICE_ADMIN
       - KBCOLL_CREATE_DB_ON_STARTUP=true
@@ -26,4 +28,5 @@ services:
     ports:
       - "127.0.0.1:8529:8529"
     environment:
-      - ARANGO_NO_AUTH=1
+      #- ARANGO_NO_AUTH=1
+      - ARANGO_ROOT_PASSWORD=foobar
