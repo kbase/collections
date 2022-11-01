@@ -17,7 +17,9 @@ from src.service.timestamp import timestamp
 
 SERVICE_NAME = "Collections Prototype"
 
-ROUTER = APIRouter()
+ROUTER_GENERAL = APIRouter(tags=["General"])
+ROUTER_COLLECTIONS = APIRouter(tags=["Collections"])
+ROUTER_COLLECTIONS_ADMIN = APIRouter(tags=["Collection Administration"])
 
 _authheader = KBaseHTTPBearer()
 
@@ -114,12 +116,7 @@ class CollectionVersions(BaseModel):
     vers: list[models.SavedCollection]
 
 
-_TAG_GENERAL = "General"
-_TAG_COLLECTIONS = "Collections"
-_TAG_COLLECTIONS_ADMIN = "Collection Administration"
-
-
-@ROUTER.get("/", response_model=Root, tags=[_TAG_GENERAL])
+@ROUTER_GENERAL.get("/", response_model=Root)
 async def root():
     return {
         "service_name": SERVICE_NAME,
@@ -129,7 +126,7 @@ async def root():
     }
 
 
-@ROUTER.get("/whoami", response_model = WhoAmI, tags=[_TAG_GENERAL])
+@ROUTER_GENERAL.get("/whoami", response_model = WhoAmI)
 async def whoami(user: KBaseUser=Depends(_authheader)):
     return {
         "user": user.user.id,
@@ -137,28 +134,21 @@ async def whoami(user: KBaseUser=Depends(_authheader)):
     }
 
 
-@ROUTER.get(
-    "/collections",
-    response_model = CollectionsList,
-    tags=[_TAG_COLLECTIONS])
+@ROUTER_COLLECTIONS.get("/collections", response_model = CollectionsList)
 async def list_collections(r: Request):
     cols = await app_state.get_storage(r).get_collections_active()
     return {"colls": cols}
 
 
-@ROUTER.get(
-    "/collections/{collection_id}/",
-    response_model=models.ActiveCollection,
-    tags=[_TAG_COLLECTIONS])
+@ROUTER_COLLECTIONS.get("/collections/{collection_id}/", response_model=models.ActiveCollection)
 async def get_collection(r: Request, collection_id: str = _PATH_COLLECTION_ID
 ) -> models.ActiveCollection:
     return await app_state.get_storage(r).get_collection_active(collection_id)
 
 
-@ROUTER.put(
+@ROUTER_COLLECTIONS_ADMIN.put(
     "/collections/{collection_id}/versions/{ver_tag}/",
     response_model=models.SavedCollection,
-    tags=[_TAG_COLLECTIONS_ADMIN]
 )
 async def save_collection(
     r: Request,
@@ -196,10 +186,9 @@ async def save_collection(
     return sc
 
 
-@ROUTER.get(
+@ROUTER_COLLECTIONS_ADMIN.get(
     "/collections/{collection_id}/versions/tag/{ver_tag}/",
     response_model=models.SavedCollection,
-    tags=[_TAG_COLLECTIONS_ADMIN]
 )
 async def get_collection_by_ver_tag(
     r: Request,
@@ -211,10 +200,9 @@ async def get_collection_by_ver_tag(
     return await store.get_collection_version_by_tag(collection_id, ver_tag)
 
 
-@ROUTER.put(
+@ROUTER_COLLECTIONS_ADMIN.put(
     "/collections/{collection_id}/versions/tag/{ver_tag}/activate/",
     response_model=models.ActiveCollection,
-    tags=[_TAG_COLLECTIONS_ADMIN]
 )
 async def activate_collection_by_ver_tag(
     r: Request,
@@ -227,10 +215,9 @@ async def activate_collection_by_ver_tag(
     return await _activate_collection_version(user, store, col)
 
 
-@ROUTER.get(
+@ROUTER_COLLECTIONS_ADMIN.get(
     "/collections/{collection_id}/versions/num/{ver_num}/",
     response_model=models.SavedCollection,
-    tags=[_TAG_COLLECTIONS_ADMIN]
 )
 async def get_collection_by_ver_num(
     r: Request,
@@ -242,10 +229,9 @@ async def get_collection_by_ver_num(
     return await store.get_collection_version_by_num(collection_id, ver_num)
 
 
-@ROUTER.put(
+@ROUTER_COLLECTIONS_ADMIN.put(
     "/collections/{collection_id}/versions/num/{ver_num}/activate/",
     response_model=models.ActiveCollection,
-    tags=[_TAG_COLLECTIONS_ADMIN]
 )
 async def activate_collection_by_ver_num(
     r: Request,
@@ -258,10 +244,9 @@ async def activate_collection_by_ver_num(
     return await _activate_collection_version(user, store, col)
 
 
-@ROUTER.get(
+@ROUTER_COLLECTIONS_ADMIN.get(
     "/collections/{collection_id}/versions",
     response_model=CollectionVersions,
-    tags=[_TAG_COLLECTIONS_ADMIN],
     description="Get the list of versions for a collection, sorted in descending order "
         + "of the version number. Returns at most 1000 versions."
 )

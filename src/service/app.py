@@ -19,7 +19,9 @@ from src.service import errors
 from src.service import models_errors
 from src.service.config import CollectionsServiceConfig
 from src.service.routes_collections import (
-    ROUTER as COLLECTIONS_ROUTER,
+    ROUTER_GENERAL,
+    ROUTER_COLLECTIONS,
+    ROUTER_COLLECTIONS_ADMIN,
     SERVICE_NAME
 )
 from src.service.timestamp import timestamp
@@ -63,7 +65,10 @@ def create_app(noop=False):
             "5XX": {"model": models_errors.ServerError}
         }
     )
-    app.include_router(COLLECTIONS_ROUTER)
+    app.include_router(ROUTER_GENERAL)
+    app.include_router(ROUTER_COLLECTIONS)
+    # add data products routers here
+    app.include_router(ROUTER_COLLECTIONS_ADMIN)
 
     async def build_app_wrapper():
         await app_state.build_app(app, cfg)
@@ -129,9 +134,10 @@ def _format_error(
 
 
 
-
+# TODO DOCS document collection names and note admins need to create them
 # TODO DOCS note firmly that collection versions shouldn't mix data from different
 # versions of the source data
+# TODO ENDPOINT list collection names that have versions
 # TODO REFACTOR auth handling. Calling check_admin anyway, might was well do it all there
 # rather than with an overly complex Depends... but that's needed for OpenAPI to know about
 # the header. hmm. Also may need to be optional for some cases, now it's all or nothing
