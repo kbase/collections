@@ -1,9 +1,11 @@
 import argparse
-import hashlib
 import os
 from collections import defaultdict
 
 from gtdb_loader_helper import convert_to_json
+
+from src.common.hash import md5_string
+
 
 """
 PROTOTYPE
@@ -62,9 +64,7 @@ def _create_freq_docs(nodes, kbase_collection, load_version):
     for rank in nodes:
         for name in nodes[rank]:
             doc = {
-                "_key": hashlib.md5(
-                    f"{kbase_collection}_{load_version}_{rank}_{name}".encode('utf-8')
-                ).hexdigest(),
+                "_key": md5_string(f"{kbase_collection}_{load_version}_{rank}_{name}"),
                 "collection": kbase_collection,
                 "load_version": load_version,
                 "rank": rank,
@@ -82,9 +82,7 @@ def _create_rank_docs(kbase_collection, load_version, identical_ranks):
     rank_candidates = list(_TAXA_TYPES.values())
 
     rank_doc = [{
-        "_key": hashlib.md5(
-            f"{kbase_collection}_{load_version}".encode('utf-8')
-        ).hexdigest(),
+        "_key": md5_string(f"{kbase_collection}_{load_version}"),
         "collection": kbase_collection,
         "load_version": load_version,
         "ranks": [r for r in rank_candidates if r in identical_ranks]}]

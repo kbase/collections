@@ -2,10 +2,9 @@
 A storage system for collections based on an Arango backend.
 """
 
-import hashlib
-
 from aioarango.database import StandardDatabase
 from aioarango.exceptions import CollectionCreateError, DocumentInsertError
+from src.common.hash import md5_string
 from src.service import models
 from src.service import errors
 
@@ -49,13 +48,8 @@ async def _create_collection(db: StandardDatabase, col_name: str):
             raise  # if collection exists, ignore, otherwise raise
 
 
-# TODO CODE move to common methods, update loaders
-def _md5(contents: str):
-    return hashlib.md5(contents.encode('utf-8')).hexdigest()
-
-
 def _version_key(collection_id: str, ver_tag: str):
-    return _md5(f"{collection_id}_{ver_tag}")
+    return md5_string(f"{collection_id}_{ver_tag}")
 
 
 # modifies doc in place
