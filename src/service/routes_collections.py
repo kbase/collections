@@ -88,11 +88,11 @@ class WhoAmI(BaseModel):
 
 
 class CollectionsList(BaseModel):
-    colls: list[models.ActiveCollection]
+    data: list[models.ActiveCollection]
 
 
 class CollectionIDs(BaseModel):
-    colids: list[str] = Field(
+    data: list[str] = Field(
         example=["GTDB", "PMI"],
         description="A list of collection IDs"
     )
@@ -104,7 +104,7 @@ class CollectionVersions(BaseModel):
         description="The value of the version counter for the collection, indicating the "
              + "maximum version that could possibly exist"
     )
-    vers: list[models.SavedCollection]
+    data: list[models.SavedCollection]
 
 
 @ROUTER_GENERAL.get("/", response_model=Root)
@@ -128,13 +128,13 @@ async def whoami(user: KBaseUser=Depends(_authheader)):
 @ROUTER_COLLECTIONS.get("/collectionids", response_model = CollectionIDs)
 async def get_collection_ids(r: Request):
     ids = await app_state.get_storage(r).get_collection_ids()
-    return {"colids": ids}
+    return CollectionIDs(data=ids)
 
 
 @ROUTER_COLLECTIONS.get("/collections", response_model = CollectionsList)
 async def list_collections(r: Request):
     cols = await app_state.get_storage(r).get_collections_active()
-    return {"colls": cols}
+    return CollectionsList(data=cols)
 
 
 @ROUTER_COLLECTIONS.get("/collections/{collection_id}/", response_model=models.ActiveCollection)
@@ -193,7 +193,7 @@ async def save_collection(
 async def get_all_collection_ids(r: Request, user: KBaseUser=Depends(_authheader)):
     store = _precheck_admin_and_get_storage(r, user, "", "view collection versions")
     ids = await store.get_collection_ids(all_=True)
-    return {"colids": ids}
+    return CollectionIDs(data=ids)
 
 
 @ROUTER_COLLECTIONS_ADMIN.get(
@@ -269,4 +269,4 @@ async def get_collection_versions(
     store = _precheck_admin_and_get_storage(r, user, "", "view collection versions")
     versions = await store.get_collection_versions(collection_id, max_ver=max_ver)
     counter = await store.get_current_version(collection_id)
-    return CollectionVersions(counter=counter, vers=versions)
+    return CollectionVersions(counter=counter, data=versions)
