@@ -42,14 +42,12 @@ e.g. gtdb_genome_stats_loader.py bac120_metadata_r207.tsv ar53_metadata_r207.tsv
      gtdb_genome_stats_loader.py bac120_metadata_r207.tsv ar53_metadata_r207.tsv --load_version 207 --kbase_collection gtdb --output  gtdb_genome_stats.json
 """
 
-EXIST_FEATURES = {'accession', 'checkm_completeness', 'ncbi_contig_n50'
-                  }  # genome statistics already existing in the metadata files
+EXIST_FEATURES = helper.EXIST_FEATURES
 NON_EXIST_FEATURES = {'high_checkm_marker_count'}  # genome statistics to be computed
 HELPER_FEATURES = {'checkm_marker_count'}  # additional features needed to compute statistics
 
 # change header to specific context (default mapper: capitalize first character)
-HEADER_MAPPER = {'accession': 'Genome Name',
-                 'checkm_completeness': 'Completeness'}
+HEADER_MAPPER = {'accession': 'Genome Name'}
 
 
 def _compute_stats(df, computations):
