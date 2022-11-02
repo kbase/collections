@@ -8,16 +8,19 @@ import sys
 
 from fastapi import FastAPI, Request
 from src.service.config import CollectionsServiceConfig
+from src.service.data_products.common import DataProductSpec
 from src.service.kb_auth import KBaseAuth
 from src.service.storage_arango import ArangoStorage, ARANGO_ERR_NAME_EXISTS
 
 # The main point of this module is to handle all the stuff we add to app.state in one place
 # to keep it consistent and allow for refactoring without breaking other code
 
-async def build_app(app: FastAPI, cfg: CollectionsServiceConfig) -> None:
+async def build_app(
+    app: FastAPI, cfg: CollectionsServiceConfig, data_products: set[DataProductSpec]
+) -> None:
     """ Build the application state. """
     app.state._kb_auth = await KBaseAuth.create(cfg.auth_url, cfg.auth_full_admin_roles)
-    cli, storage = await _build_storage(cfg)
+    cli, storage = await _build_storage(cfg, data_products)
     app.state._arango_cli = cli
     app.state._storage = storage
 
@@ -30,7 +33,7 @@ async def clean_app(app: FastAPI) -> None:
         await app.state._arango_cli.close()
 
 
-async def _build_storage(cfg: CollectionsServiceConfig
+async def _build_storage(cfg: CollectionsServiceConfig, data_products: set[DataProductSpec]
 ) -> tuple[aioarango.ArangoClient, ArangoStorage]:
     if cfg.dont_connect_to_external_services:
         return False, False
@@ -44,6 +47,10 @@ async def _build_storage(cfg: CollectionsServiceConfig
                 if e.error_code != ARANGO_ERR_NAME_EXISTS:  # ignore, db exists
                     raise
         db = await _get_arango_db(cli, cfg.arango_db, cfg)
+        # TODO DATAPROD handle data products, need to check/create collections & create indexes
+        # TODO DATAPROD add arbitrary aql method for the use of data products. I'd prefer to
+        # lock things down a bit more but I don't think that's reasonably possible
+        # Anyway, only KBase devs should add data products so YAGNI
         storage = await ArangoStorage.create(
             db, create_collections_on_startup=cfg.create_db_on_startup)
         return cli, storage

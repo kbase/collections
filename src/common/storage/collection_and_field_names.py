@@ -48,10 +48,10 @@ COLL_SRV_ACTIVE = _SRV_PREFIX + "active"
 
 ## Data product collections
 
-### Taxa frequency
+### Taxa counts
 
-COLL_TAXA_FREQ_RANKS = COLLECTION_PREFIX + "taxa_freq_ranks"
-""" A collection holding taxa frequency rank data. """
+COLL_TAXA_COUNT_RANKS = COLLECTION_PREFIX + "taxa_count_ranks"
+""" A collection holding taxa count rank data. """
 
-COLL_TAXA_FREQ = COLLECTION_PREFIX + "taxa_freq"
-""" A collection holding taxa frequency data. """
+COLL_TAXA_COUNT = COLLECTION_PREFIX + "taxa_count"
+""" A collection holding taxa count data. """
