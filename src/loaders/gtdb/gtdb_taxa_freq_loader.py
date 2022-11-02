@@ -5,6 +5,11 @@ from collections import defaultdict
 from gtdb_loader_helper import convert_to_json
 
 from src.common.hash import md5_string
+from src.common.storage.collection_and_field_names import (
+    FLD_ARANGO_KEY,
+    FLD_COLLECTION_NAME,
+    FLD_LOAD_VERSION
+)
 
 
 """
@@ -64,9 +69,9 @@ def _create_freq_docs(nodes, kbase_collection, load_version):
     for rank in nodes:
         for name in nodes[rank]:
             doc = {
-                "_key": md5_string(f"{kbase_collection}_{load_version}_{rank}_{name}"),
-                "collection": kbase_collection,
-                "load_version": load_version,
+                FLD_ARANGO_KEY: md5_string(f"{kbase_collection}_{load_version}_{rank}_{name}"),
+                FLD_COLLECTION_NAME: kbase_collection,
+                FLD_LOAD_VERSION: load_version,
                 "rank": rank,
                 "name": name,
                 "count": nodes[rank][name]
@@ -82,9 +87,9 @@ def _create_rank_docs(kbase_collection, load_version, identical_ranks):
     rank_candidates = list(_TAXA_TYPES.values())
 
     rank_doc = [{
-        "_key": md5_string(f"{kbase_collection}_{load_version}"),
-        "collection": kbase_collection,
-        "load_version": load_version,
+        FLD_ARANGO_KEY: md5_string(f"{kbase_collection}_{load_version}"),
+        FLD_COLLECTION_NAME: kbase_collection,
+        FLD_LOAD_VERSION: load_version,
         "ranks": [r for r in rank_candidates if r in identical_ranks]}]
 
     return rank_doc

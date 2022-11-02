@@ -5,24 +5,26 @@ A storage system for collections based on an Arango backend.
 from aioarango.database import StandardDatabase
 from aioarango.exceptions import CollectionCreateError, DocumentInsertError
 from src.common.hash import md5_string
+from src.common.storage.collection_and_field_names import (
+    FLD_ARANGO_KEY,
+    FLD_ARANGO_ID,
+    COLL_SRV_ACTIVE,
+    COLL_SRV_COUNTERS,
+    COLL_SRV_VERSIONS,
+)
 from src.service import models
 from src.service import errors
 
 
 # service collection names that aren't shared with data loaders.
-_COLL_PREFIX = "kbcoll_coll_"
-_COLL_COUNTERS = _COLL_PREFIX + "counters"
-_COLL_VERSIONS = _COLL_PREFIX + "versions"
-_COLL_ACTIVE = _COLL_PREFIX + "active"
 
-_FLD_KEY = "_key"
 _FLD_COLLECTION = "collection"
 _FLD_COLLECTION_ID = "collection_id"
 _FLD_COUNTER = "counter"
 _FLD_VER_NUM = "ver_num"
 _FLD_LIMIT = "limit"
 
-_ARANGO_SPECIAL_KEYS = [_FLD_KEY, "_id", "_rev"]
+_ARANGO_SPECIAL_KEYS = [FLD_ARANGO_KEY, FLD_ARANGO_ID, "_rev"]
 ARANGO_ERR_NAME_EXISTS = 1207
 _ARANGO_ERR_UNIQUE_CONSTRAINT = 1210
 
@@ -88,14 +90,14 @@ class ArangoStorage:
             creation is useful for quickly standing up a test service.
         """
         if create_collections_on_startup:
-            await _create_collection(db, _COLL_COUNTERS)  # no indexes necessary
-            await _create_collection(db, _COLL_ACTIVE)  # no indexes necessary yet
-            await _create_collection(db, _COLL_VERSIONS)
+            await _create_collection(db, COLL_SRV_COUNTERS)  # no indexes necessary
+            await _create_collection(db, COLL_SRV_ACTIVE)  # no indexes necessary yet
+            await _create_collection(db, COLL_SRV_VERSIONS)
         else:
-            await _check_collection_exists(db, _COLL_COUNTERS)
-            await _check_collection_exists(db, _COLL_ACTIVE)
-            await _check_collection_exists(db, _COLL_VERSIONS)
-        vercol = db.collection(_COLL_VERSIONS)
+            await _check_collection_exists(db, COLL_SRV_COUNTERS)
+            await _check_collection_exists(db, COLL_SRV_ACTIVE)
+            await _check_collection_exists(db, COLL_SRV_VERSIONS)
+        vercol = db.collection(COLL_SRV_VERSIONS)
         await vercol.add_persistent_index([models.FIELD_COLLECTION_ID, models.FIELD_VER_NUM])
         return ArangoStorage(db)
 
@@ -106,11 +108,11 @@ class ArangoStorage:
         """ Get the next available version number for a collection. """
         bind_vars = {
             _FLD_COLLECTION_ID: collection_id,
-            f"@{_FLD_COLLECTION}": _COLL_COUNTERS
+            f"@{_FLD_COLLECTION}": COLL_SRV_COUNTERS
         }
         aql = f"""
-            UPSERT {{{_FLD_KEY}: @{_FLD_COLLECTION_ID}}}
-                INSERT {{{_FLD_KEY}: @{_FLD_COLLECTION_ID}, {_FLD_COUNTER}: 1}}
+            UPSERT {{{FLD_ARANGO_KEY}: @{_FLD_COLLECTION_ID}}}
+                INSERT {{{FLD_ARANGO_KEY}: @{_FLD_COLLECTION_ID}, {_FLD_COUNTER}: 1}}
                 UPDATE {{{_FLD_COUNTER}: OLD.{_FLD_COUNTER} + 1}}
                 IN @@{_FLD_COLLECTION}
                 OPTIONS {{exclusive: true}}
@@ -122,7 +124,7 @@ class ArangoStorage:
 
     async def get_current_version(self, collection_id: str) -> int:
         """ Get the current version counter value for a collection. """
-        col = self._db.collection(_COLL_COUNTERS)
+        col = self._db.collection(COLL_SRV_COUNTERS)
         countdoc = await col.get(collection_id)
         if not countdoc:
             raise errors.NoSuchCollectionError(f"There is no collection {collection_id}")
@@ -136,8 +138,8 @@ class ArangoStorage:
         """
         doc = collection.dict()
         # ver_tag is pretty unconstrained so MD5 to get rid of any weird characters
-        doc[_FLD_KEY] = _version_key(collection.id, collection.ver_tag)
-        col = self._db.collection(_COLL_VERSIONS)
+        doc[FLD_ARANGO_KEY] = _version_key(collection.id, collection.ver_tag)
+        col = self._db.collection(COLL_SRV_VERSIONS)
         try:
             await col.insert(doc)
         except DocumentInsertError as e:
@@ -155,8 +157,8 @@ class ArangoStorage:
         method, update it to an active collection, and save it here.
         """
         doc = collection.dict()
-        doc[_FLD_KEY] = collection.id
-        col = self._db.collection(_COLL_ACTIVE)
+        doc[FLD_ARANGO_KEY] = collection.id
+        col = self._db.collection(COLL_SRV_ACTIVE)
         await col.insert(doc, overwrite=True)
 
     async def get_collection_ids(self, all_=False):
@@ -166,12 +168,12 @@ class ArangoStorage:
         all_ - get the IDs for inactive collections as well.
         """
         bind_vars = {
-            f"@{_FLD_COLLECTION}": _COLL_COUNTERS if all_ else _COLL_ACTIVE
+            f"@{_FLD_COLLECTION}": COLL_SRV_COUNTERS if all_ else COLL_SRV_ACTIVE
         }
         aql = f"""
             FOR d in @@{_FLD_COLLECTION}
-                SORT d.{_FLD_KEY} ASC
-                RETURN d.{_FLD_KEY}
+                SORT d.{FLD_ARANGO_KEY} ASC
+                RETURN d.{FLD_ARANGO_KEY}
             """
         cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
         return [d async for d in cur]
@@ -181,15 +183,15 @@ class ArangoStorage:
         # Cross bridge etc.
         aql = f"""
             FOR d in @@{_FLD_COLLECTION}
-                SORT d.{_FLD_KEY} ASC
+                SORT d.{FLD_ARANGO_KEY} ASC
                 RETURN d
             """
-        cur = await self._db.aql.execute(aql, bind_vars={f"@{_FLD_COLLECTION}": _COLL_ACTIVE})
+        cur = await self._db.aql.execute(aql, bind_vars={f"@{_FLD_COLLECTION}": COLL_SRV_ACTIVE})
         return [_doc_to_active_coll(d) async for d in cur]
 
     async def get_collection_active(self, collection_id: str) -> models.ActiveCollection:
         """ Get an active collection. """
-        col = self._db.collection(_COLL_ACTIVE)
+        col = self._db.collection(COLL_SRV_ACTIVE)
         doc = await col.get(collection_id)
         if doc is None:
             raise errors.NoSuchCollectionError(
@@ -198,13 +200,13 @@ class ArangoStorage:
 
     async def has_collection_version_by_tag(self, collection_id: str, ver_tag: str) -> bool:
         """ Check if a collection version exists. """
-        col = self._db.collection(_COLL_VERSIONS)
+        col = self._db.collection(COLL_SRV_VERSIONS)
         return await col.has(_version_key(collection_id, ver_tag))
 
     async def get_collection_version_by_tag(self, collection_id: str, ver_tag: str
     ) -> models.SavedCollection:
         """ Get a collection version by its version tag. """
-        col = self._db.collection(_COLL_VERSIONS)
+        col = self._db.collection(COLL_SRV_VERSIONS)
         doc = await col.get(_version_key(collection_id, ver_tag))
         if doc is None:
             raise errors.NoSuchCollectionVersionError(
@@ -217,7 +219,7 @@ class ArangoStorage:
     async def get_collection_version_by_num(self, collection_id: str, ver_num: int
     ) -> models.SavedCollection:
         """ Get a collection version by its version number. """
-        col = self._db.collection(_COLL_VERSIONS)
+        col = self._db.collection(COLL_SRV_VERSIONS)
         cur = await col.find({
             models.FIELD_COLLECTION_ID: collection_id,
             models.FIELD_VER_NUM: ver_num
@@ -249,7 +251,7 @@ class ArangoStorage:
         if not max_ver or max_ver < 1:
             max_ver = None
         bind_vars = {
-            f"@{_FLD_COLLECTION}": _COLL_VERSIONS,
+            f"@{_FLD_COLLECTION}": COLL_SRV_VERSIONS,
             _FLD_COLLECTION_ID: collection_id,
             _FLD_LIMIT: limit
         }
