@@ -134,7 +134,6 @@ def _format_error(
 
 
 
-# TODO DOCS document collection names and note admins need to create them
 # TODO REFACTOR auth handling. Calling check_admin anyway, might was well do it all there
 # rather than with an overly complex Depends... but that's needed for OpenAPI to know about
 # the header. hmm. Also may need to be optional for some cases, now it's all or nothing
@@ -142,5 +141,3 @@ def _format_error(
 # TODO REFACTOR move routes into separate modules, routes and routes_common for things
 # that data products may need
 # TODO STRUCTURE figure out how to structure data product code, ideally shoudln't touch main code
-# TODO DATAPROD make common file of collection names and fields, since the loader and service
-# will need to coordinate there. Use common prefix for all collection names
