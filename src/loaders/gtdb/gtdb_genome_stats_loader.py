@@ -1,10 +1,11 @@
 import argparse
-import hashlib
 
 import pandas as pd
 
 import gtdb_genome_stats_helper as helper
 from gtdb_loader_helper import convert_to_json
+
+from src.common.hash import md5_string
 
 """
 PROTOTYPE
@@ -106,9 +107,7 @@ def _row_to_doc(row, kbase_collection, load_version):
     Transforms row (from a dataframe) into ArangoDB collection document
     """
     doc = {
-        "_key": hashlib.md5(
-            f"{kbase_collection}_{load_version}_{row.name}".encode('utf-8')
-        ).hexdigest(),
+        "_key": md5_string(f"{kbase_collection}_{load_version}_{row.name}"),
         "Collection": kbase_collection,
         "Load Version": load_version,
     }

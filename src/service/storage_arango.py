@@ -2,10 +2,9 @@
 A storage system for collections based on an Arango backend.
 """
 
-import hashlib
-
 from aioarango.database import StandardDatabase
 from aioarango.exceptions import CollectionCreateError, DocumentInsertError
+from src.common.hash import md5_string
 from src.service import models
 from src.service import errors
 
@@ -26,23 +25,6 @@ _FLD_LIMIT = "limit"
 _ARANGO_SPECIAL_KEYS = [_FLD_KEY, "_id", "_rev"]
 ARANGO_ERR_NAME_EXISTS = 1207
 _ARANGO_ERR_UNIQUE_CONSTRAINT = 1210
-
-_QUERY_GET_NEXT_VERSION = f"""
-    UPSERT {{{_FLD_KEY}: @{_FLD_COLLECTION_ID}}}
-        INSERT {{{_FLD_KEY}: @{_FLD_COLLECTION_ID}, {_FLD_COUNTER}: 1}}
-        UPDATE {{{_FLD_COUNTER}: OLD.{_FLD_COUNTER} + 1}}
-        IN @@{_FLD_COLLECTION}
-        OPTIONS {{exclusive: true}}
-        RETURN NEW
-"""
-
-# Will probably want alternate sorts in the future, will need indexes etc.
-# Cross bridge etc.
-_QUERY_LIST_COLLECTIONS = f"""
-    FOR d in @@{_FLD_COLLECTION}
-        SORT d.{_FLD_KEY} ASC
-        RETURN d
-"""
 
 # TODO SCHEMA may want a schema checker at some point... YAGNI for now. See sample service
 
@@ -66,12 +48,8 @@ async def _create_collection(db: StandardDatabase, col_name: str):
             raise  # if collection exists, ignore, otherwise raise
 
 
-def _md5(contents: str):
-    return hashlib.md5(contents.encode('utf-8')).hexdigest()
-
-
 def _version_key(collection_id: str, ver_tag: str):
-    return _md5(f"{collection_id}_{ver_tag}")
+    return md5_string(f"{collection_id}_{ver_tag}")
 
 
 # modifies doc in place
@@ -123,7 +101,6 @@ class ArangoStorage:
 
     def __init__(self, db: StandardDatabase):
         self._db = db
-        # TODO DB make some sort of pluginish system for data products
 
     async def get_next_version(self, collection_id: str) -> int:
         """ Get the next available version number for a collection. """
@@ -131,7 +108,15 @@ class ArangoStorage:
             _FLD_COLLECTION_ID: collection_id,
             f"@{_FLD_COLLECTION}": _COLL_COUNTERS
         }
-        cur = await self._db.aql.execute(_QUERY_GET_NEXT_VERSION, bind_vars=bind_vars)
+        aql = f"""
+            UPSERT {{{_FLD_KEY}: @{_FLD_COLLECTION_ID}}}
+                INSERT {{{_FLD_KEY}: @{_FLD_COLLECTION_ID}, {_FLD_COUNTER}: 1}}
+                UPDATE {{{_FLD_COUNTER}: OLD.{_FLD_COUNTER} + 1}}
+                IN @@{_FLD_COLLECTION}
+                OPTIONS {{exclusive: true}}
+                RETURN NEW
+        """
+        cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
         verdoc = await cur.next()
         return verdoc[_FLD_COUNTER]
 
@@ -174,11 +159,32 @@ class ArangoStorage:
         col = self._db.collection(_COLL_ACTIVE)
         await col.insert(doc, overwrite=True)
 
-    async def get_collections_active(self) -> list[models.ActiveCollection]:
+    async def get_collection_ids(self, all_=False):
+        """
+        Get the IDs for active collections in the service.
+
+        all_ - get the IDs for inactive collections as well.
+        """
         bind_vars = {
-            f"@{_FLD_COLLECTION}": _COLL_ACTIVE
+            f"@{_FLD_COLLECTION}": _COLL_COUNTERS if all_ else _COLL_ACTIVE
         }
-        cur = await self._db.aql.execute(_QUERY_LIST_COLLECTIONS, bind_vars=bind_vars)
+        aql = f"""
+            FOR d in @@{_FLD_COLLECTION}
+                SORT d.{_FLD_KEY} ASC
+                RETURN d.{_FLD_KEY}
+            """
+        cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
+        return [d async for d in cur]
+
+    async def get_collections_active(self) -> list[models.ActiveCollection]:
+        # Will probably want alternate sorts in the future, will need indexes etc.
+        # Cross bridge etc.
+        aql = f"""
+            FOR d in @@{_FLD_COLLECTION}
+                SORT d.{_FLD_KEY} ASC
+                RETURN d
+            """
+        cur = await self._db.aql.execute(aql, bind_vars={f"@{_FLD_COLLECTION}": _COLL_ACTIVE})
         return [_doc_to_active_coll(d) async for d in cur]
 
     async def get_collection_active(self, collection_id: str) -> models.ActiveCollection:

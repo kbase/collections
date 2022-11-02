@@ -135,7 +135,6 @@ def _format_error(
 
 
 # TODO DOCS document collection names and note admins need to create them
-# TODO ENDPOINT list collection names that have versions
 # TODO REFACTOR auth handling. Calling check_admin anyway, might was well do it all there
 # rather than with an overly complex Depends... but that's needed for OpenAPI to know about
 # the header. hmm. Also may need to be optional for some cases, now it's all or nothing
