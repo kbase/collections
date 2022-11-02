@@ -134,10 +134,6 @@ def _format_error(
 
 
 
-# TODO REFACTOR auth handling. Calling check_admin anyway, might was well do it all there
-# rather than with an overly complex Depends... but that's needed for OpenAPI to know about
-# the header. hmm. Also may need to be optional for some cases, now it's all or nothing
-# https://stackoverflow.com/questions/70926257/how-to-pass-authorization-header-from-swagger-doc-in-python-fast-api
 # TODO REFACTOR move routes into separate modules, routes and routes_common for things
 # that data products may need
 # TODO STRUCTURE figure out how to structure data product code, ideally shoudln't touch main code
