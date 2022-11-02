@@ -17,7 +17,7 @@ class DBCollection(BaseModel):
     indexes: list[list[str]]
     """
     The indexes in the collection. Each item in the outer list is an index, with the inner
-    list defining the fields of the index. For example:
+    list defining the fields of the (potentially coumpound) index. For example:
 
     [
         # indexes for taxa_count rank data

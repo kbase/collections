@@ -2,6 +2,7 @@
 A storage system for collections based on an Arango backend.
 """
 
+from aioarango.cursor import Cursor
 from aioarango.database import StandardDatabase
 from aioarango.exceptions import CollectionCreateError, DocumentInsertError
 from src.common.hash import md5_string
@@ -14,6 +15,7 @@ from src.common.storage.collection_and_field_names import (
 )
 from src.service import models
 from src.service import errors
+from src.service.data_product_specs import DataProductSpec
 
 
 # service collection names that aren't shared with data loaders.
@@ -27,6 +29,8 @@ _FLD_LIMIT = "limit"
 _ARANGO_SPECIAL_KEYS = [FLD_ARANGO_KEY, FLD_ARANGO_ID, "_rev"]
 ARANGO_ERR_NAME_EXISTS = 1207
 _ARANGO_ERR_UNIQUE_CONSTRAINT = 1210
+
+_COLLECTIONS = [COLL_SRV_ACTIVE, COLL_SRV_COUNTERS, COLL_SRV_VERSIONS]
 
 # TODO SCHEMA may want a schema checker at some point... YAGNI for now. See sample service
 
@@ -78,31 +82,44 @@ class ArangoStorage:
     async def create(
         cls,
         db: StandardDatabase,
+        data_products: set[DataProductSpec] = None,
         create_collections_on_startup: bool = False
     ):
         """
         Create the ArangoDB wrapper.
 
         db - the database where the data is stored. The DB must exist.
+        data_products - any data products the database must support. Collections and indexes
+            are checked/created based on the data product specification.
         create_collections_on_startup - on starting the wrapper, create all collections and indexes
             rather than just checking for their existence. Usually this should be false to
             allow for system administrators to set up sharding to their liking, but auto
             creation is useful for quickly standing up a test service.
         """
-        if create_collections_on_startup:
-            await _create_collection(db, COLL_SRV_COUNTERS)  # no indexes necessary
-            await _create_collection(db, COLL_SRV_ACTIVE)  # no indexes necessary yet
-            await _create_collection(db, COLL_SRV_VERSIONS)
-        else:
-            await _check_collection_exists(db, COLL_SRV_COUNTERS)
-            await _check_collection_exists(db, COLL_SRV_ACTIVE)
-            await _check_collection_exists(db, COLL_SRV_VERSIONS)
+        dps = list(data_products) or []
+        col_names = [col.name for dp in dps for col in dp.db_collections]
+        for colname in _COLLECTIONS + col_names:
+            if create_collections_on_startup:
+                await _create_collection(db, colname)
+            else:
+                await _check_collection_exists(db, colname)
         vercol = db.collection(COLL_SRV_VERSIONS)
         await vercol.add_persistent_index([models.FIELD_COLLECTION_ID, models.FIELD_VER_NUM])
+        for dp in dps:
+            for col in dp.db_collections:
+                dbcol = db.collection(col.name)
+                for index in col.indexes:
+                    await dbcol.add_persistent_index(index)
+
         return ArangoStorage(db)
 
     def __init__(self, db: StandardDatabase):
         self._db = db
+
+
+    async def aql(self, aql: str, bind_vars: dict) -> Cursor:
+        """ Run an arbitrary AQL query against the database. """
+        return await self._db.aql.execute(aql, bind_vars=bind_vars)
 
     async def get_next_version(self, collection_id: str) -> int:
         """ Get the next available version number for a collection. """
