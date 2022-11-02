@@ -63,7 +63,7 @@ def test_create_json_default(setup_and_teardown):
     _exe_command(command)
 
     expected_docs_length = 20
-    expected_doc_keys = {'_key', 'Collection', 'Load Version', 'Genome Name', 'Checkm Completeness',
+    expected_doc_keys = {'_key', 'coll', 'load_ver', 'Genome Name', 'Checkm Completeness',
                          'High Checkm Marker Count', 'Trna Selenocysteine Count',
                          'N50 Scaffolds'}  # cherry-pick a few from gtdb_genome_stats_helper.EXIST_FEATURES
 
