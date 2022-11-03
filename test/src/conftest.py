@@ -1,10 +1,10 @@
-
 '''
 Configure pytest fixtures and helper functions for this directory.
 '''
 
 import dateutil.parser
 import time
+import traceback
 
 
 def assert_close_to_now(iso8601timestamp: str):
@@ -15,3 +15,9 @@ def assert_close_to_now(iso8601timestamp: str):
     now_ms = time.time()
     assert now_ms + 1 > intime
     assert now_ms - 1 < intime
+
+
+def assert_exception_correct(got: Exception, expected: Exception):
+    err = "".join(traceback.TracebackException.from_exception(got).format())
+    assert got.args == expected.args, err
+    assert type(got) == type(expected)

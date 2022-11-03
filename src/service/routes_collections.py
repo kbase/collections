@@ -11,7 +11,7 @@ from src.service import errors
 from src.service import kb_auth
 from src.service import models
 from src.service.http_bearer import KBaseHTTPBearer, KBaseUser
-from src.service.arg_checkers import contains_control_characters
+from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID, err_on_control_chars
 from src.service.storage_arango import ArangoStorage
 from src.service.timestamp import timestamp
 
@@ -28,18 +28,11 @@ def _ensure_admin(user: KBaseUser, err_msg: str):
         raise errors.UnauthorizedError(err_msg)
 
 
-def _err_on_control_chars(s: str, name: str):
-    pos = contains_control_characters(s)
-    if pos > -1:
-        raise errors.IllegalParameterError(
-            f"{name} contains a control character at position {pos}")
-
-
 def _precheck_admin_and_get_storage(
     r: Request, user: KBaseUser, ver_tag: str, op: str
 ) -> ArangoStorage:
     _ensure_admin(user, f"Only collections service admins can {op}")
-    _err_on_control_chars(ver_tag, "ver_tag")
+    err_on_control_chars(ver_tag, "ver_tag")
     return app_state.get_storage(r)
 
 
@@ -54,15 +47,6 @@ async def _activate_collection_version(
     ac = models.ActiveCollection.construct(**doc)
     await store.save_collection_active(ac)
     return ac
-
-
-_PATH_COLLECTION_ID = Path(
-    min_length=1,
-    max_length=20,
-    regex=r"^\w+$",
-    example=models.FIELD_COLLECTION_ID_EXAMPLE,
-    description=models.FIELD_COLLECTION_ID_DESCRIPTION
-)
 
 
 _PATH_VER_TAG = Path(
@@ -154,7 +138,7 @@ async def list_collections(r: Request):
 
 
 @ROUTER_COLLECTIONS.get("/collections/{collection_id}/", response_model=models.ActiveCollection)
-async def get_collection(r: Request, collection_id: str = _PATH_COLLECTION_ID
+async def get_collection(r: Request, collection_id: str = PATH_VALIDATOR_COLLECTION_ID
 ) -> models.ActiveCollection:
     return await app_state.get_storage(r).get_collection_active(collection_id)
 
@@ -172,7 +156,7 @@ async def get_collection(r: Request, collection_id: str = _PATH_COLLECTION_ID
 async def save_collection(
     r: Request,
     col: models.Collection,
-    collection_id: str = _PATH_COLLECTION_ID,
+    collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     ver_tag: str = _PATH_VER_TAG,
     user: KBaseUser=Depends(_authheader)
 ) -> models.SavedCollection:
@@ -218,7 +202,7 @@ async def get_all_collection_ids(r: Request, user: KBaseUser=Depends(_authheader
 )
 async def get_collection_by_ver_tag(
     r: Request,
-    collection_id: str = _PATH_COLLECTION_ID,
+    collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     ver_tag: str = _PATH_VER_TAG,
     user: KBaseUser=Depends(_authheader)
 ) -> models.SavedCollection:
@@ -232,7 +216,7 @@ async def get_collection_by_ver_tag(
 )
 async def activate_collection_by_ver_tag(
     r: Request,
-    collection_id: str = _PATH_COLLECTION_ID,
+    collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     ver_tag: str = _PATH_VER_TAG,
     user: KBaseUser=Depends(_authheader)
 ) -> models.ActiveCollection:
@@ -247,7 +231,7 @@ async def activate_collection_by_ver_tag(
 )
 async def get_collection_by_ver_num(
     r: Request,
-    collection_id: str = _PATH_COLLECTION_ID,
+    collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     ver_num: int = _PATH_VER_NUM,
     user: KBaseUser=Depends(_authheader)
 ) -> models.SavedCollection:
@@ -261,7 +245,7 @@ async def get_collection_by_ver_num(
 )
 async def activate_collection_by_ver_num(
     r: Request,
-    collection_id: str = _PATH_COLLECTION_ID,
+    collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     ver_num: int = _PATH_VER_NUM,
     user: KBaseUser=Depends(_authheader)
 ) -> models.ActiveCollection:
@@ -278,7 +262,7 @@ async def activate_collection_by_ver_num(
 )
 async def get_collection_versions(
     r: Request,
-    collection_id: str = _PATH_COLLECTION_ID,
+    collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     max_ver: int | None = _QUERY_MAX_VER,
     user: KBaseUser=Depends(_authheader),
 ) -> CollectionVersions:
