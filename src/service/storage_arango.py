@@ -31,6 +31,7 @@ ARANGO_ERR_NAME_EXISTS = 1207
 _ARANGO_ERR_UNIQUE_CONSTRAINT = 1210
 
 _COLLECTIONS = [COLL_SRV_ACTIVE, COLL_SRV_COUNTERS, COLL_SRV_VERSIONS]
+_BUILTIN = "builtin"
 
 # TODO SCHEMA may want a schema checker at some point... YAGNI for now. See sample service
 
@@ -82,6 +83,24 @@ def _doc_to_saved_coll(doc: dict):
     return models.SavedCollection.construct(**_remove_arango_keys(doc))
 
 
+def _get_and_check_col_names(dps: list[DataProductSpec]):
+    col_to_id = {col: _BUILTIN for col in _COLLECTIONS}
+    seen_ids = {_BUILTIN}
+    collections = [] + _COLLECTIONS  # don't mutate original list
+    for dp in dps:
+        if dp.data_product in seen_ids:
+            raise ValueError(f"duplicate data product ID: {dp.data_product}")
+        seen_ids.add(dp.data_product)
+        for colspec in dp.db_collections:
+            if colspec.name in col_to_id:
+                raise ValueError(
+                    f"two data products, {dp.data_product} and {col_to_id[colspec.name]}, "
+                    + f"are using the same collection, {colspec.name}")
+            col_to_id[colspec.name] = dp.data_product
+            collections.append(colspec.name)
+    return collections
+    
+
 class ArangoStorage:
     """
     An arango wrapper for collections storage.
@@ -106,9 +125,7 @@ class ArangoStorage:
             creation is useful for quickly standing up a test service.
         """
         dps = data_products or []
-        col_names = [col.name for dp in dps for col in dp.db_collections]
-        # TODO NEXT check no DPs sharing collections
-        for colname in _COLLECTIONS + col_names:
+        for colname in _get_and_check_col_names(dps):
             if create_collections_on_startup:
                 await _create_collection(db, colname)
             else:
