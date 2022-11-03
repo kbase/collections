@@ -105,7 +105,15 @@ class Collection(BaseModel):
         description="The data products associated with the collection"
     )
 
-    @validator("name", "desc", pre=True)
+    @validator("name", "ver_src", pre=True)
+    def _strip_and_fail_on_control_characters(cls, v):
+        v = v.strip()
+        pos = contains_control_characters(v)
+        if pos > -1:
+            raise ValueError(f"contains a control character at position {pos}")
+        return v
+
+    @validator("desc", pre=True)
     def _strip_and_fail_on_control_characters_with_exceptions(cls, v):
         if v is None:
             return None
@@ -115,12 +123,13 @@ class Collection(BaseModel):
             raise ValueError(f"contains a non tab or newline control character at position {pos}")
         return v
 
-    @validator("ver_src", pre=True)
-    def _strip_and_fail_on_control_characters(cls, v):
-        v = v.strip()
-        pos = contains_control_characters(v)
-        if pos > -1:
-            raise ValueError(f"contains a control character at position {pos}")
+    @validator("data_products")
+    def _check_data_products_unique(cls, v):
+        seen = set()
+        for dp in v:
+            if dp.product in seen:
+                raise ValueError(f"duplicate data product: {dp.product}")
+            seen.add(dp.product)
         return v
 
 
