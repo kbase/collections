@@ -18,6 +18,7 @@ from src.service import app_state
 from src.service import errors
 from src.service import models_errors
 from src.service.config import CollectionsServiceConfig
+from src.service.data_product_specs import DATA_PRODUCTS
 from src.service.routes_collections import (
     ROUTER_GENERAL,
     ROUTER_COLLECTIONS,
@@ -67,11 +68,12 @@ def create_app(noop=False):
     )
     app.include_router(ROUTER_GENERAL)
     app.include_router(ROUTER_COLLECTIONS)
-    # add data products routers here
+    for dp in sorted(DATA_PRODUCTS, key=lambda dp: str(dp.router.tags[0])):
+        app.include_router(dp.router)
     app.include_router(ROUTER_COLLECTIONS_ADMIN)
 
     async def build_app_wrapper():
-        await app_state.build_app(app, cfg)
+        await app_state.build_app(app, cfg, DATA_PRODUCTS)
     app.add_event_handler("startup", build_app_wrapper)
 
     async def clean_app_wrapper():
@@ -133,7 +135,4 @@ def _format_error(
     return JSONResponse(status_code=status_code, content=jsonable_encoder({"error": content}))
 
 
-
-# TODO REFACTOR move routes into separate modules, routes and routes_common for things
-# that data products may need
-# TODO STRUCTURE figure out how to structure data product code, ideally shoudln't touch main code
+# TODO DATAPROD figure out how to structure data product code, ideally shouldn't touch main code
