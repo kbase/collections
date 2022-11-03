@@ -11,12 +11,11 @@ import pytest
 
 @pytest.fixture(scope="module")
 def setup_and_teardown():
-    print('starting GTDB taxa frequency test')
+    print('starting GTDB taxa count test')
     tmp_dir = 'result_{}'.format(str(uuid.uuid4()))
     os.makedirs(tmp_dir, exist_ok=True)
 
-    caller_frame = inspect.stack()[0]
-    caller_filename_full = caller_frame.filename
+    caller_filename_full = Path(__file__).resolve()
     caller_file_dir = os.path.dirname(caller_filename_full)
 
     project_dir = Path(caller_file_dir).resolve().parents[3]
@@ -27,7 +26,7 @@ def setup_and_teardown():
     shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
-def _exam_freq_result_file(result_file, expected_docs_length, expected_doc_keys,
+def _exam_count_result_file(result_file, expected_docs_length, expected_doc_keys,
                            expected_load_version, expected_collection):
     with jsonlines.open(result_file, 'r') as jsonl_f:
         data = [obj for obj in jsonl_f]
@@ -80,7 +79,7 @@ def test_create_json_default(setup_and_teardown):
     expected_docs_length = 5420
     expected_doc_keys = {'_key', 'coll', 'load_ver', 'rank', 'name', 'count'}
     expected_collection = 'gtdb'
-    _exam_freq_result_file(result_file, expected_docs_length, expected_doc_keys,
+    _exam_count_result_file(result_file, expected_docs_length, expected_doc_keys,
                            load_version, expected_collection)
     expected_ranks_inorder = ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'species']
     _exam_rank_result_file(result_file, load_version, expected_collection, expected_ranks_inorder)
@@ -103,7 +102,7 @@ def test_create_json_option_input(setup_and_teardown):
 
     expected_docs_length = 5420
     expected_doc_keys = {'_key', 'coll', 'load_ver', 'rank', 'name', 'count'}
-    _exam_freq_result_file(result_file, expected_docs_length, expected_doc_keys,
+    _exam_count_result_file(result_file, expected_docs_length, expected_doc_keys,
                            load_version, kbase_collections)
     expected_ranks_inorder = ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'species']
     _exam_rank_result_file(result_file, load_version, kbase_collections, expected_ranks_inorder)

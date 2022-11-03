@@ -55,3 +55,9 @@ COLL_TAXA_COUNT_RANKS = COLLECTION_PREFIX + "taxa_count_ranks"
 
 COLL_TAXA_COUNT = COLLECTION_PREFIX + "taxa_count"
 """ A collection holding taxa count data. """
+
+#### Taxa count document fields
+FLD_TAXA_COUNT_RANK = "rank"
+FLD_TAXA_COUNT_RANKS = "ranks"
+FLD_TAXA_COUNT_NAME = "name"
+FLD_TAXA_COUNT_COUNT = "count"

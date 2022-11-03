@@ -16,7 +16,7 @@ from src.service.storage_arango import ArangoStorage, ARANGO_ERR_NAME_EXISTS
 # to keep it consistent and allow for refactoring without breaking other code
 
 async def build_app(
-    app: FastAPI, cfg: CollectionsServiceConfig, data_products: set[DataProductSpec]
+    app: FastAPI, cfg: CollectionsServiceConfig, data_products: list[DataProductSpec]
 ) -> None:
     """ Build the application state. """
     app.state._kb_auth = await KBaseAuth.create(cfg.auth_url, cfg.auth_full_admin_roles)
@@ -33,7 +33,7 @@ async def clean_app(app: FastAPI) -> None:
         await app.state._arango_cli.close()
 
 
-async def _build_storage(cfg: CollectionsServiceConfig, data_products: set[DataProductSpec]
+async def _build_storage(cfg: CollectionsServiceConfig, data_products: list[DataProductSpec]
 ) -> tuple[aioarango.ArangoClient, ArangoStorage]:
     if cfg.dont_connect_to_external_services:
         return False, False

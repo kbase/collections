@@ -8,10 +8,11 @@ item in the `tags` field of the router.
 """
 
 from src.service.data_products.common import DataProductSpec
+from src.service.data_products import taxa_count
 
-DATA_PRODUCTS: set[DataProductSpec] = {
-
-}
+DATA_PRODUCTS: list[DataProductSpec] = [
+    taxa_count.TAXA_COUNT_SPEC,
+]
 """ Set of data products the service supports. """
 
 

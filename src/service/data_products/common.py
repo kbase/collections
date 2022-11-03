@@ -4,6 +4,8 @@ Data structures and methods common to all data products
 
 from fastapi import APIRouter
 from pydantic import BaseModel, validator
+from src.service import models
+from src.service import errors
 
 class DBCollection(BaseModel):
     """
@@ -55,3 +57,15 @@ class DataProductSpec(BaseModel):
 
     class Config:
         arbitrary_types_allowed = True
+
+
+def get_load_version(ac: models.ActiveCollection, data_product: str):
+    """
+    Get the load version of a data product given a Collection and the ID of the data product,
+    or throw an error if the Collection does not have the data product activated.
+    """
+    for dp in ac.data_products:
+        if dp.product == data_product:
+            return dp.version
+    raise errors.NoRegisteredDataProduct(
+        f"The {ac.id} collection does not have a {data_product} data product registered.")
