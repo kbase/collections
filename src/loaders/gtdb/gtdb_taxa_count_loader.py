@@ -69,7 +69,7 @@ def _create_count_docs(nodes, kbase_collection, load_version):
                 names.FLD_ARANGO_KEY: md5_string(
                     f"{kbase_collection}_{load_version}_{rank}_{name}"
                 ),
-                names.FLD_COLLECTION_NAME: kbase_collection,
+                names.FLD_COLLECTION_ID: kbase_collection,
                 names.FLD_LOAD_VERSION: load_version,
                 names.FLD_TAXA_COUNT_RANK: rank,
                 names.FLD_TAXA_COUNT_NAME: name,
@@ -87,7 +87,7 @@ def _create_rank_docs(kbase_collection, load_version, identical_ranks):
 
     rank_doc = [{
         names.FLD_ARANGO_KEY: taxa_count.ranks_key(kbase_collection, load_version),
-        names.FLD_COLLECTION_NAME: kbase_collection,
+        names.FLD_COLLECTION_ID: kbase_collection,
         names.FLD_LOAD_VERSION: load_version,
         names.FLD_TAXA_COUNT_RANKS: [r for r in rank_candidates if r in identical_ranks]}]
 

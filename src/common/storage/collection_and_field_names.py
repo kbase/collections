@@ -17,8 +17,8 @@ refers to the database collections. However, all collection names are lowercase.
 FLD_ARANGO_KEY = "_key"
 FLD_ARANGO_ID = "_id"
 
-FLD_COLLECTION_NAME = "coll"
-""" The name of the key that has a collection name as its value. """
+FLD_COLLECTION_ID = "coll"
+""" The name of the key that has a collection ID as its value. """
 
 FLD_LOAD_VERSION = "load_ver"
 """ The name of the key that has a load version as its value. """
