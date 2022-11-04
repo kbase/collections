@@ -2,7 +2,7 @@
 A storage system for collections based on an Arango backend.
 """
 
-from aioarango.cursor import Cursor
+from aioarango.aql import AQL
 from aioarango.database import StandardDatabase
 from aioarango.exceptions import CollectionCreateError, DocumentInsertError
 from src.common.hash import md5_string
@@ -15,7 +15,7 @@ from src.common.storage.collection_and_field_names import (
 )
 from src.service import models
 from src.service import errors
-from src.service.data_product_specs import DataProductSpec
+from src.service.data_products.common import DataProductSpec
 
 
 # service collection names that aren't shared with data loaders.
@@ -65,11 +65,20 @@ def _remove_arango_keys(doc: dict):
     return doc
 
 
+_DP = models.FIELD_DATA_PRODUCTS
+
+
+def _data_product_docs_to_model(docs: list[dict[str, str]]):
+    return [models.DataProduct.construct(**dp) for dp in docs]
+
+
 def _doc_to_active_coll(doc: dict):
+    doc[_DP] = _data_product_docs_to_model(doc[_DP])
     return models.ActiveCollection.construct(**_remove_arango_keys(doc))
 
 
 def _doc_to_saved_coll(doc: dict):
+    doc[_DP] = _data_product_docs_to_model(doc[_DP])
     return models.SavedCollection.construct(**_remove_arango_keys(doc))
 
 
@@ -82,7 +91,7 @@ class ArangoStorage:
     async def create(
         cls,
         db: StandardDatabase,
-        data_products: set[DataProductSpec] = None,
+        data_products: list[DataProductSpec] = None,
         create_collections_on_startup: bool = False
     ):
         """
@@ -96,8 +105,9 @@ class ArangoStorage:
             allow for system administrators to set up sharding to their liking, but auto
             creation is useful for quickly standing up a test service.
         """
-        dps = list(data_products) or []
+        dps = data_products or []
         col_names = [col.name for dp in dps for col in dp.db_collections]
+        # TODO NEXT check no DPs sharing collections
         for colname in _COLLECTIONS + col_names:
             if create_collections_on_startup:
                 await _create_collection(db, colname)
@@ -117,9 +127,9 @@ class ArangoStorage:
         self._db = db
 
 
-    async def aql(self, aql: str, bind_vars: dict) -> Cursor:
-        """ Run an arbitrary AQL query against the database. """
-        return await self._db.aql.execute(aql, bind_vars=bind_vars)
+    def aql(self) -> AQL:
+        """ Get the database AQL instance for running arbitrary queries. """
+        return self._db.aql
 
     async def get_next_version(self, collection_id: str) -> int:
         """ Get the next available version number for a collection. """

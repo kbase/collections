@@ -40,13 +40,16 @@ class ErrorType(Enum):
     REQUEST_VALIDATION_FAILED = (30010, "Request validation failed")  # noqa: E222 @IgnorePep8
     """ A request to a service failed validation of the request. """
 
+    NO_REGISTERED_DATA_PRODUCT = (30020, "No registered data product")  # noqa: E222 @IgnorePep8
+    """ There is no such data product registered with the collection. """
+
     NO_SUCH_COLLECTION =     (40000, "No such collection")  # noqa: E222 @IgnorePep8
     """ The requested collection does not exist. """
 
     NO_SUCH_COLLECTION_VERSION = (40010, "No such collection version")  # noqa: E222 @IgnorePep8
     """ The requested collection version does not exist. """
 
-    COLLECTION_VERSION_EXISTS = (5000, "Collection version exists")  # noqa: E222 @IgnorePep8
+    COLLECTION_VERSION_EXISTS = (50000, "Collection version exists")  # noqa: E222 @IgnorePep8
     """ The requested collection version already exists. """
 
     UNSUPPORTED_OP =         (100000, "Unsupported operation")  # noqa: E222 @IgnorePep8
@@ -139,6 +142,15 @@ class IllegalParameterError(CollectionError):
 
     def __init__(self, message: str = None):
         super().__init__(ErrorType.ILLEGAL_PARAMETER, message)
+
+
+class NoRegisteredDataProduct(CollectionError):
+    """
+    An error thrown when a requested data product is not registered with the collection.
+    """
+
+    def __init__(self, message: str = None):
+        super().__init__(ErrorType.NO_REGISTERED_DATA_PRODUCT, message)
 
 
 class NoDataException(CollectionError):

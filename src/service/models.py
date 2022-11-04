@@ -33,6 +33,7 @@ REGEX_NO_WHITESPACE = "^[^\\s]+$"
 FIELD_COLLECTION_ID = "id"
 FIELD_VER_TAG = "ver_tag"
 FIELD_VER_NUM = "ver_num"
+FIELD_DATA_PRODUCTS = "data_products"
 FIELD_DATE_CREATE = "date_create"
 FIELD_USER_CREATE = "user_create"
 FIELD_DATE_ACTIVE = "date_active"
@@ -55,7 +56,7 @@ class DataProduct(BaseModel):
         min_length = 1,
         max_length = 20,
         regex = r"^\w+$",
-        example="taxa_freq",
+        example="taxa_count",
         description="The ID of the data product"
     )
     version: str = Field(
