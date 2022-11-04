@@ -163,7 +163,6 @@ async def save_collection(
     # Maybe the method implementations should go into a different module / class...
     # But the method implementation is intertwined with the path validation
     store = _precheck_admin_and_get_storage(r, user, ver_tag, "save data")
-    # TODO NEXT ensure no duplicate product IDs in data_products - can do it in model?
     doc = col.dict()
     exists = await store.has_collection_version_by_tag(collection_id, ver_tag)
     if exists:

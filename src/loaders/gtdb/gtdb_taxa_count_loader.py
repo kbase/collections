@@ -8,7 +8,6 @@ from src.common.hash import md5_string
 import src.common.storage.collection_and_field_names as names
 from src.service.data_products import taxa_count
 
-# TODO DATAPROD see if there's a way to write the collection names into the jsonl
 
 """
 PROTOTYPE

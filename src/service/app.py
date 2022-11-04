@@ -133,6 +133,3 @@ def _format_error(
     if request_validation_detail:
         content.update({"request_validation_detail": request_validation_detail})
     return JSONResponse(status_code=status_code, content=jsonable_encoder({"error": content}))
-
-
-# TODO DATAPROD figure out how to structure data product code, ideally shouldn't touch main code
