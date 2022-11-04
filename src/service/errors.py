@@ -43,10 +43,13 @@ class ErrorType(Enum):
     NO_REGISTERED_DATA_PRODUCT = (30020, "No registered data product")  # noqa: E222 @IgnorePep8
     """ There is no such data product registered with the collection. """
 
-    NO_SUCH_COLLECTION =     (40000, "No such collection")  # noqa: E222 @IgnorePep8
+    NO_DATA_FOUND =          (40000, "Requested data not found")  # noqa: E222 @IgnorePep8
+    """ The requested data does not exist. """
+    
+    NO_SUCH_COLLECTION =     (40010, "No such collection")  # noqa: E222 @IgnorePep8
     """ The requested collection does not exist. """
 
-    NO_SUCH_COLLECTION_VERSION = (40010, "No such collection version")  # noqa: E222 @IgnorePep8
+    NO_SUCH_COLLECTION_VERSION = (40020, "No such collection version")  # noqa: E222 @IgnorePep8
     """ The requested collection version does not exist. """
 
     COLLECTION_VERSION_EXISTS = (50000, "Collection version exists")  # noqa: E222 @IgnorePep8
@@ -160,6 +163,15 @@ class NoDataException(CollectionError):
 
     def __init__(self, error_type: ErrorType, message: str):
         super().__init__(error_type, message)
+
+
+class NoDataFoundError(NoDataException):
+    """
+    An generic error thrown when requested data does not exist. 
+    """
+
+    def __init__(self, message: str):
+        super().__init__(ErrorType.NO_DATA_FOUND, message)
 
 
 class NoSuchCollectionError(NoDataException):

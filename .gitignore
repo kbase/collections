@@ -4,3 +4,5 @@ coverage.xml
 collections.env
 gtdb_taxa_frequency_rank.json
 gtdb_taxa_frequency.json
+gtdb_taxa_frequency2_rank.json
+gtdb_taxa_frequency2.json

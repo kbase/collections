@@ -9,7 +9,7 @@ item in the `tags` field of the router.
 Note that "builtin" is a reserved ID for data products.
 """
 
-from src.service.data_products.common import DataProductSpec
+from src.service.data_products.common_models import DataProductSpec
 from src.service.data_products import taxa_count
 
 

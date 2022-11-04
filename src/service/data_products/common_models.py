@@ -1,11 +1,12 @@
 """
-Data structures and methods common to all data products
+Data structures common to all data products
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel, validator
 from src.service import models
 from src.service import errors
+
 
 class DBCollection(BaseModel):
     """
@@ -65,13 +66,12 @@ class DataProductSpec(BaseModel):
         arbitrary_types_allowed = True
 
 
-def get_load_version(ac: models.ActiveCollection, data_product: str):
-    """
-    Get the load version of a data product given a Collection and the ID of the data product,
-    or throw an error if the Collection does not have the data product activated.
-    """
-    for dp in ac.data_products:
-        if dp.product == data_product:
-            return dp.version
-    raise errors.NoRegisteredDataProduct(
-        f"The {ac.id} collection does not have a {data_product} data product registered.")
+QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = Query(
+    default=None,
+    min_length=models.LENGTH_MIN_LOAD_VERSION,
+    max_length=models.LENGTH_MAX_LOAD_VERSION,
+    regex=models.REGEX_LOAD_VERSION,
+    example=models.FIELD_LOAD_VERSION_EXAMPLE,
+    description=models.FIELD_LOAD_VERSION_DESCRIPTION + ". This will override the collection's "
+        + "load version. Service administrator privileges are required."
+)
