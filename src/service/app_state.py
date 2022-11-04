@@ -47,12 +47,11 @@ async def _build_storage(cfg: CollectionsServiceConfig, data_products: set[DataP
                 if e.error_code != ARANGO_ERR_NAME_EXISTS:  # ignore, db exists
                     raise
         db = await _get_arango_db(cli, cfg.arango_db, cfg)
-        # TODO DATAPROD handle data products, need to check/create collections & create indexes
-        # TODO DATAPROD add arbitrary aql method for the use of data products. I'd prefer to
-        # lock things down a bit more but I don't think that's reasonably possible
-        # Anyway, only KBase devs should add data products so YAGNI
         storage = await ArangoStorage.create(
-            db, create_collections_on_startup=cfg.create_db_on_startup)
+            db,
+            data_products=data_products,
+            create_collections_on_startup=cfg.create_db_on_startup
+        )
         return cli, storage
     except:
         await cli.close()
