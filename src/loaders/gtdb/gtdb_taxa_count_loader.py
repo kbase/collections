@@ -9,23 +9,22 @@ import src.common.storage.collection_and_field_names as names
 from src.service.data_products import taxa_count
 
 # TODO DATAPROD see if there's a way to write the collection names into the jsonl
-# TODO DATAPROD rename to *taxa_count_loader*, along with the test
 
 """
 PROTOTYPE
 
 Prepare GTDB taxa count data and identical ranks in JSON format for arango import.
 
-usage: gtdb_taxa_freq_loader.py [-h] --load_version
+usage: gtdb_taxa_count_loader.py [-h] --load_version
                                 LOAD_VERSION
                                 [--kbase_collection KBASE_COLLECTION]
                                 [-o OUTPUT]
                                 load_files
                                 [load_files ...]
  
-e.g. gtdb_taxa_freq_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_version 207
-     gtdb_taxa_freq_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_version 207 --kbase_collection gtdb
-     gtdb_taxa_freq_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_version 207 --kbase_collection gtdb --output  gtdb_taxa_frequency.json
+e.g. gtdb_taxa_count_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_version 207
+     gtdb_taxa_count_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_version 207 --kbase_collection gtdb
+     gtdb_taxa_count_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_version 207 --kbase_collection gtdb --output  gtdb_taxa_counts.json
 """
 
 _ABBRV_SPECIES = "s"
@@ -115,8 +114,8 @@ def main():
     parser.add_argument(
         "-o", "--output",
         type=argparse.FileType('w'),
-        default='gtdb_taxa_frequency.json',
-        help="output JSON file path (default: gtdb_taxa_frequency.json"
+        default='gtdb_taxa_counts.json',
+        help="output JSON file path (default: gtdb_taxa_counts.json"
     )
 
     args = parser.parse_args()
@@ -127,7 +126,7 @@ def main():
 
     count_docs, identical_ranks = _create_count_docs(nodes, kbase_collection, load_version)
     rank_doc = _create_rank_docs(kbase_collection, load_version, identical_ranks)
-    # Create taxa frequency json file
+    # Create taxa counts json file
     count_json = args.output
     with count_json as out_count_json:
         convert_to_json(count_docs, out_count_json)
