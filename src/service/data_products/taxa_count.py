@@ -79,3 +79,6 @@ async def get_ranks(r: Request, collection_id: str = PATH_VALIDATOR_COLLECTION_I
             + f"{collection_id} collection load version {load_ver}")
     doc = await cur.next()
     return Ranks(data=doc[names.FLD_TAXA_COUNT_RANKS])
+
+
+# TODO DATAPROD add counts endpoint

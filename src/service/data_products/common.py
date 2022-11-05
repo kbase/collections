@@ -55,6 +55,12 @@ class DataProductSpec(BaseModel):
     in the `tags` argument.
     """
 
+    @validator("router")
+    def _check_router_tags(cls, v):
+        if not v.tags:
+            raise ValueError("router must have at least one tag")
+        return v
+
     class Config:
         arbitrary_types_allowed = True
 
