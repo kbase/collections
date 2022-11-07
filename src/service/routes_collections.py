@@ -117,7 +117,7 @@ async def root():
     }
 
 
-@ROUTER_GENERAL.get("/whoami", response_model = WhoAmI)
+@ROUTER_GENERAL.get("/whoami/", response_model = WhoAmI)
 async def whoami(user: KBaseUser=Depends(_AUTH)):
     return {
         "user": user.user.id,
@@ -125,13 +125,13 @@ async def whoami(user: KBaseUser=Depends(_AUTH)):
     }
 
 
-@ROUTER_COLLECTIONS.get("/collectionids", response_model = CollectionIDs)
+@ROUTER_COLLECTIONS.get("/collectionids/", response_model = CollectionIDs)
 async def get_collection_ids(r: Request):
     ids = await app_state.get_storage(r).get_collection_ids()
     return CollectionIDs(data=ids)
 
 
-@ROUTER_COLLECTIONS.get("/collections", response_model = CollectionsList)
+@ROUTER_COLLECTIONS.get("/collections/", response_model = CollectionsList)
 async def list_collections(r: Request):
     cols = await app_state.get_storage(r).get_collections_active()
     return CollectionsList(data=cols)
@@ -255,7 +255,7 @@ async def activate_collection_by_ver_num(
 
 
 @ROUTER_COLLECTIONS_ADMIN.get(
-    "/collections/{collection_id}/versions",
+    "/collections/{collection_id}/versions/",
     response_model=CollectionVersions,
     description="Get the list of versions for a collection, sorted in descending order "
         + "of the version number. Returns at most 1000 versions."

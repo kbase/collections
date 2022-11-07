@@ -93,7 +93,7 @@ _FLD_COL_RANK = "rank"
 
 
 @_ROUTER.get(
-    f"/collections/{{collection_id}}/{ID}/ranks",
+    f"/collections/{{collection_id}}/{ID}/ranks/",
     response_model=Ranks,
     description="Get the taxonomy ranks, in rank order, for the taxa counts.\n\n "
         + "Authentication is not required unless overriding the load version, in which case "
