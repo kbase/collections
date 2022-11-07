@@ -18,6 +18,9 @@ from src.service.arg_checkers import contains_control_characters
 # TODO TEST all these regexes and constraints will need a good chunk of testing.
 
 REGEX_NO_WHITESPACE = "^[^\\s]+$"
+REGEX_LOAD_VERSION = r"^[\w.-]+$"
+LENGTH_MIN_LOAD_VERSION = 1
+LENGTH_MAX_LOAD_VERSION = 20
 
 # regarding control character handling - you can check for control characters with the regex
 # \pC escape - BUT Pydantic uses the built in re library which doesn't support it. The
@@ -48,6 +51,8 @@ FIELD_VER_TAG_DESCRIPTION = ("A user assigned unique but otherwise arbitrary tag
 FIELD_VER_NUM_EXAMPLE = 5
 FIELD_VER_NUM_DESCRIPTION = ("The numeric version of the collection, assigned by the "
     + "collection service")
+FIELD_LOAD_VERSION_EXAMPLE = "gtdb.207.kbase.3"
+FIELD_LOAD_VERSION_DESCRIPTION = "The load version of the data product"
 
 
 class DataProduct(BaseModel):
@@ -60,11 +65,11 @@ class DataProduct(BaseModel):
         description="The ID of the data product"
     )
     version: str = Field(
-        min_length = 1,
-        max_length = 20,
-        regex = r"^[\w.-]+$",
-        example="gtdb.207.kbase.3",
-        description="The load version of the data product"
+        min_length = LENGTH_MIN_LOAD_VERSION,
+        max_length = LENGTH_MAX_LOAD_VERSION,
+        regex = REGEX_LOAD_VERSION,
+        example=FIELD_LOAD_VERSION_EXAMPLE,
+        description=FIELD_LOAD_VERSION_DESCRIPTION
     )
     # in the future we may want a schema version... need to think this through first.
     # assume missing == schema version 1 for now

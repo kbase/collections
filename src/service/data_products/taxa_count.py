@@ -2,13 +2,20 @@
 The taxa_count data product, which provides taxa counts for a collection at each taxonomy rank.
 """
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Depends
 from pydantic import BaseModel, Field
+from src.common.hash import md5_string
 from src.service import app_state
-from src.service.data_products.common import DataProductSpec, DBCollection, get_load_version
+from src.service import errors
+from src.service.data_products.common_functions import get_load_version
+from src.service.data_products.common_models import (
+    DataProductSpec,
+    DBCollection,
+    QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
+)
+from src.service.http_bearer import KBaseHTTPBearer, KBaseUser
 import src.common.storage.collection_and_field_names as names
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
-from src.common.hash import md5_string
 
 
 ID = "taxa_count"
@@ -37,6 +44,9 @@ TAXA_COUNT_SPEC = DataProductSpec(
     ]
 )
 
+_OPT_AUTH = KBaseHTTPBearer(optional=True)
+
+
 def ranks_key(collection_id: str, load_ver: str):
     f"""
     Calculate the ranks database key for the {ID} data product.
@@ -55,12 +65,20 @@ _FLD_COL_ID = "colid"
 _FLD_KEY = "key"
 
 
-# TODO DATAPROD add auth and allow admins to override load_ver
-@_ROUTER.get(f"/collections/{{collection_id}}/{ID}/ranks", response_model=Ranks)
-async def get_ranks(r: Request, collection_id: str = PATH_VALIDATOR_COLLECTION_ID):
+@_ROUTER.get(
+    f"/collections/{{collection_id}}/{ID}/ranks",
+    response_model=Ranks,
+    description="Get the taxonomy ranks, in rank order, for the taxa counts.\n\n "
+        + "Authentication is not required unless overriding the load version, in which case "
+        + "service administration permissions are required.")
+async def get_ranks(
+    r: Request,
+    collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
+    load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
+    user: KBaseUser = Depends(_OPT_AUTH)
+):
     store = app_state.get_storage(r)
-    ac = await store.get_collection_active(collection_id)
-    load_ver = get_load_version(ac, ID)
+    load_ver = await get_load_version(store, collection_id, ID, load_ver_override, user)
     aql = f"""
         FOR d IN @@{_FLD_COL_ID}
             FILTER d.{names.FLD_ARANGO_KEY} == @{_FLD_KEY}
@@ -72,11 +90,11 @@ async def get_ranks(r: Request, collection_id: str = PATH_VALIDATOR_COLLECTION_I
     }
     cur = await store.aql().execute(aql, bind_vars=bind_vars, count=True)
     if cur.count() < 1:
-        # if an admin overrides load_ver this should be a 400 error, not 500
-        raise ValueError(f"No data loaded for {collection_id} collection load version {load_ver}")
-    if cur.count() > 1:
-        raise ValueError("More than one ranks document exists in the database for "
-            + f"{collection_id} collection load version {load_ver}")
+        err = f"No data loaded for {collection_id} collection load version {load_ver}"
+        if load_ver_override:
+            raise errors.NoDataFoundError(err)
+        raise ValueError(err)
+    # since we're getting a doc by _key > 1 is impossible
     doc = await cur.next()
     return Ranks(data=doc[names.FLD_TAXA_COUNT_RANKS])
 

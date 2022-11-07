@@ -21,7 +21,7 @@ ROUTER_GENERAL = APIRouter(tags=["General"])
 ROUTER_COLLECTIONS = APIRouter(tags=["Collections"])
 ROUTER_COLLECTIONS_ADMIN = APIRouter(tags=["Collection Administration"])
 
-_authheader = KBaseHTTPBearer()
+_AUTH = KBaseHTTPBearer()
 
 def _ensure_admin(user: KBaseUser, err_msg: str):
     if user.admin_perm != kb_auth.AdminPermission.FULL:
@@ -118,7 +118,7 @@ async def root():
 
 
 @ROUTER_GENERAL.get("/whoami", response_model = WhoAmI)
-async def whoami(user: KBaseUser=Depends(_authheader)):
+async def whoami(user: KBaseUser=Depends(_AUTH)):
     return {
         "user": user.user.id,
         "is_service_admin": kb_auth.AdminPermission.FULL == user.admin_perm
@@ -158,7 +158,7 @@ async def save_collection(
     col: models.Collection,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     ver_tag: str = _PATH_VER_TAG,
-    user: KBaseUser=Depends(_authheader)
+    user: KBaseUser=Depends(_AUTH)
 ) -> models.SavedCollection:
     # Maybe the method implementations should go into a different module / class...
     # But the method implementation is intertwined with the path validation
@@ -190,7 +190,7 @@ async def save_collection(
 
 
 @ROUTER_COLLECTIONS_ADMIN.get("/collectionids/all/", response_model = CollectionIDs)
-async def get_all_collection_ids(r: Request, user: KBaseUser=Depends(_authheader)):
+async def get_all_collection_ids(r: Request, user: KBaseUser=Depends(_AUTH)):
     store = _precheck_admin_and_get_storage(r, user, "", "view collection versions")
     ids = await store.get_collection_ids(all_=True)
     return CollectionIDs(data=ids)
@@ -204,7 +204,7 @@ async def get_collection_by_ver_tag(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     ver_tag: str = _PATH_VER_TAG,
-    user: KBaseUser=Depends(_authheader)
+    user: KBaseUser=Depends(_AUTH)
 ) -> models.SavedCollection:
     store = _precheck_admin_and_get_storage(r, user, ver_tag, "view collection versions")
     return await store.get_collection_version_by_tag(collection_id, ver_tag)
@@ -218,7 +218,7 @@ async def activate_collection_by_ver_tag(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     ver_tag: str = _PATH_VER_TAG,
-    user: KBaseUser=Depends(_authheader)
+    user: KBaseUser=Depends(_AUTH)
 ) -> models.ActiveCollection:
     store = _precheck_admin_and_get_storage(r, user, ver_tag, "activate a collection version")
     col = await store.get_collection_version_by_tag(collection_id, ver_tag)
@@ -233,7 +233,7 @@ async def get_collection_by_ver_num(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     ver_num: int = _PATH_VER_NUM,
-    user: KBaseUser=Depends(_authheader)
+    user: KBaseUser=Depends(_AUTH)
 ) -> models.SavedCollection:
     store = _precheck_admin_and_get_storage(r, user, "", "view collection versions")
     return await store.get_collection_version_by_num(collection_id, ver_num)
@@ -247,7 +247,7 @@ async def activate_collection_by_ver_num(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     ver_num: int = _PATH_VER_NUM,
-    user: KBaseUser=Depends(_authheader)
+    user: KBaseUser=Depends(_AUTH)
 ) -> models.ActiveCollection:
     store = _precheck_admin_and_get_storage(r, user, "", "activate a collection version")
     col = await store.get_collection_version_by_num(collection_id, ver_num)
@@ -264,7 +264,7 @@ async def get_collection_versions(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     max_ver: int | None = _QUERY_MAX_VER,
-    user: KBaseUser=Depends(_authheader),
+    user: KBaseUser=Depends(_AUTH),
 ) -> CollectionVersions:
     store = _precheck_admin_and_get_storage(r, user, "", "view collection versions")
     versions = await store.get_collection_versions(collection_id, max_ver=max_ver)

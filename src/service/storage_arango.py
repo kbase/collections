@@ -15,7 +15,7 @@ from src.common.storage.collection_and_field_names import (
 )
 from src.service import models
 from src.service import errors
-from src.service.data_products.common import DataProductSpec
+from src.service.data_products.common_models import DataProductSpec
 
 
 # service collection names that aren't shared with data loaders.

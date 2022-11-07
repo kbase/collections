@@ -8,7 +8,7 @@ import sys
 
 from fastapi import FastAPI, Request
 from src.service.config import CollectionsServiceConfig
-from src.service.data_products.common import DataProductSpec
+from src.service.data_products.common_models import DataProductSpec
 from src.service.kb_auth import KBaseAuth
 from src.service.storage_arango import ArangoStorage, ARANGO_ERR_NAME_EXISTS
 
