@@ -8,7 +8,7 @@ from gtdb_loader_helper import convert_to_json
 from src.common.hash import md5_string
 from src.common.storage.collection_and_field_names import (
     FLD_ARANGO_KEY,
-    FLD_COLLECTION_NAME,
+    FLD_COLLECTION_ID,
     FLD_LOAD_VERSION,
 )
 
@@ -113,7 +113,7 @@ def _row_to_doc(row, kbase_collection, load_version):
     """
     doc = {
         FLD_ARANGO_KEY: md5_string(f"{kbase_collection}_{load_version}_{row.name}"),
-        FLD_COLLECTION_NAME: kbase_collection,
+        FLD_COLLECTION_ID: kbase_collection,
         FLD_LOAD_VERSION: load_version,
     }
     doc.update(row.to_dict())

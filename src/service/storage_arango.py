@@ -59,8 +59,8 @@ def _version_key(collection_id: str, ver_tag: str):
     return md5_string(f"{collection_id}_{ver_tag}")
 
 
-# modifies doc in place
-def _remove_arango_keys(doc: dict):
+def remove_arango_keys(doc: dict):
+    """ Removes the 3 special arango keys from a document **in place**. """
     for k in _ARANGO_SPECIAL_KEYS:
         doc.pop(k, None)
     return doc
@@ -75,12 +75,12 @@ def _data_product_docs_to_model(docs: list[dict[str, str]]):
 
 def _doc_to_active_coll(doc: dict):
     doc[_DP] = _data_product_docs_to_model(doc[_DP])
-    return models.ActiveCollection.construct(**_remove_arango_keys(doc))
+    return models.ActiveCollection.construct(**remove_arango_keys(doc))
 
 
 def _doc_to_saved_coll(doc: dict):
     doc[_DP] = _data_product_docs_to_model(doc[_DP])
-    return models.SavedCollection.construct(**_remove_arango_keys(doc))
+    return models.SavedCollection.construct(**remove_arango_keys(doc))
 
 
 def _get_and_check_col_names(dps: list[DataProductSpec]):
