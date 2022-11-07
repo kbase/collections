@@ -2,7 +2,7 @@ import argparse
 
 import pandas as pd
 
-import gtdb_genome_stats_helper as helper
+import gtdb_genome_attribs_helper as helper
 from gtdb_loader_helper import convert_to_json
 
 from src.common.hash import md5_string
@@ -15,20 +15,20 @@ from src.common.storage.collection_and_field_names import (
 """
 PROTOTYPE
 
-Prepare GTDB genome statistics data in JSON format for arango import.
+Prepare GTDB genome attributes data in JSON format for arango import.
 
 This script will first parse genome features from the GTDB metadata files. Those features should be put into
 EXIST_FEATURES. 
 
 It will then try to compute other(non-existing) features. The name of non-existing features should be put into 
-NON_EXIST_FEATURES. Each non-existing features should have a corresponding function defined in gtdb_genome_stats_helper.
+NON_EXIST_FEATURES. Each non-existing features should have a corresponding function defined in gtdb_genome_attribs_helper.
 NOTE: the function name should be exactly the same as the non-existing feature name.
 
 Any features that are used for computing the non-existing features should be added to HELPER_FEATURES. They will be
 eventually dropped from the result dataframe.
 
 
-usage: gtdb_genome_stats_loader.py [-h]
+usage: gtdb_genome_attribs_loader.py [-h]
                                    --load_version
                                    LOAD_VERSION
                                    [--kbase_collection KBASE_COLLECTION]
@@ -37,9 +37,9 @@ usage: gtdb_genome_stats_loader.py [-h]
                                    [load_files ...]
 
 
-e.g. gtdb_genome_stats_loader.py bac120_metadata_r207.tsv ar53_metadata_r207.tsv --load_version 207
-     gtdb_genome_stats_loader.py bac120_metadata_r207.tsv ar53_metadata_r207.tsv --load_version 207 --kbase_collection gtdb
-     gtdb_genome_stats_loader.py bac120_metadata_r207.tsv ar53_metadata_r207.tsv --load_version 207 --kbase_collection gtdb --output  gtdb_genome_stats.json
+e.g. gtdb_genome_attribs_loader.py bac120_metadata_r207.tsv ar53_metadata_r207.tsv --load_version 207
+     gtdb_genome_attribs_loader.py bac120_metadata_r207.tsv ar53_metadata_r207.tsv --load_version 207 --kbase_collection gtdb
+     gtdb_genome_attribs_loader.py bac120_metadata_r207.tsv ar53_metadata_r207.tsv --load_version 207 --kbase_collection gtdb --output  gtdb_genome_attribs.json
 """
 
 EXIST_FEATURES = helper.EXIST_FEATURES
@@ -50,7 +50,7 @@ HELPER_FEATURES = {'checkm_marker_count'}  # additional features needed to compu
 HEADER_MAPPER = {'accession': 'Genome Name'}
 
 
-def _compute_stats(df, computations):
+def _compute_attribs(df, computations):
     """
     Applies computation method on dataframe to create new columns storing the result of the computation
 
@@ -146,21 +146,21 @@ def main():
     # Optional argument
     parser.add_argument('--kbase_collection', type=str, default='gtdb',
                         help='kbase collection identifier name (default: gtdb)')
-    parser.add_argument("-o", "--output", type=argparse.FileType('w'), default='gtdb_genome_stats.json',
-                        help="output JSON file path (default: gtdb_genome_stats.json")
+    parser.add_argument("-o", "--output", type=argparse.FileType('w'), default='gtdb_genome_attribs.json',
+                        help="output JSON file path (default: gtdb_genome_attribs.json")
 
     args = parser.parse_args()
     load_files, load_version, kbase_collection = args.load_files, args.load_version[0], args.kbase_collection
 
     print('start parsing input files')
     df = _parse_from_metadata_file(load_files, EXIST_FEATURES, HELPER_FEATURES)
-    df = _compute_stats(df, NON_EXIST_FEATURES)
+    df = _compute_attribs(df, NON_EXIST_FEATURES)
     df.drop(columns=HELPER_FEATURES - EXIST_FEATURES - NON_EXIST_FEATURES,
             inplace=True)  # drop features added for computation
     docs = _df_to_docs(df, kbase_collection, load_version, HEADER_MAPPER)
 
-    with args.output as genome_stats_json:
-        convert_to_json(docs, genome_stats_json)
+    with args.output as genome_attribs_json:
+        convert_to_json(docs, genome_attribs_json)
 
 
 if __name__ == "__main__":
