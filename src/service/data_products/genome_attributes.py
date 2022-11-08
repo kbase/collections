@@ -70,6 +70,8 @@ class AttributesForGenomes(BaseModel):
 _FLD_COL_ID = "colid"
 _FLD_COL_NAME = "colname"
 _FLD_COL_LV = "colload"
+_FLD_SORT = "sort"
+_FLD_SORT_DIR = "sortdir"
 _FLD_SKIP = "skip"
 _FLD_LIMIT = "limit"
 
@@ -87,10 +89,19 @@ _FLD_LIMIT = "limit"
 async def get_ranks(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
+    sort_on: str = Query(
+        default=names.FLD_GENOME_ATTRIBS_GENOME_NAME,
+        example="genome_size",
+        description="The field to sort on."
+    ),
+    sort_desc: bool = Query(
+        default=False,
+        description="Whether to sort in descending order rather than ascending"
+    ),
     skip: int | None = Query(
         default=None,
         ge=0,
-        le=99000,
+        le=100000,
         example=1000,
         description="The number of records to skip, default 0"
     ),
@@ -104,15 +115,19 @@ async def get_ranks(
     load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
     user: KBaseUser = Depends(_OPT_AUTH)
 ):
+    # sorting only works here since we expect the largest collection to be ~300K records and
+    # we have a max limit of 1000, which means sorting is O(n log2 1000).
+    # Otherwise we need indexes for every sort
     skip = skip or 0
     limit = limit or 1000
     store = app_state.get_storage(r)
     load_ver = await get_load_version(store, collection_id, ID, load_ver_override, user)
+    await _check_sort_field(store, collection_id, load_ver, sort_on)
     aql = f"""
     FOR d IN @@{_FLD_COL_NAME}
         FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
         FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
-        SORT d.{names.FLD_GENOME_ATTRIBS_GENOME_NAME} ASC
+        SORT d.@{_FLD_SORT} @{_FLD_SORT_DIR}
         LIMIT @{_FLD_SKIP}, @{_FLD_LIMIT}
         RETURN d
     """
@@ -120,6 +135,8 @@ async def get_ranks(
         f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
         _FLD_COL_ID: collection_id,
         _FLD_COL_LV: load_ver,
+        _FLD_SORT: sort_on,
+        _FLD_SORT_DIR: "DESC" if sort_desc else "ASC",
         _FLD_SKIP: skip,
         _FLD_LIMIT: limit
     }
@@ -131,3 +148,28 @@ async def get_ranks(
         # not clear there's any benefit to creating a bunch of TaxaCount objects here
         ret.append(remove_collection_keys(remove_arango_keys(d)))
     return {_FLD_SKIP: skip, _FLD_LIMIT: limit, "data": ret}
+
+
+async def _check_sort_field(store: ArangoStorage, collection_id: str, load_ver: str, field: str):
+    if field == names.FLD_GENOME_ATTRIBS_GENOME_NAME:
+        return
+    aql = f"""
+    FOR d IN @@{_FLD_COL_NAME}
+        FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
+        FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
+        LIMIT 1
+        RETURN d
+    """
+    bind_vars = {
+        f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
+        _FLD_COL_ID: collection_id,
+        _FLD_COL_LV: load_ver,
+    }
+    cur = await store.aql().execute(aql, bind_vars=bind_vars)
+    doc = await cur.next()
+    if not doc:
+        return  # no data, so no sorting.
+    if field not in doc:
+        raise errors.IllegalParameterError(
+            f"No such field for collection {collection_id} load version {load_ver}: {field}")
+    
