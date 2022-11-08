@@ -157,8 +157,8 @@ async def get_taxa_counts(
     if rank not in ranks.data:
         raise errors.IllegalParameterError(f"Invalid rank: {rank}")
     aql = f"""
-        FOR d IN @@{_FLD_COL_ID}
-            FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_NAME}
+        FOR d IN @@{_FLD_COL_NAME}
+            FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
             FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
             FILTER d.{names.FLD_TAXA_COUNT_RANK} == @{_FLD_COL_RANK}
             SORT d.{names.FLD_TAXA_COUNT_COUNT} DESC
@@ -168,8 +168,8 @@ async def get_taxa_counts(
     # will probably want some sort of sort / limit options, but don't get too crazy. Wait for
     # feedback for now
     bind_vars = {
-        f"@{_FLD_COL_ID}": names.COLL_TAXA_COUNT,
-        _FLD_COL_NAME: collection_id,
+        f"@{_FLD_COL_NAME}": names.COLL_TAXA_COUNT,
+        _FLD_COL_ID: collection_id,
         _FLD_COL_LV: load_ver,
         _FLD_COL_RANK: rank
     }

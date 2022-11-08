@@ -10,11 +10,12 @@ Note that "builtin" is a reserved ID for data products.
 """
 
 from src.service.data_products.common_models import DataProductSpec
-from src.service.data_products import taxa_count
+from src.service.data_products import taxa_count, genome_attributes
 
 
 DATA_PRODUCTS: list[DataProductSpec] = [
     taxa_count.TAXA_COUNT_SPEC,
+    genome_attributes.GENOME_ATTRIBS_SPEC
 ]
 """ Set of data products the service supports. """
 
