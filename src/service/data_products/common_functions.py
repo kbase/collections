@@ -2,6 +2,7 @@
 Functions common to all data products
 """
 
+import src.common.storage.collection_and_field_names as names
 from src.service import errors
 from src.service import kb_auth
 from src.service.storage_arango import ArangoStorage
@@ -43,3 +44,10 @@ async def get_load_version(
             return dp.version
     raise errors.NoRegisteredDataProduct(
         f"The {ac.id} collection does not have a {data_product} data product registered.")
+
+
+def remove_collection_keys(doc: dict):
+    """ Removes the collection ID and load version keys from a dictionary **in place**. """
+    for k in [names.FLD_COLLECTION_ID, names.FLD_LOAD_VERSION]:
+        doc.pop(k, None)
+    return doc
