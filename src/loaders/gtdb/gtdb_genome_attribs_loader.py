@@ -5,6 +5,7 @@ import pandas as pd
 import gtdb_genome_attribs_helper as helper
 from gtdb_loader_helper import convert_to_json
 
+import src.common.storage.collection_and_field_names as names
 from src.common.hash import md5_string
 from src.common.storage.collection_and_field_names import (
     FLD_ARANGO_KEY,
@@ -47,7 +48,7 @@ NON_EXIST_FEATURES = {'high_checkm_marker_count'}  # genome statistics to be com
 HELPER_FEATURES = {'checkm_marker_count'}  # additional features needed to compute statistics
 
 # change header to specific context (default mapper: capitalize first character)
-HEADER_MAPPER = {'accession': 'Genome Name'}
+HEADER_MAPPER = {'accession': names.FLD_GENOME_ATTRIBS_GENOME_NAME}
 
 
 def _compute_attribs(df, computations):
@@ -87,10 +88,9 @@ def _parse_from_metadata_file(load_files, exist_features, additional_features):
 
 def _rename_col(df, header_mapper):
     """
-    Formats data frame's column for easier readability
+    Remaps data frame's column as specified in `header_mapper`
 
-    Creates a default mapper that capitalizes headers (e.g. {'aa_bb_cc': 'Aa Bb Cc'} given 'aa_bb_cc' is one of
-    dataframe's column) and then updates the mapper with user's mapper. After than changes dataframe's header in place.
+    Changes dataframe's header in place.
 
      Args:
         df:  A data frame object
@@ -100,11 +100,7 @@ def _rename_col(df, header_mapper):
          None (updates dataframe in place)
     """
 
-    # default mapper (e.g. {'aa_bb_cc': 'Aa Bb Cc'})
-    # Note: all columns are following 'a_b_c' format in the original GTDB metadata file
-    mapper = {col: ' '.join(list(map(lambda x: x.capitalize(), col.split('_')))) for col in df.columns}
-    mapper.update(header_mapper)
-    df.rename(columns=mapper, errors="raise", inplace=True)
+    df.rename(columns=header_mapper, errors="raise", inplace=True)
 
 
 def _row_to_doc(row, kbase_collection, load_version):

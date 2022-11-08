@@ -61,3 +61,11 @@ FLD_TAXA_COUNT_RANK = "rank"
 FLD_TAXA_COUNT_RANKS = "ranks"
 FLD_TAXA_COUNT_NAME = "name"
 FLD_TAXA_COUNT_COUNT = "count"
+
+### Genome attributes
+
+COLL_GENOME_ATTRIBS = COLLECTION_PREFIX + "genome_attribs"
+
+#### Genome attribute document fields
+
+FLD_GENOME_ATTRIBS_GENOME_NAME = "genome_name"
