@@ -78,8 +78,8 @@ def _parse_from_metadata_file(load_files, exist_features, additional_features):
     and saves result as a pandas data from
     """
 
-    frames = [pd.read_csv(load_file, sep='\t', header=0, usecols=exist_features.union(additional_features)) for
-              load_file in load_files]
+    frames = [pd.read_csv(load_file, sep='\t', header=0, keep_default_na=False,
+                          usecols=exist_features.union(additional_features)) for load_file in load_files]
     df = pd.concat(frames, ignore_index=True)
 
     return df
