@@ -18,14 +18,14 @@ def setup_and_teardown():
     caller_file_dir = os.path.dirname(caller_filename_full)
 
     project_dir = Path(caller_file_dir).resolve().parents[3]
-    script_file = f'{project_dir}/src/loaders/gtdb/gtdb_genome_stats_loader.py'
+    script_file = f'{project_dir}/src/loaders/gtdb/gtdb_genome_attribs_loader.py'
 
     yield tmp_dir, caller_file_dir, script_file
 
     shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
-def _exam_genome_stats_file(result_file, expected_docs_length, expected_doc_keys,
+def _exam_genome_attribs_file(result_file, expected_docs_length, expected_doc_keys,
                             expected_load_version, expected_collection):
     with jsonlines.open(result_file, 'r') as jsonl_f:
         data = [obj for obj in jsonl_f]
@@ -65,7 +65,7 @@ def test_create_json_default(setup_and_teardown):
     expected_docs_length = 20
     expected_doc_keys = {'_key', 'coll', 'load_ver', 'Genome Name', 'Checkm Completeness',
                          'High Checkm Marker Count', 'Trna Selenocysteine Count',
-                         'N50 Scaffolds'}  # cherry-pick a few from gtdb_genome_stats_helper.EXIST_FEATURES
+                         'N50 Scaffolds'}  # cherry-pick a few from gtdb_genome_attribs_helper.EXIST_FEATURES
 
-    _exam_genome_stats_file(result_file, expected_docs_length, expected_doc_keys,
+    _exam_genome_attribs_file(result_file, expected_docs_length, expected_doc_keys,
                             load_version, kbase_collections)
