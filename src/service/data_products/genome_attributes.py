@@ -101,7 +101,7 @@ async def get_ranks(
     skip: int | None = Query(
         default=None,
         ge=0,
-        le=100000,
+        le=10000,
         example=1000,
         description="The number of records to skip, default 0"
     ),
