@@ -73,7 +73,7 @@ To start the service Docker container:
 
 ### Running tests
 
-Python 3.10 must be installed on the system.
+Python 3.11 must be installed on the system.
 
 ```
 pipenv sync --dev  # only the first time or when Pipfile.lock changes
