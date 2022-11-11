@@ -48,6 +48,7 @@ To start the service Docker container:
 * In this alpha / prototype stage, we will be PRing (do not push directly) to `main`. In the
   future, once we want to deploy beyond CI, we will add a `develop` branch.
 * The PR creator merges the PR and deletes branches (after builds / tests / linters complete).
+* To add new data products, see [Adding data products](/docs/adding_data_products.md)
 
 ### Versioning
 
