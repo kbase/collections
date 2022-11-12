@@ -98,19 +98,19 @@ async def get_ranks(
         default=False,
         description="Whether to sort in descending order rather than ascending"
     ),
-    skip: int | None = Query(
-        default=None,
+    skip: int = Query(
+        default=0,
         ge=0,
         le=10000,
         example=1000,
-        description="The number of records to skip, default 0"
+        description="The number of records to skip"
     ),
-    limit: int | None = Query(
-        default=None,
+    limit: int = Query(
+        default=1000,
         ge=1,
         le=1000,
         example=1000,
-        description="The maximum number of results, default 1000"
+        description="The maximum number of results"
     ),
     load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
     user: KBaseUser = Depends(_OPT_AUTH)
@@ -118,11 +118,8 @@ async def get_ranks(
     # sorting only works here since we expect the largest collection to be ~300K records and
     # we have a max limit of 1000, which means sorting is O(n log2 1000).
     # Otherwise we need indexes for every sort
-    skip = skip or 0
-    limit = limit or 1000
     store = app_state.get_storage(r)
     load_ver = await get_load_version(store, collection_id, ID, load_ver_override, user)
-    await _check_sort_field(store, collection_id, load_ver, sort_on)
     aql = f"""
     FOR d IN @@{_FLD_COL_NAME}
         FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
@@ -147,29 +144,7 @@ async def get_ranks(
     async for d in cur:
         # not clear there's any benefit to creating a bunch of TaxaCount objects here
         ret.append(remove_collection_keys(remove_arango_keys(d)))
-    return {_FLD_SKIP: skip, _FLD_LIMIT: limit, "data": ret}
-
-
-async def _check_sort_field(store: ArangoStorage, collection_id: str, load_ver: str, field: str):
-    if field == names.FLD_GENOME_ATTRIBS_GENOME_NAME:
-        return
-    aql = f"""
-    FOR d IN @@{_FLD_COL_NAME}
-        FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
-        FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
-        LIMIT 1
-        RETURN d
-    """
-    bind_vars = {
-        f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
-        _FLD_COL_ID: collection_id,
-        _FLD_COL_LV: load_ver,
-    }
-    cur = await store.aql().execute(aql, bind_vars=bind_vars)
-    doc = await cur.next()
-    if not doc:
-        return  # no data, so no sorting.
-    if field not in doc:
+    if ret and sort_on not in ret[0]: 
         raise errors.IllegalParameterError(
-            f"No such field for collection {collection_id} load version {load_ver}: {field}")
-    
+            f"No such field for collection {collection_id} load version {load_ver}: {sort_on}")
+    return {_FLD_SKIP: skip, _FLD_LIMIT: limit, "data": ret}
