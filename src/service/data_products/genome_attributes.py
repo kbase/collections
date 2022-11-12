@@ -98,19 +98,19 @@ async def get_ranks(
         default=False,
         description="Whether to sort in descending order rather than ascending"
     ),
-    skip: int | None = Query(
-        default=None,
+    skip: int = Query(
+        default=0,
         ge=0,
         le=10000,
         example=1000,
-        description="The number of records to skip, default 0"
+        description="The number of records to skip"
     ),
-    limit: int | None = Query(
-        default=None,
+    limit: int = Query(
+        default=1000,
         ge=1,
         le=1000,
         example=1000,
-        description="The maximum number of results, default 1000"
+        description="The maximum number of results"
     ),
     load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
     user: KBaseUser = Depends(_OPT_AUTH)
@@ -118,8 +118,6 @@ async def get_ranks(
     # sorting only works here since we expect the largest collection to be ~300K records and
     # we have a max limit of 1000, which means sorting is O(n log2 1000).
     # Otherwise we need indexes for every sort
-    skip = skip or 0
-    limit = limit or 1000
     store = app_state.get_storage(r)
     load_ver = await get_load_version(store, collection_id, ID, load_ver_override, user)
     await _check_sort_field(store, collection_id, load_ver, sort_on)
