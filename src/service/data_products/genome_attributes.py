@@ -163,6 +163,7 @@ async def get_ranks(
     # If we want a specific order the loader should stick a keys doc or something into arango
     # and we order by that
     data = []
+    d = None
     async for d in cur:
         if output_table:
             data.append([d[k] for k in sorted(_remove_keys(d))])
