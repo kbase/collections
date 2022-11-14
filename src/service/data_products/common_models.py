@@ -3,7 +3,7 @@ Data structures common to all data products
 """
 
 from fastapi import APIRouter, Query
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, validator, Field
 from src.service import models
 from src.service import errors
 
@@ -36,7 +36,7 @@ class DataProductSpec(BaseModel):
     A specification that defines the parts and requirements of a data product.
     """
 
-    data_product: str
+    data_product: str = Field(regex="^[a-z_]+$")
     """
     The ID of the data product. This ID is used in several places:
     
