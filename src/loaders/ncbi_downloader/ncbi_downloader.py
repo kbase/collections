@@ -52,7 +52,7 @@ def download_genome_files(gene_ids: list[str], target_file_ext: list[str], resul
 
     gene_ids: genome ids that parsed from GTDB metadata file (e.g. GB_GCA_000016605.1, RS_GCF_000968435.2).
     target_file_ext: download only files that match given extensions.
-    result_dir: result direction for downloaded files.
+    result_dir: result directory for downloaded files. Files for a specific gene ID are stored in a folder with the gene ID as the name.
     """
     print(f'start downloading {len(gene_ids)} genome files')
 
