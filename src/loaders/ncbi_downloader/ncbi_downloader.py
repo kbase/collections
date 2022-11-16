@@ -7,7 +7,6 @@ import time
 from datetime import datetime
 
 import ftputil
-import pytz
 
 
 def _download_genome_file(download_dir: str, gene_id: str, target_file_ext: list[str]) -> None:
