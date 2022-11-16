@@ -63,7 +63,7 @@ def download_genome_files(gene_ids: list[str], target_file_ext: list[str], resul
     counter = 1
     for gene_id in gene_ids:
         if counter % 5000 == 0:
-            print(f"{round(counter / len(gene_ids), 4) * 100}% finished at {datetime.now(pytz.timezone('US/Central'))}")
+            print(f"{round(counter / len(gene_ids), 4) * 100}% finished at {datetime.now()}")
 
         download_dir = os.path.join(result_dir, gene_id)
         os.makedirs(download_dir, exist_ok=True)
