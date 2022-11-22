@@ -34,7 +34,7 @@ optional arguments:
   --overwrite           Overwrite existing files.
 
 e.g.
-python src/loaders/ncbi_downloader/ncbi_downloader.py --download_file_ext genomic.gff.gz genomic.fna.gz --genome_id_files ar53_metadata_r207.tsv bac120_metadata_r207.tsv --load_ver r207.kbase.2
+python ncbi_downloader.py --download_file_ext genomic.gff.gz genomic.fna.gz --genome_id_files ar53_metadata_r207.tsv bac120_metadata_r207.tsv --load_ver r207.kbase.1
 
 NOTE:
 NERSC file structure:
@@ -186,7 +186,7 @@ def main():
         threads = multiprocessing.cpu_count() // 2  # utilize half of system cups
     print(f"Start download genome files with {threads} threads")
 
-    chuck_size = len(gene_ids) // (threads - 1)
+    chuck_size = max(len(gene_ids) // (threads - 1), 1)
     batch_input = [(gene_ids[i: i + chuck_size], download_file_ext, work_dir, overwrite) for i in
                    range(0, len(gene_ids), chuck_size)]  # distribute genome ids evenly across threads
     pool = multiprocessing.Pool(processes=threads)
