@@ -2,36 +2,44 @@
 PROTOTYPE - Download genome files from NCBI FTP server.
 
 usage: ncbi_downloader.py [-h] --download_file_ext
-                          DOWNLOAD_FILE_EXT [DOWNLOAD_FILE_EXT ...]
+                          DOWNLOAD_FILE_EXT
+                          [DOWNLOAD_FILE_EXT ...]
                           --genome_id_files GENOME_ID_FILES
-                          [GENOME_ID_FILES ...] --load_ver LOAD_VER
+                          [GENOME_ID_FILES ...] --load_ver
+                          LOAD_VER
                           [--genome_id_col GENOME_ID_COL]
                           [--kbase_collection KBASE_COLLECTION]
-                          [--root_dir ROOT_DIR] [--threads THREADS]
-                          [--overwrite]
+                          [--root_dir ROOT_DIR]
+                          [--threads THREADS] [--overwrite]
 
-required flag argument:
+options:
+  -h, --help            show this help message and exit
+
+required named arguments:
   --download_file_ext DOWNLOAD_FILE_EXT [DOWNLOAD_FILE_EXT ...]
-                        Download only files that match given
-                        extensions.
+                        Download only files that match
+                        given extensions.
   --genome_id_files GENOME_ID_FILES [GENOME_ID_FILES ...]
-                        Files used to parse genome ids. (e.g.
-                        ar53_metadata_r207.tsv)
-  --load_ver LOAD_VER   KBase load version. (e.g. r207.kbase.1)
+                        Files used to parse genome ids.
+                        (e.g. ar53_metadata_r207.tsv)
+  --load_ver LOAD_VER   KBase load version. (e.g.
+                        r207.kbase.1)
 
 optional arguments:
-  -h, --help            show this help message and exit
   --genome_id_col GENOME_ID_COL
-                        Column from genome_id_files that stores
-                        genome ids. (default: accession)
+                        Column from genome_id_files that
+                        stores genome ids. (default:
+                        accession)
   --kbase_collection KBASE_COLLECTION
-                        KBase collection identifier name. (default:
-                        GTDB)
-  --root_dir ROOT_DIR   Root directory. (default: /global/cfs/cdirs
-                        /kbase/collections/genome_attributes)
-  --threads THREADS     Number of threads. (default: half of system
-                        cpu count)
+                        KBase collection identifier name.
+                        (default: GTDB)
+  --root_dir ROOT_DIR   Root directory. (default: /global/c
+                        fs/cdirs/kbase/collections/genome_a
+                        ttributes)
+  --threads THREADS     Number of threads. (default: half
+                        of system cpu count)
   --overwrite           Overwrite existing files.
+
 
 e.g.
 python ncbi_downloader.py --download_file_ext genomic.gff.gz genomic.fna.gz --genome_id_files ar53_metadata_r207.tsv bac120_metadata_r207.tsv --load_ver r207.kbase.1
@@ -140,25 +148,28 @@ def main():
     parser = argparse.ArgumentParser(
         description='PROTOTYPE - Download genome files from NCBI FTP server.')
 
+    required = parser.add_argument_group('required named arguments')
+    optional = parser.add_argument_group('optional arguments')
+
     # Required flag argument
-    parser.add_argument('--download_file_ext', required=True, type=str, nargs='+',
-                        help='Download only files that match given extensions.')
-    parser.add_argument('--genome_id_files', required=True, type=str, nargs='+',
-                        help='Files used to parse genome ids. (e.g. ar53_metadata_r207.tsv)')
-    parser.add_argument('--load_ver', required=True, type=str,
-                        help='KBase load version. (e.g. r207.kbase.1)')
+    required.add_argument('--download_file_ext', required=True, type=str, nargs='+',
+                          help='Download only files that match given extensions.')
+    required.add_argument('--genome_id_files', required=True, type=str, nargs='+',
+                          help='Files used to parse genome ids. (e.g. ar53_metadata_r207.tsv)')
+    required.add_argument('--load_ver', required=True, type=str,
+                          help='KBase load version. (e.g. r207.kbase.1)')
 
     # Optional argument
-    parser.add_argument('--genome_id_col', type=str, default='accession',
-                        help='Column from genome_id_files that stores genome ids. (default: accession)')
-    parser.add_argument('--kbase_collection', type=str, default='GTDB',
-                        help='KBase collection identifier name. (default: GTDB)')
-    parser.add_argument('--root_dir', type=str, default='/global/cfs/cdirs/kbase/collections/genome_attributes',
-                        help='Root directory. (default: /global/cfs/cdirs/kbase/collections/genome_attributes)')
-    parser.add_argument('--threads', type=int,
-                        help='Number of threads. (default: half of system cpu count)')
-    parser.add_argument('--overwrite', action='store_true',
-                        help='Overwrite existing files.')
+    optional.add_argument('--genome_id_col', type=str, default='accession',
+                          help='Column from genome_id_files that stores genome ids. (default: accession)')
+    optional.add_argument('--kbase_collection', type=str, default='GTDB',
+                          help='KBase collection identifier name. (default: GTDB)')
+    optional.add_argument('--root_dir', type=str, default='/global/cfs/cdirs/kbase/collections/genome_attributes',
+                          help='Root directory. (default: /global/cfs/cdirs/kbase/collections/genome_attributes)')
+    optional.add_argument('--threads', type=int,
+                          help='Number of threads. (default: half of system cpu count)')
+    optional.add_argument('--overwrite', action='store_true',
+                          help='Overwrite existing files.')
 
     args = parser.parse_args()
 
