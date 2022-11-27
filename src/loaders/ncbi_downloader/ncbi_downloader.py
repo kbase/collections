@@ -1,43 +1,29 @@
 """
 PROTOTYPE - Download genome files from NCBI FTP server.
 
-usage: ncbi_downloader.py [-h] --download_file_ext
-                          DOWNLOAD_FILE_EXT
-                          [DOWNLOAD_FILE_EXT ...]
-                          --genome_id_files GENOME_ID_FILES
-                          [GENOME_ID_FILES ...] --load_ver
-                          LOAD_VER
-                          [--genome_id_col GENOME_ID_COL]
-                          [--kbase_collection KBASE_COLLECTION]
-                          [--root_dir ROOT_DIR]
-                          [--threads THREADS] [--overwrite]
+usage: ncbi_downloader.py [-h] --download_file_ext DOWNLOAD_FILE_EXT [DOWNLOAD_FILE_EXT ...] --genome_id_files GENOME_ID_FILES [GENOME_ID_FILES ...] --load_ver
+                          LOAD_VER [--genome_id_col GENOME_ID_COL] [--kbase_collection KBASE_COLLECTION] [--root_dir ROOT_DIR] [--threads THREADS]
+                          [--chuck_size CHUCK_SIZE] [--overwrite]
 
 options:
   -h, --help            show this help message and exit
 
 required named arguments:
   --download_file_ext DOWNLOAD_FILE_EXT [DOWNLOAD_FILE_EXT ...]
-                        Download only files that match
-                        given extensions.
+                        Download only files that match given extensions.
   --genome_id_files GENOME_ID_FILES [GENOME_ID_FILES ...]
-                        Files used to parse genome ids.
-                        (e.g. ar53_metadata_r207.tsv)
-  --load_ver LOAD_VER   KBase load version. (e.g.
-                        r207.kbase.1)
+                        Files used to parse genome ids. (e.g. ar53_metadata_r207.tsv)
+  --load_ver LOAD_VER   KBase load version. (e.g. r207.kbase.1)
 
 optional arguments:
   --genome_id_col GENOME_ID_COL
-                        Column from genome_id_files that
-                        stores genome ids. (default:
-                        accession)
+                        Column from genome_id_files that stores genome ids. (default: accession)
   --kbase_collection KBASE_COLLECTION
-                        KBase collection identifier name.
-                        (default: GTDB)
-  --root_dir ROOT_DIR   Root directory. (default: /global/c
-                        fs/cdirs/kbase/collections/genome_a
-                        ttributes)
-  --threads THREADS     Number of threads. (default: half
-                        of system cpu count)
+                        KBase collection identifier name. (default: GTDB)
+  --root_dir ROOT_DIR   Root directory. (default: /global/cfs/cdirs/kbase/collections/genome_attributes)
+  --threads THREADS     Number of threads. (default: half of system cpu count)
+  --chuck_size CHUCK_SIZE
+                        Number of genomes per thread
   --overwrite           Overwrite existing files.
 
 
@@ -64,13 +50,17 @@ import multiprocessing
 import os
 import time
 from datetime import datetime
-from typing import List
 
 import ftputil
 import pandas as pd
 
+# Fraction amount of system cores can be utilized
+# (i.e. 0.5 - program will use 50% of total processors,
+#       0.1 - program will use 10% of total processors)
+SYSTEM_UTILIZATION = 0.5
 
-def _download_genome_file(download_dir: str, gene_id: str, target_file_ext: List[str], overwrite=False) -> None:
+
+def _download_genome_file(download_dir: str, gene_id: str, target_file_ext: list[str], overwrite=False) -> None:
     # NCBI file structure: a delegated directory is used to store files for all versions of a genome
     # e.g. File structure for RS_GCF_000968435.2 (https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/968/435/)
     # genomes/all/GCF/000/968/435/ --> GCF_000968435.1_ASM96843v1/
@@ -107,8 +97,8 @@ def _download_genome_file(download_dir: str, gene_id: str, target_file_ext: List
         raise ValueError(f'Download Failed for {gene_id} after {max_attempts} attempts!')
 
 
-def download_genome_files(gene_ids: List[str], target_file_ext: List[str], result_dir='ncbi_genomes',
-                          overwrite=False) -> List[str]:
+def download_genome_files(gene_ids: list[str], target_file_ext: list[str], result_dir='ncbi_genomes',
+                          overwrite=False) -> list[str]:
     """
     Download genome files from NCBI FTP server
 
@@ -168,6 +158,8 @@ def main():
                           help='Root directory. (default: /global/cfs/cdirs/kbase/collections/genome_attributes)')
     optional.add_argument('--threads', type=int,
                           help='Number of threads. (default: half of system cpu count)')
+    optional.add_argument('--chuck_size', type=int,
+                          help='Number of genomes per thread')
     optional.add_argument('--overwrite', action='store_true',
                           help='Overwrite existing files.')
 
@@ -180,8 +172,9 @@ def main():
      kbase_collection,
      root_dir,
      threads,
+     chuck_size,
      overwrite) = (args.download_file_ext, args.genome_id_files, args.genome_id_col, args.load_ver,
-                   args.kbase_collection, args.root_dir, args.threads, args.overwrite)
+                   args.kbase_collection, args.root_dir, args.threads, args.chuck_size, args.overwrite)
 
     work_dir = os.path.join(root_dir, kbase_collection,
                             load_ver)  # working directory for genome downloads e.g. root_dir/GTDB/r207.kbase.1
@@ -194,12 +187,13 @@ def main():
         gene_ids += df[genome_id_col].to_list()
 
     if not threads:
-        threads = multiprocessing.cpu_count() // 2  # utilize half of system cups
+        threads = max(int(multiprocessing.cpu_count() * min(SYSTEM_UTILIZATION, 1)), 1)
     print(f"Start download genome files with {threads} threads")
 
-    chuck_size = max(len(gene_ids) // (threads - 1), 1)
+    if not chuck_size:
+        chuck_size = max(len(gene_ids) // (threads - 1), 1)  # distribute genome ids evenly across threads
     batch_input = [(gene_ids[i: i + chuck_size], download_file_ext, work_dir, overwrite) for i in
-                   range(0, len(gene_ids), chuck_size)]  # distribute genome ids evenly across threads
+                   range(0, len(gene_ids), chuck_size)]
     pool = multiprocessing.Pool(processes=threads)
     batch_result = pool.starmap(download_genome_files, batch_input)
 
