@@ -106,7 +106,7 @@ def _download_genome_file(download_dir: str, gene_id: str, target_file_ext: list
         raise ValueError(f'Download Failed for {gene_id} after {max_attempts} attempts!')
 
 
-def _form_GTDB_taxonomy_file_url(release_ver):
+def _form_gtdb_taxonomy_file_url(release_ver):
     # form GTDB taxonomy URL for specific GTDB version.
     # e.g. https://data.gtdb.ecogenomic.org/releases/release207/207.0/ar53_taxonomy_r207.tsv
 
@@ -142,7 +142,7 @@ def _fetch_gtdb_genome_ids(release_ver, work_dir):
     # download GTDB taxonomy files and then parse genome_ids from the GTDB taxonomy files
     genome_ids = list()
 
-    taxonomy_urls = _form_GTDB_taxonomy_file_url(release_ver)
+    taxonomy_urls = _form_gtdb_taxonomy_file_url(release_ver)
 
     for taxonomy_url in taxonomy_urls:
         # download GTDB taxonomy file to work_dir
@@ -166,6 +166,19 @@ def _fetch_genome_ids(collection, release_ver, work_dir):
         raise ValueError(f'Unexpected collection: {collection}')
 
     return genome_ids
+
+
+def _make_work_dir(root_dir, collection, release_ver):
+    # make working directory for a specific collection under root directory
+
+    if collection == 'GTDB':
+        work_dir = os.path.join(root_dir, collection, f'r{release_ver}')
+    else:
+        raise ValueError(f'Unexpected collection: {collection}')
+
+    os.makedirs(work_dir, exist_ok=True)
+
+    return work_dir
 
 
 def download_genome_files(gene_ids: list[str], target_file_ext: list[str], result_dir='ncbi_genomes',
@@ -203,19 +216,6 @@ def download_genome_files(gene_ids: list[str], target_file_ext: list[str], resul
         print(f'Failed to download {failed_ids}')
 
     return failed_ids
-
-
-def _make_work_dir(root_dir, collection, release_ver):
-    # make working directory for a specific collection under root directory
-
-    if collection == 'GTDB':
-        work_dir = os.path.join(root_dir, collection, f'r{release_ver}')
-    else:
-        raise ValueError(f'Unexpected collection: {collection}')
-
-    os.makedirs(work_dir, exist_ok=True)
-
-    return work_dir
 
 
 def main():
