@@ -10,3 +10,4 @@ gtdb_taxa_count_rank.json
 gtdb_taxa_count.json
 gtdb_attribs.jsonl
 .dockerignore
+*_pycache__

@@ -1,8 +1,13 @@
 """
 PROTOTYPE - Download genome files from NCBI FTP server.
 
-usage: ncbi_downloader.py [-h] --download_file_ext DOWNLOAD_FILE_EXT [DOWNLOAD_FILE_EXT ...] --genome_id_files GENOME_ID_FILES [GENOME_ID_FILES ...] --load_ver
-                          LOAD_VER [--genome_id_col GENOME_ID_COL] [--kbase_collection KBASE_COLLECTION] [--root_dir ROOT_DIR] [--threads THREADS]
+usage: ncbi_downloader.py [-h] --download_file_ext
+                          DOWNLOAD_FILE_EXT
+                          [DOWNLOAD_FILE_EXT ...] --release_ver
+                          {207,202,95,89,86,83,80}
+                          [--root_dir ROOT_DIR]
+                          [--collection COLLECTION]
+                          [--threads THREADS]
                           [--chuck_size CHUCK_SIZE] [--overwrite]
 
 options:
@@ -10,37 +15,37 @@ options:
 
 required named arguments:
   --download_file_ext DOWNLOAD_FILE_EXT [DOWNLOAD_FILE_EXT ...]
-                        Download only files that match given extensions.
-  --genome_id_files GENOME_ID_FILES [GENOME_ID_FILES ...]
-                        Files used to parse genome ids. (e.g. ar53_metadata_r207.tsv)
-  --load_ver LOAD_VER   KBase load version. (e.g. r207.kbase.1)
+                        Download only files that match given
+                        extensions.
+  --release_ver {207,202,95,89,86,83,80}
+                        GTDB release version
 
 optional arguments:
-  --genome_id_col GENOME_ID_COL
-                        Column from genome_id_files that stores genome ids. (default: accession)
-  --kbase_collection KBASE_COLLECTION
-                        KBase collection identifier name. (default: GTDB)
-  --root_dir ROOT_DIR   Root directory. (default: /global/cfs/cdirs/kbase/collections/genome_attributes)
-  --threads THREADS     Number of threads. (default: half of system cpu count)
+  --root_dir ROOT_DIR   Root directory. (default: /global/cfs/cdi
+                        rs/kbase/collections/sourcedata)
+  --collection COLLECTION
+                        Collection (default: GTDB)
+  --threads THREADS     Number of threads. (default: half of
+                        system cpu count)
   --chuck_size CHUCK_SIZE
                         Number of genomes per thread
   --overwrite           Overwrite existing files.
 
 
 e.g.
-python ncbi_downloader.py --download_file_ext genomic.gff.gz genomic.fna.gz --genome_id_files ar53_metadata_r207.tsv bac120_metadata_r207.tsv --load_ver r207.kbase.1
+python ncbi_downloader.py --download_file_ext genomic.gff.gz genomic.fna.gz --release_ver 207
 
 NOTE:
-NERSC file structure:
-/global/cfs/cdirs/kbase/collections/genome_attributes -> [kbase_collection] -> [load_ver] -> [genome_id] -> genome files
+NERSC file structure for GTDB:
+/global/cfs/cdirs/kbase/collections/sourcedata/ -> GTDB -> [GTDB_release_version] -> [genome_id] -> genome files
 
 e.g.
-/global/cfs/cdirs/kbase/collections/genome_attributes -> GTDB -> r207.kbase.1 -> GB_GCA_000016605.1 -> genome files
-                                                                              -> GB_GCA_000200715.1 -> genome files
-                                                              -> r207.kbase.2 -> GB_GCA_000016605.1 -> genome files
-                                                                              -> GB_GCA_000200715.1 -> genome files
-                                                              -> r202.kbase.1 -> GB_GCA_000016605.1 -> genome files
-                                                                              -> GB_GCA_000200715.1 -> genome files
+/global/cfs/cdirs/kbase/collections/sourcedata/GTDB -> r207 -> GB_GCA_000016605.1 -> genome files
+                                                            -> GB_GCA_000200715.1 -> genome files
+                                                       r202 -> GB_GCA_000016605.1 -> genome files
+                                                            -> GB_GCA_000200715.1 -> genome files
+                                                       r80  -> GB_GCA_000016605.1 -> genome files
+                                                            -> GB_GCA_000200715.1 -> genome files
 
 
 """
@@ -50,14 +55,18 @@ import multiprocessing
 import os
 import time
 from datetime import datetime
+from urllib import request
+from urllib.parse import urlparse
 
 import ftputil
-import pandas as pd
 
 # Fraction amount of system cores can be utilized
 # (i.e. 0.5 - program will use 50% of total processors,
 #       0.1 - program will use 10% of total processors)
 SYSTEM_UTILIZATION = 0.5
+
+GTDB_RELEASE_VER = ['207', '202', '95', '89', '86', '83', '80']  # available GTDB release versions
+COLLECTION = ['GTDB']  # supported collection
 
 
 def _download_genome_file(download_dir: str, gene_id: str, target_file_ext: list[str], overwrite=False) -> None:
@@ -90,11 +99,73 @@ def _download_genome_file(download_dir: str, gene_id: str, target_file_ext: list
 
             success = True
         except Exception as e:
-            print(e)
+            print(f'Error:\n{e}\nfrom attempt {attempts + 1}.\nTrying to rerun.')
             attempts += 1
 
     if not success:
         raise ValueError(f'Download Failed for {gene_id} after {max_attempts} attempts!')
+
+
+def _form_GTDB_taxonomy_file_url(release_ver):
+    # form GTDB taxonomy URL for specific GTDB version.
+    # e.g. https://data.gtdb.ecogenomic.org/releases/release207/207.0/ar53_taxonomy_r207.tsv
+
+    gtdb_server = 'https://data.gtdb.ecogenomic.org/releases/'
+    file_dir_url = gtdb_server + f'release{release_ver}/' + f'{release_ver}.0/'
+
+    file_urls = list()
+    if release_ver in ['207', '202', '95', '89']:
+
+        ar_ver = '53' if release_ver in ['207'] else '122'
+
+        ar_taxonomy_url = file_dir_url + f'ar{ar_ver}_taxonomy_r{release_ver}.tsv'
+        bac_taxonomy_url = file_dir_url + f'bac120_taxonomy_r{release_ver}.tsv'
+
+        file_urls.extend([ar_taxonomy_url, bac_taxonomy_url])
+
+    elif release_ver in ['86']:
+        ar_taxonomy_url = file_dir_url + f'arc_taxonomy_r{release_ver}.tsv'
+        bac_taxonomy_url = file_dir_url + f'bac_taxonomy_r{release_ver}.tsv'
+
+        file_urls.extend([ar_taxonomy_url, bac_taxonomy_url])
+    elif release_ver in ['83', '80']:  # no arc taxonomy file exists
+        bac_taxonomy_url = file_dir_url + f'bac_taxonomy_r{release_ver}.tsv'
+
+        file_urls.extend([bac_taxonomy_url])
+    else:
+        raise ValueError(f'Unsupported GTDB release version: {release_ver}')
+
+    return file_urls
+
+
+def _fetch_gtdb_genome_ids(release_ver, work_dir):
+    # download GTDB taxonomy files and then parse genome_ids from the GTDB taxonomy files
+    genome_ids = list()
+
+    taxonomy_urls = _form_GTDB_taxonomy_file_url(release_ver)
+
+    for taxonomy_url in taxonomy_urls:
+        # download GTDB taxonomy file to work_dir
+        url = urlparse(taxonomy_url)
+        taxonomy_file = os.path.join(work_dir, os.path.basename(url.path))
+        _ = request.urlretrieve(taxonomy_url, taxonomy_file)
+
+        # parse genome id (first column of tsv file)
+        with open(taxonomy_file, 'r') as f:
+            genome_ids.extend([line.strip().split("\t")[0] for line in f])
+
+    return genome_ids
+
+
+def _fetch_genome_ids(collection, release_ver, work_dir):
+    # retrieve collection genome ids
+
+    if collection == 'GTDB':
+        genome_ids = _fetch_gtdb_genome_ids(release_ver, work_dir)
+    else:
+        raise ValueError(f'Unexpected collection: {collection}')
+
+    return genome_ids
 
 
 def download_genome_files(gene_ids: list[str], target_file_ext: list[str], result_dir='ncbi_genomes',
@@ -134,6 +205,19 @@ def download_genome_files(gene_ids: list[str], target_file_ext: list[str], resul
     return failed_ids
 
 
+def _make_work_dir(root_dir, collection, release_ver):
+    # make working directory for a specific collection under root directory
+
+    if collection == 'GTDB':
+        work_dir = os.path.join(root_dir, collection, f'r{release_ver}')
+    else:
+        raise ValueError(f'Unexpected collection: {collection}')
+
+    os.makedirs(work_dir, exist_ok=True)
+
+    return work_dir
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='PROTOTYPE - Download genome files from NCBI FTP server.')
@@ -144,18 +228,14 @@ def main():
     # Required flag argument
     required.add_argument('--download_file_ext', required=True, type=str, nargs='+',
                           help='Download only files that match given extensions.')
-    required.add_argument('--genome_id_files', required=True, type=str, nargs='+',
-                          help='Files used to parse genome ids. (e.g. ar53_metadata_r207.tsv)')
-    required.add_argument('--load_ver', required=True, type=str,
-                          help='KBase load version. (e.g. r207.kbase.1)')
+    required.add_argument('--release_ver', required=True, type=str, choices=GTDB_RELEASE_VER,
+                          help='GTDB release version')
 
     # Optional argument
-    optional.add_argument('--genome_id_col', type=str, default='accession',
-                          help='Column from genome_id_files that stores genome ids. (default: accession)')
-    optional.add_argument('--kbase_collection', type=str, default='GTDB',
-                          help='KBase collection identifier name. (default: GTDB)')
-    optional.add_argument('--root_dir', type=str, default='/global/cfs/cdirs/kbase/collections/genome_attributes',
-                          help='Root directory. (default: /global/cfs/cdirs/kbase/collections/genome_attributes)')
+    optional.add_argument('--root_dir', type=str, default='/global/cfs/cdirs/kbase/collections/sourcedata',
+                          help='Root directory. (default: /global/cfs/cdirs/kbase/collections/sourcedata)')
+    optional.add_argument('--collection', type=str, default='GTDB',
+                          help='Collection (default: GTDB)')
     optional.add_argument('--threads', type=int,
                           help='Number of threads. (default: half of system cpu count)')
     optional.add_argument('--chuck_size', type=int,
@@ -166,40 +246,37 @@ def main():
     args = parser.parse_args()
 
     (download_file_ext,
-     genome_id_files,
-     genome_id_col,
-     load_ver,
-     kbase_collection,
+     release_ver,
      root_dir,
+     collection,
      threads,
      chuck_size,
-     overwrite) = (args.download_file_ext, args.genome_id_files, args.genome_id_col, args.load_ver,
-                   args.kbase_collection, args.root_dir, args.threads, args.chuck_size, args.overwrite)
+     overwrite) = (args.download_file_ext, args.release_ver, args.root_dir, args.collection,
+                   args.threads, args.chuck_size, args.overwrite)
 
-    work_dir = os.path.join(root_dir, kbase_collection,
-                            load_ver)  # working directory for genome downloads e.g. root_dir/GTDB/r207.kbase.1
-    os.makedirs(work_dir, exist_ok=True)
+    if collection not in COLLECTION:
+        raise ValueError(f'Unexpected collection. Currently supported collections: {COLLECTION}')
 
-    gene_ids = list()
-    for gene_id_file in genome_id_files:
-        gene_file_path = os.path.join(work_dir, gene_id_file)
-        df = pd.read_csv(gene_file_path, sep='\t')
-        gene_ids += df[genome_id_col].to_list()
+    work_dir = _make_work_dir(root_dir, collection, release_ver)
+
+    genome_ids = _fetch_genome_ids(collection, release_ver, work_dir)
 
     if not threads:
         threads = max(int(multiprocessing.cpu_count() * min(SYSTEM_UTILIZATION, 1)), 1)
-    print(f"Start download genome files with {threads} threads")
+    print(f"Start downloading genome files with {threads} threads")
 
     if not chuck_size:
-        chuck_size = max(len(gene_ids) // (threads - 1), 1)  # distribute genome ids evenly across threads
-    batch_input = [(gene_ids[i: i + chuck_size], download_file_ext, work_dir, overwrite) for i in
-                   range(0, len(gene_ids), chuck_size)]
+        chuck_size = max(len(genome_ids) // (threads - 1), 1)  # distribute genome ids evenly across threads
+    batch_input = [(genome_ids[i: i + chuck_size], download_file_ext, work_dir, overwrite) for i in
+                   range(0, len(genome_ids), chuck_size)]
     pool = multiprocessing.Pool(processes=threads)
     batch_result = pool.starmap(download_genome_files, batch_input)
 
     failed_ids = list(itertools.chain.from_iterable(batch_result))
     if failed_ids:
         print(f'Failed to download {failed_ids}')
+    else:
+        print(f'Successfully downloaded {len(genome_ids)} genome files')
 
 
 if __name__ == "__main__":
