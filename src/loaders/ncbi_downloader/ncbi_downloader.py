@@ -1,23 +1,33 @@
 """
 PROTOTYPE - Download genome files from NCBI FTP server.
 
-usage: ncbi_downloader.py [-h] --download_file_ext DOWNLOAD_FILE_EXT [DOWNLOAD_FILE_EXT ...] --release_ver RELEASE_VER
-                          [--root_dir ROOT_DIR] [--source SOURCE] [--threads THREADS] [--overwrite]
+usage: ncbi_downloader.py [-h] --download_file_ext
+                          DOWNLOAD_FILE_EXT
+                          [DOWNLOAD_FILE_EXT ...]
+                          --release_ver
+                          {202,207,80,83,86,89,95}
+                          [--root_dir ROOT_DIR]
+                          [--source SOURCE]
+                          [--threads THREADS] [--overwrite]
 
 options:
   -h, --help            show this help message and exit
 
 required named arguments:
   --download_file_ext DOWNLOAD_FILE_EXT [DOWNLOAD_FILE_EXT ...]
-                        Download only files that match given extensions.
-  --release_ver RELEASE_VER
+                        Download only files that match given
+                        extensions.
+  --release_ver {202,207,80,83,86,89,95}
                         GTDB release version
 
 optional arguments:
-  --root_dir ROOT_DIR   Root directory. (default: /global/cfs/cdirs/kbase/collections/sourcedata)
+  --root_dir ROOT_DIR   Root directory. (default: /global/cfs
+                        /cdirs/kbase/collections/sourcedata)
   --source SOURCE       Source of data (default: GTDB)
-  --threads THREADS     Number of threads. (default: half of system cpu count)
+  --threads THREADS     Number of threads. (default: half of
+                        system cpu count)
   --overwrite           Overwrite existing files.
+
 
 
 e.g.
@@ -47,14 +57,32 @@ from urllib import request
 from urllib.parse import urlparse
 
 import ftputil
+import requests
+from bs4 import BeautifulSoup
 
 # Fraction amount of system cores can be utilized
 # (i.e. 0.5 - program will use 50% of total processors,
 #       0.1 - program will use 10% of total processors)
 SYSTEM_UTILIZATION = 0.5
-
-GTDB_RELEASE_VER = ['207', '202', '95', '89', '86', '83', '80']  # available GTDB release versions
 SOURCE = ['GTDB']  # supported source of data
+GTDB_DOMAIN = 'https://data.gtdb.ecogenomic.org/releases/'
+
+
+def _parse_gtdb_release_vers():
+    # parse GTDB release versions from GTDB website (FTP port is closed)
+
+    response = requests.get(GTDB_DOMAIN)
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    links = soup.find_all('a')
+
+    # release links follow format like 'latest/', 'release202/', 'release83/', etc.
+    release_ver = [link.get('href').split('release')[-1][:-1] for link in links if 'release' in link.get('href')]
+
+    return release_ver
+
+
+GTDB_RELEASE_VER = _parse_gtdb_release_vers()  # available GTDB release versions
 
 
 def _download_genome_file(download_dir: str, gene_id: str, target_file_ext: list[str], overwrite=False) -> None:
@@ -98,30 +126,27 @@ def _form_gtdb_taxonomy_file_url(release_ver):
     # form GTDB taxonomy URL for specific GTDB version.
     # e.g. https://data.gtdb.ecogenomic.org/releases/release207/207.0/ar53_taxonomy_r207.tsv
 
-    gtdb_server = 'https://data.gtdb.ecogenomic.org/releases/'
-    file_dir_url = gtdb_server + f'release{release_ver}/' + f'{release_ver}.0/'
+    if release_ver not in GTDB_RELEASE_VER:
+        raise ValueError(f'Unsupported GTDB release version: {release_ver}')
+
+    file_dir_url = GTDB_DOMAIN + f'release{release_ver}/' + f'{release_ver}.0/'
 
     file_urls = list()
-    if release_ver in ['207', '202', '95', '89']:
 
-        ar_ver = '53' if release_ver in ['207'] else '122'
+    # parse taxonomy file URL for genome ids
+    response = requests.get(file_dir_url)
+    soup = BeautifulSoup(response.text, 'html.parser')
 
-        ar_taxonomy_url = file_dir_url + f'ar{ar_ver}_taxonomy_r{release_ver}.tsv'
-        bac_taxonomy_url = file_dir_url + f'bac120_taxonomy_r{release_ver}.tsv'
+    for link in soup.find_all('a'):
+        href = link.get('href')
 
-        file_urls.extend([ar_taxonomy_url, bac_taxonomy_url])
+        if href.endswith('tsv') and '_taxonomy_' in href:
+            file_urls.append(file_dir_url + href)
 
-    elif release_ver in ['86']:
-        ar_taxonomy_url = file_dir_url + f'arc_taxonomy_r{release_ver}.tsv'
-        bac_taxonomy_url = file_dir_url + f'bac_taxonomy_r{release_ver}.tsv'
-
-        file_urls.extend([ar_taxonomy_url, bac_taxonomy_url])
-    elif release_ver in ['83', '80']:  # no arc taxonomy file exists
-        bac_taxonomy_url = file_dir_url + f'bac_taxonomy_r{release_ver}.tsv'
-
-        file_urls.extend([bac_taxonomy_url])
-    else:
-        raise ValueError(f'Unsupported GTDB release version: {release_ver}')
+    if not file_urls or len(file_urls) >= 3:
+        raise ValueError(
+            f'Parsed unexpected taxonomy files {file_urls}. '
+            f'Please check parsing logic in _form_gtdb_taxonomy_file_url.')
 
     return file_urls
 
@@ -216,7 +241,7 @@ def main():
     # Required flag argument
     required.add_argument('--download_file_ext', required=True, type=str, nargs='+',
                           help='Download only files that match given extensions.')
-    required.add_argument('--release_ver', required=True, type=str,
+    required.add_argument('--release_ver', required=True, type=str, choices=GTDB_RELEASE_VER,
                           help='GTDB release version')
 
     # Optional argument

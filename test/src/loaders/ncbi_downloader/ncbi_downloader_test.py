@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from src.loaders.ncbi_downloader import ncbi_downloader
+from src.loaders.ncbi_downloader.ncbi_downloader import GTDB_DOMAIN
 
 
 @pytest.fixture(scope="module")
@@ -53,31 +54,39 @@ def test_fetch_gtdb_genome_ids(setup_and_teardown):
     assert len(genome_ids) == 258406
 
 
+def test_parse_gtdb_release_vers():
+    release_vers = ncbi_downloader._parse_gtdb_release_vers()
+
+    expected_release_vers = ['207', '202', '95', '89', '86', '83', '80']
+
+    assert set(expected_release_vers) <= set(release_vers)
+
+
 def test_form_gtdb_taxonomy_file_url():
     with pytest.raises(ValueError, match='Unsupported GTDB release version:'):
         fake_release_ver = 'hello_fake'
         _ = ncbi_downloader._form_gtdb_taxonomy_file_url(fake_release_ver)
 
     file_urls_207 = ncbi_downloader._form_gtdb_taxonomy_file_url('207')
-    expected_file_urls_207 = ['https://data.gtdb.ecogenomic.org/releases/release207/207.0/ar53_taxonomy_r207.tsv',
-                              'https://data.gtdb.ecogenomic.org/releases/release207/207.0/bac120_taxonomy_r207.tsv']
+    expected_file_urls_207 = [f'{GTDB_DOMAIN}release207/207.0/ar53_taxonomy_r207.tsv',
+                              f'{GTDB_DOMAIN}release207/207.0/bac120_taxonomy_r207.tsv']
 
     assert file_urls_207 == expected_file_urls_207
 
     file_urls_202 = ncbi_downloader._form_gtdb_taxonomy_file_url('202')
-    expected_file_urls_202 = ['https://data.gtdb.ecogenomic.org/releases/release202/202.0/ar122_taxonomy_r202.tsv',
-                              'https://data.gtdb.ecogenomic.org/releases/release202/202.0/bac120_taxonomy_r202.tsv']
+    expected_file_urls_202 = [f'{GTDB_DOMAIN}release202/202.0/ar122_taxonomy_r202.tsv',
+                              f'{GTDB_DOMAIN}release202/202.0/bac120_taxonomy_r202.tsv']
 
     assert file_urls_202 == expected_file_urls_202
 
     file_urls_95 = ncbi_downloader._form_gtdb_taxonomy_file_url('95')
-    expected_file_urls_95 = ['https://data.gtdb.ecogenomic.org/releases/release95/95.0/ar122_taxonomy_r95.tsv',
-                             'https://data.gtdb.ecogenomic.org/releases/release95/95.0/bac120_taxonomy_r95.tsv']
+    expected_file_urls_95 = [f'{GTDB_DOMAIN}release95/95.0/ar122_taxonomy_r95.tsv',
+                             f'{GTDB_DOMAIN}release95/95.0/bac120_taxonomy_r95.tsv']
 
     assert file_urls_95 == expected_file_urls_95
 
     file_urls_80 = ncbi_downloader._form_gtdb_taxonomy_file_url('80')
-    expected_file_urls_80 = ['https://data.gtdb.ecogenomic.org/releases/release80/80.0/bac_taxonomy_r80.tsv']
+    expected_file_urls_80 = [f'{GTDB_DOMAIN}release80/80.0/bac_taxonomy_r80.tsv']
 
     assert file_urls_80 == expected_file_urls_80
 
