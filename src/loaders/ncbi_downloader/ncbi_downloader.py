@@ -1,34 +1,24 @@
 """
 PROTOTYPE - Download genome files from NCBI FTP server.
 
-usage: ncbi_downloader.py [-h] --download_file_ext
-                          DOWNLOAD_FILE_EXT
-                          [DOWNLOAD_FILE_EXT ...] --release_ver
-                          {207,202,95,89,86,83,80}
-                          [--root_dir ROOT_DIR]
-                          [--collection COLLECTION]
-                          [--threads THREADS]
-                          [--chuck_size CHUCK_SIZE] [--overwrite]
+usage: ncbi_downloader.py [-h] --download_file_ext DOWNLOAD_FILE_EXT [DOWNLOAD_FILE_EXT ...] --release_ver
+                          RELEASE_VER [--root_dir ROOT_DIR] [--collection COLLECTION] [--threads THREADS]
+                          [--overwrite]
 
 options:
   -h, --help            show this help message and exit
 
 required named arguments:
   --download_file_ext DOWNLOAD_FILE_EXT [DOWNLOAD_FILE_EXT ...]
-                        Download only files that match given
-                        extensions.
-  --release_ver {207,202,95,89,86,83,80}
+                        Download only files that match given extensions.
+  --release_ver RELEASE_VER
                         GTDB release version
 
 optional arguments:
-  --root_dir ROOT_DIR   Root directory. (default: /global/cfs/cdi
-                        rs/kbase/collections/sourcedata)
+  --root_dir ROOT_DIR   Root directory. (default: /global/cfs/cdirs/kbase/collections/sourcedata)
   --collection COLLECTION
                         Collection (default: GTDB)
-  --threads THREADS     Number of threads. (default: half of
-                        system cpu count)
-  --chuck_size CHUCK_SIZE
-                        Number of genomes per thread
+  --threads THREADS     Number of threads. (default: half of system cpu count)
   --overwrite           Overwrite existing files.
 
 
@@ -228,7 +218,7 @@ def main():
     # Required flag argument
     required.add_argument('--download_file_ext', required=True, type=str, nargs='+',
                           help='Download only files that match given extensions.')
-    required.add_argument('--release_ver', required=True, type=str, choices=GTDB_RELEASE_VER,
+    required.add_argument('--release_ver', required=True, type=str,
                           help='GTDB release version')
 
     # Optional argument
@@ -238,8 +228,6 @@ def main():
                           help='Collection (default: GTDB)')
     optional.add_argument('--threads', type=int,
                           help='Number of threads. (default: half of system cpu count)')
-    optional.add_argument('--chuck_size', type=int,
-                          help='Number of genomes per thread')
     optional.add_argument('--overwrite', action='store_true',
                           help='Overwrite existing files.')
 
@@ -250,9 +238,8 @@ def main():
      root_dir,
      collection,
      threads,
-     chuck_size,
      overwrite) = (args.download_file_ext, args.release_ver, args.root_dir, args.collection,
-                   args.threads, args.chuck_size, args.overwrite)
+                   args.threads, args.overwrite)
 
     if collection not in COLLECTION:
         raise ValueError(f'Unexpected collection. Currently supported collections: {COLLECTION}')
@@ -265,10 +252,9 @@ def main():
         threads = max(int(multiprocessing.cpu_count() * min(SYSTEM_UTILIZATION, 1)), 1)
     print(f"Start downloading genome files with {threads} threads")
 
-    if not chuck_size:
-        chuck_size = max(len(genome_ids) // (threads - 1), 1)  # distribute genome ids evenly across threads
-    batch_input = [(genome_ids[i: i + chuck_size], download_file_ext, work_dir, overwrite) for i in
-                   range(0, len(genome_ids), chuck_size)]
+    chunk_size = max(len(genome_ids) // (threads - 1), 1)  # distribute genome ids evenly across threads
+    batch_input = [(genome_ids[i: i + chunk_size], download_file_ext, work_dir, overwrite) for i in
+                   range(0, len(genome_ids), chunk_size)]
     pool = multiprocessing.Pool(processes=threads)
     batch_result = pool.starmap(download_genome_files, batch_input)
 
