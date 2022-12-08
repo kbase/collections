@@ -28,17 +28,17 @@ def setup_and_teardown():
 def test_make_work_dir(setup_and_teardown):
     tmp_dir, script_file = setup_and_teardown
 
-    with pytest.raises(ValueError, match='Unexpected collection:'):
-        fake_collection = 'hello_fake'
-        _ = ncbi_downloader._make_work_dir(tmp_dir, fake_collection, 'release_ver')
+    with pytest.raises(ValueError, match='Unexpected source:'):
+        fake_source = 'hello_fake'
+        _ = ncbi_downloader._make_work_dir(tmp_dir, fake_source, 'release_ver')
 
-    collection, release_ver = 'GTDB', '207'
-    work_dir = ncbi_downloader._make_work_dir(tmp_dir, collection, release_ver)
+    source, release_ver = 'GTDB', '207'
+    work_dir = ncbi_downloader._make_work_dir(tmp_dir, source, release_ver)
 
     path = Path(work_dir).resolve()
 
     assert path.name == f'r{release_ver}'
-    assert path.parents[0].name == collection
+    assert path.parents[0].name == source
 
 
 def test_fetch_gtdb_genome_ids(setup_and_teardown):

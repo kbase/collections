@@ -1,9 +1,8 @@
 """
 PROTOTYPE - Download genome files from NCBI FTP server.
 
-usage: ncbi_downloader.py [-h] --download_file_ext DOWNLOAD_FILE_EXT [DOWNLOAD_FILE_EXT ...] --release_ver
-                          RELEASE_VER [--root_dir ROOT_DIR] [--collection COLLECTION] [--threads THREADS]
-                          [--overwrite]
+usage: ncbi_downloader.py [-h] --download_file_ext DOWNLOAD_FILE_EXT [DOWNLOAD_FILE_EXT ...] --release_ver RELEASE_VER
+                          [--root_dir ROOT_DIR] [--source SOURCE] [--threads THREADS] [--overwrite]
 
 options:
   -h, --help            show this help message and exit
@@ -16,8 +15,7 @@ required named arguments:
 
 optional arguments:
   --root_dir ROOT_DIR   Root directory. (default: /global/cfs/cdirs/kbase/collections/sourcedata)
-  --collection COLLECTION
-                        Collection (default: GTDB)
+  --source SOURCE       Source of data (default: GTDB)
   --threads THREADS     Number of threads. (default: half of system cpu count)
   --overwrite           Overwrite existing files.
 
@@ -56,7 +54,7 @@ import ftputil
 SYSTEM_UTILIZATION = 0.5
 
 GTDB_RELEASE_VER = ['207', '202', '95', '89', '86', '83', '80']  # available GTDB release versions
-COLLECTION = ['GTDB']  # supported collection
+SOURCE = ['GTDB']  # supported source of data
 
 
 def _download_genome_file(download_dir: str, gene_id: str, target_file_ext: list[str], overwrite=False) -> None:
@@ -147,24 +145,24 @@ def _fetch_gtdb_genome_ids(release_ver, work_dir):
     return genome_ids
 
 
-def _fetch_genome_ids(collection, release_ver, work_dir):
-    # retrieve collection genome ids
+def _fetch_genome_ids(source, release_ver, work_dir):
+    # retrieve genome ids
 
-    if collection == 'GTDB':
+    if source == 'GTDB':
         genome_ids = _fetch_gtdb_genome_ids(release_ver, work_dir)
     else:
-        raise ValueError(f'Unexpected collection: {collection}')
+        raise ValueError(f'Unexpected source: {source}')
 
     return genome_ids
 
 
-def _make_work_dir(root_dir, collection, release_ver):
+def _make_work_dir(root_dir, source, release_ver):
     # make working directory for a specific collection under root directory
 
-    if collection == 'GTDB':
-        work_dir = os.path.join(root_dir, collection, f'r{release_ver}')
+    if source == 'GTDB':
+        work_dir = os.path.join(root_dir, source, f'r{release_ver}')
     else:
-        raise ValueError(f'Unexpected collection: {collection}')
+        raise ValueError(f'Unexpected source: {source}')
 
     os.makedirs(work_dir, exist_ok=True)
 
@@ -224,8 +222,8 @@ def main():
     # Optional argument
     optional.add_argument('--root_dir', type=str, default='/global/cfs/cdirs/kbase/collections/sourcedata',
                           help='Root directory. (default: /global/cfs/cdirs/kbase/collections/sourcedata)')
-    optional.add_argument('--collection', type=str, default='GTDB',
-                          help='Collection (default: GTDB)')
+    optional.add_argument('--source', type=str, default='GTDB',
+                          help='Source of data (default: GTDB)')
     optional.add_argument('--threads', type=int,
                           help='Number of threads. (default: half of system cpu count)')
     optional.add_argument('--overwrite', action='store_true',
@@ -236,17 +234,17 @@ def main():
     (download_file_ext,
      release_ver,
      root_dir,
-     collection,
+     source,
      threads,
-     overwrite) = (args.download_file_ext, args.release_ver, args.root_dir, args.collection,
+     overwrite) = (args.download_file_ext, args.release_ver, args.root_dir, args.source,
                    args.threads, args.overwrite)
 
-    if collection not in COLLECTION:
-        raise ValueError(f'Unexpected collection. Currently supported collections: {COLLECTION}')
+    if source not in SOURCE:
+        raise ValueError(f'Unexpected source. Currently supported sources: {SOURCE}')
 
-    work_dir = _make_work_dir(root_dir, collection, release_ver)
+    work_dir = _make_work_dir(root_dir, source, release_ver)
 
-    genome_ids = _fetch_genome_ids(collection, release_ver, work_dir)
+    genome_ids = _fetch_genome_ids(source, release_ver, work_dir)
 
     if not threads:
         threads = max(int(multiprocessing.cpu_count() * min(SYSTEM_UTILIZATION, 1)), 1)
