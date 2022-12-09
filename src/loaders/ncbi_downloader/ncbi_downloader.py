@@ -262,9 +262,6 @@ def main():
     if source not in SOURCE:
         raise ValueError(f'Unexpected source. Currently supported sources: {SOURCE}')
 
-    if release_ver not in gtdb_release_vers:
-        raise ValueError(f'Unsupported GTDB release version: {release_ver}')
-
     work_dir = _make_work_dir(root_dir, source, release_ver)
 
     genome_ids = _fetch_genome_ids(source, release_ver, work_dir)

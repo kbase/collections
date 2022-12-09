@@ -31,7 +31,7 @@ def test_make_work_dir(setup_and_teardown):
 
     with pytest.raises(ValueError, match='Unexpected source:'):
         fake_source = 'hello_fake'
-        _ = ncbi_downloader._make_work_dir(tmp_dir, fake_source, 'release_ver')
+        ncbi_downloader._make_work_dir(tmp_dir, fake_source, 'release_ver')
 
     source, release_ver = 'GTDB', '207'
     work_dir = ncbi_downloader._make_work_dir(tmp_dir, source, release_ver)
