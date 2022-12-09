@@ -5,7 +5,6 @@ usage: ncbi_downloader.py [-h] --download_file_ext
                           DOWNLOAD_FILE_EXT
                           [DOWNLOAD_FILE_EXT ...]
                           --release_ver
-                          {202,207,80,83,86,89,95}
                           [--root_dir ROOT_DIR]
                           [--source SOURCE]
                           [--threads THREADS] [--overwrite]
@@ -17,8 +16,7 @@ required named arguments:
   --download_file_ext DOWNLOAD_FILE_EXT [DOWNLOAD_FILE_EXT ...]
                         Download only files that match given
                         extensions.
-  --release_ver {202,207,80,83,86,89,95}
-                        GTDB release version
+  --release_ver       GTDB release version
 
 optional arguments:
   --root_dir ROOT_DIR   Root directory. (default: /global/cfs
@@ -49,6 +47,7 @@ e.g.
 """
 import argparse
 import itertools
+import math
 import multiprocessing
 import os
 import time
@@ -80,9 +79,6 @@ def _parse_gtdb_release_vers():
     release_ver = [link.get('href').split('release')[-1][:-1] for link in links if 'release' in link.get('href')]
 
     return release_ver
-
-
-GTDB_RELEASE_VER = _parse_gtdb_release_vers()  # available GTDB release versions
 
 
 def _download_genome_file(download_dir: str, gene_id: str, target_file_ext: list[str], overwrite=False) -> None:
@@ -126,9 +122,6 @@ def _form_gtdb_taxonomy_file_url(release_ver):
     # form GTDB taxonomy URL for specific GTDB version.
     # e.g. https://data.gtdb.ecogenomic.org/releases/release207/207.0/ar53_taxonomy_r207.tsv
 
-    if release_ver not in GTDB_RELEASE_VER:
-        raise ValueError(f'Unsupported GTDB release version: {release_ver}')
-
     file_dir_url = GTDB_DOMAIN + f'release{release_ver}/' + f'{release_ver}.0/'
 
     file_urls = list()
@@ -161,7 +154,7 @@ def _fetch_gtdb_genome_ids(release_ver, work_dir):
         # download GTDB taxonomy file to work_dir
         url = urlparse(taxonomy_url)
         taxonomy_file = os.path.join(work_dir, os.path.basename(url.path))
-        _ = request.urlretrieve(taxonomy_url, taxonomy_file)
+        request.urlretrieve(taxonomy_url, taxonomy_file)
 
         # parse genome id (first column of tsv file)
         with open(taxonomy_file, 'r') as f:
@@ -235,13 +228,15 @@ def main():
     parser = argparse.ArgumentParser(
         description='PROTOTYPE - Download genome files from NCBI FTP server.')
 
+    gtdb_release_vers = _parse_gtdb_release_vers()  # available GTDB release versions
+
     required = parser.add_argument_group('required named arguments')
     optional = parser.add_argument_group('optional arguments')
 
     # Required flag argument
     required.add_argument('--download_file_ext', required=True, type=str, nargs='+',
                           help='Download only files that match given extensions.')
-    required.add_argument('--release_ver', required=True, type=str, choices=GTDB_RELEASE_VER,
+    required.add_argument('--release_ver', required=True, type=str, choices=gtdb_release_vers,
                           help='GTDB release version')
 
     # Optional argument
@@ -267,15 +262,19 @@ def main():
     if source not in SOURCE:
         raise ValueError(f'Unexpected source. Currently supported sources: {SOURCE}')
 
+    if release_ver not in gtdb_release_vers:
+        raise ValueError(f'Unsupported GTDB release version: {release_ver}')
+
     work_dir = _make_work_dir(root_dir, source, release_ver)
 
     genome_ids = _fetch_genome_ids(source, release_ver, work_dir)
 
     if not threads:
         threads = max(int(multiprocessing.cpu_count() * min(SYSTEM_UTILIZATION, 1)), 1)
+    threads = max(1, threads)
     print(f"Start downloading genome files with {threads} threads")
 
-    chunk_size = max(len(genome_ids) // (threads - 1), 1)  # distribute genome ids evenly across threads
+    chunk_size = math.ceil(len(genome_ids) / threads)  # distribute genome ids evenly across threads
     batch_input = [(genome_ids[i: i + chunk_size], download_file_ext, work_dir, overwrite) for i in
                    range(0, len(genome_ids), chunk_size)]
     pool = multiprocessing.Pool(processes=threads)

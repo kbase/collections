@@ -63,10 +63,6 @@ def test_parse_gtdb_release_vers():
 
 
 def test_form_gtdb_taxonomy_file_url():
-    with pytest.raises(ValueError, match='Unsupported GTDB release version:'):
-        fake_release_ver = 'hello_fake'
-        _ = ncbi_downloader._form_gtdb_taxonomy_file_url(fake_release_ver)
-
     file_urls_207 = ncbi_downloader._form_gtdb_taxonomy_file_url('207')
     expected_file_urls_207 = [f'{GTDB_DOMAIN}release207/207.0/ar53_taxonomy_r207.tsv',
                               f'{GTDB_DOMAIN}release207/207.0/bac120_taxonomy_r207.tsv']
