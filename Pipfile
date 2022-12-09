@@ -6,7 +6,7 @@ name = "pypi"
 [packages]
 fastapi = "==0.86.0"
 uvicorn = {version = "==0.19.0", extras = ["standard"]}
-python-arango = "==7.5.2"
+python-arango = "==7.5.3"
 jsonlines = "==3.1.0"
 cacheout = "==0.14.1"
 aiohttp = "==3.8.3"
