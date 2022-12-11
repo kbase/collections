@@ -191,7 +191,9 @@ def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
             genome_files = _find_genome_file(genome_id, 'genomic.fna.gz', source_data_dir)
             # Only need xx.genomic.fna.gz file.
             # Excluding potential xx.cds_from_genomic.fna.gz and xx.rna_from_genomic.fna.gz files
-            genome_file = [f for f in genome_files if 'cds_from' not in f and 'rna_from' not in f]
+            genome_file = [f for f in genome_files if
+                           all(name_part not in f for name_part in ['cds_from', 'rna_from', 'ERR'])]
+
             if genome_file and len(genome_file) == 1:
                 batch_file.write(f'{genome_file[0]}\t{os.path.basename(genome_file[0])}\n')
             else:
@@ -221,7 +223,8 @@ def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
         genome_files = _find_genome_file(genome_id, 'genomic.fna.gz', source_data_dir)
         # Only need xx.genomic.fna.gz file.
         # Excluding potential xx.cds_from_genomic.fna.gz and xx.rna_from_genomic.fna.gz files
-        genome_file = [f for f in genome_files if 'cds_from' not in f and 'rna_from' not in f]
+        genome_file = [f for f in genome_files if
+                       all(name_part not in f for name_part in ['cds_from', 'rna_from', 'ERR'])]
         if genome_file and len(genome_file) == 1:
             fna_files.append(genome_file[0])
         else:
