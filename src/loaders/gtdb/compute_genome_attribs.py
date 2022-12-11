@@ -191,9 +191,11 @@ def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
             genome_files = _find_genome_file(genome_id, 'genomic.fna.gz', source_data_dir)
             # Only need xx.genomic.fna.gz file.
             # Excluding potential xx.cds_from_genomic.fna.gz and xx.rna_from_genomic.fna.gz files
-            genome_file = [f for f in genome_files if 'cds_from' not in f and 'rna_from' not in f][0]
-            if genome_file:
-                batch_file.write(f'{genome_file}\t{os.path.basename(genome_file)}\n')
+            genome_file = [f for f in genome_files if 'cds_from' not in f and 'rna_from' not in f]
+            if genome_file and len(genome_file) == 1:
+                batch_file.write(f'{genome_file}\t{os.path.basename(genome_file[0])}\n')
+            else:
+                print(f'Cannot retrieve target file. Please check download folder for genome: {genome_id}')
 
     if run_steps:
         _run_gtdb_tk_steps(batch_file_path, batch_dir, debug, genome_ids, program_threads)
@@ -219,8 +221,11 @@ def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
         genome_files = _find_genome_file(genome_id, 'genomic.fna.gz', source_data_dir)
         # Only need xx.genomic.fna.gz file.
         # Excluding potential xx.cds_from_genomic.fna.gz and xx.rna_from_genomic.fna.gz files
-        genome_file = [f for f in genome_files if 'cds_from' not in f and 'rna_from' not in f][0]
-        fna_files.append(genome_file)
+        genome_file = [f for f in genome_files if 'cds_from' not in f and 'rna_from' not in f]
+        if genome_file and len(genome_file) == 1:
+            fna_files.append(genome_file[0])
+        else:
+            print(f'Cannot retrieve target file. Please check download folder for genome: {genome_id}')
 
     start = time.time()
 
