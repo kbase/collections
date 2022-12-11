@@ -193,7 +193,7 @@ def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
             # Excluding potential xx.cds_from_genomic.fna.gz and xx.rna_from_genomic.fna.gz files
             genome_file = [f for f in genome_files if 'cds_from' not in f and 'rna_from' not in f]
             if genome_file and len(genome_file) == 1:
-                batch_file.write(f'{genome_file}\t{os.path.basename(genome_file[0])}\n')
+                batch_file.write(f'{genome_file[0]}\t{os.path.basename(genome_file[0])}\n')
             else:
                 print(f'Cannot retrieve target file. Please check download folder for genome: {genome_id}')
 
