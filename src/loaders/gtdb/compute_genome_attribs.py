@@ -340,7 +340,8 @@ def main():
             failed_ids = comp_ops(genome_ids, work_dir, source_data_dir, debug, threads)
         else:
             # call tool execution in parallel
-            chunk_size = math.ceil(len(genome_ids) / threads)  # distribute genome ids evenly across threads
+            batch_size = max(math.floor(threads / program_threads), 1)
+            chunk_size = math.ceil(len(genome_ids) / batch_size)  # distribute genome ids evenly across batches
             batch_input = [(genome_ids[i: i + chunk_size],
                             work_dir,
                             source_data_dir,
