@@ -168,7 +168,7 @@ def _run_gtdb_tk_classify_wf(batch_file_path, work_dir, debug, genome_ids, progr
 
 
 def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch_number,
-            node_id, run_steps=True):
+            node_id, run_steps=False):
     # NOTE: Require defining the 'GTDBTK_DATA_PATH' environment variable
     #       e.g. export GTDBTK_DATA_PATH=/global/cfs/cdirs/kbase/collections/libraries/gtdb_tk/release207_v2
     #       https://ecogenomics.github.io/GTDBTk/installing/index.html#gtdb-tk-reference-data
@@ -192,7 +192,8 @@ def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
             # Only need xx.genomic.fna.gz file.
             # Excluding potential xx.cds_from_genomic.fna.gz and xx.rna_from_genomic.fna.gz files
             genome_file = [f for f in genome_files if 'cds_from' not in f and 'rna_from' not in f][0]
-            batch_file.write(f'{genome_file}\t{os.path.basename(genome_file)}\n')
+            if genome_file:
+                batch_file.write(f'{genome_file}\t{os.path.basename(genome_file)}\n')
 
     if run_steps:
         _run_gtdb_tk_steps(batch_file_path, batch_dir, debug, genome_ids, program_threads)
@@ -309,7 +310,6 @@ def main():
         # executing all genomes
         genome_ids = all_genome_ids
 
-    genome_ids = genome_ids[:1]
     total_count = len(genome_ids)
 
     if not threads:
