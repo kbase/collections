@@ -59,6 +59,8 @@ import ftputil
 import requests
 from bs4 import BeautifulSoup
 
+from src.loaders.common.nersc_file_structure import ROOT_DIR, SOURCE_DATA_DIR
+
 # Fraction amount of system cores can be utilized
 # (i.e. 0.5 - program will use 50% of total processors,
 #       0.1 - program will use 10% of total processors)
@@ -174,11 +176,11 @@ def _fetch_genome_ids(source, release_ver, work_dir):
     return genome_ids
 
 
-def _make_work_dir(root_dir, source, release_ver):
+def _make_work_dir(root_dir, source_data_dir, source, release_ver):
     # make working directory for a specific collection under root directory
 
     if source == 'GTDB':
-        work_dir = os.path.join(root_dir, source, f'r{release_ver}')
+        work_dir = os.path.join(root_dir, source_data_dir, source, f'r{release_ver}')
     else:
         raise ValueError(f'Unexpected source: {source}')
 
@@ -240,8 +242,8 @@ def main():
                           help='GTDB release version')
 
     # Optional argument
-    optional.add_argument('--root_dir', type=str, default='/global/cfs/cdirs/kbase/collections/sourcedata',
-                          help='Root directory. (default: /global/cfs/cdirs/kbase/collections/sourcedata)')
+    optional.add_argument('--root_dir', type=str, default=ROOT_DIR,
+                          help='Root directory.')
     optional.add_argument('--source', type=str, default='GTDB',
                           help='Source of data (default: GTDB)')
     optional.add_argument('--threads', type=int,
@@ -262,7 +264,7 @@ def main():
     if source not in SOURCE:
         raise ValueError(f'Unexpected source. Currently supported sources: {SOURCE}')
 
-    work_dir = _make_work_dir(root_dir, source, release_ver)
+    work_dir = _make_work_dir(root_dir, SOURCE_DATA_DIR, source, release_ver)
 
     genome_ids = _fetch_genome_ids(source, release_ver, work_dir)
 
