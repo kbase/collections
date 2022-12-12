@@ -95,10 +95,11 @@ def test_download_genome_file(setup_and_teardown):
     os.makedirs(download_dir, exist_ok=True)
 
     ncbi_downloader._download_genome_file(download_dir, 'RS_GCF_000979375.1',
-                                          ['assembly_report.txt', 'md5checksums.txt'])
+                                          ['assembly_report.txt', 'md5checksums.txt'],
+                                          ['checksums'])
 
     downloaded_files = os.listdir(download_dir)
 
-    assert len(downloaded_files) == 2
-    assert 'md5checksums.txt' in downloaded_files
-    assert any([f.endswith('assembly_report.txt') for f in downloaded_files])
+    assert len(downloaded_files) == 1
+    assert downloaded_files[0].endswith('assembly_report.txt')
+

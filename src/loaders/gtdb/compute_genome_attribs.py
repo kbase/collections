@@ -157,6 +157,7 @@ def _run_gtdb_tk_classify_wf(batch_file_path, work_dir, debug, genome_ids, progr
     command = ['gtdbtk', 'classify_wf',
                '--batchfile', batch_file_path,
                '--out_dir', work_dir,
+               '--force',
                '--cpus', str(program_threads)]
     command.append('--debug') if debug else None
     print(f'running {" ".join(command)}')
