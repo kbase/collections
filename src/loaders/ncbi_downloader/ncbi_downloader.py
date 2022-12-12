@@ -109,7 +109,7 @@ def _download_genome_file(download_dir: str, gene_id: str, target_file_ext: list
                         if overwrite or not os.path.exists(result_file_path):
                             host.download(gene_file_name, result_file_path)
 
-                        success = True
+                success = True
         except Exception as e:
             print(f'Error:\n{e}\nfrom attempt {attempts + 1}.\nTrying to rerun.')
             attempts += 1
