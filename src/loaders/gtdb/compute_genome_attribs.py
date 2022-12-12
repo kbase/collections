@@ -143,9 +143,9 @@ def _run_gtdb_tk_steps(batch_file_path, work_dir, debug, genome_ids, program_thr
     command.append('--debug') if debug else None
     print(f'running {" ".join(command)}')
     _run_command(command, debug=debug, log_dir=os.path.join(work_dir, 'classify_log'))
-    end_align_time = time.time()
+    end_classify_time = time.time()
     print(
-        f'Used {round((end_align_time - end_identify_time) / 60, 2)} minutes to execute gtdbtk classify for '
+        f'Used {round((end_classify_time - end_align_time) / 60, 2)} minutes to execute gtdbtk classify for '
         f'{len(genome_ids)} genomes')
 
 
@@ -205,7 +205,7 @@ def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
     else:
         _run_gtdb_tk_classify_wf(batch_file_path, batch_dir, debug, genome_ids, program_threads)
 
-    # TODO: inspect stdout for failed ids or do it in result parser program
+    # TODO: inspect stdout for failed ids or do it in the parser program
     return failed_ids
 
 
@@ -247,7 +247,7 @@ def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
     print(
         f'Used {round((end_time - start) / 60, 2)} minutes to execute checkM2 predict for {len(genome_ids)} genomes')
 
-    # TODO: inspect stdout for failed ids or do it in result parser program
+    # TODO: inspect stdout for failed ids or do it in the parser program
     return failed_ids
 
 
