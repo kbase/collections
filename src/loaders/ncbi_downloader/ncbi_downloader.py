@@ -106,8 +106,8 @@ def _download_genome_file(download_dir: str, gene_id: str, target_file_ext: list
                     if any([gene_file_name.endswith(ext) for ext in target_file_ext]) and \
                             all([pattern not in gene_file_name for pattern in exclude_name_pattern]):
                         result_file_path = os.path.join(download_dir, gene_file_name)
-                    if overwrite or not os.path.exists(result_file_path):
-                        host.download(gene_file_name, result_file_path)
+                        if overwrite or not os.path.exists(result_file_path):
+                            host.download(gene_file_name, result_file_path)
 
                     success = True
         except Exception as e:
