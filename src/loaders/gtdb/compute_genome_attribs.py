@@ -161,7 +161,7 @@ def _run_gtdb_tk_classify_wf(batch_file_path, work_dir, debug, genome_ids, progr
                '--cpus', str(program_threads)]
     command.append('--debug') if debug else None
     print(f'running {" ".join(command)}')
-    _run_command(command, debug=debug, log_dir=os.path.join(work_dir, 'identify_log'))
+    _run_command(command, debug=debug, log_dir=os.path.join(work_dir, 'classify_wf_log'))
     end_time = time.time()
     print(
         f'Used {round((end_time - start) / 60, 2)} minutes to execute gtdbtk classify_wf for '
