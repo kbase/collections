@@ -42,10 +42,10 @@ NOTE:
 NERSC file structure for GTDB:
 /global/cfs/cdirs/kbase/collections/collectionsdata/ -> [kbase_collection] -> [load_ver] -> [tool_name]
 e.g.
-/global/cfs/cdirs/kbase/collections/collectionsdata/GTDB -> r207.kbase.1 -> gtdb_tk -> batch_1 -> result files
-                                                                                    -> batch_2 -> result files
-                                                                         -> checkm2 -> batch_1 -> result files
-                                                                                    -> batch_2 -> result files
+/global/cfs/cdirs/kbase/collections/collectionsdata/GTDB -> r207.kbase.1 -> gtdb_tk -> batch_0_size_x_node_x -> result files
+                                                                                    -> batch_1_size_x_node_x -> result files
+                                                                         -> checkm2 -> batch_0_size_x_node_x -> result files
+                                                                                    -> batch_1_size_x_node_x -> result files
 
 """
 import argparse
@@ -70,7 +70,7 @@ SERIES_TOOLS = []  # Tools cannot be executed in parallel
 SYSTEM_UTILIZATION = 0.5
 
 
-def _find_genome_file(genome_id, file_ext, source_data_dir):
+def _find_genome_file(genome_id, file_ext, source_data_dir, exclude_file_name_substr=None):
     genome_path = os.path.join(source_data_dir, genome_id)
 
     if not os.path.exists(genome_path):
@@ -78,21 +78,28 @@ def _find_genome_file(genome_id, file_ext, source_data_dir):
 
     genome_files = [os.path.join(genome_path, f) for f in os.listdir(genome_path) if f.endswith(file_ext)]
 
+    if exclude_file_name_substr:
+        genome_files = [f for f in genome_files if
+                        all(name_substr not in f for name_substr in exclude_file_name_substr)]
+
     return genome_files
 
 
 def _run_command(command, debug=False, log_dir=''):
-    p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-    stdout, stderr = p.communicate()
+    # execute command.
+    # if debug is set, write output of stdout and stderr to files (named as stdout and stderr) to log_dir
 
     if debug:
-        os.makedirs(log_dir, exist_ok=True)
-        with open(os.path.join(log_dir, 'stdout'), "w") as std_out:
-            std_out.write(str(stdout))
-        with open(os.path.join(log_dir, 'stderr'), "w") as std_err:
-            std_err.write(str(stderr))
+        with open(os.path.join(log_dir, 'stdout'), "w") as std_out, open(os.path.join(log_dir, 'stderr'),
+                                                                         "w") as std_err:
+            p = subprocess.Popen(command, stdout=std_out, stderr=std_err, text=True)
+    else:
+        p = subprocess.Popen(command)
 
-    return stdout, stderr
+    exit_code = p.wait()
+
+    if exit_code != 0:
+        raise ValueError(f'The command {command} failed with exit code {exit_code}')
 
 
 def _create_batch_dir(work_dir, batch_number, size, node_id):
@@ -189,11 +196,8 @@ def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
 
     with open(batch_file_path, "w") as batch_file:
         for genome_id in genome_ids:
-            genome_files = _find_genome_file(genome_id, 'genomic.fna.gz', source_data_dir)
-            # Only need xx.genomic.fna.gz file.
-            # Excluding potential xx.cds_from_genomic.fna.gz and xx.rna_from_genomic.fna.gz files
-            genome_file = [f for f in genome_files if
-                           all(name_part not in f for name_part in ['cds_from', 'rna_from', 'ERR'])]
+            genome_file = _find_genome_file(genome_id, 'genomic.fna.gz', source_data_dir,
+                                            exclude_file_name_substr=['cds_from', 'rna_from', 'ERR'])
 
             if genome_file and len(genome_file) == 1:
                 batch_file.write(f'{genome_file[0]}\t{os.path.basename(genome_file[0])}\n')
@@ -221,13 +225,11 @@ def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
     # retrieve genomic.fna.gz files
     fna_files = list()
     for genome_id in genome_ids:
-        genome_files = _find_genome_file(genome_id, 'genomic.fna.gz', source_data_dir)
-        # Only need xx.genomic.fna.gz file.
-        # Excluding potential xx.cds_from_genomic.fna.gz and xx.rna_from_genomic.fna.gz files
-        genome_file = [f for f in genome_files if
-                       all(name_part not in f for name_part in ['cds_from', 'rna_from', 'ERR'])]
+        genome_file = _find_genome_file(genome_id, 'genomic.fna.gz', source_data_dir,
+                                        exclude_file_name_substr=['cds_from', 'rna_from', 'ERR'])
+
         if genome_file and len(genome_file) == 1:
-            fna_files.append(genome_file[0])
+            fna_files.append(str(genome_file[0]))
         else:
             print(f'Cannot retrieve target file. Please check download folder for genome: {genome_id}')
 
@@ -237,9 +239,9 @@ def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
     command = ['checkm2', 'predict',
                '--output-directory', batch_dir,
                '--threads', str(program_threads),
-               '--force',
-               '--input']
-    command.extend(fna_files)
+               '--force',  # will overwrite output directory contents
+               '--input'] + fna_files
+
     command.append('--debug') if debug else None
     print(f'running {" ".join(command)}')
     _run_command(command, debug=debug, log_dir=os.path.join(batch_dir, 'checkm2_log'))
@@ -274,13 +276,13 @@ def main():
     optional.add_argument('--threads', type=int,
                           help='Total number of threads. (default: half of system cpu count)')
     optional.add_argument('--program_threads', type=int, default=32,
-                          help='Number of threads for each program execution. (default: 32)')
+                          help='Number of threads to execute tool command. (default: 32)')
     optional.add_argument('--node_id', type=str, default=str(uuid.uuid4()),
                           help='node ID for running job')
     optional.add_argument('--debug', action='store_true',
                           help='Debug mode.')
     optional.add_argument('--genome_id_file', type=argparse.FileType('r'),
-                          help="tab separated file containing genome ids for the running job")
+                          help="tab separated file containing genome ids for the running job (requires 'genome_id' as the column name)")
     args = parser.parse_args()
 
     (tools,
@@ -344,8 +346,8 @@ def main():
             failed_ids = comp_ops(genome_ids, work_dir, source_data_dir, debug, threads)
         else:
             # call tool execution in parallel
-            batch_size = max(math.floor(threads / program_threads), 1)
-            chunk_size = math.ceil(len(genome_ids) / batch_size)  # distribute genome ids evenly across batches
+            num_batches = max(math.floor(threads / program_threads), 1)
+            chunk_size = math.ceil(len(genome_ids) / num_batches)  # distribute genome ids evenly across batches
             batch_input = [(genome_ids[i: i + chunk_size],
                             work_dir,
                             source_data_dir,
