@@ -8,10 +8,10 @@ This script will compute and save result files to [root_dir/collectionsdata/[kba
 
 
 usage: compute_genome_attribs.py [-h] --tools TOOLS [TOOLS ...] --load_ver LOAD_VER --source_data_dir
-                                      SOURCE_DATA_DIR [--kbase_collection KBASE_COLLECTION]
-                                      [--root_dir ROOT_DIR] [--threads THREADS]
-                                      [--program_threads PROGRAM_THREADS] [--node_id NODE_ID] [--debug]
-                                      [--genome_id_file GENOME_ID_FILE]
+                                 SOURCE_DATA_DIR [--kbase_collection KBASE_COLLECTION]
+                                 [--root_dir ROOT_DIR] [--threads THREADS]
+                                 [--program_threads PROGRAM_THREADS] [--node_id NODE_ID] [--debug]
+                                 [--genome_id_file GENOME_ID_FILE]
 
 options:
   -h, --help            show this help message and exit
@@ -30,11 +30,13 @@ optional arguments:
   --root_dir ROOT_DIR   Root directory.
   --threads THREADS     Total number of threads. (default: half of system cpu count)
   --program_threads PROGRAM_THREADS
-                        Number of threads for each program execution.
+                        Number of threads to execute tool command. (default: 32)
   --node_id NODE_ID     node ID for running job
   --debug               Debug mode.
   --genome_id_file GENOME_ID_FILE
-                        tab separated file containing genome ids for the running job
+                        tab separated file containing genome ids for the running job (requires
+                        'genome_id' as the column name)
+
 
 e.g. python compute_genome_attribs.py --tools gtdb_tk checkm2 --load_ver r207.kbase.1 --source_data_dir /global/cfs/cdirs/kbase/collections/sourcedata/GTDB/r207 --debug
 
