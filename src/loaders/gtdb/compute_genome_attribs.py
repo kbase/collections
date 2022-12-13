@@ -348,7 +348,7 @@ def main():
         # place computed results to COLLECTION_DATA_DIR directory
         work_dir = os.path.join(root_dir, COLLECTION_DATA_DIR, kbase_collection,
                                 load_ver, tool)
-
+        # TODO writing a file with genome ID -> file mappings in work_dir
         start = time.time()
         print(f"Start executing {tool} with {threads} threads")
         if tool in SERIES_TOOLS:
