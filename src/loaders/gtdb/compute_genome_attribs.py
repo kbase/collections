@@ -75,7 +75,7 @@ SERIES_TOOLS = []  # Tools cannot be executed in parallel
 SYSTEM_UTILIZATION = 0.5
 
 
-def _find_genome_file(genome_id, file_ext, source_data_dir, exclude_file_name_substr=None):
+def _find_genome_file(genome_id, file_ext, source_data_dir, exclude_file_name_substr=None, expected_file_count=1):
     genome_path = os.path.join(source_data_dir, genome_id)
 
     if not os.path.exists(genome_path):
@@ -86,6 +86,10 @@ def _find_genome_file(genome_id, file_ext, source_data_dir, exclude_file_name_su
     if exclude_file_name_substr:
         genome_files = [f for f in genome_files if
                         all(name_substr not in f for name_substr in exclude_file_name_substr)]
+
+    if not genome_files or len(genome_files) != expected_file_count:
+        print(f'Cannot retrieve target file(s). Please check download folder for genome: {genome_id}')
+        return None
 
     return genome_files
 
@@ -202,12 +206,11 @@ def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
     with open(batch_file_path, "w") as batch_file:
         for genome_id in genome_ids:
             genome_file = _find_genome_file(genome_id, 'genomic.fna.gz', source_data_dir,
-                                            exclude_file_name_substr=['cds_from', 'rna_from', 'ERR'])
+                                            exclude_file_name_substr=['cds_from', 'rna_from', 'ERR'],
+                                            expected_file_count=1)
 
-            if genome_file and len(genome_file) == 1:
+            if genome_file:
                 batch_file.write(f'{genome_file[0]}\t{os.path.basename(genome_file[0])}\n')
-            else:
-                print(f'Cannot retrieve target file. Please check download folder for genome: {genome_id}')
 
     if run_steps:
         _run_gtdb_tk_steps(batch_file_path, batch_dir, debug, genome_ids, program_threads)
@@ -232,12 +235,11 @@ def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
     fna_files = list()
     for genome_id in genome_ids:
         genome_file = _find_genome_file(genome_id, 'genomic.fna.gz', source_data_dir,
-                                        exclude_file_name_substr=['cds_from', 'rna_from', 'ERR'])
+                                        exclude_file_name_substr=['cds_from', 'rna_from', 'ERR'],
+                                        expected_file_count=1)
 
-        if genome_file and len(genome_file) == 1:
+        if genome_file:
             fna_files.append(str(genome_file[0]))
-        else:
-            print(f'Cannot retrieve target file. Please check download folder for genome: {genome_id}')
 
     start = time.time()
 
