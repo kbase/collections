@@ -2,7 +2,7 @@
 PROTOTYPE - Download genome files from NCBI FTP server.
 
 usage: ncbi_downloader.py [-h] --download_file_ext DOWNLOAD_FILE_EXT [DOWNLOAD_FILE_EXT ...] --release_ver
-                          [--root_dir ROOT_DIR] [--source SOURCE] [--threads THREADS]
+                          RELEASE_VER [--root_dir ROOT_DIR] [--source SOURCE] [--threads THREADS]
                           [--overwrite]
                           [--exclude_name_substring EXCLUDE_NAME_SUBSTRING [EXCLUDE_NAME_SUBSTRING ...]]
 
@@ -12,7 +12,8 @@ options:
 required named arguments:
   --download_file_ext DOWNLOAD_FILE_EXT [DOWNLOAD_FILE_EXT ...]
                         Download only files that match given extensions.
-  --release_ver         GTDB release version
+  --release_ver RELEASE_VER
+                        GTDB release version
 
 optional arguments:
   --root_dir ROOT_DIR   Root directory.
@@ -20,7 +21,8 @@ optional arguments:
   --threads THREADS     Number of threads. (default: half of system cpu count)
   --overwrite           Overwrite existing files.
   --exclude_name_substring EXCLUDE_NAME_SUBSTRING [EXCLUDE_NAME_SUBSTRING ...]
-                        Files with a specific substring in their names that should be excluded from the download.
+                        Files with a specific substring in their names that should be excluded from the
+                        download.
 
 
 

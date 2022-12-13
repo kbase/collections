@@ -7,9 +7,8 @@ Before calling this script, the required input files for each tooling should be 
 This script will compute and save result files to [root_dir/collectionsdata/[kbase_collection]/[load_ver]/[tool_name].
 
 
-usage: compute_genome_attribs.py [-h] --tools TOOLS [TOOLS ...] --load_ver LOAD_VER --source_data_dir
-                                 SOURCE_DATA_DIR [--kbase_collection KBASE_COLLECTION]
-                                 [--root_dir ROOT_DIR] [--threads THREADS]
+usage: compute_genome_attribs.py [-h] --tools TOOLS [TOOLS ...] --load_ver LOAD_VER --source_data_dir SOURCE_DATA_DIR
+                                 [--kbase_collection KBASE_COLLECTION] [--root_dir ROOT_DIR] [--threads THREADS]
                                  [--program_threads PROGRAM_THREADS] [--node_id NODE_ID] [--debug]
                                  [--genome_id_file GENOME_ID_FILE]
 
@@ -28,14 +27,16 @@ optional arguments:
   --kbase_collection KBASE_COLLECTION
                         KBase collection identifier name. (default: GTDB)
   --root_dir ROOT_DIR   Root directory.
-  --threads THREADS     Total number of threads. (default: half of system cpu count)
+  --threads THREADS     Total number of threads used by the script. (default: half of system cpu count)
   --program_threads PROGRAM_THREADS
-                        Number of threads to execute tool command. (default: 32)
+                        Number of threads to execute a single tool command. threads / program_threads determines the
+                        number of batches. (default: 32)
   --node_id NODE_ID     node ID for running job
   --debug               Debug mode.
   --genome_id_file GENOME_ID_FILE
-                        tab separated file containing genome ids for the running job (requires
-                        'genome_id' as the column name)
+                        tab separated file containing genome ids for the running job (requires 'genome_id' as the column
+                        name)
+
 
 
 e.g. python compute_genome_attribs.py --tools gtdb_tk checkm2 --load_ver r207.kbase.1 --source_data_dir /global/cfs/cdirs/kbase/collections/sourcedata/GTDB/r207 --debug
@@ -49,6 +50,8 @@ e.g.
                                                                          -> checkm2 -> batch_0_size_x_node_x -> result files
                                                                                     -> batch_1_size_x_node_x -> result files
 
+Require defining the 'GTDBTK_DATA_PATH' environment variable to run GTDB_TK tool
+e.g. export GTDBTK_DATA_PATH=/global/cfs/cdirs/kbase/collections/libraries/gtdb_tk/release207_v2
 """
 import argparse
 import itertools
@@ -218,6 +221,7 @@ def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
 def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch_number, node_id):
     # NOTE: require Python <= 3.9
     # Many checkm2 dependencies (e.g. scikit-learn=0.23.2, tensorflow, diamond, etc.) support Python version up to 3.9
+    # TODO: run checkm2 tool via docker container
 
     failed_ids, size = list(), len(genome_ids)
     print(f'Start executing checkM2 for {len(genome_ids)} genomes')
@@ -276,9 +280,10 @@ def main():
     optional.add_argument('--root_dir', type=str, default=ROOT_DIR,
                           help='Root directory.')
     optional.add_argument('--threads', type=int,
-                          help='Total number of threads. (default: half of system cpu count)')
+                          help='Total number of threads used by the script. (default: half of system cpu count)')
     optional.add_argument('--program_threads', type=int, default=32,
-                          help='Number of threads to execute tool command. (default: 32)')
+                          help='Number of threads to execute a single tool command. '
+                               'threads / program_threads determines the number of batches. (default: 32)')
     optional.add_argument('--node_id', type=str, default=str(uuid.uuid4()),
                           help='node ID for running job')
     optional.add_argument('--debug', action='store_true',
@@ -357,7 +362,7 @@ def main():
                             program_threads,
                             batch_number,
                             node_id) for batch_number, i in enumerate(range(0, total_count, chunk_size))]
-            pool = multiprocessing.Pool(processes=threads)
+            pool = multiprocessing.Pool(processes=num_batches)
             batch_result = pool.starmap(comp_ops, batch_input)
             failed_ids = list(itertools.chain.from_iterable(batch_result))
         print(
