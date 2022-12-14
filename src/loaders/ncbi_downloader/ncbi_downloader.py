@@ -1,30 +1,28 @@
 """
 PROTOTYPE - Download genome files from NCBI FTP server.
 
-usage: ncbi_downloader.py [-h] --download_file_ext
-                          DOWNLOAD_FILE_EXT
-                          [DOWNLOAD_FILE_EXT ...]
-                          --release_ver
-                          [--root_dir ROOT_DIR]
-                          [--source SOURCE]
-                          [--threads THREADS] [--overwrite]
+usage: ncbi_downloader.py [-h] --download_file_ext DOWNLOAD_FILE_EXT [DOWNLOAD_FILE_EXT ...] --release_ver
+                          RELEASE_VER [--root_dir ROOT_DIR] [--source SOURCE] [--threads THREADS]
+                          [--overwrite]
+                          [--exclude_name_substring EXCLUDE_NAME_SUBSTRING [EXCLUDE_NAME_SUBSTRING ...]]
 
 options:
   -h, --help            show this help message and exit
 
 required named arguments:
   --download_file_ext DOWNLOAD_FILE_EXT [DOWNLOAD_FILE_EXT ...]
-                        Download only files that match given
-                        extensions.
-  --release_ver       GTDB release version
+                        Download only files that match given extensions.
+  --release_ver RELEASE_VER
+                        GTDB release version
 
 optional arguments:
-  --root_dir ROOT_DIR   Root directory. (default: /global/cfs
-                        /cdirs/kbase/collections/sourcedata)
+  --root_dir ROOT_DIR   Root directory.
   --source SOURCE       Source of data (default: GTDB)
-  --threads THREADS     Number of threads. (default: half of
-                        system cpu count)
+  --threads THREADS     Number of threads. (default: half of system cpu count)
   --overwrite           Overwrite existing files.
+  --exclude_name_substring EXCLUDE_NAME_SUBSTRING [EXCLUDE_NAME_SUBSTRING ...]
+                        Files with a specific substring in their names that should be excluded from the
+                        download.
 
 
 
@@ -59,6 +57,8 @@ import ftputil
 import requests
 from bs4 import BeautifulSoup
 
+from src.loaders.common.nersc_file_structure import ROOT_DIR, SOURCE_DATA_DIR
+
 # Fraction amount of system cores can be utilized
 # (i.e. 0.5 - program will use 50% of total processors,
 #       0.1 - program will use 10% of total processors)
@@ -81,11 +81,13 @@ def _parse_gtdb_release_vers():
     return release_ver
 
 
-def _download_genome_file(download_dir: str, gene_id: str, target_file_ext: list[str], overwrite=False) -> None:
+def _download_genome_file(download_dir: str, gene_id: str, target_file_ext: list[str], exclude_name_substring: list[str],
+                          overwrite=False) -> None:
     # NCBI file structure: a delegated directory is used to store files for all versions of a genome
     # e.g. File structure for RS_GCF_000968435.2 (https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/968/435/)
     # genomes/all/GCF/000/968/435/ --> GCF_000968435.1_ASM96843v1/
     #                              --> GCF_000968435.2_ASM96843v2/
+
     ncbi_domain, user_name, password = 'ftp.ncbi.nlm.nih.gov', 'anonymous', 'anonymous@domain.com'
 
     success, attempts, max_attempts, gene_id = False, 0, 3, gene_id[3:]
@@ -104,7 +106,9 @@ def _download_genome_file(download_dir: str, gene_id: str, target_file_ext: list
                 gene_file_list = host.listdir(host.curdir)
 
                 for gene_file_name in gene_file_list:
-                    if any([gene_file_name.endswith(ext) for ext in target_file_ext]):
+                    # file has target extensions but doesn't contain exclude name substring
+                    if any([gene_file_name.endswith(ext) for ext in target_file_ext]) and all(
+                            [substring not in gene_file_name for substring in exclude_name_substring]):
                         result_file_path = os.path.join(download_dir, gene_file_name)
                         if overwrite or not os.path.exists(result_file_path):
                             host.download(gene_file_name, result_file_path)
@@ -174,11 +178,11 @@ def _fetch_genome_ids(source, release_ver, work_dir):
     return genome_ids
 
 
-def _make_work_dir(root_dir, source, release_ver):
+def _make_work_dir(root_dir, source_data_dir, source, release_ver):
     # make working directory for a specific collection under root directory
 
     if source == 'GTDB':
-        work_dir = os.path.join(root_dir, source, f'r{release_ver}')
+        work_dir = os.path.join(root_dir, source_data_dir, source, f'r{release_ver}')
     else:
         raise ValueError(f'Unexpected source: {source}')
 
@@ -187,8 +191,8 @@ def _make_work_dir(root_dir, source, release_ver):
     return work_dir
 
 
-def download_genome_files(gene_ids: list[str], target_file_ext: list[str], result_dir='ncbi_genomes',
-                          overwrite=False) -> list[str]:
+def download_genome_files(gene_ids: list[str], target_file_ext: list[str], exclude_name_substring: list[str],
+                          result_dir: str, overwrite=False) -> list[str]:
     """
     Download genome files from NCBI FTP server
 
@@ -196,6 +200,7 @@ def download_genome_files(gene_ids: list[str], target_file_ext: list[str], resul
     target_file_ext: download only files that match given extensions.
     result_dir: result directory for downloaded files. Files for a specific gene ID are stored in a folder with the gene ID as the name.
     """
+
     print(f'start downloading {len(gene_ids)} genome files')
 
     failed_ids = list()
@@ -211,7 +216,7 @@ def download_genome_files(gene_ids: list[str], target_file_ext: list[str], resul
         os.makedirs(download_dir, exist_ok=True)
 
         try:
-            _download_genome_file(download_dir, gene_id, target_file_ext, overwrite=overwrite)
+            _download_genome_file(download_dir, gene_id, target_file_ext, exclude_name_substring, overwrite=overwrite)
         except Exception as e:
             print(e)
             failed_ids.append(gene_id)
@@ -240,14 +245,16 @@ def main():
                           help='GTDB release version')
 
     # Optional argument
-    optional.add_argument('--root_dir', type=str, default='/global/cfs/cdirs/kbase/collections/sourcedata',
-                          help='Root directory. (default: /global/cfs/cdirs/kbase/collections/sourcedata)')
+    optional.add_argument('--root_dir', type=str, default=ROOT_DIR,
+                          help='Root directory.')
     optional.add_argument('--source', type=str, default='GTDB',
                           help='Source of data (default: GTDB)')
     optional.add_argument('--threads', type=int,
                           help='Number of threads. (default: half of system cpu count)')
     optional.add_argument('--overwrite', action='store_true',
                           help='Overwrite existing files.')
+    optional.add_argument('--exclude_name_substring', type=str, nargs='+', default=[],
+                          help='Files with a specific substring in their names that should be excluded from the download.')
 
     args = parser.parse_args()
 
@@ -256,13 +263,14 @@ def main():
      root_dir,
      source,
      threads,
-     overwrite) = (args.download_file_ext, args.release_ver, args.root_dir, args.source,
-                   args.threads, args.overwrite)
+     overwrite,
+     exclude_name_substring) = (args.download_file_ext, args.release_ver, args.root_dir, args.source,
+                                args.threads, args.overwrite, args.exclude_name_substring)
 
     if source not in SOURCE:
         raise ValueError(f'Unexpected source. Currently supported sources: {SOURCE}')
 
-    work_dir = _make_work_dir(root_dir, source, release_ver)
+    work_dir = _make_work_dir(root_dir, SOURCE_DATA_DIR, source, release_ver)
 
     genome_ids = _fetch_genome_ids(source, release_ver, work_dir)
 
@@ -272,8 +280,8 @@ def main():
     print(f"Start downloading genome files with {threads} threads")
 
     chunk_size = math.ceil(len(genome_ids) / threads)  # distribute genome ids evenly across threads
-    batch_input = [(genome_ids[i: i + chunk_size], download_file_ext, work_dir, overwrite) for i in
-                   range(0, len(genome_ids), chunk_size)]
+    batch_input = [(genome_ids[i: i + chunk_size], download_file_ext, exclude_name_substring, work_dir,
+                    overwrite) for i in range(0, len(genome_ids), chunk_size)]
     pool = multiprocessing.Pool(processes=threads)
     batch_result = pool.starmap(download_genome_files, batch_input)
 

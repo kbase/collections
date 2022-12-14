@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from src.loaders.common.nersc_file_structure import SOURCE_DATA_DIR
 from src.loaders.ncbi_downloader import ncbi_downloader
 from src.loaders.ncbi_downloader.ncbi_downloader import GTDB_DOMAIN
 
@@ -31,10 +32,10 @@ def test_make_work_dir(setup_and_teardown):
 
     with pytest.raises(ValueError, match='Unexpected source:'):
         fake_source = 'hello_fake'
-        ncbi_downloader._make_work_dir(tmp_dir, fake_source, 'release_ver')
+        ncbi_downloader._make_work_dir(tmp_dir, SOURCE_DATA_DIR, fake_source, 'release_ver')
 
     source, release_ver = 'GTDB', '207'
-    work_dir = ncbi_downloader._make_work_dir(tmp_dir, source, release_ver)
+    work_dir = ncbi_downloader._make_work_dir(tmp_dir, SOURCE_DATA_DIR, source, release_ver)
 
     path = Path(work_dir).resolve()
 
@@ -94,10 +95,11 @@ def test_download_genome_file(setup_and_teardown):
     os.makedirs(download_dir, exist_ok=True)
 
     ncbi_downloader._download_genome_file(download_dir, 'RS_GCF_000979375.1',
-                                          ['assembly_report.txt', 'md5checksums.txt'])
+                                          ['assembly_report.txt', 'md5checksums.txt'],
+                                          ['checksums'])
 
     downloaded_files = os.listdir(download_dir)
 
-    assert len(downloaded_files) == 2
-    assert 'md5checksums.txt' in downloaded_files
-    assert any([f.endswith('assembly_report.txt') for f in downloaded_files])
+    assert len(downloaded_files) == 1
+    assert downloaded_files[0].endswith('assembly_report.txt')
+

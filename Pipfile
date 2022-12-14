@@ -16,7 +16,8 @@ jinja-cli = "==1.2.2"
 pandas = "==1.5.1"
 aioarango = "==1.0.0"
 ftputil = "==5.0.4"
-bs4 = "==0.0.1"
+beautifulsoup4 = "==4.11.1"
+gtdbtk = "2.1.1"
 
 [dev-packages]
 pytest = "==7.2.0"
