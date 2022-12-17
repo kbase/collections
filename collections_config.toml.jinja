@@ -33,7 +33,7 @@ root_path = "{{ KBCOLL_SERVICE_ROOT_PATH or "" }}"
 # their sharding preferences.
 create_db_on_startup = "{{ KBCOLL_CREATE_DB_ON_STARTUP or "false" }}"
 
-# Set to "true" to not connect to the any external services except for authorization,
+# Set to "true" to not connect to any external services except for authorization,
 # including the database. This will cause all calls to the service that require external
 # service access to fail but is useful for quickly checking OpenAPI documentation
 # or general methods that don't access external services.
