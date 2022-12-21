@@ -92,23 +92,23 @@ WS - Workspace Service
         below), including ArangoDB records, cache service data, etc.
   * Data visualization
     * When accessing a DP (like `taxa_counts`) the user would provide the match ID
-    * The DP is responsible for any processing that is required to support the visualization,
-      including caching
-    * For instance, the collection attributes DB might pull the matched subset into a separate
+    * The DP module in the CS is responsible for any processing that is required to support the
+      visualization, including caching
+    * For instance, the genome attributes DP might pull the matched subset into a separate
       collection to allow for fast sorting / filtering without having to send a potentially
       enormous `IN` query to the regular collection
-* Connectors
-  * Connectors represent a means of matching incoming data to a collection, and are responsible
+* Matchers
+  * Matchers represent a means of matching incoming data to a collection, and are responsible
     for defining the inputs for a match (one of which is always a list of UPAs), performing the
     match, and returning the result in a standard format.
-    * Connectors are also responsible for checking that match parameters are valid - for instance,
+    * Matchers are also responsible for checking that match parameters are valid - for instance,
       if the GTDB lineage version of the input data is not the same as the collection version,
       the connector may throw an error or take some other action to check if the match can
       proceed and be valid
       * NOTE: this implies that for non-GTDB collections we need to label it with a GDTB
         version somehow if GTDB lineage matching is supported
-        * Alternative - support connector parameters that are stored in the collections object, and
-          make GTDB version a connector parameter
-    * Connectors must define which workspace object types they accept.
-    * There should be a connectors endpoint for a collection that lists what connectors are
+        * Alternative - support matcher parameters that are stored in the collections object, and
+          make GTDB version a matcher parameter
+    * Matchers must define which workspace object types they accept.
+    * There should be a matcher endpoint for a collection that lists what matchers are
       available and the input parameters (other than the ubiquitous UPA list)
