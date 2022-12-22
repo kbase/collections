@@ -13,6 +13,8 @@ def test_config_minimal():
         "[Authentication]",
         'url="foobar"',
         "[Service]",
+        "[Service_Dependencies]",
+        'workspace_url="whee"'
         ]).encode('utf-8')
     ))
     assert cfg.arango_url == "foo"
@@ -22,3 +24,4 @@ def test_config_minimal():
     assert cfg.auth_url == "foobar"
     assert cfg.auth_full_admin_roles == []
     assert cfg.service_root_path == None
+    assert cfg.workspace_url == "whee"
