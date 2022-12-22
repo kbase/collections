@@ -9,6 +9,7 @@ from typing import Optional, BinaryIO, TextIO
 _SEC_ARANGO = "Arango"
 _SEC_AUTH = "Authentication"
 _SEC_SERVICE = "Service"
+_SEC_SERVICE_DEPS = "Service_Dependencies"
 
 
 class CollectionsServiceConfig:
@@ -36,6 +37,8 @@ class CollectionsServiceConfig:
         will cause all calls to the service that require external service access to fail but is
         useful for quickly checking OpenAPI documentation or general methods that don't
         access the external services.
+
+    workspace_url: str - the URL of the KBase Workspace service.
     """
 
     def __init__(self, config_file: BinaryIO):
@@ -54,6 +57,7 @@ class CollectionsServiceConfig:
         _check_missing_section(config, _SEC_ARANGO)
         _check_missing_section(config, _SEC_AUTH)
         _check_missing_section(config, _SEC_SERVICE)
+        _check_missing_section(config, _SEC_SERVICE_DEPS)
         self.arango_url = _get_string_required(config, _SEC_ARANGO, "url")
         self.arango_db = _get_string_required(config, _SEC_ARANGO, "database")
         self.arango_user = _get_string_optional(config, _SEC_ARANGO, "username")
@@ -70,6 +74,8 @@ class CollectionsServiceConfig:
             config, _SEC_SERVICE, "create_db_on_startup") == "true"
         self.dont_connect_to_external_services = _get_string_optional(
             config, _SEC_SERVICE, "dont_connect_to_external_services") == "true"
+
+        self.workspace_url = _get_string_required(config, _SEC_SERVICE_DEPS, "workspace_url")
 
     def print_config(self, output: TextIO):
         """
@@ -92,6 +98,7 @@ class CollectionsServiceConfig:
             f"Create database on start: {self.create_db_on_startup}\n"
             f"Don't connect to external services: "
                 + f"{self.dont_connect_to_external_services}\n"
+            f"Workspace URL: {self.workspace_url}\n"
             "*** End Service Configuration ***\n\n"
         ])
 

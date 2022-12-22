@@ -7,6 +7,7 @@ import asyncio
 import sys
 
 from fastapi import FastAPI, Request
+from src.service.clients.workspace_client import Workspace
 from src.service.config import CollectionsServiceConfig
 from src.service.data_products.common_models import DataProductSpec
 from src.service.kb_auth import KBaseAuth
@@ -23,6 +24,9 @@ async def build_app(
     cli, storage = await _build_storage(cfg, data_products)
     app.state._arango_cli = cli
     app.state._storage = storage
+    app.state._ws_url = await _get_workspace_url(cfg)
+    # allow generating the workspace client to be mocked out in a request mock
+    app.state._get_ws = lambda token: Workspace(app.state._ws_url, token=token)
 
 
 async def clean_app(app: FastAPI) -> None:
@@ -58,6 +62,18 @@ async def _build_storage(cfg: CollectionsServiceConfig, data_products: list[Data
         raise
 
 
+async def _get_workspace_url(cfg: CollectionsServiceConfig) -> str:
+    if cfg.dont_connect_to_external_services:
+        return False
+    ws = Workspace(cfg.workspace_url)
+    try:
+        # could check the version later if we add dependencies on newer versions
+        print("Workspace version: " + ws.ver())
+    except Exception as e:
+        raise ValueError(f"Could not connect to workspace at {cfg.workspace_url}: {str(e)}") from e
+    return cfg.workspace_url
+
+
 async def _get_arango_db(cli: aioarango.ArangoClient, db: str, cfg: CollectionsServiceConfig
 ) -> aioarango.database.StandardDatabase:
     err = None
@@ -91,3 +107,15 @@ def get_storage(r: Request) -> ArangoStorage:
     if not r.app.state._storage:
         raise ValueError("Service is running in databaseless mode")
     return r.app.state._storage
+
+
+def get_workspace(r: Request, token: str) -> Workspace:
+    """
+    Get a workspace client initialized for a user.
+
+    r - the incoming service request.
+    token - the user's token.
+    """
+    if not r.app.state._ws_url:
+        raise ValueError("Service is running in no external connections mode")
+    return r.app.state._get_ws(token)
