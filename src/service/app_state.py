@@ -65,8 +65,8 @@ async def _build_storage(cfg: CollectionsServiceConfig, data_products: list[Data
 async def _get_workspace_url(cfg: CollectionsServiceConfig) -> str:
     if cfg.dont_connect_to_external_services:
         return False
-    ws = Workspace(cfg.workspace_url)
     try:
+        ws = Workspace(cfg.workspace_url)
         # could check the version later if we add dependencies on newer versions
         print("Workspace version: " + ws.ver())
     except Exception as e:
