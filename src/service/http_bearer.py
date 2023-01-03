@@ -25,6 +25,7 @@ _SCHEME = "Bearer"
 class KBaseUser(NamedTuple):
     user: UserID
     admin_perm: kb_auth.AdminPermission
+    token: str
 
 
 class KBaseHTTPBearer(HTTPBase):
@@ -62,4 +63,4 @@ class KBaseHTTPBearer(HTTPBase):
             admin_perm, user = await app_state.get_kbase_auth(request).get_user(credentials)
         except kb_auth.InvalidTokenError:
             raise errors.InvalidTokenError()
-        return KBaseUser(user, admin_perm)
+        return KBaseUser(user, admin_perm, credentials)

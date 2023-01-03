@@ -42,3 +42,8 @@ create_db_on_startup = "{{ KBCOLL_CREATE_DB_ON_STARTUP or "false" }}"
 # Example:
 # docker run --env-file collections.env --publish 5000:5000 3b6523ebf6b8
 dont_connect_to_external_services = "{{ KBCOLL_DONT_CONNECT_TO_EXT_SERVICES or "false" }}"
+
+[Service_Dependencies]
+
+# The URL of a KBase workspace service
+workspace_url = "{{ KBCOLL_KBASE_WS_URL or "https://ci.kbase.us/services/ws" }}"
