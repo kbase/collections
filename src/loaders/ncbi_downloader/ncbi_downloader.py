@@ -275,7 +275,7 @@ def main():
     work_dir = _make_work_dir(root_dir, loader_common_names.SOURCE_DATA_DIR, source, release_ver)
 
     genome_ids = _fetch_genome_ids(source, release_ver, work_dir)
-    genome_ids = genome_ids[:10]
+
     if not threads:
         threads = max(int(multiprocessing.cpu_count() * min(SYSTEM_UTILIZATION, 1)), 1)
     threads = max(1, threads)

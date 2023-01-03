@@ -32,11 +32,6 @@ are expected to operate in a database shared with several other services, this p
 provides a namespace for the exclusive use of the Collections code.
 """
 
-DEFAULT_KBASE_COLL_NAME = 'GTDB'
-"""
-The Default kbase collection identifier name
-"""
-
 ## Collection service exclusive collections
 
 _SRV_PREFIX = COLLECTION_PREFIX + "coll_"

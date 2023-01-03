@@ -25,7 +25,7 @@ def convert_to_json(docs, outfile):
 
 def parse_genome_id(gtdb_accession):
     """
-    Extract the genome id from the GTDB accession field by removing the first 2 characters.
+    Extract the genome id from the GTDB accession field by removing the first 3 characters.
 
     e.g. GB_GCA_000016605.1 -> GCA_000016605.1
          GB_GCA_000172955.1 -> GCA_000172955.1
@@ -35,7 +35,8 @@ def parse_genome_id(gtdb_accession):
 
 def init_genome_atrri_doc(kbase_collection, load_version, genome_id):
     """
-    Create a document with only a '_key' field in ArangoDB for genome attributes collection.
+    Initialize a dictionary with a single field, '_key',
+    which will be used as the primary key for the genome attributes collection in ArangoDB.
     """
 
     # genome id should match below regular expression

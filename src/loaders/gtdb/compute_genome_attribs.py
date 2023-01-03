@@ -65,7 +65,6 @@ import uuid
 
 import pandas as pd
 
-import src.common.storage.collection_and_field_names as names
 from src.loaders.common import loader_common_names
 
 SERIES_TOOLS = []  # Tools cannot be executed in parallel
@@ -80,8 +79,7 @@ def _find_genome_file(genome_id, file_ext, source_data_dir, exclude_file_name_su
     genome_path = os.path.join(source_data_dir, genome_id)
 
     if not os.path.exists(genome_path):
-        print(f'Cannot find file directory for: {genome_id}')
-        return None
+        raise ValueError(f'Cannot find file directory for: {genome_id}')
 
     genome_files = [os.path.join(genome_path, f) for f in os.listdir(genome_path) if f.endswith(file_ext)]
 
@@ -281,7 +279,7 @@ def main():
 
     # Optional arguments
     optional.add_argument(f'--{loader_common_names.KBASE_COLLECTION_ARG_NAME}', type=str,
-                          default=names.DEFAULT_KBASE_COLL_NAME,
+                          default=loader_common_names.DEFAULT_KBASE_COLL_NAME,
                           help=loader_common_names.KBASE_COLLECTION_DESCR)
     optional.add_argument('--root_dir', type=str, default=loader_common_names.ROOT_DIR,
                           help='Root directory.')
@@ -299,18 +297,16 @@ def main():
                                "(requires 'genome_id' as the column name)")
     args = parser.parse_args()
 
-    (tools,
-     load_ver,
-     source_data_dir,
-     kbase_collection,
-     root_dir,
-     threads,
-     program_threads,
-     debug,
-     genome_id_file,
-     node_id) = (args.tools, getattr(args, loader_common_names.LOAD_VER_ARG_NAME), args.source_data_dir,
-                 getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME), args.root_dir, args.threads,
-                 args.program_threads, args.debug, args.genome_id_file, args.node_id)
+    load_ver = getattr(args, loader_common_names.LOAD_VER_ARG_NAME)
+    kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
+    tools = args.tools
+    source_data_dir = args.source_data_dir
+    root_dir = args.root_dir
+    threads = args.threads
+    program_threads = args.program_threads
+    debug = args.debug
+    genome_id_file = args.genome_id_file
+    node_id = args.node_id
 
     # get all genome ids (folder name) from source data directory
     all_genome_ids = [path for path in os.listdir(source_data_dir) if

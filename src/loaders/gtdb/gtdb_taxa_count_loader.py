@@ -28,7 +28,7 @@ optional arguments:
   --kbase_collection KBASE_COLLECTION
                         kbase collection identifier name (default: GTDB)
   -o OUTPUT, --output OUTPUT
-                        output JSON file path (default: gtdb_taxa_counts.json
+                        output JSON file path (default: gtdb_taxa_counts.json)
  
 e.g. gtdb_taxa_count_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_version 207
      gtdb_taxa_count_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_version 207 --kbase_collection GTDB
@@ -46,6 +46,9 @@ _TAXA_TYPES = {
     "g": "genus",
     _ABBRV_SPECIES: "species",
 }
+
+# Default result file name for GTDB taxa count data and identical ranks for arango import
+GTDB_TAXA_COUNT_FILE = "gtdb_taxa_counts.json"
 
 
 def _get_lineage(linstr):
@@ -120,12 +123,12 @@ def main():
 
     # Optional argument
     optional.add_argument(f'--{loader_common_names.KBASE_COLLECTION_ARG_NAME}', type=str,
-                          default=names.DEFAULT_KBASE_COLL_NAME,
+                          default=loader_common_names.DEFAULT_KBASE_COLL_NAME,
                           help=loader_common_names.KBASE_COLLECTION_DESCR)
 
     optional.add_argument("-o", "--output", type=argparse.FileType('w'),
-                          default=loader_common_names.GTDB_TAXA_COUNT_FILE,
-                          help=f"output JSON file path (default: {loader_common_names.GTDB_TAXA_COUNT_FILE}")
+                          default=GTDB_TAXA_COUNT_FILE,
+                          help=f"output JSON file path (default: {GTDB_TAXA_COUNT_FILE}")
 
     args = parser.parse_args()
     load_files, load_version, kbase_collection = (args.load_files,
