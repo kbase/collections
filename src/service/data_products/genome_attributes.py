@@ -18,7 +18,7 @@ from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
 from typing import Any
 
-# Implementation note - we known FLD_GENOME_ATTRIBS_ACCESSION is unique per collection id /
+# Implementation note - we know FLD_GENOME_ATTRIBS_ACCESSION is unique per collection id /
 # load version combination since the loader uses those 3 fields as the arango _key
 
 ID = "genome_attribs"
@@ -105,7 +105,7 @@ async def get_ranks(
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     sort_on: str = Query(
         default=names.FLD_GENOME_ATTRIBS_ACCESSION,
-        example="accession",
+        example="genome_size",
         description="The field to sort on."
     ),
     sort_desc: bool = Query(
