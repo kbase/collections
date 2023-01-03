@@ -6,24 +6,33 @@ from gtdb_loader_helper import convert_to_json
 
 from src.common.hash import md5_string
 import src.common.storage.collection_and_field_names as names
+import src.loaders.common.loader_common_names as loader_common_names
 from src.service.data_products import taxa_count
-
 
 """
 PROTOTYPE
 
 Prepare GTDB taxa count data and identical ranks in JSON format for arango import.
 
-usage: gtdb_taxa_count_loader.py [-h] --load_version
-                                LOAD_VERSION
-                                [--kbase_collection KBASE_COLLECTION]
-                                [-o OUTPUT]
-                                load_files
-                                [load_files ...]
+usage: gtdb_taxa_count_loader.py [-h] --load_ver LOAD_VER [--kbase_collection KBASE_COLLECTION] [-o OUTPUT]
+                                 load_files [load_files ...]
+
+options:
+  -h, --help            show this help message and exit
+
+required named arguments:
+  load_files            GTDB taxonomy files (e.g. ar53_taxonomy_r207.tsv)
+  --load_ver LOAD_VER   KBase load version. (e.g. r207.kbase.1)
+
+optional arguments:
+  --kbase_collection KBASE_COLLECTION
+                        kbase collection identifier name (default: GTDB)
+  -o OUTPUT, --output OUTPUT
+                        output JSON file path (default: gtdb_taxa_counts.json
  
 e.g. gtdb_taxa_count_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_version 207
-     gtdb_taxa_count_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_version 207 --kbase_collection gtdb
-     gtdb_taxa_count_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_version 207 --kbase_collection gtdb --output  gtdb_taxa_counts.json
+     gtdb_taxa_count_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_version 207 --kbase_collection GTDB
+     gtdb_taxa_count_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_version 207 --kbase_collection GTDB --output  gtdb_taxa_counts.json
 """
 
 _ABBRV_SPECIES = "s"
@@ -98,27 +107,30 @@ def main():
     parser = argparse.ArgumentParser(
         description='PROTOTYPE - Prepare GTDB taxa count data in JSON format for arango import.'
     )
+    required = parser.add_argument_group('required named arguments')
+    optional = parser.add_argument_group('optional arguments')
 
     # Required positional argument
-    parser.add_argument('load_files', type=argparse.FileType('r'), nargs='+',
-                        help='GTDB taxonomy files')
+    required.add_argument('load_files', type=argparse.FileType('r'), nargs='+',
+                          help='GTDB taxonomy files (e.g. ar53_taxonomy_r207.tsv)')
 
     # Required flag argument
-    parser.add_argument(
-        '--load_version', required=True, type=str, nargs=1, help='KBase load version')
+    required.add_argument(f'--{loader_common_names.LOAD_VER_ARG_NAME}', required=True, type=str,
+                          help=loader_common_names.LOAD_VER_DESCR)
 
     # Optional argument
-    parser.add_argument('--kbase_collection', type=str, default='gtdb',
-                        help='kbase collection identifier name (default: gtdb)')
-    parser.add_argument(
-        "-o", "--output",
-        type=argparse.FileType('w'),
-        default='gtdb_taxa_counts.json',
-        help="output JSON file path (default: gtdb_taxa_counts.json"
-    )
+    optional.add_argument(f'--{loader_common_names.KBASE_COLLECTION_ARG_NAME}', type=str,
+                          default=names.DEFAULT_KBASE_COLL_NAME,
+                          help=loader_common_names.KBASE_COLLECTION_DESCR)
+
+    optional.add_argument("-o", "--output", type=argparse.FileType('w'),
+                          default=loader_common_names.GTDB_TAXA_COUNT_FILE,
+                          help=f"output JSON file path (default: {loader_common_names.GTDB_TAXA_COUNT_FILE}")
 
     args = parser.parse_args()
-    load_files, load_version, kbase_collection = args.load_files, args.load_version[0], args.kbase_collection
+    load_files, load_version, kbase_collection = (args.load_files,
+                                                  getattr(args, loader_common_names.LOAD_VER_ARG_NAME),
+                                                  getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME))
 
     print('start parsing input files')
     nodes = _parse_files(load_files)

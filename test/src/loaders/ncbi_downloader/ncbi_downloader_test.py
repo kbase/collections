@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from src.loaders.common.nersc_file_structure import SOURCE_DATA_DIR
+from src.loaders.common.loader_common_names import SOURCE_DATA_DIR
 from src.loaders.ncbi_downloader import ncbi_downloader
 from src.loaders.ncbi_downloader.ncbi_downloader import GTDB_DOMAIN
 
@@ -90,11 +90,11 @@ def test_form_gtdb_taxonomy_file_url():
 
 def test_download_genome_file(setup_and_teardown):
     tmp_dir, script_file = setup_and_teardown
-    test_genome_id = 'RS_GCF_000979375.1'
+    test_genome_id = 'GCF_000979375.1'
     download_dir = os.path.join(tmp_dir, test_genome_id)
     os.makedirs(download_dir, exist_ok=True)
 
-    ncbi_downloader._download_genome_file(download_dir, 'RS_GCF_000979375.1',
+    ncbi_downloader._download_genome_file(download_dir, test_genome_id,
                                           ['assembly_report.txt', 'md5checksums.txt'],
                                           ['checksums'])
 

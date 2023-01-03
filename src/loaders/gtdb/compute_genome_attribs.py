@@ -65,7 +65,8 @@ import uuid
 
 import pandas as pd
 
-from src.loaders.common.nersc_file_structure import ROOT_DIR, COLLECTION_DATA_DIR
+import src.common.storage.collection_and_field_names as names
+from src.loaders.common import loader_common_names
 
 SERIES_TOOLS = []  # Tools cannot be executed in parallel
 
@@ -79,7 +80,8 @@ def _find_genome_file(genome_id, file_ext, source_data_dir, exclude_file_name_su
     genome_path = os.path.join(source_data_dir, genome_id)
 
     if not os.path.exists(genome_path):
-        raise ValueError(f'Cannot find file directory for: {genome_id}')
+        print(f'Cannot find file directory for: {genome_id}')
+        return None
 
     genome_files = [os.path.join(genome_path, f) for f in os.listdir(genome_path) if f.endswith(file_ext)]
 
@@ -99,6 +101,7 @@ def _run_command(command, debug=False, log_dir=''):
     # if debug is set, write output of stdout and stderr to files (named as stdout and stderr) to log_dir
 
     if debug:
+        os.makedirs(log_dir, exist_ok=True)
         with open(os.path.join(log_dir, 'stdout'), "w") as std_out, open(os.path.join(log_dir, 'stderr'),
                                                                          "w") as std_err:
             p = subprocess.Popen(command, stdout=std_out, stderr=std_err, text=True)
@@ -270,16 +273,17 @@ def main():
     # Required flag arguments
     required.add_argument('--tools', required=True, type=str, nargs='+',
                           help='Tools to be executed. (e.g. gtdb_tk, checkm2, etc.)')
-    required.add_argument('--load_ver', required=True, type=str,
-                          help='KBase load version. (e.g. r207.kbase.1)')
+    required.add_argument(f'--{loader_common_names.LOAD_VER_ARG_NAME}', required=True, type=str,
+                          help=loader_common_names.LOAD_VER_DESCR)
     required.add_argument('--source_data_dir', required=True, type=str,
                           help='Source data (genome files) directory. '
                                '(e.g. /global/cfs/cdirs/kbase/collections/sourcedata/GTDB/r207')
 
     # Optional arguments
-    optional.add_argument('--kbase_collection', type=str, default='GTDB',
-                          help='KBase collection identifier name. (default: GTDB)')
-    optional.add_argument('--root_dir', type=str, default=ROOT_DIR,
+    optional.add_argument(f'--{loader_common_names.KBASE_COLLECTION_ARG_NAME}', type=str,
+                          default=names.DEFAULT_KBASE_COLL_NAME,
+                          help=loader_common_names.KBASE_COLLECTION_DESCR)
+    optional.add_argument('--root_dir', type=str, default=loader_common_names.ROOT_DIR,
                           help='Root directory.')
     optional.add_argument('--threads', type=int,
                           help='Total number of threads used by the script. (default: half of system cpu count)')
@@ -291,7 +295,8 @@ def main():
     optional.add_argument('--debug', action='store_true',
                           help='Debug mode.')
     optional.add_argument('--genome_id_file', type=argparse.FileType('r'),
-                          help="tab separated file containing genome ids for the running job (requires 'genome_id' as the column name)")
+                          help="tab separated file containing genome ids for the running job "
+                               "(requires 'genome_id' as the column name)")
     args = parser.parse_args()
 
     (tools,
@@ -303,9 +308,9 @@ def main():
      program_threads,
      debug,
      genome_id_file,
-     node_id) = (args.tools, args.load_ver, args.source_data_dir,
-                 args.kbase_collection, args.root_dir, args.threads, args.program_threads,
-                 args.debug, args.genome_id_file, args.node_id)
+     node_id) = (args.tools, getattr(args, loader_common_names.LOAD_VER_ARG_NAME), args.source_data_dir,
+                 getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME), args.root_dir, args.threads,
+                 args.program_threads, args.debug, args.genome_id_file, args.node_id)
 
     # get all genome ids (folder name) from source data directory
     all_genome_ids = [path for path in os.listdir(source_data_dir) if
@@ -346,7 +351,7 @@ def main():
                 f'NOTE: Method name should be exactly the same as the tool name') from e
 
         # place computed results to COLLECTION_DATA_DIR directory
-        work_dir = os.path.join(root_dir, COLLECTION_DATA_DIR, kbase_collection,
+        work_dir = os.path.join(root_dir, loader_common_names.COLLECTION_DATA_DIR, kbase_collection,
                                 load_ver, tool)
         # TODO writing a file with genome ID -> file mappings in work_dir
         start = time.time()

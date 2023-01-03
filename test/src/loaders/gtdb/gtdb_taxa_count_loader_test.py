@@ -1,4 +1,3 @@
-import inspect
 import os
 import shutil
 import subprocess
@@ -27,7 +26,7 @@ def setup_and_teardown():
 
 
 def _exam_count_result_file(result_file, expected_docs_length, expected_doc_keys,
-                           expected_load_version, expected_collection):
+                            expected_load_version, expected_collection):
     with jsonlines.open(result_file, 'r') as jsonl_f:
         data = [obj for obj in jsonl_f]
 
@@ -71,16 +70,16 @@ def test_create_json_default(setup_and_teardown):
     load_version = '100-dev'
     command = ['python', script_file,
                os.path.join(caller_file_dir, 'ar53_taxonomy_r207.tsv'),
-               '--load_version', load_version,
+               '--load_ver', load_version,
                '-o', result_file]
 
     _exe_command(command)
 
     expected_docs_length = 5420
     expected_doc_keys = {'_key', 'coll', 'load_ver', 'rank', 'name', 'count'}
-    expected_collection = 'gtdb'
+    expected_collection = 'GTDB'
     _exam_count_result_file(result_file, expected_docs_length, expected_doc_keys,
-                           load_version, expected_collection)
+                            load_version, expected_collection)
     expected_ranks_inorder = ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'species']
     _exam_rank_result_file(result_file, load_version, expected_collection, expected_ranks_inorder)
 
@@ -94,7 +93,7 @@ def test_create_json_option_input(setup_and_teardown):
     command = ['python', script_file,
                os.path.join(caller_file_dir, 'ar53_taxonomy_r207.tsv'),
                os.path.join(caller_file_dir, 'ar53_taxonomy_r207.tsv'),
-               '--load_version', load_version,
+               '--load_ver', load_version,
                '--output', result_file,
                '--kbase_collection', kbase_collections]
 
@@ -103,6 +102,6 @@ def test_create_json_option_input(setup_and_teardown):
     expected_docs_length = 5420
     expected_doc_keys = {'_key', 'coll', 'load_ver', 'rank', 'name', 'count'}
     _exam_count_result_file(result_file, expected_docs_length, expected_doc_keys,
-                           load_version, kbase_collections)
+                            load_version, kbase_collections)
     expected_ranks_inorder = ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'species']
     _exam_rank_result_file(result_file, load_version, kbase_collections, expected_ranks_inorder)

@@ -26,7 +26,7 @@ def setup_and_teardown():
 
 
 def _exam_genome_attribs_file(result_file, expected_docs_length, expected_doc_keys,
-                            expected_load_version, expected_collection):
+                              expected_load_version, expected_collection):
     with jsonlines.open(result_file, 'r') as jsonl_f:
         data = [obj for obj in jsonl_f]
 
@@ -56,16 +56,15 @@ def test_create_json_default(setup_and_teardown):
     command = ['python', script_file,
                os.path.join(caller_file_dir, 'SAMPLE_ar53_metadata_r207.tsv'),
                os.path.join(caller_file_dir, 'SAMPLE_bac120_metadata_r207.tsv'),
-               '--load_version', load_version,
+               '--load_ver', load_version,
                '--kbase_collection', kbase_collections,
                '-o', result_file]
 
     _exe_command(command)
 
     expected_docs_length = 20
-    expected_doc_keys = {'_key', 'coll', 'load_ver', 'genome_name', 'checkm_completeness',
-                         'high_checkm_marker_count', 'trna_selenocysteine_count',
-                         'n50_scaffolds'}  # cherry-pick a few from gtdb_genome_attribs_helper.EXIST_FEATURES
+    expected_doc_keys = {'_key', 'coll', 'load_ver', 'accession', 'checkm_completeness',
+                         'trna_selenocysteine_count', 'n50_scaffolds'}  # cherry-pick a few from loader_common_names.SELECTED_FEATURES
 
     _exam_genome_attribs_file(result_file, expected_docs_length, expected_doc_keys,
-                            load_version, kbase_collections)
+                              load_version, kbase_collections)
