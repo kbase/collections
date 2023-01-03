@@ -26,7 +26,7 @@ required named arguments:
 
 optional arguments:
   --kbase_collection KBASE_COLLECTION
-                        kbase collection identifier name (default: GTDB)
+                        kbase collection identifier name (default: loader_common_names.DEFAULT_KBASE_COLL_NAME)
   -o OUTPUT, --output OUTPUT
                         output JSON file path (default: gtdb_taxa_counts.json)
  
