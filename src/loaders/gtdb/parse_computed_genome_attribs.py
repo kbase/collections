@@ -212,11 +212,13 @@ def main():
     result_dir = _locate_dir(root_dir, kbase_collection, load_ver, check_exists=True)
 
     executed_tools = [d for d in os.listdir(result_dir) if os.path.isdir(os.path.join(result_dir, d))]
-    if tools and (set(tools) - set(executed_tools)):
+    if not executed_tools:
+        raise ValueError(f'Cannot find any tool result folders in {result_dir}')
+
+    tools = executed_tools if not tools else tools
+    if set(tools) - set(executed_tools):
         raise ValueError(f'Please ensure that all tools have been successfully executed. '
                          f'Only the following tools have already been run: {executed_tools}')
-    else:
-        tools = executed_tools if not tools else tools
 
     docs = list()
     for tool in tools:
