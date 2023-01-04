@@ -4,7 +4,7 @@ import pandas as pd
 
 import src.common.storage.collection_and_field_names as names
 import src.loaders.common.loader_common_names as loader_common_names
-from gtdb_loader_helper import convert_to_json, parse_genome_id, init_genome_atrri_doc, sort_key_exists
+import src.loaders.gtdb.gtdb_loader_helper as loader_helper
 from src.common.storage.collection_and_field_names import (
     FLD_COLLECTION_ID,
     FLD_LOAD_VERSION,
@@ -42,11 +42,6 @@ e.g. gtdb_genome_attribs_loader.py bac120_metadata_r207.tsv ar53_metadata_r207.t
      gtdb_genome_attribs_loader.py bac120_metadata_r207.tsv ar53_metadata_r207.tsv --load_version r207.kbase.1 --kbase_collection GTDB --output  gtdb_genome_attribs.json
 """
 
-# change header to specific context
-HEADER_MAPPER = {
-    'accession': names.FLD_GENOME_ATTRIBS_GENOME_NAME  # ensure existence of FLD_GENOME_ATTRIBS_GENOME_NAME
-}
-
 # Default result file name for GTDB genome attributes data for arango import
 GTDB_GENOME_ATTR_FILE = "gtdb_genome_attribs.json"
 
@@ -66,6 +61,10 @@ SELECTED_FEATURES = {'accession', 'checkm_completeness', 'checkm_contamination',
                      'ncbi_taxid',
                      'ncbi_taxonomy_unfiltered', 'protein_count', 'scaffold_count', 'ssu_count', 'ssu_length',
                      'trna_aa_count', 'trna_count', 'trna_selenocysteine_count'}
+
+# Copy the value of the following column to a new column FLD_GENOME_ATTRIBS_KBASE_GENOME_ID,
+# which is the sort key for the genome attribute collection.
+KBASE_GENOME_ID_COL = 'accession'
 
 
 def _parse_from_metadata_file(load_files, exist_features, additional_features={}):
@@ -103,8 +102,8 @@ def _row_to_doc(row, kbase_collection, load_version):
     Transforms row (from a dataframe) into ArangoDB collection document
     """
     # parse genome id
-    genome_id = parse_genome_id(row[names.FLD_GENOME_ATTRIBS_GENOME_NAME])
-    doc = init_genome_atrri_doc(kbase_collection, load_version, genome_id)
+    genome_id = loader_helper.parse_genome_id(row.accession)
+    doc = loader_helper.init_genome_atrri_doc(kbase_collection, load_version, genome_id)
 
     doc[FLD_COLLECTION_ID] = kbase_collection
     doc[FLD_LOAD_VERSION] = load_version
@@ -114,20 +113,19 @@ def _row_to_doc(row, kbase_collection, load_version):
     return doc
 
 
-def _df_to_docs(df, kbase_collection, load_version, header_mapper):
-    _rename_col(df, header_mapper)
+def _df_to_docs(df, kbase_collection, load_version):
+    """
+    Convert a DataFrame into a list of documents that will be imported into the genome attributes collection.
+    """
 
-    if not sort_key_exists(df):
-        raise ValueError(f'Please verify that the {names.FLD_GENOME_ATTRIBS_GENOME_NAME} column exists.')
+    # Create the FLD_GENOME_ATTRIBS_KBASE_GENOME_ID column by copying the KBASE_GENOME_ID_COL column
+    loader_helper.copy_column(df, KBASE_GENOME_ID_COL, names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID)
     docs = df.apply(_row_to_doc, args=(kbase_collection, load_version), axis=1).to_list()
 
     return docs
 
 
 def main():
-    if not all([header in SELECTED_FEATURES for header in HEADER_MAPPER.keys()]):
-        raise ValueError('Please make sure HEADER_MAPPER keys are all included in the SELECTED_FEATURES')
-
     parser = argparse.ArgumentParser(
         description='PROTOTYPE - Prepare GTDB genome statistics data in JSON format for arango import.')
     required = parser.add_argument_group('required named arguments')
@@ -156,10 +154,10 @@ def main():
 
     print('start parsing input files')
     df = _parse_from_metadata_file(load_files, SELECTED_FEATURES)
-    docs = _df_to_docs(df, kbase_collection, load_version, HEADER_MAPPER)
+    docs = _df_to_docs(df, kbase_collection, load_version)
 
     with args.output as genome_attribs_json:
-        convert_to_json(docs, genome_attribs_json)
+        loader_helper.convert_to_json(docs, genome_attribs_json)
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@ import jsonlines
 import pytest
 
 import src.common.storage.collection_and_field_names as names
+import src.loaders.gtdb.gtdb_genome_attribs_loader as loader
 
 
 @pytest.fixture(scope="module")
@@ -42,6 +43,8 @@ def _exam_genome_attribs_file(result_file, expected_docs_length, expected_doc_ke
     assert versions == {expected_load_version}
     assert collections == {expected_collection}
 
+    assert all([d[names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID] == d[loader.KBASE_GENOME_ID_COL] for d in data])
+
 
 def _exe_command(command):
     p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
@@ -65,7 +68,8 @@ def test_create_json_default(setup_and_teardown):
     _exe_command(command)
 
     expected_docs_length = 20
-    expected_doc_keys = {names.FLD_GENOME_ATTRIBS_GENOME_NAME,  # sort key must exist
+    expected_doc_keys = {names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID,  # sort key must exist
+                         loader.KBASE_GENOME_ID_COL,
                          '_key', 'coll', 'load_ver', 'checkm_completeness',
                          'trna_selenocysteine_count', 'n50_scaffolds'}  # cherry-pick a few from SELECTED_FEATURES
 

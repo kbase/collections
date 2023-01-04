@@ -33,11 +33,17 @@ def parse_genome_id(gtdb_accession):
     return gtdb_accession[3:]
 
 
-def sort_key_exists(df):
+def copy_column(df, existing_col, new_col):
     """
-    Verify that the sort_key field (FLD_GENOME_ATTRIBS_GENOME_NAME) exists in the genome attributes collection
+    Copy existing column to new column.
+    If the new column already exists, it will be overwritten.
+
+    # TODO add options for modifying the data in the copied column during the copying process.
     """
-    return names.FLD_GENOME_ATTRIBS_GENOME_NAME in df
+    if existing_col not in df:
+        raise ValueError(f'Error: The {existing_col} column does not exist in the DataFrame.')
+
+    df[new_col] = df[existing_col]
 
 
 def init_genome_atrri_doc(kbase_collection, load_version, genome_id):

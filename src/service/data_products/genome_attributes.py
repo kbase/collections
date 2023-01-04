@@ -18,7 +18,7 @@ from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
 from typing import Any
 
-# Implementation note - we know FLD_GENOME_ATTRIBS_GENOME_NAME is unique per collection id /
+# Implementation note - we know FLD_GENOME_ATTRIBS_KBASE_GENOME_ID is unique per collection id /
 # load version combination since the loader uses those 3 fields as the arango _key
 
 ID = "genome_attribs"
@@ -35,7 +35,7 @@ GENOME_ATTRIBS_SPEC = DataProductSpec(
                 [
                     names.FLD_COLLECTION_ID,
                     names.FLD_LOAD_VERSION,
-                    names.FLD_GENOME_ATTRIBS_GENOME_NAME,
+                    names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID,
                 ]
             ]
         )
@@ -51,7 +51,7 @@ def _remove_keys(doc):
 
 class AttributeName(BaseModel):
     name: str = Field(
-        example=names.FLD_GENOME_ATTRIBS_GENOME_NAME,
+        example=names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID,
         description="The name of an attribute"
     )
 
@@ -77,7 +77,7 @@ class GenomeAttributes(BaseModel, extra=Extra.allow):
             + "table with each entry being the entry for that column."
     )
     data: list[dict[str, Any]] | None = Field(
-        example=[{names.FLD_GENOME_ATTRIBS_GENOME_NAME: "my_genome_name"}],
+        example=[{names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID: "assigned_kbase_genome_id"}],
         description="The attributes as a list of dictionaries."
     )
 
@@ -104,7 +104,7 @@ async def get_ranks(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     sort_on: str = Query(
-        default=names.FLD_GENOME_ATTRIBS_GENOME_NAME,
+        default=names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID,
         example="genome_size",
         description="The field to sort on."
     ),
