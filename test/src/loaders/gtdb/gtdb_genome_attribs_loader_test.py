@@ -7,6 +7,9 @@ from pathlib import Path
 import jsonlines
 import pytest
 
+import src.common.storage.collection_and_field_names as names
+import src.loaders.gtdb.gtdb_genome_attribs_loader as loader
+
 
 @pytest.fixture(scope="module")
 def setup_and_teardown():
@@ -26,7 +29,7 @@ def setup_and_teardown():
 
 
 def _exam_genome_attribs_file(result_file, expected_docs_length, expected_doc_keys,
-                            expected_load_version, expected_collection):
+                              expected_load_version, expected_collection):
     with jsonlines.open(result_file, 'r') as jsonl_f:
         data = [obj for obj in jsonl_f]
 
@@ -39,6 +42,8 @@ def _exam_genome_attribs_file(result_file, expected_docs_length, expected_doc_ke
     collections = set([d['coll'] for d in data])
     assert versions == {expected_load_version}
     assert collections == {expected_collection}
+
+    assert all([d[names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID] == d[loader.KBASE_GENOME_ID_COL] for d in data])
 
 
 def _exe_command(command):
@@ -56,16 +61,17 @@ def test_create_json_default(setup_and_teardown):
     command = ['python', script_file,
                os.path.join(caller_file_dir, 'SAMPLE_ar53_metadata_r207.tsv'),
                os.path.join(caller_file_dir, 'SAMPLE_bac120_metadata_r207.tsv'),
-               '--load_version', load_version,
+               '--load_ver', load_version,
                '--kbase_collection', kbase_collections,
                '-o', result_file]
 
     _exe_command(command)
 
     expected_docs_length = 20
-    expected_doc_keys = {'_key', 'coll', 'load_ver', 'genome_name', 'checkm_completeness',
-                         'high_checkm_marker_count', 'trna_selenocysteine_count',
-                         'n50_scaffolds'}  # cherry-pick a few from gtdb_genome_attribs_helper.EXIST_FEATURES
+    expected_doc_keys = {names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID,  # sort key must exist
+                         loader.KBASE_GENOME_ID_COL,
+                         '_key', 'coll', 'load_ver', 'checkm_completeness',
+                         'trna_selenocysteine_count', 'n50_scaffolds'}  # cherry-pick a few from SELECTED_FEATURES
 
     _exam_genome_attribs_file(result_file, expected_docs_length, expected_doc_keys,
-                            load_version, kbase_collections)
+                              load_version, kbase_collections)

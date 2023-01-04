@@ -34,12 +34,12 @@ NERSC file structure for GTDB:
 /global/cfs/cdirs/kbase/collections/sourcedata/ -> GTDB -> [GTDB_release_version] -> [genome_id] -> genome files
 
 e.g.
-/global/cfs/cdirs/kbase/collections/sourcedata/GTDB -> r207 -> GB_GCA_000016605.1 -> genome files
-                                                            -> GB_GCA_000200715.1 -> genome files
-                                                       r202 -> GB_GCA_000016605.1 -> genome files
-                                                            -> GB_GCA_000200715.1 -> genome files
-                                                       r80  -> GB_GCA_000016605.1 -> genome files
-                                                            -> GB_GCA_000200715.1 -> genome files
+/global/cfs/cdirs/kbase/collections/sourcedata/GTDB -> r207 -> GCA_000016605.1 -> genome files
+                                                            -> GCA_000200715.1 -> genome files
+                                                       r202 -> GCA_000016605.1 -> genome files
+                                                            -> GCA_000200715.1 -> genome files
+                                                       r80  -> GCA_000016605.1 -> genome files
+                                                            -> GCA_000200715.1 -> genome files
 
 
 """
@@ -57,7 +57,8 @@ import ftputil
 import requests
 from bs4 import BeautifulSoup
 
-from src.loaders.common.nersc_file_structure import ROOT_DIR, SOURCE_DATA_DIR
+from src.loaders.common import loader_common_names
+from src.loaders.gtdb.gtdb_loader_helper import parse_genome_id
 
 # Fraction amount of system cores can be utilized
 # (i.e. 0.5 - program will use 50% of total processors,
@@ -81,7 +82,8 @@ def _parse_gtdb_release_vers():
     return release_ver
 
 
-def _download_genome_file(download_dir: str, gene_id: str, target_file_ext: list[str], exclude_name_substring: list[str],
+def _download_genome_file(download_dir: str, gene_id: str, target_file_ext: list[str],
+                          exclude_name_substring: list[str],
                           overwrite=False) -> None:
     # NCBI file structure: a delegated directory is used to store files for all versions of a genome
     # e.g. File structure for RS_GCF_000968435.2 (https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/968/435/)
@@ -90,7 +92,7 @@ def _download_genome_file(download_dir: str, gene_id: str, target_file_ext: list
 
     ncbi_domain, user_name, password = 'ftp.ncbi.nlm.nih.gov', 'anonymous', 'anonymous@domain.com'
 
-    success, attempts, max_attempts, gene_id = False, 0, 3, gene_id[3:]
+    success, attempts, max_attempts = False, 0, 3
     while attempts < max_attempts and not success:
         try:
             time.sleep(5 * attempts)
@@ -160,9 +162,9 @@ def _fetch_gtdb_genome_ids(release_ver, work_dir):
         taxonomy_file = os.path.join(work_dir, os.path.basename(url.path))
         request.urlretrieve(taxonomy_url, taxonomy_file)
 
-        # parse genome id (first column of tsv file)
+        # parse genome id from first column of GTDB taxonomy tsv file
         with open(taxonomy_file, 'r') as f:
-            genome_ids.extend([line.strip().split("\t")[0] for line in f])
+            genome_ids.extend([parse_genome_id(line.strip().split("\t")[0]) for line in f])
 
     return genome_ids
 
@@ -245,7 +247,7 @@ def main():
                           help='GTDB release version')
 
     # Optional argument
-    optional.add_argument('--root_dir', type=str, default=ROOT_DIR,
+    optional.add_argument('--root_dir', type=str, default=loader_common_names.ROOT_DIR,
                           help='Root directory.')
     optional.add_argument('--source', type=str, default='GTDB',
                           help='Source of data (default: GTDB)')
@@ -270,7 +272,7 @@ def main():
     if source not in SOURCE:
         raise ValueError(f'Unexpected source. Currently supported sources: {SOURCE}')
 
-    work_dir = _make_work_dir(root_dir, SOURCE_DATA_DIR, source, release_ver)
+    work_dir = _make_work_dir(root_dir, loader_common_names.SOURCE_DATA_DIR, source, release_ver)
 
     genome_ids = _fetch_genome_ids(source, release_ver, work_dir)
 
