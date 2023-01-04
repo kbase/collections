@@ -68,4 +68,4 @@ COLL_GENOME_ATTRIBS = COLLECTION_PREFIX + "genome_attribs"
 
 #### Genome attribute document fields
 
-FLD_GENOME_ATTRIBS_ACCESSION = "accession"
+FLD_GENOME_ATTRIBS_GENOME_NAME = "genome_name"

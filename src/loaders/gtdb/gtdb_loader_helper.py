@@ -33,6 +33,13 @@ def parse_genome_id(gtdb_accession):
     return gtdb_accession[3:]
 
 
+def sort_key_exists(df):
+    """
+    Verify that the sort_key field (FLD_GENOME_ATTRIBS_GENOME_NAME) exists in the genome attributes collection
+    """
+    return names.FLD_GENOME_ATTRIBS_GENOME_NAME in df
+
+
 def init_genome_atrri_doc(kbase_collection, load_version, genome_id):
     """
     Initialize a dictionary with a single field, '_key',

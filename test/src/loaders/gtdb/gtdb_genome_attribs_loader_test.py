@@ -7,6 +7,8 @@ from pathlib import Path
 import jsonlines
 import pytest
 
+import src.common.storage.collection_and_field_names as names
+
 
 @pytest.fixture(scope="module")
 def setup_and_teardown():
@@ -63,7 +65,8 @@ def test_create_json_default(setup_and_teardown):
     _exe_command(command)
 
     expected_docs_length = 20
-    expected_doc_keys = {'_key', 'coll', 'load_ver', 'accession', 'checkm_completeness',
+    expected_doc_keys = {names.FLD_GENOME_ATTRIBS_GENOME_NAME,  # sort key must exist
+                         '_key', 'coll', 'load_ver', 'checkm_completeness',
                          'trna_selenocysteine_count', 'n50_scaffolds'}  # cherry-pick a few from SELECTED_FEATURES
 
     _exam_genome_attribs_file(result_file, expected_docs_length, expected_doc_keys,
