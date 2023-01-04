@@ -67,34 +67,20 @@ SELECTED_FEATURES = {'accession', 'checkm_completeness', 'checkm_contamination',
 KBASE_GENOME_ID_COL = 'accession'
 
 
-def _parse_from_metadata_file(load_files, exist_features, additional_features={}):
+def _parse_from_metadata_file(load_files, exist_features, additional_features=None):
     """
     Fetches certain columns (combination of exist_features and additional_features) from GTDB metadata file
     and saves result as a pandas data from
     """
 
+    if additional_features is None:
+        additional_features = {}
+        
     frames = [pd.read_csv(load_file, sep='\t', header=0, keep_default_na=False,
                           usecols=exist_features.union(additional_features)) for load_file in load_files]
     df = pd.concat(frames, ignore_index=True)
 
     return df
-
-
-def _rename_col(df, header_mapper):
-    """
-    Remaps data frame's column as specified in `header_mapper`
-
-    Changes dataframe's header in place.
-
-     Args:
-        df:  A data frame object
-        header_mapper: A user input mapper to map specific col to user desired name
-
-     Returns:
-         None (updates dataframe in place)
-    """
-
-    df.rename(columns=header_mapper, errors="raise", inplace=True)
 
 
 def _row_to_doc(row, kbase_collection, load_version):
