@@ -131,7 +131,7 @@ def main():
                           help=loader_common_names.KBASE_COLLECTION_DESCR)
     optional.add_argument("-o", "--output", type=argparse.FileType('w'),
                           default=GTDB_GENOME_ATTR_FILE,
-                          help=f"output JSON file path (default: {GTDB_GENOME_ATTR_FILE}")
+                          help=f"output JSON file path (default: {GTDB_GENOME_ATTR_FILE})")
 
     args = parser.parse_args()
     load_files, load_version, kbase_collection = (args.load_files,
