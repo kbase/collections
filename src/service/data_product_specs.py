@@ -18,6 +18,3 @@ DATA_PRODUCTS: list[DataProductSpec] = [
     genome_attributes.GENOME_ATTRIBS_SPEC
 ]
 """ Set of data products the service supports. """
-
-
-# TODO DATAPROD add markdown docs explaining how to create data products
