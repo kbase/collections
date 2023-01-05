@@ -128,7 +128,7 @@ def main():
 
     optional.add_argument("-o", "--output", type=argparse.FileType('w'),
                           default=GTDB_TAXA_COUNT_FILE,
-                          help=f"output JSON file path (default: {GTDB_TAXA_COUNT_FILE}")
+                          help=f"output JSON file path (default: {GTDB_TAXA_COUNT_FILE})")
 
     args = parser.parse_args()
     load_files, load_version, kbase_collection = (args.load_files,

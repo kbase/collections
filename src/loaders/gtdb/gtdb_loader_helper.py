@@ -1,4 +1,5 @@
 import re
+from collections import defaultdict
 
 import jsonlines
 
@@ -44,6 +45,19 @@ def copy_column(df, existing_col, new_col):
         raise ValueError(f'Error: The {existing_col} column does not exist in the DataFrame.')
 
     df[new_col] = df[existing_col]
+
+
+def merge_docs(docs, key_name):
+    """
+    merge dictionaries with the same key value in a list of dictionaries
+    """
+    merged = defaultdict(dict)
+
+    for d in docs:
+        key_value = d[key_name]
+        merged[key_value].update(d)
+
+    return merged.values()
 
 
 def init_genome_atrri_doc(kbase_collection, load_version, genome_id):

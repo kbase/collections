@@ -25,7 +25,7 @@ required named arguments:
 
 optional arguments:
   --kbase_collection KBASE_COLLECTION
-                        KBase collection identifier name. (default: GTDB)
+                        KBase collection identifier name. (default: loader_common_names.DEFAULT_KBASE_COLL_NAME)
   --root_dir ROOT_DIR   Root directory.
   --threads THREADS     Total number of threads used by the script. (default: half of system cpu count)
   --program_threads PROGRAM_THREADS
