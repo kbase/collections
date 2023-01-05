@@ -9,8 +9,10 @@ from src.common.version import VERSION
 from src.service import app_state
 from src.service import errors
 from src.service import kb_auth
+from src.service import matcher_registry
 from src.service import models
 from src.service.http_bearer import KBaseHTTPBearer, KBaseUser
+from src.service.matchers.common_models import Matcher
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID, err_on_control_chars
 from src.service.storage_arango import ArangoStorage
 from src.service.timestamp import timestamp
@@ -87,6 +89,10 @@ class WhoAmI(BaseModel):
     is_service_admin: bool = Field(example=False)
 
 
+class MatcherList(BaseModel):
+    data: list[Matcher]
+
+
 class CollectionsList(BaseModel):
     data: list[models.ActiveCollection]
 
@@ -123,6 +129,15 @@ async def whoami(user: KBaseUser=Depends(_AUTH)):
         "user": user.user.id,
         "is_service_admin": kb_auth.AdminPermission.FULL == user.admin_perm
     }
+
+
+@ROUTER_GENERAL.get(
+    "/matchers/",
+    response_model=MatcherList,
+    description="List all matchers available in the service."
+)
+async def matchers():
+    return {"data": list(matcher_registry.MATCHERS.values())}
 
 
 @ROUTER_COLLECTIONS.get("/collectionids/", response_model = CollectionIDs)
