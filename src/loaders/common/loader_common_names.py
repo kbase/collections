@@ -24,3 +24,6 @@ File structure at NERSC for loader programs
 ROOT_DIR = '/global/cfs/cdirs/kbase/collections'  # root directory for the collections project
 SOURCE_DATA_DIR = 'sourcedata'  # subdirectory for all source data (e.g. GTDB genome files)
 COLLECTION_DATA_DIR = 'collectionsdata'  # subdirectory for collected data (e.g. computed genome attributes)
+
+# metadata file generated in the tool result folder with tool generated genome identifier and original genome id info
+META_FILE_NAME = 'tool_genome_identifier_metadata.tsv'
