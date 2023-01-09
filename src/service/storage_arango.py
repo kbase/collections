@@ -5,6 +5,7 @@ A storage system for collections based on an Arango backend.
 from aioarango.aql import AQL
 from aioarango.database import StandardDatabase
 from aioarango.exceptions import CollectionCreateError, DocumentInsertError
+from typing import Any
 from src.common.hash import md5_string
 from src.common.storage.collection_and_field_names import (
     FLD_ARANGO_KEY,
@@ -67,7 +68,15 @@ def remove_arango_keys(doc: dict):
 
 
 _DP = models.FIELD_DATA_PRODUCTS
+_MTC = models.FIELD_MATCHERS
 
+
+def _matcher_docs_to_model(docs: list[dict[str, Any]]):
+    if not docs:
+        # backwards compatibility for *really* old code. Kind of want to remove it but doesn't
+        # really hurt either
+        return []
+    return [models.Matcher.construct(**m) for m in docs]
 
 def _data_product_docs_to_model(docs: list[dict[str, str]]):
     return [models.DataProduct.construct(**dp) for dp in docs]
@@ -75,11 +84,13 @@ def _data_product_docs_to_model(docs: list[dict[str, str]]):
 
 def _doc_to_active_coll(doc: dict):
     doc[_DP] = _data_product_docs_to_model(doc[_DP])
+    doc[_MTC] = _matcher_docs_to_model(doc.get(_MTC))
     return models.ActiveCollection.construct(**remove_arango_keys(doc))
 
 
 def _doc_to_saved_coll(doc: dict):
     doc[_DP] = _data_product_docs_to_model(doc[_DP])
+    doc[_MTC] = _matcher_docs_to_model(doc.get(_MTC))
     return models.SavedCollection.construct(**remove_arango_keys(doc))
 
 
