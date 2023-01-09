@@ -382,6 +382,7 @@ def main():
     threads = max(1, threads)
 
     for tool in tools:
+        # TODO: creating an interface that defines all the tool-specific methods
         # execute each tooling in series
         try:
             comp_ops = getattr(sys.modules[__name__], tool)
