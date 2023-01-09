@@ -23,7 +23,7 @@ from typing import Any
 
 ID = "genome_attribs"
 
-_ROUTER = APIRouter(tags=["Genome Attributes"])
+_ROUTER = APIRouter(tags=["Genome Attributes"], prefix=f"/{ID}")
 
 GENOME_ATTRIBS_SPEC = DataProductSpec(
     data_product=ID,
@@ -97,7 +97,7 @@ _FLD_LIMIT = "limit"
 # somewhere to check input fields are ok... but really we could just fetch the first document
 # in the collection and check the fields 
 @_ROUTER.get(
-    f"/collections/{{collection_id}}/{ID}/",
+    "/",
     response_model=GenomeAttributes,
     description="Get genome attributes for each genome in the collection, which may differ from "
         + "collection to collection.\n\n "

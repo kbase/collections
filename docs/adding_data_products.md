@@ -45,7 +45,9 @@ the reader is familiar with
   data product will use.
 * Create the endpoints / routes for your data product in the new module.
   * See the existing implementations for examples.
-  * Routes must start with `/collection/{collection_id}/<data_product_id>/`
+  * Routes must start with `/collection/{collection_id}/data_products/<data_product_id>/`
+    * Everything up to the data product ID is handled by the app. The path starting from the ID is
+      the responsibility of the data product developer.
   * There is already a Collection ID validator available in
     [/src/service/routes_common.py](/src/service/routes_common.py)
 * To get the storage instance call the `src.service.app_state.get_storage()` method, providing
