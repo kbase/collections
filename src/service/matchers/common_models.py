@@ -13,15 +13,23 @@ class Matcher(BaseModel):
         regex="^[a-z_]+$",
     )
     types: list[str] = Field(
-        # TODO MATCHERS validate types against workspace on startup
         # It'd be nice to specify type versions as well, but KBase has essentially jettisoned
         # that idea
+        # It seems weird to hard code this stuff, but this matcher will only work for these
+        # specific types, so making it configurable doesn't make a lot of sense
         example=["KBaseGenomes.Genome", "KBaseGenomeAnnotations.Assembly"],
-        description="The KBase types against which the matcher operates.",
+        description="The KBase types against which the matcher operates. Ensure that the types "
+            + "exist in the workspace service, or errors will occur when attempting to match.",
     )
     description: str = Field(
         example="Matches assemblies and genomes via the GTDB lineage",
         description="A free text description of the matcher.",
+    )
+    required_data_products: list[str] = Field(
+        example="genome_attributes",
+        description="Any data products that are required for the matcher to function. If the "
+            + "collection in which the matcher is installed doesn't specify these data "
+            + "products, saving the collection version will fail."
     )
     user_parameters: dict[str, Any] | None = Field(
         example={
