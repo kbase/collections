@@ -183,6 +183,13 @@ async def get_collection(r: Request, collection_id: str = PATH_VALIDATOR_COLLECT
     return await app_state.get_storage(r).get_collection_active(collection_id)
 
 
+@ROUTER_COLLECTIONS.get("/collections/{collection_id}/matchers", response_model=MatcherList)
+async def get_collection_matchers(r: Request, collection_id: str = PATH_VALIDATOR_COLLECTION_ID
+) -> MatcherList:
+    coll = await get_collection(r, collection_id)
+    return {"data": [matcher_registry.MATCHERS[m.matcher] for m in coll.matchers]}
+
+
 @ROUTER_COLLECTIONS_ADMIN.put(
     "/collections/{collection_id}/versions/{ver_tag}/",
     response_model=models.SavedCollection,
@@ -219,6 +226,12 @@ async def save_collection(
     # ver_num getting wasted otherwise is extremely unlikely and not worth worrying about further.
     ver_num = await store.get_next_version(collection_id)
     doc.update({
+        models.FIELD_MATCHERS: sorted(
+            doc[models.FIELD_MATCHERS],
+            key=lambda m: m[models.FIELD_MATCHERS_MATCHER]),
+        models.FIELD_DATA_PRODUCTS: sorted(
+            doc[models.FIELD_DATA_PRODUCTS],
+            key=lambda m: m[models.FIELD_DATA_PRODUCTS_PRODUCT]),
         models.FIELD_COLLECTION_ID: collection_id,
         models.FIELD_VER_TAG: ver_tag,
         models.FIELD_VER_NUM: ver_num,
