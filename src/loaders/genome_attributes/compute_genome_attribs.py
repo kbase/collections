@@ -207,20 +207,20 @@ def _map_tool_id_to_genome_id(tool_name, original_genome_id, genome_file_name):
         raise ValueError(f'the method for tool {tool_name} has not been implemented.')
 
 
-def _create_tool_genome_id_metadata_file(tool_genome_id_map, source_genome_file_map, genome_count, batch_dir):
+def _create_genome_metadata_file(tool_genome_id_map, source_genome_file_map, genome_count, batch_dir):
     # create tab separated metadata file with tool generated genome identifier and original genome id.
 
     if len(tool_genome_id_map) != genome_count:
         raise ValueError('Some genomes are absent from the genome metadata file')
 
     # create tool genome identifier metadata file
-    tool_genome_meta_file_path = os.path.join(batch_dir, loader_common_names.TOOL_GENOME_META_FILE_NAME)
+    tool_genome_meta_file_path = os.path.join(batch_dir, loader_common_names.GENOME_IDENTIFIER_METADATA_FILE)
     with open(tool_genome_meta_file_path, "w") as meta_file:
         for tool_genome_identifier, genome_id in tool_genome_id_map.items():
             meta_file.write(f'{tool_genome_identifier}\t{genome_id}\n')
 
     # create source genome file metadata file
-    source_genome_meta_file_path = os.path.join(batch_dir, loader_common_names.SOURCE_GENOME_META_FILE_NAME)
+    source_genome_meta_file_path = os.path.join(batch_dir, loader_common_names.ORIGINAL_GENOME_METADATA_FILE)
     with open(source_genome_meta_file_path, "w") as meta_file:
         for genome_id, source_genome_file in source_genome_file_map.items():
             meta_file.write(f'{genome_id}\t{source_genome_file}\n')
@@ -259,7 +259,7 @@ def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
                 # According to GTDB, the batch file should be a two column file indicating the location of each genome
                 # and the desired genome identifier
                 batch_file.write(f'{genome_file[0]}\t{genome_id}\n')
-    _create_tool_genome_id_metadata_file(tool_genome_id_map, source_genome_file_map, len(genome_ids), batch_dir)
+    _create_genome_metadata_file(tool_genome_id_map, source_genome_file_map, len(genome_ids), batch_dir)
     if run_steps:
         _run_gtdb_tk_steps(batch_file_path, batch_dir, debug, genome_ids, program_threads)
     else:
@@ -293,7 +293,7 @@ def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
             source_genome_file_map[genome_id] = genome_file[0]
             fna_files.append(str(genome_file[0]))
 
-    _create_tool_genome_id_metadata_file(tool_genome_id_map, source_genome_file_map, len(genome_ids), batch_dir)
+    _create_genome_metadata_file(tool_genome_id_map, source_genome_file_map, len(genome_ids), batch_dir)
 
     start = time.time()
     # RUN checkM2 predict
