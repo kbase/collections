@@ -25,8 +25,6 @@ ROOT_DIR = '/global/cfs/cdirs/kbase/collections'  # root directory for the colle
 SOURCE_DATA_DIR = 'sourcedata'  # subdirectory for all source data (e.g. GTDB genome files)
 COLLECTION_DATA_DIR = 'collectionsdata'  # subdirectory for collected data (e.g. computed genome attributes)
 
-# metadata file generated in the tool result folder with tool generated genome identifier and original genome id info
-GENOME_IDENTIFIER_METADATA_FILE = 'genome_identifier_metadata.tsv'
-
-# metadata file generated in the tool result folder with original genome id and source genome file info
-ORIGINAL_GENOME_METADATA_FILE = 'original_genome_metadata.tsv'
+# metadata file generated in the tool result folder with tool generated genome identifier,
+# original genome id and source genome file info
+GENOME_METADATA_FILE = 'genome_metadata.tsv'

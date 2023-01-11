@@ -208,22 +208,17 @@ def _map_tool_id_to_genome_id(tool_name, original_genome_id, genome_file_name):
 
 
 def _create_genome_metadata_file(tool_genome_id_map, source_genome_file_map, genome_count, batch_dir):
-    # create tab separated metadata file with tool generated genome identifier and original genome id.
+    # create tab separated metadata file with tool generated genome identifier, original genome id and
+    # source genome file info.
 
     if len(tool_genome_id_map) != genome_count:
         raise ValueError('Some genomes are absent from the genome metadata file')
 
     # create tool genome identifier metadata file
-    tool_genome_meta_file_path = os.path.join(batch_dir, loader_common_names.GENOME_IDENTIFIER_METADATA_FILE)
-    with open(tool_genome_meta_file_path, "w") as meta_file:
+    genome_meta_file_path = os.path.join(batch_dir, loader_common_names.GENOME_METADATA_FILE)
+    with open(genome_meta_file_path, "w") as meta_file:
         for tool_genome_identifier, genome_id in tool_genome_id_map.items():
-            meta_file.write(f'{tool_genome_identifier}\t{genome_id}\n')
-
-    # create source genome file metadata file
-    source_genome_meta_file_path = os.path.join(batch_dir, loader_common_names.ORIGINAL_GENOME_METADATA_FILE)
-    with open(source_genome_meta_file_path, "w") as meta_file:
-        for genome_id, source_genome_file in source_genome_file_map.items():
-            meta_file.write(f'{genome_id}\t{source_genome_file}\n')
+            meta_file.write(f'{tool_genome_identifier}\t{genome_id}\t{source_genome_file_map.get(genome_id)}\n')
 
 
 def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch_number,
