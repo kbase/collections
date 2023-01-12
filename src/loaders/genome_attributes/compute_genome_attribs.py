@@ -185,6 +185,42 @@ def _run_gtdb_tk_classify_wf(batch_file_path, work_dir, debug, genome_ids, progr
         f'{len(genome_ids)} genomes')
 
 
+def _map_tool_id_to_genome_id(tool_name, original_genome_id, genome_file_name):
+    """
+    Construct a dictionary that associates tool-generated genome IDs with the original genome IDs used to create
+    the _key field of a document.
+
+    The method is specific to the tool being used, as each tool has its own logic for generating unique genome IDs.
+    """
+
+    if tool_name == 'checkm2':
+        # CheckM2 uses the base name (without extension) of genome_file as the genome identifier
+        # We know for checkM2 extension 'genomic.fna.gz' is consistently used for genome files
+
+        base_name = genome_file_name.split('.fna.gz')[0]
+        return {base_name: original_genome_id}
+
+    elif tool_name == 'gtdb_tk':
+        # When creating the batch file for GTDB-TK, we use the genome ID as the identifier for each genome.
+        return {original_genome_id: original_genome_id}
+    else:
+        raise ValueError(f'the method for tool {tool_name} has not been implemented.')
+
+
+def _create_genome_metadata_file(tool_genome_id_map, source_genome_file_map, genome_count, batch_dir):
+    # create tab separated metadata file with tool generated genome identifier, original genome id and
+    # source genome file info.
+
+    if len(tool_genome_id_map) != genome_count:
+        raise ValueError('Some genomes are absent from the genome metadata file')
+
+    # create tool genome identifier metadata file
+    genome_meta_file_path = os.path.join(batch_dir, loader_common_names.GENOME_METADATA_FILE)
+    with open(genome_meta_file_path, "w") as meta_file:
+        for tool_genome_identifier, genome_id in tool_genome_id_map.items():
+            meta_file.write(f'{tool_genome_identifier}\t{genome_id}\t{source_genome_file_map.get(genome_id)}\n')
+
+
 def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch_number,
             node_id, run_steps=False):
     # NOTE: Require defining the 'GTDBTK_DATA_PATH' environment variable
@@ -203,7 +239,7 @@ def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
     # tab separated in 2 columns (FASTA file, genome ID)
     batch_file_name = f'genome.fasta.list'
     batch_file_path = os.path.join(batch_dir, batch_file_name)
-
+    tool_genome_id_map, source_genome_file_map = dict(), dict()
     with open(batch_file_path, "w") as batch_file:
         for genome_id in genome_ids:
             genome_file = _find_genome_file(genome_id, 'genomic.fna.gz', source_data_dir,
@@ -211,8 +247,14 @@ def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
                                             expected_file_count=1)
 
             if genome_file:
-                batch_file.write(f'{genome_file[0]}\t{os.path.basename(genome_file[0])}\n')
-
+                tool_genome_id_map.update(_map_tool_id_to_genome_id('gtdb_tk',
+                                                                    genome_id,
+                                                                    os.path.basename(genome_file[0])))
+                source_genome_file_map[genome_id] = genome_file[0]
+                # According to GTDB, the batch file should be a two column file indicating the location of each genome
+                # and the desired genome identifier
+                batch_file.write(f'{genome_file[0]}\t{genome_id}\n')
+    _create_genome_metadata_file(tool_genome_id_map, source_genome_file_map, len(genome_ids), batch_dir)
     if run_steps:
         _run_gtdb_tk_steps(batch_file_path, batch_dir, debug, genome_ids, program_threads)
     else:
@@ -231,7 +273,7 @@ def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
     print(f'Start executing checkM2 for {len(genome_ids)} genomes')
 
     batch_dir = _create_batch_dir(work_dir, batch_number, size, node_id)
-
+    tool_genome_id_map, source_genome_file_map = dict(), dict()
     # retrieve genomic.fna.gz files
     fna_files = list()
     for genome_id in genome_ids:
@@ -240,10 +282,15 @@ def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
                                         expected_file_count=1)
 
         if genome_file:
+            tool_genome_id_map.update(_map_tool_id_to_genome_id('checkm2',
+                                                                genome_id,
+                                                                os.path.basename(genome_file[0])))
+            source_genome_file_map[genome_id] = genome_file[0]
             fna_files.append(str(genome_file[0]))
 
-    start = time.time()
+    _create_genome_metadata_file(tool_genome_id_map, source_genome_file_map, len(genome_ids), batch_dir)
 
+    start = time.time()
     # RUN checkM2 predict
     command = ['checkm2', 'predict',
                '--output-directory', batch_dir,
@@ -338,6 +385,7 @@ def main():
     threads = max(1, threads)
 
     for tool in tools:
+        # TODO: creating an interface that defines all the tool-specific methods
         # execute each tooling in series
         try:
             comp_ops = getattr(sys.modules[__name__], tool)
@@ -349,7 +397,7 @@ def main():
         # place computed results to COLLECTION_DATA_DIR directory
         work_dir = os.path.join(root_dir, loader_common_names.COLLECTION_DATA_DIR, kbase_collection,
                                 load_ver, tool)
-        # TODO writing a file with genome ID -> file mappings in work_dir
+
         start = time.time()
         print(f"Start executing {tool} with {threads} threads")
         if tool in SERIES_TOOLS:
