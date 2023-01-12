@@ -21,7 +21,7 @@ from src.service.storage_arango import ArangoStorage, remove_arango_keys
 
 ID = "taxa_count"
 
-_ROUTER = APIRouter(tags=["Taxa count"])
+_ROUTER = APIRouter(tags=["Taxa count"], prefix=f"/{ID}")
 
 TAXA_COUNT_SPEC = DataProductSpec(
     data_product=ID,
@@ -93,7 +93,7 @@ _FLD_COL_RANK = "rank"
 
 
 @_ROUTER.get(
-    f"/collections/{{collection_id}}/{ID}/ranks/",
+    "/ranks/",
     response_model=Ranks,
     description="Get the taxonomy ranks, in rank order, for the taxa counts.\n\n "
         + "Authentication is not required unless overriding the load version, in which case "
@@ -136,7 +136,7 @@ async def get_ranks_from_db(
 
 
 @_ROUTER.get(
-    f"/collections/{{collection_id}}/{ID}/counts/{{rank}}/",
+    "/counts/{rank}/",
     response_model=TaxaCounts,
     description="Get the taxonomy counts in descending order. At most 20 taxa are returned.\n\n "
         + "Authentication is not required unless overriding the load version, in which case "
