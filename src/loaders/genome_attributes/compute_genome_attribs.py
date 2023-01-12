@@ -419,7 +419,8 @@ def main():
                             debug,
                             program_threads,
                             batch_number,
-                            node_id) for batch_number, i in enumerate(range(0, total_count, chunk_size))]
+                            node_id,
+                            source_file_ext) for batch_number, i in enumerate(range(0, total_count, chunk_size))]
             pool = multiprocessing.Pool(processes=num_batches)
             batch_result = pool.starmap(comp_ops, batch_input)
             failed_ids = list(itertools.chain.from_iterable(batch_result))
