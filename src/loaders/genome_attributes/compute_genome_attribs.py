@@ -36,6 +36,8 @@ optional arguments:
   --genome_id_file GENOME_ID_FILE
                         tab separated file containing genome ids for the running job (requires 'genome_id' as the column
                         name)
+  --source_file_ext SOURCE_FILE_EXT
+                        Select files from source data directory that match the given extension.
 
 
 
@@ -185,7 +187,7 @@ def _run_gtdb_tk_classify_wf(batch_file_path, work_dir, debug, genome_ids, progr
         f'{len(genome_ids)} genomes')
 
 
-def _map_tool_id_to_genome_id(tool_name, original_genome_id, genome_file_name):
+def _map_tool_id_to_genome_id(tool_name, original_genome_id, genome_file_name, source_file_ext):
     """
     Construct a dictionary that associates tool-generated genome IDs with the original genome IDs used to create
     the _key field of a document.
@@ -197,7 +199,7 @@ def _map_tool_id_to_genome_id(tool_name, original_genome_id, genome_file_name):
         # CheckM2 uses the base name (without extension) of genome_file as the genome identifier
         # We know for checkM2 extension 'genomic.fna.gz' is consistently used for genome files
 
-        base_name = genome_file_name.split('.fna.gz')[0]
+        base_name = genome_file_name.split(source_file_ext)[0]
         return {base_name: original_genome_id}
 
     elif tool_name == 'gtdb_tk':
@@ -222,7 +224,7 @@ def _create_genome_metadata_file(tool_genome_id_map, source_genome_file_map, gen
 
 
 def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch_number,
-            node_id, run_steps=False):
+            node_id, source_file_ext, run_steps=False):
     # NOTE: Require defining the 'GTDBTK_DATA_PATH' environment variable
     #       e.g. export GTDBTK_DATA_PATH=/global/cfs/cdirs/kbase/collections/libraries/gtdb_tk/release207_v2
     #       https://ecogenomics.github.io/GTDBTk/installing/index.html#gtdb-tk-reference-data
@@ -242,14 +244,15 @@ def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
     tool_genome_id_map, source_genome_file_map = dict(), dict()
     with open(batch_file_path, "w") as batch_file:
         for genome_id in genome_ids:
-            genome_file = _find_genome_file(genome_id, 'genomic.fna.gz', source_data_dir,
+            genome_file = _find_genome_file(genome_id, source_file_ext, source_data_dir,
                                             exclude_file_name_substr=['cds_from', 'rna_from', 'ERR'],
                                             expected_file_count=1)
 
             if genome_file:
                 tool_genome_id_map.update(_map_tool_id_to_genome_id('gtdb_tk',
                                                                     genome_id,
-                                                                    os.path.basename(genome_file[0])))
+                                                                    os.path.basename(genome_file[0]),
+                                                                    source_file_ext))
                 source_genome_file_map[genome_id] = genome_file[0]
                 # According to GTDB, the batch file should be a two column file indicating the location of each genome
                 # and the desired genome identifier
@@ -264,7 +267,7 @@ def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
     return failed_ids
 
 
-def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch_number, node_id):
+def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch_number, node_id, source_file_ext):
     # NOTE: require Python <= 3.9
     # Many checkm2 dependencies (e.g. scikit-learn=0.23.2, tensorflow, diamond, etc.) support Python version up to 3.9
     # TODO: run checkm2 tool via docker container
@@ -277,14 +280,15 @@ def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
     # retrieve genomic.fna.gz files
     fna_files = list()
     for genome_id in genome_ids:
-        genome_file = _find_genome_file(genome_id, 'genomic.fna.gz', source_data_dir,
+        genome_file = _find_genome_file(genome_id, source_file_ext, source_data_dir,
                                         exclude_file_name_substr=['cds_from', 'rna_from', 'ERR'],
                                         expected_file_count=1)
 
         if genome_file:
             tool_genome_id_map.update(_map_tool_id_to_genome_id('checkm2',
                                                                 genome_id,
-                                                                os.path.basename(genome_file[0])))
+                                                                os.path.basename(genome_file[0]),
+                                                                source_file_ext))
             source_genome_file_map[genome_id] = genome_file[0]
             fna_files.append(str(genome_file[0]))
 
@@ -342,6 +346,8 @@ def main():
     optional.add_argument('--genome_id_file', type=argparse.FileType('r'),
                           help="tab separated file containing genome ids for the running job "
                                "(requires 'genome_id' as the column name)")
+    optional.add_argument('--source_file_ext', type=str, default='.fa',
+                          help='Select files from source data directory that match the given extension.')
     args = parser.parse_args()
 
     load_ver = getattr(args, loader_common_names.LOAD_VER_ARG_NAME)
@@ -354,6 +360,7 @@ def main():
     debug = args.debug
     genome_id_file = args.genome_id_file
     node_id = args.node_id
+    source_file_ext = args.source_file_ext
 
     # get all genome ids (folder name) from source data directory
     all_genome_ids = [path for path in os.listdir(source_data_dir) if
