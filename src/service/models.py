@@ -11,7 +11,7 @@ may still pass. In this case, a translation from the older data is required.
 """
 
 from pydantic import BaseModel, Field, validator, HttpUrl
-from typing import Optional
+from typing import Any, Optional
 
 from src.service.arg_checkers import contains_control_characters
 
@@ -37,6 +37,7 @@ FIELD_COLLECTION_ID = "id"
 FIELD_VER_TAG = "ver_tag"
 FIELD_VER_NUM = "ver_num"
 FIELD_DATA_PRODUCTS = "data_products"
+FIELD_MATCHERS = "matchers"
 FIELD_DATE_CREATE = "date_create"
 FIELD_USER_CREATE = "user_create"
 FIELD_DATE_ACTIVE = "date_active"
@@ -55,15 +56,27 @@ FIELD_LOAD_VERSION_EXAMPLE = "gtdb.207.kbase.3"
 FIELD_LOAD_VERSION_DESCRIPTION = "The load version of the data product"
 
 
-class DataProduct(BaseModel):
-    """The ID and version of a data product associated with a collection"""
-    product: str = Field(
+DATA_PRODUCT_ID_FIELD = Field(
         min_length = 1,
         max_length = 20,
-        regex = r"^\w+$",
+        regex = "^[a-z_]+$",
         example="taxa_count",
         description="The ID of the data product"
-    )
+)
+
+
+MATCHER_ID_FIELD = Field(
+        min_length=1,
+        max_length=20,
+        regex="^[a-z_]+$",
+        example="gtdb_lineage",
+        description="The ID of the matcher",
+)
+
+
+class DataProduct(BaseModel):
+    """The ID and version of a data product associated with a collection"""
+    product: str = DATA_PRODUCT_ID_FIELD
     version: str = Field(
         min_length = LENGTH_MIN_LOAD_VERSION,
         max_length = LENGTH_MAX_LOAD_VERSION,
@@ -77,6 +90,16 @@ class DataProduct(BaseModel):
     @validator("product", "version", pre=True)
     def _strip(cls, v):
         return v.strip()
+
+
+class Matcher(BaseModel):
+    """The ID of a matcher associated with a collection and any parameters for the matcher"""
+    matcher: str = MATCHER_ID_FIELD
+    parameters: dict[str, Any] = Field(
+        example={'gtdb_version': '207.0'},
+        description="Any collection (as opposed to user provided) parameters for the matcher. "
+            + "What these are will depend on the matcher in question"
+    )
 
 
 class Collection(BaseModel):
@@ -109,6 +132,9 @@ class Collection(BaseModel):
     data_products: list[DataProduct] = Field(
         description="The data products associated with the collection"
     )
+    matchers: list[Matcher] = Field(
+        description="The matchers associated with the collection"
+    )
 
     @validator("name", "ver_src", pre=True)
     def _strip_and_fail_on_control_characters(cls, v):
@@ -130,13 +156,20 @@ class Collection(BaseModel):
 
     @validator("data_products")
     def _check_data_products_unique(cls, v):
-        seen = set()
-        for dp in v:
-            if dp.product in seen:
-                raise ValueError(f"duplicate data product: {dp.product}")
-            seen.add(dp.product)
-        return v
+        return cls._checkunique(v, lambda dp: dp.product, "data product")
 
+    @validator("matchers")
+    def _check_matchers_unique(cls, v):
+        return cls._checkunique(v, lambda m: m.matcher, "matcher")
+
+    @classmethod
+    def _checkunique(cls, items, accessor, field):
+        seen = set()
+        for it in items:
+            if accessor(it) in seen:
+                raise ValueError(f"duplicate {field}: {accessor(it)}")
+            seen.add(accessor(it))
+        return items
 
 # No need to worry about field validation here since the service is assigning the values
 # Re the dates, since Arango doesn't have a special format for dates like mongo, we might as

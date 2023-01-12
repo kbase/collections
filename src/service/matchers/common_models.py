@@ -4,14 +4,11 @@ Data structures common to all matchers
 
 from pydantic import BaseModel, Field, validator
 from typing import Any
+from src.service import models
 
 
 class Matcher(BaseModel):
-    id: str = Field(
-        example="gtdb_lineage",
-        description="Matches assemblies and genomes via the GTDB lineage.",
-        regex="^[a-z_]+$",
-    )
+    id: str = models.MATCHER_ID_FIELD
     types: list[str] = Field(
         # It'd be nice to specify type versions as well, but KBase has essentially jettisoned
         # that idea
