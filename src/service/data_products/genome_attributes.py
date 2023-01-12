@@ -60,14 +60,15 @@ class AttributeName(BaseModel):
 
 class GenomeAttributes(BaseModel, extra=Extra.allow):
     """
-    Attributes for a set of genomes. Either `fields` and `table` are returned or `data` is
-    returned.
+    Attributes for a set of genomes. Either `fields` and `table` are returned, `data` is
+    returned, or `count` is returned.
     The set of available attributes may be different for different collections.
     """
     skip: int = Field(example=0, description="The number of records that were skipped.")
     limit: int = Field(
         example=1000,
-        description="The maximum number of results that could be returned."
+        description="The maximum number of results that could be returned. "
+            + "0 and meaningless if `count` is specified"
     )
     # may need to return fields with data in the future if we add more info to fields
     fields: list[AttributeName] | None = Field(
@@ -82,6 +83,10 @@ class GenomeAttributes(BaseModel, extra=Extra.allow):
     data: list[dict[str, Any]] | None = Field(
         example=[{names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID: "assigned_kbase_genome_id"}],
         description="The attributes as a list of dictionaries."
+    )
+    count: int | None = Field(
+        example=42,
+        description="The number of attribute records that match the query.",
     )
 
 _FLD_COL_ID = "colid"
@@ -133,6 +138,11 @@ async def get_genome_attributes(
         default=True,
         description="Whether to return the data in table form or dictionary list form"
     ),
+    count: bool = Query(
+        default = False,
+        description="Whether to return the number of records that match the query rather than "
+            + "the records themselves"
+    ),
     load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
     user: KBaseUser = Depends(_OPT_AUTH)
 ):
@@ -141,6 +151,24 @@ async def get_genome_attributes(
     # Otherwise we need indexes for every sort
     store = app_state.get_storage(r)
     load_ver = await get_load_version(store, collection_id, ID, load_ver_override, user)
+    if count:
+        return await _count(store, collection_id, load_ver)
+    else:
+        return await _query(
+            store, collection_id, load_ver, sort_on, sort_desc, skip, limit, output_table) 
+
+
+async def _query(
+    # ew. too many args
+    store: ArangoStorage,
+    collection_id: str,
+    load_ver: str,
+    sort_on: str,
+    sort_desc: bool,
+    skip: int,
+    limit: int,
+    output_table: bool,
+):
     aql = f"""
     FOR d IN @@{_FLD_COL_NAME}
         FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
@@ -182,3 +210,24 @@ async def get_genome_attributes(
         return {_FLD_SKIP: skip, _FLD_LIMIT: limit, "fields": fields, "table": data}
     else:
         return {_FLD_SKIP: skip, _FLD_LIMIT: limit, "data": data}
+
+
+async def _count(store: ArangoStorage, collection_id: str, load_ver: str):
+    # for now this method doesn't do much. One we have some matching and filtering implemented
+    # it'll need to take that into account.
+
+    aql = f"""
+    FOR d IN @@{_FLD_COL_NAME}
+        FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
+        FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
+        COLLECT WITH COUNT INTO length
+        RETURN length
+    """
+    bind_vars = {
+        # will be different if matches are stored in a different collection
+        f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
+        _FLD_COL_ID: collection_id,
+        _FLD_COL_LV: load_ver,
+    }
+    cur = await store.aql().execute(aql, bind_vars=bind_vars)
+    return {_FLD_SKIP: 0, _FLD_LIMIT: 0, "count": await cur.next()}
