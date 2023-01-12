@@ -197,8 +197,6 @@ def _map_tool_id_to_genome_id(tool_name, original_genome_id, genome_file_name, s
 
     if tool_name == 'checkm2':
         # CheckM2 uses the base name (without extension) of genome_file as the genome identifier
-        # We know for checkM2 extension 'genomic.fna.gz' is consistently used for genome files
-
         base_name = genome_file_name.split(source_file_ext)[0]
         return {base_name: original_genome_id}
 
