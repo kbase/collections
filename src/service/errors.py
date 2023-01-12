@@ -43,6 +43,12 @@ class ErrorType(Enum):
     NO_REGISTERED_DATA_PRODUCT = (30020, "No registered data product")  # noqa: E222 @IgnorePep8
     """ There is no such data product registered with the collection. """
 
+    NO_SUCH_DATA_PRODUCT =   (30030, "No such data product")  # noqa: E222 @IgnorePep8
+    """ There is no such data product available in the service. """
+
+    NO_SUCH_MATCHER =        (30040, "No such matcher")  # noqa: E222 @IgnorePep8
+    """ There is no such matcher available in the service. """
+
     NO_DATA_FOUND =          (40000, "Requested data not found")  # noqa: E222 @IgnorePep8
     """ The requested data does not exist. """
     
@@ -154,6 +160,24 @@ class NoRegisteredDataProduct(CollectionError):
 
     def __init__(self, message: str = None):
         super().__init__(ErrorType.NO_REGISTERED_DATA_PRODUCT, message)
+
+
+class NoSuchDataProduct(CollectionError):
+    """
+    An error thrown when a requested data product does not exist.
+    """
+
+    def __init__(self, message: str = None):
+        super().__init__(ErrorType.NO_SUCH_DATA_PRODUCT, message)
+
+
+class NoSuchMatcher(CollectionError):
+    """
+    An error thrown when a requested matcher does not exist.
+    """
+
+    def __init__(self, message: str = None):
+        super().__init__(ErrorType.NO_SUCH_MATCHER, message)
 
 
 class NoDataException(CollectionError):

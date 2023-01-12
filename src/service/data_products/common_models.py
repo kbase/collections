@@ -36,7 +36,7 @@ class DataProductSpec(BaseModel):
     A specification that defines the parts and requirements of a data product.
     """
 
-    data_product: str = Field(regex="^[a-z_]+$")
+    data_product: str = models.DATA_PRODUCT_ID_FIELD
     """
     The ID of the data product. This ID is used in several places:
     

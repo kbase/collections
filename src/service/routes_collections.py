@@ -2,11 +2,14 @@
 Routes for general collections endpoints, as opposed to endpoint for a particular data product.
 """
 
+import jsonschema
+
 from fastapi import APIRouter, Request, Depends, Path, Query
 from pydantic import BaseModel, Field
 from src.common.git_commit import GIT_COMMIT
 from src.common.version import VERSION
 from src.service import app_state
+from src.service import data_product_specs
 from src.service import errors
 from src.service import kb_auth
 from src.service import matcher_registry
@@ -36,6 +39,28 @@ def _precheck_admin_and_get_storage(
     _ensure_admin(user, f"Only collections service admins can {op}")
     err_on_control_chars(ver_tag, "ver_tag")
     return app_state.get_storage(r)
+
+
+def _check_matchers_and_data_products(col: models.Collection):
+    data_products = set([dp.product for dp in col.data_products])
+    for dp in data_products:
+        if dp not in data_product_specs.DATA_PRODUCTS:
+            raise errors.NoSuchDataProduct(f"No such data product: {dp}")
+    for m in col.matchers:
+        matcher = matcher_registry.MATCHERS.get(m.matcher)
+        if not matcher:
+            raise errors.NoSuchMatcher(f"No such matcher: {m.matcher}")
+        missing_dps = set(matcher.required_data_products) - data_products
+        if missing_dps:
+            raise errors.IllegalParameterError(
+                f"Matcher {matcher.id} requires data products {sorted(missing_dps)}")
+        if matcher.collection_parameters:
+            try:
+                jsonschema.validate(instance=m.parameters, schema=matcher.collection_parameters)
+            except jsonschema.exceptions.ValidationError as e:
+                raise errors.IllegalParameterError(
+                    # TODO MATCHERS str(e) is pretty gnarly. Figure out a nicer representation
+                    f"Failed to validate parameters for matcher {matcher.id}: {e}")
 
 
 async def _activate_collection_version(
@@ -178,6 +203,7 @@ async def save_collection(
     # Maybe the method implementations should go into a different module / class...
     # But the method implementation is intertwined with the path validation
     store = _precheck_admin_and_get_storage(r, user, ver_tag, "save data")
+    _check_matchers_and_data_products(col)
     doc = col.dict()
     exists = await store.has_collection_version_by_tag(collection_id, ver_tag)
     if exists:
