@@ -68,12 +68,12 @@ def create_app(noop=False):
     )
     app.include_router(ROUTER_GENERAL)
     app.include_router(ROUTER_COLLECTIONS)
-    for dp in sorted(DATA_PRODUCTS, key=lambda dp: str(dp.router.tags[0])):
-        app.include_router(dp.router)
+    for dp in sorted(DATA_PRODUCTS.values(), key=lambda dp: str(dp.router.tags[0])):
+        app.include_router(dp.router, prefix="/collections/{collection_id}/data_products")
     app.include_router(ROUTER_COLLECTIONS_ADMIN)
 
     async def build_app_wrapper():
-        await app_state.build_app(app, cfg, DATA_PRODUCTS)
+        await app_state.build_app(app, cfg, DATA_PRODUCTS.values())
     app.add_event_handler("startup", build_app_wrapper)
 
     async def clean_app_wrapper():

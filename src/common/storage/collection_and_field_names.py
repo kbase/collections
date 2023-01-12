@@ -68,4 +68,8 @@ COLL_GENOME_ATTRIBS = COLLECTION_PREFIX + "genome_attribs"
 
 #### Genome attribute document fields
 
-FLD_GENOME_ATTRIBS_KBASE_GENOME_ID = "kbase_genome_id"  # used as sort key in genome attributes collection
+# Used as sort key in genome attributes collection
+FLD_GENOME_ATTRIBS_KBASE_GENOME_ID = "kbase_genome_id" 
+
+# Used for lineage matchers
+FLD_GENOME_ATTRIBS_GTDB_LINEAGE = "gtdb_taxonomy"

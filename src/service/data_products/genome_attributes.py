@@ -23,7 +23,7 @@ from typing import Any
 
 ID = "genome_attribs"
 
-_ROUTER = APIRouter(tags=["Genome Attributes"])
+_ROUTER = APIRouter(tags=["Genome Attributes"], prefix=f"/{ID}")
 
 GENOME_ATTRIBS_SPEC = DataProductSpec(
     data_product=ID,
@@ -36,6 +36,9 @@ GENOME_ATTRIBS_SPEC = DataProductSpec(
                     names.FLD_COLLECTION_ID,
                     names.FLD_LOAD_VERSION,
                     names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID,
+                    # Since this is the default sort option (see below), we specify an index
+                    # for fast sorts since every time the user hits the UI for the first time
+                    # or without specifying a sort order it'll sort on this field
                 ]
             ]
         )
@@ -94,13 +97,13 @@ _FLD_LIMIT = "limit"
 # somewhere to check input fields are ok... but really we could just fetch the first document
 # in the collection and check the fields 
 @_ROUTER.get(
-    f"/collections/{{collection_id}}/{ID}/",
+    "/",
     response_model=GenomeAttributes,
     description="Get genome attributes for each genome in the collection, which may differ from "
         + "collection to collection.\n\n "
         + "Authentication is not required unless overriding the load version, in which case "
         + "service administration permissions are required.")
-async def get_ranks(
+async def get_genome_attributes(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     sort_on: str = Query(

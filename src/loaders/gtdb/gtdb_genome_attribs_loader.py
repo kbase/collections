@@ -8,6 +8,7 @@ import src.loaders.gtdb.gtdb_loader_helper as loader_helper
 from src.common.storage.collection_and_field_names import (
     FLD_COLLECTION_ID,
     FLD_LOAD_VERSION,
+    FLD_GENOME_ATTRIBS_GTDB_LINEAGE,
 )
 
 """
@@ -45,13 +46,16 @@ e.g. gtdb_genome_attribs_loader.py bac120_metadata_r207.tsv ar53_metadata_r207.t
 # Default result file name for GTDB genome attributes data for arango import
 GTDB_GENOME_ATTR_FILE = "gtdb_genome_attribs.json"
 
+# Note that FLD_GENOME_ATTRIBS_GTDB_LINEAGE is required for some matchers to function.
+# Since it's always part of the GTDB file we don't bother independently checking for its
+# presence
 """
 The following features will be extracted from the GTDB metadata file 
 (e.g. ar122_metadata_r202.tsv and bac120_metadata_r202.tsv)
 """
 SELECTED_FEATURES = {'accession', 'checkm_completeness', 'checkm_contamination', 'checkm_marker_count',
                      'checkm_marker_lineage', 'checkm_marker_set_count', 'contig_count', 'gc_count', 'gc_percentage',
-                     'genome_size', 'gtdb_taxonomy', 'longest_contig', 'longest_scaffold', 'mean_contig_length',
+                     'genome_size', FLD_GENOME_ATTRIBS_GTDB_LINEAGE, 'longest_contig', 'longest_scaffold', 'mean_contig_length',
                      'mean_scaffold_length', 'mimag_high_quality', 'mimag_low_quality', 'mimag_medium_quality',
                      'n50_contigs', 'n50_scaffolds', 'ncbi_assembly_level', 'ncbi_assembly_name', 'ncbi_bioproject',
                      'ncbi_biosample', 'ncbi_country', 'ncbi_date', 'ncbi_genbank_assembly_accession',
