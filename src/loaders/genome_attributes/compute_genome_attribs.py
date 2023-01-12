@@ -290,8 +290,6 @@ def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
             source_genome_file_map[genome_id] = genome_file[0]
             fna_files.append(str(genome_file[0]))
 
-    _create_genome_metadata_file(tool_genome_id_map, source_genome_file_map, len(genome_ids), batch_dir)
-
     start = time.time()
     # RUN checkM2 predict
     command = ['checkm2', 'predict',
@@ -307,6 +305,7 @@ def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
     print(
         f'Used {round((end_time - start) / 60, 2)} minutes to execute checkM2 predict for {len(genome_ids)} genomes')
 
+    _create_genome_metadata_file(tool_genome_id_map, source_genome_file_map, len(genome_ids), batch_dir)
     # TODO: inspect stdout for failed ids or do it in the parser program
     return failed_ids
 
