@@ -10,6 +10,7 @@ that older data in the database will no longer be fetched correctly - but automa
 may still pass. In this case, a translation from the older data is required.
 """
 
+from enum import Enum
 from pydantic import BaseModel, Field, validator, HttpUrl
 from typing import Any, Optional
 
@@ -216,3 +217,73 @@ class ActiveCollection(SavedCollection):
         example="otherkbasehelp",
         description="The user that activated the collection version."
     )
+
+
+class MatchState(Enum):
+    """
+    The state of a matching process.
+    """
+    PROCESSING = "processing"
+    COMPLETE = "complete"
+    DELETED = "deleted"
+
+
+class Match(BaseModel):
+    """
+    A match between KBase workspace service objects and data in a collection.
+    """
+    match_id: str = Field(
+        description="The ID of the match; a unique but opaque string."
+        # In practice, this ID is the MD5 of
+        # * the matcher ID
+        # * the collection ID and version
+        #   * TODO invalidate the match if collection version doesn't match the current collection
+        # * the match user parameters
+        # * the input workspace service UPAs, sorted
+    )
+    matcher_id: str = Field(
+        example="gtdb_lineage",
+        description="The ID of the matcher performing the match."
+    )
+    collection_id: str = Field(
+        example=FIELD_COLLECTION_ID_EXAMPLE,
+        description="The ID of the collection for the match."
+    )
+    collection_ver: int = Field(
+        example=7,
+        description="The version of the collection for which the match was created."
+    )
+    user_parameters: dict[str, Any] = Field(
+        example={"rank": "genus"},
+        description="The user parameters for the match."
+    )
+    # could add a UPA regex check here but that seems expensive and redundant. Will need to
+    # parse the UPAs elsewhere anyway
+    upas: list[str] = Field(
+        example=["75/23/1", "100002/106/3;7/54/9"],
+        description="The Unique Permanent Addresses (UPAs) for the input workspace objects "
+            + "that are being matched against the collection. UPAs are in the format "
+            + "W/O/V, where W is the workspace integer ID, O is the integer object ID, and "
+            + "V is the version. The version may not be omitted. Reference paths "
+            + "(e.g. a sequence of UPAs separated by ';') are allowed."
+    )
+    match_state: MatchState = Field(
+        example=MatchState.PROCESSING.value,
+        description="The state of the matching process."
+    )
+    matches: list[str] | None = Field(
+        example=["GCA_000188315.1", "GCA_000172955.1"],
+        description="Unique identifiers for the matches in the collection. The contents of the "
+            + "strings will differ based on the matcher and the collection in question. "
+            + "Null if the match is not yet complete."
+    )  # This might get hairy. Hopefully we can lock this down a bit with more experience in
+       # how this is going to work.
+       # E.g. should it be the Arango _key value instead of the genome_id value in the
+       # case of a gtdb_lineage matcher? The former is not useful to users, but is guaranteed
+       # to be unique. However, the loaders should be guaranteeing uniqueness of the
+       # genome_ids.
+       # Do we need to be able to map the incoming UPAs to their matches? Potentially 1:M
+       # Maybe this field should be internal only?
+
+# TODO MATCHERS internal match class that inherits from the above and keeps user -> last access
+#   map & a heartbeat timestamp
