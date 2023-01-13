@@ -9,6 +9,9 @@ item in the `tags` field of the router.
 Note that "builtin" is a reserved ID for data products.
 """
 
+# NOTE: Once a collection has been saved with a data product, the data product cannot be
+# removed from the service without breaking that collection.
+
 from src.service.data_products.common_models import DataProductSpec
 from src.service.data_products.taxa_count import TAXA_COUNT_SPEC
 from src.service.data_products.genome_attributes import GENOME_ATTRIBS_SPEC
