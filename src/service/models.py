@@ -285,5 +285,17 @@ class Match(BaseModel):
        # Do we need to be able to map the incoming UPAs to their matches? Potentially 1:M
        # Maybe this field should be internal only?
 
-# TODO MATCHERS internal match class that inherits from the above and keeps user -> last access
-#   map & a heartbeat timestamp
+
+class InternalMatch(Match):
+    """
+    Holds match fields for internal server use.
+    """
+    internal_match_id: str = Field(
+        example="e22f2d7d-7246-4636-a91b-13f29bc32d3d",
+        description="An internal ID for the match that is unique per use. This allows for "
+            + "deleting data for a match without the risk that a new match with the same "
+            + "md5 ID is created and tries to read data in the process of deletion. "
+            + "Expected to be a v4 UUID.",
+    )
+    # TODO MATCHERS mapping of user -> last access that determines when permissions are rechecked
+    # TODO MATCHERS heartbeat timestamp
