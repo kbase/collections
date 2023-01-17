@@ -79,8 +79,7 @@ def _read_tsv_as_df(file_path, features, genome_id_col=None):
 def _create_doc(row, kbase_collection, load_version, genome_id, features, pre_fix):
     # Select specific columns and prepare them for import into Arango
 
-    # NOTE: The selected column names will have a prefix added to them to distinguish them from the original
-    #       metadata column names if pre_fix is not empty.
+    # NOTE: The selected column names will have a prefix added to them if pre_fix is not empty.
 
     doc = init_genome_atrri_doc(kbase_collection, load_version, genome_id)
 
