@@ -7,7 +7,7 @@ import src.common.storage.collection_and_field_names as names
 from src.common.hash import md5_string
 
 """
-This module contains helper functions used for gtdb loaders (e.g. gtdb_genome_stats_helper, gtdb_taxa_freq_loader, etc.)
+This module contains helper functions used for loaders (e.g. compute_genome_attribs, gtdb_genome_attribs_loader, etc.)
 """
 
 

@@ -2,7 +2,7 @@ import argparse
 import os
 from collections import defaultdict
 
-from gtdb_loader_helper import convert_to_json
+from src.loaders.genome_attributes.loader_helper import convert_to_json
 
 from src.common.hash import md5_string
 import src.common.storage.collection_and_field_names as names
