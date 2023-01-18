@@ -246,6 +246,9 @@ def main():
     with open(output, 'w') as genome_attribs_json:
         convert_to_json(docs, genome_attribs_json)
 
+    if args.output and not args.output.closed:
+        args.output.close()
+
 
 if __name__ == "__main__":
     main()
