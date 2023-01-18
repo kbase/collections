@@ -57,6 +57,18 @@ FIELD_VER_NUM_DESCRIPTION = ("The numeric version of the collection, assigned by
     + "collection service")
 FIELD_LOAD_VERSION_EXAMPLE = "gtdb.207.kbase.3"
 FIELD_LOAD_VERSION_DESCRIPTION = "The load version of the data product"
+FIELD_UPA_LIST_EXAMPLE = ["75/23/1", "100002/106/3;7/54/9"]
+FIELD_UPA_LIST_DESCRIPTION= (
+"""
+The Unique Permanent Addresses (UPAs) for the input workspace objects
+that are being matched against the collection. UPAs are in the format
+W/O/V, where W is the workspace integer ID, O is the integer object ID, and
+V is the version. The version may not be omitted. Reference paths
+(e.g. a sequence of UPAs separated by ';') are allowed.
+"""
+)
+FIELD_USER_PARAMETERS_EXAMPLE = {"rank": "genus"}
+FIELD_USER_PARAMETERS_DESCRIPTION = "The user parameters for the match."
 
 
 DATA_PRODUCT_ID_FIELD = Field(
@@ -237,7 +249,8 @@ class Match(BaseModel):
         # In practice, this ID is the MD5 of
         # * the matcher ID
         # * the collection ID and version
-        #   * TODO invalidate the match if collection version doesn't match the current collection
+        #   * TODO MATCHERS invalidate the match if collection version doesn't match the
+        #     current collection
         # * the match user parameters
         # * the input workspace service UPAs, sorted
     )
@@ -254,22 +267,24 @@ class Match(BaseModel):
         description="The version of the collection for which the match was created."
     )
     user_parameters: dict[str, Any] = Field(
-        example={"rank": "genus"},
-        description="The user parameters for the match."
-    )
-    # could add a UPA regex check here but that seems expensive and redundant. Will need to
-    # parse the UPAs elsewhere anyway
-    upas: list[str] = Field(
-        example=["75/23/1", "100002/106/3;7/54/9"],
-        description="The Unique Permanent Addresses (UPAs) for the input workspace objects "
-            + "that are being matched against the collection. UPAs are in the format "
-            + "W/O/V, where W is the workspace integer ID, O is the integer object ID, and "
-            + "V is the version. The version may not be omitted. Reference paths "
-            + "(e.g. a sequence of UPAs separated by ';') are allowed."
+        example=FIELD_USER_PARAMETERS_EXAMPLE,
+        description=FIELD_USER_PARAMETERS_DESCRIPTION,
     )
     match_state: MatchState = Field(
         example=MatchState.PROCESSING.value,
         description="The state of the matching process."
+    )
+
+
+class MatchVerbose(Match):
+    """
+    A match with the details of the match, e.g. input UPAs and resulting matching collection IDs.
+    """
+    # could add a UPA regex check here but that seems expensive and redundant. Will need to
+    # parse the UPAs elsewhere anyway
+    upas: list[str] = Field(
+        example=FIELD_UPA_LIST_EXAMPLE,
+        description=FIELD_UPA_LIST_DESCRIPTION,
     )
     matches: list[str] | None = Field(
         example=["GCA_000188315.1", "GCA_000172955.1"],
@@ -286,16 +301,22 @@ class Match(BaseModel):
        # Maybe this field should be internal only?
 
 
-class InternalMatch(Match):
+class InternalMatch(MatchVerbose):
     """
     Holds match fields for internal server use.
     """
     internal_match_id: str = Field(
+        # bit of a long field name but probably not too many matches at one time
         example="e22f2d7d-7246-4636-a91b-13f29bc32d3d",
         description="An internal ID for the match that is unique per use. This allows for "
             + "deleting data for a match without the risk that a new match with the same "
             + "md5 ID is created and tries to read data in the process of deletion. "
             + "Expected to be a v4 UUID.",
     )
+    wsids: set[int] = Field(
+        examples={78, 10067},
+        description="The set of workspace IDs from the UPAs."
+    )
     # TODO MATCHERS mapping of user -> last access that determines when permissions are rechecked
     # TODO MATCHERS heartbeat timestamp
+    # TODO MATCHERS last accessed timestamp for deletions (indexed)
