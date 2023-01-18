@@ -40,13 +40,16 @@ class ErrorType(Enum):
     REQUEST_VALIDATION_FAILED = (30010, "Request validation failed")  # noqa: E222 @IgnorePep8
     """ A request to a service failed validation of the request. """
 
-    NO_REGISTERED_DATA_PRODUCT = (30020, "No registered data product")  # noqa: E222 @IgnorePep8
+    NO_REGISTERED_DATA_PRODUCT = (30020, "No registered data product for collection")  # noqa: E222 @IgnorePep8
     """ There is no such data product registered with the collection. """
 
     NO_SUCH_DATA_PRODUCT =   (30030, "No such data product")  # noqa: E222 @IgnorePep8
     """ There is no such data product available in the service. """
 
-    NO_SUCH_MATCHER =        (30040, "No such matcher")  # noqa: E222 @IgnorePep8
+    NO_REGISTERED_MATCHER =  (30040, "No registered matcher for collection")  # noqa: E222 @IgnorePep8
+    """ There is no such matcher registered with the collection. """
+
+    NO_SUCH_MATCHER =        (30050, "No such matcher")  # noqa: E222 @IgnorePep8
     """ There is no such matcher available in the service. """
 
     NO_DATA_FOUND =          (40000, "Requested data not found")  # noqa: E222 @IgnorePep8
@@ -169,6 +172,15 @@ class NoSuchDataProduct(CollectionError):
 
     def __init__(self, message: str = None):
         super().__init__(ErrorType.NO_SUCH_DATA_PRODUCT, message)
+
+
+class NoRegisteredMatcher(CollectionError):
+    """
+    An error thrown when a requested matcher is not registered with a collection.
+    """
+
+    def __init__(self, message: str = None):
+        super().__init__(ErrorType.NO_REGISTERED_MATCHER, message)
 
 
 class NoSuchMatcher(CollectionError):
