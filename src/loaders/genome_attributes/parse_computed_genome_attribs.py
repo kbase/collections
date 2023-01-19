@@ -213,6 +213,10 @@ def main():
                           help=f"output JSON file path")
     args = parser.parse_args()
 
+    # Close the output file, as the file name will only be referenced later in the code.
+    if args.output and not args.output.closed:
+        args.output.close()
+
     (tools,
      load_ver,
      kbase_collection,
@@ -245,9 +249,6 @@ def main():
 
     with open(output, 'w') as genome_attribs_json:
         convert_to_json(docs, genome_attribs_json)
-
-    if args.output and not args.output.closed:
-        args.output.close()
 
 
 if __name__ == "__main__":
