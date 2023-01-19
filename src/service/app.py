@@ -85,7 +85,7 @@ def create_app(noop=False):
 def _handle_app_exception(r: Request, exc: errors.CollectionError):
     if isinstance(exc, errors.AuthenticationError):
         status_code = status.HTTP_401_UNAUTHORIZED
-    elif isinstance(exc, errors.UnauthorizedError):
+    elif isinstance(exc, errors.UnauthorizedError | errors.DataPermissionError):
         status_code = status.HTTP_403_FORBIDDEN
     elif isinstance(exc, errors.NoDataException):
         status_code = status.HTTP_404_NOT_FOUND
