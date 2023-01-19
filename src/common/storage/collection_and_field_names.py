@@ -46,6 +46,9 @@ COLL_SRV_VERSIONS = _SRV_PREFIX + "versions"
 COLL_SRV_ACTIVE = _SRV_PREFIX + "active"
 """ A collection holding active Collections. """
 
+COLL_SRV_MATCHES = _SRV_PREFIX + "matches"
+""" A collection holding matches to Collections. """
+
 ## Data product collections
 
 ### Taxa counts

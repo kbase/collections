@@ -5,6 +5,7 @@ A storage system for collections based on an Arango backend.
 from aioarango.aql import AQL
 from aioarango.database import StandardDatabase
 from aioarango.exceptions import CollectionCreateError, DocumentInsertError
+from fastapi.encoders import jsonable_encoder
 from typing import Any
 from src.common.hash import md5_string
 from src.common.storage.collection_and_field_names import (
@@ -13,6 +14,7 @@ from src.common.storage.collection_and_field_names import (
     COLL_SRV_ACTIVE,
     COLL_SRV_COUNTERS,
     COLL_SRV_VERSIONS,
+    COLL_SRV_MATCHES,
 )
 from src.service import models
 from src.service import errors
@@ -23,6 +25,7 @@ from src.service.data_products.common_models import DataProductSpec
 
 _FLD_COLLECTION = "collection"
 _FLD_COLLECTION_ID = "collection_id"
+_FLD_MATCH_ID = "match_id"
 _FLD_COUNTER = "counter"
 _FLD_VER_NUM = "ver_num"
 _FLD_LIMIT = "limit"
@@ -31,7 +34,7 @@ _ARANGO_SPECIAL_KEYS = [FLD_ARANGO_KEY, FLD_ARANGO_ID, "_rev"]
 ARANGO_ERR_NAME_EXISTS = 1207
 _ARANGO_ERR_UNIQUE_CONSTRAINT = 1210
 
-_COLLECTIONS = [COLL_SRV_ACTIVE, COLL_SRV_COUNTERS, COLL_SRV_VERSIONS]
+_COLLECTIONS = [COLL_SRV_ACTIVE, COLL_SRV_COUNTERS, COLL_SRV_VERSIONS, COLL_SRV_MATCHES]
 _BUILTIN = "builtin"
 
 # TODO SCHEMA may want a schema checker at some point... YAGNI for now. See sample service
@@ -326,4 +329,46 @@ class ArangoStorage:
                 """
         cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
         return [_doc_to_saved_coll(d) async for d in cur]
+
+    async def save_match(self, match: models.InternalMatch) -> models.Match:
+        """
+        Save a collection match. If the match already exists (based on the match ID),
+        that match is returned.
+        """
+        doc = jsonable_encoder(match)
+        doc[FLD_ARANGO_KEY] = match.match_id
+        # So it turns out that upsert is non-atomic, sigh
+        # https://www.arangodb.com/docs/stable/aql/examples-upsert-repsert.html#upsert-is-non-atomic
+        # As such, all the code needed to make an upsert work properly with bind variables
+        # and large documents here seems like a waste of time.
+        # Seems easier to just try to insert, and if that fails, get the current doc
+        col = self._db.collection(COLL_SRV_MATCHES)
+        try:
+            await col.insert(doc)
+        except DocumentInsertError as e:
+            if e.error_code == _ARANGO_ERR_UNIQUE_CONSTRAINT:
+                # TODO MATCHERS once we start adding access dates will need to update that
+                aql = f"""
+                    FOR d in @@{_FLD_COLLECTION}
+                        FILTER d.{FLD_ARANGO_KEY} == @{_FLD_MATCH_ID}
+                        RETURN KEEP(d, @KEEP_LIST)
+                    """
+                bind_vars = {
+                    f"@{_FLD_COLLECTION}": COLL_SRV_MATCHES,
+                    _FLD_MATCH_ID: match.match_id,
+                    "KEEP_LIST": list(models.Match.__fields__.keys())
+                }
+                cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
+                # having a count > 1 is impossible since keys are unique
+                if cur.empty():
+                    # This is highly unlikely. Not worth spending any time trying to recover
+                    raise ValueError(
+                        "Well, I tried. Either something is very wrong with the "
+                        + "database or I just got really unlucky with timing on a match "
+                        + "deletion. Try matching again.")
+                doc = await cur.next()
+            else:
+                raise e
+        return models.Match.construct(**doc)
+
 
