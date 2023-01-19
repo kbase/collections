@@ -72,21 +72,25 @@ FIELD_USER_PARAMETERS_DESCRIPTION = "The user parameters for the match."
 
 
 DATA_PRODUCT_ID_FIELD = Field(
-        min_length = 1,
-        max_length = 20,
-        regex = "^[a-z_]+$",
-        example="taxa_count",
-        description="The ID of the data product"
+    min_length = 1,
+    max_length = 20,
+    regex = "^[a-z_]+$",
+    example="taxa_count",
+    description="The ID of the data product"
 )
 
 
-MATCHER_ID_FIELD = Field(
-        min_length=1,
-        max_length=20,
-        regex="^[a-z_]+$",
-        example="gtdb_lineage",
-        description="The ID of the matcher",
-)
+# this seems stupid...
+MATCHER_ID_PROPS = {
+    "min_length": 1,
+    "max_length": 20,
+    "regex": "^[a-z_]+$",
+    "example": "gtdb_lineage",
+    "description": "The ID of the matcher",
+}
+
+
+MATCHER_ID_FIELD = Field(**MATCHER_ID_PROPS)
 
 
 class DataProduct(BaseModel):

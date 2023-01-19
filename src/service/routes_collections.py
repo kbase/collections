@@ -2,9 +2,13 @@
 Routes for general collections endpoints, as opposed to endpoint for a particular data product.
 """
 
+import hashlib
+import json
 import jsonschema
+import uuid
 
 from fastapi import APIRouter, Request, Depends, Path, Query
+from typing import Any
 from pydantic import BaseModel, Field
 from src.common.git_commit import GIT_COMMIT
 from src.common.version import VERSION
@@ -25,6 +29,10 @@ SERVICE_NAME = "Collections Prototype"
 ROUTER_GENERAL = APIRouter(tags=["General"])
 ROUTER_COLLECTIONS = APIRouter(tags=["Collections"])
 ROUTER_COLLECTIONS_ADMIN = APIRouter(tags=["Collection Administration"])
+
+MAX_UPAS = 10000
+
+UTF_8 = "utf-8"
 
 _AUTH = KBaseHTTPBearer()
 
@@ -76,6 +84,70 @@ async def _activate_collection_version(
     return ac
 
 
+def _upaerror(upa, upapath, upapathlen, index):
+    if upapathlen > 1:
+        raise errors.IllegalParameterError(
+            f"Illegal UPA '{upa}' in path '{upapath}' at index {index}")
+    else:
+        raise errors.IllegalParameterError(f"Illegal UPA '{upa}' at index {index}")
+
+
+def _check_and_sort_UPAs_and_get_wsids(upas: list[str]) -> tuple[list[str], set[int]]:
+    # We check UPA format prior to sending them to the workspace since figuring out the
+    # type of the WS error is too much of a pain. Easier to figure out obvious errors first
+    
+    # Probably a way to make this faster / more compact w/ list comprehensions, but not worth
+    # the time I was putting into it
+    upa_parsed = []
+    for i, upapath in enumerate(upas):
+        upapath_parsed = []
+        upapath_split = upapath.strip().split(";")
+        # deal with trailing ';'
+        upapath_split = upapath_split[:-1] if not upapath_split[-1] else upapath_split
+        for upa in upapath_split:
+            upaparts = upa.split("/")
+            if len(upaparts) != 3:
+                _upaerror(upa, upapath, len(upapath_split), i)
+            try:
+                upapath_parsed.append(tuple(int(part) for part in upaparts))
+            except ValueError:
+                _upaerror(upa, upapath, len(upapath_split), i)
+        upa_parsed.append(upapath_parsed)
+    upa_parsed = sorted(upa_parsed)
+    wsids = {arr[0][0] for arr in upa_parsed}
+    ret = []
+    for path in upa_parsed:
+        path_list = []
+        for upa in path:
+            path_list.append("/".join([str(x) for x in upa]))
+        ret.append(";".join(path_list))
+    return ret, wsids
+
+
+# assumes UPAs are sorted
+def _calc_match_id_md5(
+    matcher_id: str,
+    collection_id: str,
+    collection_ver: int,
+    params: dict[str, Any],
+    upas: list[str],
+) -> str:
+    pipe = "|".encode(UTF_8)
+    m = hashlib.md5()
+    for var in [matcher_id, collection_id, str(collection_ver)]:
+        m.update(var.encode(UTF_8))
+        m.update(pipe)
+    # this will not sort arrays, and arrays might have positional semantics so we shouldn't do
+    # that anyway. If we have match parameters where sorting arrays is an issue we'll need
+    # to implement on a per matcher basis.
+    m.update(json.dumps(params, sort_keys=True).encode(UTF_8))
+    m.update(pipe)
+    for u in upas:
+        m.update(u.encode(UTF_8))
+        m.update(pipe)
+    return m.hexdigest()
+    
+
 _PATH_VER_TAG = Path(
     min_length=1,
     max_length=50,
@@ -126,6 +198,18 @@ class CollectionIDs(BaseModel):
     data: list[str] = Field(
         example=["GTDB", "PMI"],
         description="A list of collection IDs"
+    )
+
+
+class MatchParameters(BaseModel):
+    """ Parameters for a match of KBase Workspace objects to collection items. """
+    upas: list[str] = Field(
+        example=models.FIELD_UPA_LIST_EXAMPLE,
+        description=models.FIELD_UPA_LIST_DESCRIPTION,
+    )
+    parameters: dict[str, Any] | None = Field(
+        example=models.FIELD_USER_PARAMETERS_EXAMPLE,
+        description=models.FIELD_USER_PARAMETERS_DESCRIPTION,
     )
 
 
@@ -188,6 +272,51 @@ async def get_collection_matchers(r: Request, collection_id: str = PATH_VALIDATO
 ) -> MatcherList:
     coll = await get_collection(r, collection_id)
     return {"data": [matcher_registry.MATCHERS[m.matcher] for m in coll.matchers]}
+
+
+@ROUTER_COLLECTIONS.post(
+    "/collections/{collection_id}/matchers/{matcher_id}",
+    response_model=models.Match,
+    description="Match KBase workspace data against a collection.\n\n"
+        + f"At most {MAX_UPAS} objects may be submitted."
+)
+async def match(
+    # could add a collection version endpoint so admins could try matches on non-active colls
+    r: Request,
+    match_params: MatchParameters,
+    collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
+    matcher_id: str = Path(**models.MATCHER_ID_PROPS),  # is there a cleaner way to do this?
+    user: KBaseUser=Depends(_AUTH),
+) -> models.Match:
+    if len(match_params.upas) > MAX_UPAS:
+        raise errors.IllegalParameterError(f"No more than {MAX_UPAS} UPAs are allowed per match")
+    coll = await get_collection(r, collection_id)
+    if matcher_id not in {m.matcher for m in coll.matchers}:
+        raise errors.NoRegisteredMatcher(matcher_id)
+    # TODO MATCHERS check user parameters when a matcher needs them
+    # TODO MATCHERS get workspace metadata (checks perms) and put check time in match object
+    # TODO MATCHERS check WS types and lineage
+    # TODO MATCHERS handle genome and assembly set types
+    upas, wsids = _check_and_sort_UPAs_and_get_wsids(match_params.upas)
+    params = match_params.parameters or {}
+    int_match = models.InternalMatch(
+        match_id=_calc_match_id_md5(matcher_id, collection_id, coll.ver_num, params, upas),
+        matcher_id=matcher_id,
+        collection_id=coll.id,
+        collection_ver=coll.ver_num,
+        user_parameters=params,
+        match_state=models.MatchState.PROCESSING,
+        upas=upas,
+        matches=[],
+        internal_match_id=str(uuid.uuid4()),
+        wsids=wsids,
+    )
+    storage = app_state.get_storage(r)
+    curr_match = await storage.save_match(int_match)
+    # TODO MATCHERS fire off the matcher and return the match details w/o matches
+    # TODO MATCHERS add endpoint to get match details - needs to check WS perms if perm check
+    #   not cached
+    return curr_match
 
 
 @ROUTER_COLLECTIONS_ADMIN.put(
