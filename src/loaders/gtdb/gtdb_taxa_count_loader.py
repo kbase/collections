@@ -2,7 +2,7 @@ import argparse
 import os
 from collections import defaultdict
 
-from gtdb_loader_helper import convert_to_json
+from src.loaders.genome_attributes.loader_helper import convert_to_json
 
 from src.common.hash import md5_string
 import src.common.storage.collection_and_field_names as names
@@ -128,7 +128,7 @@ def main():
 
     optional.add_argument("-o", "--output", type=argparse.FileType('w'),
                           default=GTDB_TAXA_COUNT_FILE,
-                          help=f"output JSON file path (default: {GTDB_TAXA_COUNT_FILE}")
+                          help=f"output JSON file path (default: {GTDB_TAXA_COUNT_FILE})")
 
     args = parser.parse_args()
     load_files, load_version, kbase_collection = (args.load_files,

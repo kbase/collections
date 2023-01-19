@@ -58,7 +58,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from src.loaders.common import loader_common_names
-from src.loaders.gtdb.gtdb_loader_helper import parse_genome_id
+from src.loaders.genome_attributes.loader_helper import parse_genome_id
 
 # Fraction amount of system cores can be utilized
 # (i.e. 0.5 - program will use 50% of total processors,

@@ -4,10 +4,8 @@ import pandas as pd
 
 import src.common.storage.collection_and_field_names as names
 import src.loaders.common.loader_common_names as loader_common_names
-import src.loaders.gtdb.gtdb_loader_helper as loader_helper
+import src.loaders.genome_attributes.loader_helper as loader_helper
 from src.common.storage.collection_and_field_names import (
-    FLD_COLLECTION_ID,
-    FLD_LOAD_VERSION,
     FLD_GENOME_ATTRIBS_GTDB_LINEAGE,
 )
 
@@ -55,7 +53,8 @@ The following features will be extracted from the GTDB metadata file
 """
 SELECTED_FEATURES = {'accession', 'checkm_completeness', 'checkm_contamination', 'checkm_marker_count',
                      'checkm_marker_lineage', 'checkm_marker_set_count', 'contig_count', 'gc_count', 'gc_percentage',
-                     'genome_size', FLD_GENOME_ATTRIBS_GTDB_LINEAGE, 'longest_contig', 'longest_scaffold', 'mean_contig_length',
+                     'genome_size', FLD_GENOME_ATTRIBS_GTDB_LINEAGE, 'longest_contig', 'longest_scaffold',
+                     'mean_contig_length',
                      'mean_scaffold_length', 'mimag_high_quality', 'mimag_low_quality', 'mimag_medium_quality',
                      'n50_contigs', 'n50_scaffolds', 'ncbi_assembly_level', 'ncbi_assembly_name', 'ncbi_bioproject',
                      'ncbi_biosample', 'ncbi_country', 'ncbi_date', 'ncbi_genbank_assembly_accession',
@@ -79,7 +78,7 @@ def _parse_from_metadata_file(load_files, exist_features, additional_features=No
 
     if additional_features is None:
         additional_features = {}
-        
+
     frames = [pd.read_csv(load_file, sep='\t', header=0, keep_default_na=False,
                           usecols=exist_features.union(additional_features)) for load_file in load_files]
     df = pd.concat(frames, ignore_index=True)
@@ -94,9 +93,6 @@ def _row_to_doc(row, kbase_collection, load_version):
     # parse genome id
     genome_id = loader_helper.parse_genome_id(row.accession)
     doc = loader_helper.init_genome_atrri_doc(kbase_collection, load_version, genome_id)
-
-    doc[FLD_COLLECTION_ID] = kbase_collection
-    doc[FLD_LOAD_VERSION] = load_version
 
     doc.update(row.to_dict())
 
@@ -135,7 +131,7 @@ def main():
                           help=loader_common_names.KBASE_COLLECTION_DESCR)
     optional.add_argument("-o", "--output", type=argparse.FileType('w'),
                           default=GTDB_GENOME_ATTR_FILE,
-                          help=f"output JSON file path (default: {GTDB_GENOME_ATTR_FILE}")
+                          help=f"output JSON file path (default: {GTDB_GENOME_ATTR_FILE})")
 
     args = parser.parse_args()
     load_files, load_version, kbase_collection = (args.load_files,
