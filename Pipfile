@@ -23,7 +23,7 @@ jsonschema = "==4.17.3"
 [dev-packages]
 pytest = "==7.2.0"
 python-dateutil = "==2.8.2"
-coverage = "==7.0.2"
+coverage = "==7.0.5"
 pytest-cov = "==4.0.0"
 ipython = "*"
 
