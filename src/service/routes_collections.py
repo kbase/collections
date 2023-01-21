@@ -5,6 +5,7 @@ Routes for general collections endpoints, as opposed to endpoint for a particula
 import hashlib
 import json
 import jsonschema
+import time
 import uuid
 
 from fastapi import APIRouter, Request, Depends, Path, Query
@@ -35,6 +36,11 @@ MAX_UPAS = 10000
 UTF_8 = "utf-8"
 
 _AUTH = KBaseHTTPBearer()
+
+
+def _now_epoch_millis():
+    return int(time.time() * 1000)
+
 
 def _ensure_admin(user: KBaseUser, err_msg: str):
     if user.admin_perm != kb_auth.AdminPermission.FULL:
@@ -298,6 +304,7 @@ async def match(
     # TODO MATCHERS check WS types and lineage
     # TODO MATCHERS handle genome and assembly set types
     upas, wsids = _check_and_sort_UPAs_and_get_wsids(match_params.upas)
+    perm_check = _now_epoch_millis()
     params = match_params.parameters or {}
     int_match = models.InternalMatch(
         match_id=_calc_match_id_md5(matcher_id, collection_id, coll.ver_num, params, upas),
@@ -310,10 +317,12 @@ async def match(
         matches=[],
         internal_match_id=str(uuid.uuid4()),
         wsids=wsids,
+        last_access=perm_check,
+        user_last_perm_check={user.user.id: perm_check}
     )
     storage = app_state.get_storage(r)
     curr_match = await storage.save_match(int_match)
-    # TODO MATCHERS fire off the matcher and return the match details w/o matches
+    # TODO MATCHERS fire off the matcher
     # TODO MATCHERS add endpoint to get match details - needs to check WS perms if perm check
     #   not cached
     return curr_match

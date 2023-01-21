@@ -333,42 +333,71 @@ class ArangoStorage:
     async def save_match(self, match: models.InternalMatch) -> models.Match:
         """
         Save a collection match. If the match already exists (based on the match ID),
-        that match is returned.
+        that match is updated with the user permissions and last access data from the incoming
+        match (using the last access date for both the permissions check and access date) and
+        the updated match is returned.
         """
+        if len(match.user_last_perm_check) != 1:
+            raise ValueError(f"There must be exactly one user in {models.FIELD_MATCH_USER_PERMS}")
         doc = jsonable_encoder(match)
         doc[FLD_ARANGO_KEY] = match.match_id
         # So it turns out that upsert is non-atomic, sigh
         # https://www.arangodb.com/docs/stable/aql/examples-upsert-repsert.html#upsert-is-non-atomic
         # As such, all the code needed to make an upsert work properly with bind variables
         # and large documents here seems like a waste of time.
-        # Seems easier to just try to insert, and if that fails, get the current doc
+        # Seems easier to just try to insert, and if that fails, update & get the current doc
         col = self._db.collection(COLL_SRV_MATCHES)
         try:
             await col.insert(doc)
+            return models.Match.construct(**doc)
         except DocumentInsertError as e:
             if e.error_code == _ARANGO_ERR_UNIQUE_CONSTRAINT:
-                # TODO MATCHERS once we start adding access dates will need to update that
-                aql = f"""
-                    FOR d in @@{_FLD_COLLECTION}
-                        FILTER d.{FLD_ARANGO_KEY} == @{_FLD_MATCH_ID}
-                        RETURN KEEP(d, @KEEP_LIST)
-                    """
-                bind_vars = {
-                    f"@{_FLD_COLLECTION}": COLL_SRV_MATCHES,
-                    _FLD_MATCH_ID: match.match_id,
-                    "KEEP_LIST": list(models.Match.__fields__.keys())
-                }
-                cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
-                # having a count > 1 is impossible since keys are unique
-                if cur.empty():
+                username = next(iter(match.user_last_perm_check.keys()))
+                try:
+                    return await self.update_match_permissions_check(
+                        match.match_id, username, match.last_access)
+                except errors.NoSuchMatchError as e:
                     # This is highly unlikely. Not worth spending any time trying to recover
                     raise ValueError(
                         "Well, I tried. Either something is very wrong with the "
                         + "database or I just got really unlucky with timing on a match "
-                        + "deletion. Try matching again.")
-                doc = await cur.next()
+                        + "deletion. Try matching again."
+                    ) from e
             else:
                 raise e
+
+    async def update_match_permissions_check(self, match_id: str, username: str, check_time: int):
+        """
+        Update the last time permissions were checked for a user for a match.
+        Also updates the overall document access time.
+        Throws an error if the match doesn't exist.
+
+        match_id - the ID of the match.
+        username - the user name of the user whose permissions were checked.
+        check_time - the time at which the permisisons were checked.
+        """
+        aql = f"""
+            FOR d in @@{_FLD_COLLECTION}
+                FILTER d.{FLD_ARANGO_KEY} == @{_FLD_MATCH_ID}
+                UPDATE d WITH {{
+                    {models.FIELD_MATCH_LAST_ACCESS}: @CHECK_TIME,
+                    {models.FIELD_MATCH_USER_PERMS}: {{@USERNAME: @CHECK_TIME}}
+                }} IN @@{_FLD_COLLECTION}
+                OPTIONS {{exclusive: true}}
+                LET updated = NEW
+                RETURN KEEP(updated, @KEEP_LIST)
+            """
+        bind_vars = {
+            f"@{_FLD_COLLECTION}": COLL_SRV_MATCHES,
+            _FLD_MATCH_ID: match_id,
+            "USERNAME": username,
+            "CHECK_TIME": check_time,
+            "KEEP_LIST": list(models.Match.__fields__.keys()),
+        }
+        # TODO TEST test no match - is it empty cur or something else?
+        cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
+        # having a count > 1 is impossible since keys are unique
+        if cur.empty():
+            raise errors.NoSuchMatchError(match_id)
+        doc = await cur.next()
         return models.Match.construct(**doc)
-
-

@@ -64,6 +64,9 @@ class ErrorType(Enum):
     NO_SUCH_COLLECTION_VERSION = (40020, "No such collection version")  # noqa: E222 @IgnorePep8
     """ The requested collection version does not exist. """
 
+    NO_SUCH_MATCH =              (40030, "No such match")  # noqa: E222 @IgnorePep8
+    """ The requested match does not exist. """
+
     COLLECTION_VERSION_EXISTS =  (50000, "Collection version exists")  # noqa: E222 @IgnorePep8
     """ The requested collection version already exists. """
 
@@ -242,6 +245,15 @@ class NoSuchCollectionVersionError(NoDataException):
 
     def __init__(self, message: str):
         super().__init__(ErrorType.NO_SUCH_COLLECTION_VERSION, message)
+
+
+class NoSuchMatchError(NoDataException):
+    """
+    An error thrown when a match does not exist.
+    """
+
+    def __init__(self, message: str):
+        super().__init__(ErrorType.NO_SUCH_MATCH, message)
 
 
 class DataPermissionError(CollectionError):
