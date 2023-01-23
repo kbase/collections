@@ -41,6 +41,8 @@ FIELD_DATA_PRODUCTS = "data_products"
 FIELD_DATA_PRODUCTS_PRODUCT = "product"
 FIELD_MATCHERS = "matchers"
 FIELD_MATCHERS_MATCHER = "matcher"
+FIELD_MATCH_LAST_ACCESS = "last_access"
+FIELD_MATCH_USER_PERMS = "user_last_perm_check"
 FIELD_DATE_CREATE = "date_create"
 FIELD_USER_CREATE = "user_create"
 FIELD_DATE_ACTIVE = "date_active"
@@ -324,3 +326,14 @@ class InternalMatch(MatchVerbose):
     # TODO MATCHERS mapping of user -> last access that determines when permissions are rechecked
     # TODO MATCHERS heartbeat timestamp
     # TODO MATCHERS last accessed timestamp for deletions (indexed)
+    last_access: int = Field(
+        example=1674243789864,
+        description="Milliseconds since the Unix epoch at the point the match was last accessed. "
+            + "Used for determining when to delete the match."
+    )
+    user_last_perm_check: dict[str, int] = Field(
+        example={"user1": 1674243789451},
+        description="A mapping of user name to the last time their permissions to view the "
+            + "match was checked in Unix epoch milliseconds. Used to determine when to recheck "
+            + "permissions for a user."
+    )
