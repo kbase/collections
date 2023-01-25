@@ -3,12 +3,23 @@ Matches assemblies and genomes to collections based on the GTDB lineage string.
 """
 
 from pydantic import BaseModel, Field
+from typing import Any, Callable
 
-from src.service.matchers.common_models import Matcher
 from src.common.storage.collection_and_field_names import FLD_GENOME_ATTRIBS_GTDB_LINEAGE
+from src.service import errors
 from src.service.data_products import genome_attributes
+from src.service.matchers.common_models import Matcher
+from src.service.storage_arango import ArangoStorage
 
-class LineageMatcherCollectionParameters(BaseModel):
+
+# See the workspace specs for the types listed in the matcher
+_GTDB_LINEAGE_METADATA_KEY = "GTDB_lineage"
+_GTDB_LINEAGE_VERSION_METADATA_KEY = "GTDB_source_ver"
+
+_COLLECTION_PARAMS_GTDB_VERSION_KEY = "gtdb_version"
+
+
+class GTDBLineageMatcherCollectionParameters(BaseModel):
     "Parameters for the GTDB lineage matcher."
     gtdb_version: str = Field(
         example="207.0",
@@ -19,7 +30,62 @@ class LineageMatcherCollectionParameters(BaseModel):
     )
 
 
-MATCHER = Matcher(
+class GTDBLineageMatcher(Matcher):
+
+    def generate_match_process(self,
+        metadata: dict[str, dict[str, Any]],
+        collection_parameters: dict[str, Any],
+        # TODO MATCHERS user parameters when needed
+    ) -> Callable[[str, ArangoStorage], None]:
+        """
+        The method checks that input metadata allows for calculating the match and throws
+        an exception if that is not the case, and returns a callable that is expected to
+        calculate the lineage match.
+
+        metadata - the workspace metadata of the objects to match against, mapped by its UPA.
+        collection_parameters - the parameters for this match from the collection specification.
+            It it expected that the parameters have been validated against the matcher schema
+            for said parameters.
+
+        Returns a callable that takes a match ID and storage system as input and is expected
+        to calculate the match.
+        """
+        lineages = []
+        for upa, meta in metadata.items():
+            # Assume that if the lineage exists in the metadata it's in the correct format.
+            # It's added as autometadata from the object created by an uploader so this should
+            # be true.
+            # If it turns out that someone is adding bad lineage information to the workspace
+            # objects add a more rigorous parser
+            if not meta.get(_GTDB_LINEAGE_METADATA_KEY):
+                raise errors.MissingLineageError(
+                    f"Object {upa} is missing lineage metadata in key {_GTDB_LINEAGE_METADATA_KEY}"
+                )
+            lin_ver = meta.get(_GTDB_LINEAGE_VERSION_METADATA_KEY)
+            if not lin_ver:
+                raise errors.MissingLineageError(
+                    f"Object {upa} is missing lineage version metadata in key "
+                    + f"{_GTDB_LINEAGE_VERSION_METADATA_KEY}"
+                )
+            coll_lin_ver = collection_parameters[_COLLECTION_PARAMS_GTDB_VERSION_KEY]
+            # May want to do some heuristics here to more fuzzily match, e.g. r207.0 and 207.0
+            # should match.
+            if lin_ver != coll_lin_ver:
+                raise errors.LineageVersionError(
+                    f"Object {upa} lineage version is {lin_ver}, while the collection's version "
+                    + f"is {coll_lin_ver}"
+                )
+            lineages.append(meta[_GTDB_LINEAGE_METADATA_KEY])
+
+        def process_match(match_id, storage):
+            lin = lineages
+            print(f"Got {len(lin)} lineages for match {match_id}")
+            # TODO MATCHERS make the callable actually do stuff
+
+        return process_match
+
+
+MATCHER = GTDBLineageMatcher(
     id="gtdb_lineage",
     description="Matches based on the GTDB lineage string. Requires the GTDB lineage to be "
         + f"in the '{FLD_GENOME_ATTRIBS_GTDB_LINEAGE}' field in the genome attributes data "
@@ -27,5 +93,5 @@ MATCHER = Matcher(
     types=["KBaseGenomes.Genome", "KBaseGenomeAnnotations.Assembly"],
     required_data_products=[genome_attributes.ID],
     user_parameters=None, # TODO MATCHERS add rank parameter when supporting rank based matching
-    collection_parameters=LineageMatcherCollectionParameters.schema()
+    collection_parameters=GTDBLineageMatcherCollectionParameters.schema()
 )
