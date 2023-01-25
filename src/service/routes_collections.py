@@ -348,6 +348,7 @@ async def match(
         matches=[],
         internal_match_id=str(uuid.uuid4()),
         wsids=wsids,
+        created=perm_check,
         last_access=perm_check,
         user_last_perm_check={user.user.id: perm_check}
     )

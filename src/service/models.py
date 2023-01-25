@@ -323,9 +323,11 @@ class InternalMatch(MatchVerbose):
         examples={78, 10067},
         description="The set of workspace IDs from the UPAs."
     )
-    # TODO MATCHERS mapping of user -> last access that determines when permissions are rechecked
     # TODO MATCHERS heartbeat timestamp
-    # TODO MATCHERS last accessed timestamp for deletions (indexed)
+    created: int = Field(
+        example=1674243789864,
+        description="Milliseconds since the Unix epoch at the point the match was created."
+    )
     last_access: int = Field(
         example=1674243789864,
         description="Milliseconds since the Unix epoch at the point the match was last accessed. "
