@@ -353,8 +353,10 @@ async def match(
         user_last_perm_check={user.user.id: perm_check}
     )
     storage = app_state.get_storage(r)
-    curr_match = await storage.save_match(int_match)
-    match_process(curr_match.match_id, storage)  # TODO MATCHERS do this in multiprocessing
+    curr_match, exists = await storage.save_match(int_match)
+    # don't bother checking if the match heartbeat is old here, just do it in the access methods
+    if not exists:
+        match_process.start(curr_match.match_id, app_state.get_pickleable_storage(r))
     # TODO MATCHERS add failed state to match status
     # TODO MATCHERS add endpoint to get match details - needs to check WS perms if perm check
     #   not cached
