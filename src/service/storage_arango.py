@@ -146,6 +146,9 @@ class ArangoStorage:
                 await _check_collection_exists(db, colname)
         vercol = db.collection(COLL_SRV_VERSIONS)
         await vercol.add_persistent_index([models.FIELD_COLLECTION_ID, models.FIELD_VER_NUM])
+        matchcol = db.collection(COLL_SRV_MATCHES)
+        # find matches ready for deletion
+        await matchcol.add_persistent_index([models.FIELD_MATCH_LAST_ACCESS])
         for dp in dps:
             for col in dp.db_collections:
                 dbcol = db.collection(col.name)
