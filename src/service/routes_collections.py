@@ -19,11 +19,13 @@ from src.service import errors
 from src.service import kb_auth
 from src.service import matcher_registry
 from src.service import models
+from src.service.clients.workspace_client import Workspace
 from src.service.http_bearer import KBaseHTTPBearer, KBaseUser
 from src.service.matchers.common_models import Matcher
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID, err_on_control_chars
 from src.service.storage_arango import ArangoStorage
 from src.service.timestamp import timestamp
+from src.service.workspace_wrapper import WorkspaceWrapper
 
 SERVICE_NAME = "Collections Prototype"
 
@@ -75,6 +77,36 @@ def _check_matchers_and_data_products(col: models.Collection):
                 raise errors.IllegalParameterError(
                     # TODO MATCHERS str(e) is pretty gnarly. Figure out a nicer representation
                     f"Failed to validate parameters for matcher {matcher.id}: {e}")
+
+
+def _get_matcher_from_collection(collection: models.SavedCollection, matcher_id: str
+) -> models.Matcher:
+    for m in collection.matchers:
+        if m.matcher == matcher_id:
+            return m
+    raise errors.NoRegisteredMatcher(matcher_id)
+
+
+# Assumes matcher_info is valid
+def _check_perms_and_setup_match_process(
+    ws: Workspace,
+    upas: list[str],
+    matcher_info: models.Matcher):
+    # All matchers will need to check permissions and deletion state for the workspace objects,
+    # so we get the metadata which is the cheapest way to do that. Most matchers will need
+    # the metadata anyway.
+    # Getting the objects might be really expensive depending on the size and number, so we
+    # leave that to the matchers themselves, which should probably start a ee2 (?) job if object
+    # downloads are required
+
+    # TODO MATCHERS if the workspace check only includes that workspace IDs, it's not checking
+    #   for deleted objects. Maybe that's ok? Document it anyway
+    matcher = matcher_registry.MATCHERS[matcher_info.matcher]
+    meta = WorkspaceWrapper(ws).get_object_metadata(upas, allowed_types=matcher.types)
+    return matcher.generate_match_process(
+        {u: m for u, m in zip(upas, meta)},
+        matcher_info.parameters,
+    )
 
 
 async def _activate_collection_version(
@@ -297,13 +329,12 @@ async def match(
     if len(match_params.upas) > MAX_UPAS:
         raise errors.IllegalParameterError(f"No more than {MAX_UPAS} UPAs are allowed per match")
     coll = await get_collection(r, collection_id)
-    if matcher_id not in {m.matcher for m in coll.matchers}:
-        raise errors.NoRegisteredMatcher(matcher_id)
+    matcher_info = _get_matcher_from_collection(coll, matcher_id)
     # TODO MATCHERS check user parameters when a matcher needs them
-    # TODO MATCHERS get workspace metadata (checks perms) and put check time in match object
-    # TODO MATCHERS check WS types and lineage
     # TODO MATCHERS handle genome and assembly set types
     upas, wsids = _check_and_sort_UPAs_and_get_wsids(match_params.upas)
+    ws = app_state.get_workspace(r, user.token)
+    match_process = _check_perms_and_setup_match_process(ws, upas, matcher_info)
     perm_check = _now_epoch_millis()
     params = match_params.parameters or {}
     int_match = models.InternalMatch(
@@ -322,7 +353,8 @@ async def match(
     )
     storage = app_state.get_storage(r)
     curr_match = await storage.save_match(int_match)
-    # TODO MATCHERS fire off the matcher
+    match_process(curr_match.match_id, storage)  # TODO MATCHERS do this in multiprocessing
+    # TODO MATCHERS add failed state to match status
     # TODO MATCHERS add endpoint to get match details - needs to check WS perms if perm check
     #   not cached
     return curr_match

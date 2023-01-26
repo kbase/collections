@@ -54,6 +54,9 @@ class ErrorType(Enum):
 
     MISSING_LINEAGE_ERROR =      (30060, "Missing lineage error")  # noqa: E222 @IgnorePep8
     """ Data in a external data source is missing required lineage information. """
+
+    LINEAGE_VERSION_ERROR =      (30070, "Lineage version error")  # noqa: E222 @IgnorePep8
+    """ Data in a external data source does not match the lineage version for the collection. """
     
     NO_DATA_FOUND =              (40000, "Requested data not found")  # noqa: E222 @IgnorePep8
     """ The requested data does not exist. """
@@ -209,6 +212,16 @@ class MissingLineageError(CollectionError):
 
     def __init__(self, message: str):
         super().__init__(ErrorType.MISSING_LINEAGE_ERROR, message)
+
+
+class LineageVersionError(CollectionError):
+    """
+    An error thrown when data outside the collections service does not match the lineage version
+    in a collection.
+    """
+
+    def __init__(self, message: str):
+        super().__init__(ErrorType.LINEAGE_VERSION_ERROR, message)
 
 
 class NoDataException(CollectionError):
