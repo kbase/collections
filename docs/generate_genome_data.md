@@ -23,7 +23,7 @@ The scripts used in the process are located in the `src/loaders` directory.
    `genome_attributes/parse_computed_genome_attribs.py`. 
 4. Import JSON Format File Into ArangoDB
    ```commandline
-   # set up an SSH tunnel
+   # set up an SSH tunnel (Not required when using an internal KBase machine such as dev03) 
    USER_NAME=user_name  # user name for login1.berkeley.kbase.us
    FORWARD=localhost:48000
    ssh -f -N -L $FORWARD:10.58.1.211:8531 \
@@ -59,8 +59,7 @@ for the genome taxa counts.
    * Using computational tools such as GTDB-TK
      * Please refer to the "Generate Genome Attributes" section above and follow the steps 1, 2, 3 as described.
 2. Prepare Taxa Count Data
-   * Process the GTDB taxonomy file by utilizing the script `gtdb/gtdb_taxa_count_loader.py`. 
-   * Process the JSON file parsed from computational tools by using the script `TODO: to be implemented`
+   * Process the file containing taxonomy info by utilizing the script `TODO: modify gtdb/gtdb_taxa_count_loader.py`. 
 3. Import JSON Format File Into ArangoDB
    * Please refer to step 4 in the "Generate Genome Attributes" section above.
    * NOTE: please make sure to use the collection `kbcoll_taxa_count` instead
