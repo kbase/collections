@@ -21,7 +21,7 @@ The scripts used in the process are located in the `src/loaders` directory.
    * After the attribute computation tools have been executed, the results need to be parsed and organized 
    into a format that is suitable for importing into ArangoDB. This is done using the script 
    `genome_attributes/parse_computed_genome_attribs.py`. 
-4. Import JSON format file into ArangoDB
+4. Import JSON Format File Into ArangoDB
    ```commandline
    # set up an SSH tunnel
    USER_NAME=user_name  # user name for login1.berkeley.kbase.us
@@ -63,3 +63,4 @@ for the genome taxa counts.
    * Process the JSON file parsed from computational tools by using the script `TODO: to be implemented`
 3. Import JSON format file into ArangoDB
    * Please refer to step 4 in the "Generate Genome Attributes" section above.
+   * NOTE: please make sure to use the collection `kbcoll_taxa_count` instead
