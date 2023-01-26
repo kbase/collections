@@ -61,6 +61,6 @@ for the genome taxa counts.
 2. Prepare Taxa Count Data
    * Process the GTDB taxonomy file by utilizing the script `gtdb/gtdb_taxa_count_loader.py`. 
    * Process the JSON file parsed from computational tools by using the script `TODO: to be implemented`
-3. Import JSON format file into ArangoDB
+3. Import JSON Format File Into ArangoDB
    * Please refer to step 4 in the "Generate Genome Attributes" section above.
    * NOTE: please make sure to use the collection `kbcoll_taxa_count` instead
