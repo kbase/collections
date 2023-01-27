@@ -39,6 +39,12 @@ async def _process_match_async(match_id: str, pstorage: PickleableStorage, args:
     print(f"Got {len(lineages)} lineages for match {match_id}")
     arangoclient, storage = await pstorage.get_storage()
     try:
+        # Could save some bandwidth here buy adding a method to just get the internal ID
+        # Microoptimization, wait until it's a problem
+        match = await storage.get_match(match_id)
+        print(match)
+        match = await storage.get_match(match_id, verbose=True)
+        print(match)
         match = await storage.get_match_full(match_id)
         print(match)
         # TODO MATCHERS make the callable actually do stuff

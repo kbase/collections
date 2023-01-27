@@ -6,6 +6,7 @@ from aioarango.aql import AQL
 from aioarango.database import StandardDatabase
 from aioarango.exceptions import CollectionCreateError, DocumentInsertError
 from fastapi.encoders import jsonable_encoder
+from pydantic import BaseModel
 from typing import Any
 from src.common.hash import md5_string
 from src.common.storage.collection_and_field_names import (
@@ -70,6 +71,14 @@ def remove_arango_keys(doc: dict):
     return doc
 
 
+def remove_non_model_fields(doc: dict, model: BaseModel) -> dict:
+    """
+    Removes any fields in `doc` that aren't fields in the pydantic model.
+    """
+    modelfields = set(model.__fields__.keys())
+    return {f: doc[f] for f in doc if f in modelfields}
+
+
 _DP = models.FIELD_DATA_PRODUCTS
 _MTC = models.FIELD_MATCHERS
 
@@ -88,13 +97,15 @@ def _data_product_docs_to_model(docs: list[dict[str, str]]):
 def _doc_to_active_coll(doc: dict):
     doc[_DP] = _data_product_docs_to_model(doc[_DP])
     doc[_MTC] = _matcher_docs_to_model(doc.get(_MTC))
-    return models.ActiveCollection.construct(**remove_arango_keys(doc))
+    return models.ActiveCollection.construct(
+        **remove_non_model_fields(doc, models.ActiveCollection)
+    )
 
 
 def _doc_to_saved_coll(doc: dict):
     doc[_DP] = _data_product_docs_to_model(doc[_DP])
     doc[_MTC] = _matcher_docs_to_model(doc.get(_MTC))
-    return models.SavedCollection.construct(**remove_arango_keys(doc))
+    return models.SavedCollection.construct(**remove_non_model_fields(doc, models.SavedCollection))
 
 
 def _get_and_check_col_names(dps: dict[str, list[DBCollection]]):
@@ -354,7 +365,7 @@ class ArangoStorage:
         col = self._db.collection(COLL_SRV_MATCHES)
         try:
             await col.insert(doc)
-            return models.Match.construct(**doc), False
+            return models.Match.construct(**remove_non_model_fields(doc, models.Match)), False
         except DocumentInsertError as e:
             if e.error_code == _ARANGO_ERR_UNIQUE_CONSTRAINT:
                 username = next(iter(match.user_last_perm_check.keys()))
@@ -405,14 +416,36 @@ class ArangoStorage:
         if cur.empty():
             raise errors.NoSuchMatchError(match_id)
         doc = await cur.next()
-        return models.Match.construct(**doc)
+        return models.Match.construct(**remove_non_model_fields(doc, models.Match))
+
+    async def _get_match(self, match_id: str):
+        col = self._db.collection(COLL_SRV_MATCHES)
+        doc = await col.get(match_id)
+        if doc is None:
+            raise errors.NoSuchMatchError(match_id)
+        return doc
+
+    async def get_match(self, match_id: str, verbose: bool = False) -> models.MatchVerbose:
+        """
+        Get a match.
+
+        match_id - the ID of the match to get.
+        verbose - include the UPAs and matching IDs, default false. If false, the UPA and matching
+            ID fields are empty.
+        """
+        # could potentially speed things up a bit and reduce bandwidth by using AQL and
+        # KEEP(). Don't bother for now.
+        doc = await self._get_match(match_id)
+        match = models.MatchVerbose.construct(**remove_non_model_fields(doc, models.MatchVerbose))
+        if not verbose:
+            match.upas = []
+            match.matches = []
+        return match
+
 
     async def get_match_full(self, match_id: str) -> models.InternalMatch:
         """
         Get the full match associated with the match id.
         """
-        col = self._db.collection(COLL_SRV_MATCHES)
-        doc = await col.get(match_id)
-        if doc is None:
-            raise errors.NoSuchMatchError(match_id)
-        return models.InternalMatch.construct(**doc)
+        doc = await self._get_match(match_id)
+        return models.InternalMatch.construct(**remove_non_model_fields(doc, models.InternalMatch))
