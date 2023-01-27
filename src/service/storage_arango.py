@@ -18,7 +18,7 @@ from src.common.storage.collection_and_field_names import (
 )
 from src.service import models
 from src.service import errors
-from src.service.data_products.common_models import DataProductSpec
+from src.service.data_products.common_models import DBCollection
 
 
 # service collection names that aren't shared with data loaders.
@@ -97,20 +97,18 @@ def _doc_to_saved_coll(doc: dict):
     return models.SavedCollection.construct(**remove_arango_keys(doc))
 
 
-def _get_and_check_col_names(dps: list[DataProductSpec]):
+def _get_and_check_col_names(dps: dict[str, list[DBCollection]]):
     col_to_id = {col: _BUILTIN for col in _COLLECTIONS}
-    seen_ids = {_BUILTIN}
     collections = [] + _COLLECTIONS  # don't mutate original list
-    for dp in dps:
-        if dp.data_product in seen_ids:
-            raise ValueError(f"duplicate data product ID: {dp.data_product}")
-        seen_ids.add(dp.data_product)
-        for colspec in dp.db_collections:
+    for dpid, db_collections in dps.items():
+        if dpid == _BUILTIN:
+            raise ValueError(f"Cannot use name {_BUILTIN} for a data product ID")
+        for colspec in db_collections:
             if colspec.name in col_to_id:
                 raise ValueError(
-                    f"two data products, {dp.data_product} and {col_to_id[colspec.name]}, "
+                    f"two data products, {dpid} and {col_to_id[colspec.name]}, "
                     + f"are using the same collection, {colspec.name}")
-            col_to_id[colspec.name] = dp.data_product
+            col_to_id[colspec.name] = dpid
             collections.append(colspec.name)
     return collections
     
@@ -124,21 +122,22 @@ class ArangoStorage:
     async def create(
         cls,
         db: StandardDatabase,
-        data_products: list[DataProductSpec] = None,
+        data_products: dict[str, list[DBCollection]] = None,
         create_collections_on_startup: bool = False
     ):
         """
         Create the ArangoDB wrapper.
 
         db - the database where the data is stored. The DB must exist.
-        data_products - any data products the database must support. Collections and indexes
-            are checked/created based on the data product specification.
+        data_products - any data products the database must support as a mapping of data product
+            ID to the index specifications. Collections and indexes are checked/created based
+            on said specifications.
         create_collections_on_startup - on starting the wrapper, create all collections and indexes
             rather than just checking for their existence. Usually this should be false to
             allow for system administrators to set up sharding to their liking, but auto
             creation is useful for quickly standing up a test service.
         """
-        dps = data_products or []
+        dps = data_products or {}
         for colname in _get_and_check_col_names(dps):
             if create_collections_on_startup:
                 await _create_collection(db, colname)
@@ -149,8 +148,8 @@ class ArangoStorage:
         matchcol = db.collection(COLL_SRV_MATCHES)
         # find matches ready for deletion
         await matchcol.add_persistent_index([models.FIELD_MATCH_LAST_ACCESS])
-        for dp in dps:
-            for col in dp.db_collections:
+        for col_list in dps.values():
+            for col in col_list:
                 dbcol = db.collection(col.name)
                 for index in col.indexes:
                     await dbcol.add_persistent_index(index)
@@ -333,12 +332,15 @@ class ArangoStorage:
         cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
         return [_doc_to_saved_coll(d) async for d in cur]
 
-    async def save_match(self, match: models.InternalMatch) -> models.Match:
+    async def save_match(self, match: models.InternalMatch) -> tuple[models.Match, bool]:
         """
         Save a collection match. If the match already exists (based on the match ID),
         that match is updated with the user permissions and last access data from the incoming
         match (using the last access date for both the permissions check and access date) and
         the updated match is returned.
+
+        Returns a tuple of the match and boolean indicating whether the match already
+        existed (true) or was created anew (false)
         """
         if len(match.user_last_perm_check) != 1:
             raise ValueError(f"There must be exactly one user in {models.FIELD_MATCH_USER_PERMS}")
@@ -352,13 +354,13 @@ class ArangoStorage:
         col = self._db.collection(COLL_SRV_MATCHES)
         try:
             await col.insert(doc)
-            return models.Match.construct(**doc)
+            return models.Match.construct(**doc), False
         except DocumentInsertError as e:
             if e.error_code == _ARANGO_ERR_UNIQUE_CONSTRAINT:
                 username = next(iter(match.user_last_perm_check.keys()))
                 try:
                     return await self.update_match_permissions_check(
-                        match.match_id, username, match.last_access)
+                        match.match_id, username, match.last_access), True
                 except errors.NoSuchMatchError as e:
                     # This is highly unlikely. Not worth spending any time trying to recover
                     raise ValueError(
@@ -404,3 +406,13 @@ class ArangoStorage:
             raise errors.NoSuchMatchError(match_id)
         doc = await cur.next()
         return models.Match.construct(**doc)
+
+    async def get_match_full(self, match_id: str) -> models.InternalMatch:
+        """
+        Get the full match associated with the match id.
+        """
+        col = self._db.collection(COLL_SRV_MATCHES)
+        doc = await col.get(match_id)
+        if doc is None:
+            raise errors.NoSuchMatchError(match_id)
+        return models.InternalMatch.construct(**doc)

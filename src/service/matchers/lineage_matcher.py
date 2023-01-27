@@ -2,11 +2,15 @@
 Matches assemblies and genomes to collections based on the GTDB lineage string.
 """
 
+import asyncio
+
 from pydantic import BaseModel, Field
 from typing import Any, Callable
 
 from src.common.storage.collection_and_field_names import FLD_GENOME_ATTRIBS_GTDB_LINEAGE
 from src.service import errors
+from src.service.app_state import PickleableStorage
+from src.service.match_processing import MatchProcess
 from src.service.data_products import genome_attributes
 from src.service.matchers.common_models import Matcher
 from src.service.storage_arango import ArangoStorage
@@ -30,25 +34,39 @@ class GTDBLineageMatcherCollectionParameters(BaseModel):
     )
 
 
+async def _process_match_async(match_id: str, pstorage: PickleableStorage, args: list[list[str]]):
+    lineages = args[0]
+    print(f"Got {len(lineages)} lineages for match {match_id}")
+    arangoclient, storage = await pstorage.get_storage()
+    try:
+        match = await storage.get_match_full(match_id)
+        print(match)
+        # TODO MATCHERS make the callable actually do stuff
+        # TODO MATCHERS remove partial lineages if they don't extend to the specified rank
+    finally:
+        await arangoclient.close()
+
+
+def _process_match(match_id: str, pstorage: PickleableStorage, args: list[list[str]]):
+    asyncio.run(_process_match_async(match_id, pstorage, args))
+
+
 class GTDBLineageMatcher(Matcher):
 
     def generate_match_process(self,
         metadata: dict[str, dict[str, Any]],
         collection_parameters: dict[str, Any],
         # TODO MATCHERS user parameters when needed
-    ) -> Callable[[str, ArangoStorage], None]:
+    ) -> MatchProcess:
         """
         The method checks that input metadata allows for calculating the match and throws
-        an exception if that is not the case, and returns a callable that is expected to
-        calculate the lineage match.
+        an exception if that is not the case; otherwise returns a MatchProcess that allows
+        calculating the match.
 
         metadata - the workspace metadata of the objects to match against, mapped by its UPA.
         collection_parameters - the parameters for this match from the collection specification.
             It it expected that the parameters have been validated against the matcher schema
             for said parameters.
-
-        Returns a callable that takes a match ID and storage system as input and is expected
-        to calculate the match.
         """
         lineages = []
         for upa, meta in metadata.items():
@@ -77,12 +95,7 @@ class GTDBLineageMatcher(Matcher):
                 )
             lineages.append(meta[_GTDB_LINEAGE_METADATA_KEY])
 
-        def process_match(match_id, storage):
-            lin = lineages
-            print(f"Got {len(lin)} lineages for match {match_id}")
-            # TODO MATCHERS make the callable actually do stuff
-
-        return process_match
+        return MatchProcess(process=_process_match, args=[lineages])
 
 
 MATCHER = GTDBLineageMatcher(
