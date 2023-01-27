@@ -324,7 +324,7 @@ class InternalMatch(MatchVerbose):
         description="The set of workspace IDs from the UPAs."
     )
     # TODO MATCHERS heartbeat timestamp
-    # @e keep the created time internal since matches are not user specific. One user could
+    # We keep the created time internal since matches are not user specific. One user could
     # "create" a match but have it be really old. Avoid the confusion, keep it internal
     created: int = Field(
         example=1674243789864,
