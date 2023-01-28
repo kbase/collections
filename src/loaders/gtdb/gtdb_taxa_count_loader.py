@@ -4,6 +4,10 @@ from collections import defaultdict
 
 from src.loaders.genome_attributes.loader_helper import convert_to_json
 
+from src.common.gtdb_lineage import (
+    parse_gtdb_lineage_string,
+    GTDB_RANK_ABBREV_TO_FULL_NAME,
+)
 from src.common.hash import md5_string
 import src.common.storage.collection_and_field_names as names
 import src.loaders.common.loader_common_names as loader_common_names
@@ -35,31 +39,8 @@ e.g. gtdb_taxa_count_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv -
      gtdb_taxa_count_loader.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_version 207 --kbase_collection GTDB --output  gtdb_taxa_counts.json
 """
 
-_ABBRV_SPECIES = "s"
-
-_TAXA_TYPES = {
-    "d": "domain",
-    "p": "phylum",
-    "c": "class",
-    "o": "order",
-    "f": "family",
-    "g": "genus",
-    _ABBRV_SPECIES: "species",
-}
-
 # Default result file name for GTDB taxa count data and identical ranks for arango import
 GTDB_TAXA_COUNT_FILE = "gtdb_taxa_counts.json"
-
-
-def _get_lineage(linstr):
-    ln = linstr.split(";")
-    ret = []
-    for lin in ln:
-        taxa_abbrev, taxa_name = lin.split("__")
-        ret.append({"abbrev": taxa_abbrev, "name": taxa_name})
-    if ret[-1]["abbrev"] != _ABBRV_SPECIES:
-        raise ValueError(f"Lineage {linstr} does not end with species")
-    return ret
 
 
 def _parse_files(load_files):
@@ -67,9 +48,9 @@ def _parse_files(load_files):
     for load_file in load_files:
         for line in load_file:
             lineage = line.strip().split("\t")[1]
-            lineage = _get_lineage(lineage)
+            lineage = parse_gtdb_lineage_string(lineage)
             for lin in lineage:
-                nodes[_TAXA_TYPES[lin['abbrev']]][lin['name']] += 1
+                nodes[GTDB_RANK_ABBREV_TO_FULL_NAME[lin.abbreviation]][lin.name] += 1
     return nodes
 
 
@@ -95,7 +76,7 @@ def _create_count_docs(nodes, kbase_collection, load_version):
 
 
 def _create_rank_docs(kbase_collection, load_version, identical_ranks):
-    rank_candidates = list(_TAXA_TYPES.values())
+    rank_candidates = list(GTDB_RANK_ABBREV_TO_FULL_NAME.values())
 
     rank_doc = [{
         names.FLD_ARANGO_KEY: taxa_count.ranks_key(kbase_collection, load_version),
