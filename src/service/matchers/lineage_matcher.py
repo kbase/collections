@@ -3,12 +3,14 @@ Matches assemblies and genomes to collections based on the GTDB lineage string.
 """
 
 import asyncio
+import logging
 
 from pydantic import BaseModel, Field
 from typing import Any, Callable
 
 from src.common.storage.collection_and_field_names import FLD_GENOME_ATTRIBS_GTDB_LINEAGE
 from src.service import errors
+from src.service import models
 from src.service.app_state import PickleableDependencies
 from src.service.match_processing import MatchProcess
 from src.service.data_products import genome_attributes
@@ -36,19 +38,12 @@ class GTDBLineageMatcherCollectionParameters(BaseModel):
 
 async def _process_match_async(match_id: str, pstorage: PickleableDependencies, args: list[list[str]]):
     lineages = args[0]
-    print(f"Got {len(lineages)} lineages for match {match_id}")
     arangoclient, storage = await pstorage.get_storage()
     try:
-        # Could save some bandwidth here buy adding a method to just get the internal ID
-        # Microoptimization, wait until it's a problem
-        match = await storage.get_match(match_id)
-        print(match)
-        match = await storage.get_match(match_id, verbose=True)
-        print(match)
-        match = await storage.get_match_full(match_id)
-        print(match)
-        # TODO MATCHERS make the callable actually do stuff
-        # TODO MATCHERS remove partial lineages if they don't extend to the specified rank
+        await genome_attributes.perform_match(match_id, storage, lineages)
+    except Exception as e:
+        logging.getLogger(__name__).exception(f"Matching process for match {match_id} failed")
+        await storage.update_match_state(match_id, models.MatchState.FAILED)
     finally:
         await arangoclient.close()
 
