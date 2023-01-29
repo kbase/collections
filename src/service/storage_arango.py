@@ -387,7 +387,7 @@ class ArangoStorage:
 
         match_id - the ID of the match.
         username - the user name of the user whose permissions were checked.
-        check_time - the time at which the permisisons were checked.
+        check_time - the time at which the permisisons were checked in epoch milliseconds.
         """
         aql = f"""
             FOR d in @@{_FLD_COLLECTION}
@@ -420,7 +420,7 @@ class ArangoStorage:
         Throws an error if the match doesn't exist.
 
         match_id - the ID of the match.
-        check_time - the time at which the match was accessed.
+        check_time - the time at which the match was accessed in epoch milliseconds.
         """
         aql = f"""
             FOR d in @@{_FLD_COLLECTION}
@@ -481,6 +481,7 @@ class ArangoStorage:
         self,
         match_id: str,
         match_state: models.MatchState,
+        update_time: int,
         matches: list[str] = None
     ) -> None:
         """
@@ -488,18 +489,21 @@ class ArangoStorage:
 
         match_id - the ID of the match to update
         match_state - the state of the match to set
+        update_time - the time at which the match state was updated in epoch milliseconds
         matches - the matches to add to the match
         """
         bind_vars = {
             f"@{_FLD_COLLECTION}": COLL_SRV_MATCHES,
             _FLD_MATCH_ID: match_id,
             "match_state": match_state.value,
+            "update_time": update_time,
         }
         aql = f"""
             FOR d in @@{_FLD_COLLECTION}
                 FILTER d.{FLD_ARANGO_KEY} == @{_FLD_MATCH_ID}
                 UPDATE d WITH {{
                     {models.FIELD_MATCH_STATE}: @match_state,
+                    {models.FIELD_MATCH_STATE_UPDATED}: @update_time,
             """
         if matches:
             aql += f"""

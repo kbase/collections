@@ -212,7 +212,7 @@ class NoSuchMatcher(CollectionError):
 
 class InvalidMatchState(CollectionError):
     """
-    An error thrown when the state of a match is invalid..
+    An error thrown when the state of a match is invalid.
     """
 
     def __init__(self, message: str = None):

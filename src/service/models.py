@@ -44,6 +44,7 @@ FIELD_MATCHERS_MATCHER = "matcher"
 FIELD_MATCH_LAST_ACCESS = "last_access"
 FIELD_MATCH_USER_PERMS = "user_last_perm_check"
 FIELD_MATCH_STATE = "match_state"
+FIELD_MATCH_STATE_UPDATED = "match_state_updated"
 FIELD_MATCH_MATCHES = "matches"
 FIELD_DATE_CREATE = "date_create"
 FIELD_USER_CREATE = "user_create"
@@ -283,7 +284,6 @@ class Match(BaseModel):
         example=MatchState.PROCESSING.value,
         description="The state of the matching process."
     )
-    # TODO MATCHING add match state updated time stamp
 
 
 class MatchVerbose(Match):
@@ -335,9 +335,14 @@ class InternalMatch(MatchVerbose):
         description="Milliseconds since the Unix epoch at the point the match was created."
     )
     last_access: int = Field(
-        example=1674243789864,
+        example=1674243789865,
         description="Milliseconds since the Unix epoch at the point the match was last accessed. "
             + "Used for determining when to delete the match."
+    )
+    match_state_updated: int = Field(
+        example=1674243789866,
+        description="Milliseconds since the Unix epoch at the point the match state was last "
+            + "updated."
     )
     user_last_perm_check: dict[str, int] = Field(
         example={"user1": 1674243789451},
