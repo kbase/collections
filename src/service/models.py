@@ -239,7 +239,8 @@ class ActiveCollection(SavedCollection):
     )
 
 
-class MatchState(Enum):
+# https://fastapi.tiangolo.com//tutorial/path-params/#create-an-enum-class
+class MatchState(str, Enum):
     """
     The state of a matching process.
     """
@@ -278,11 +279,11 @@ class Match(BaseModel):
         example=FIELD_USER_PARAMETERS_EXAMPLE,
         description=FIELD_USER_PARAMETERS_DESCRIPTION,
     )
-    # TODO MATCHERS enums don't seem to play well with fastapi/pydantic. find a fix
     match_state: MatchState = Field(
         example=MatchState.PROCESSING.value,
         description="The state of the matching process."
     )
+    # TODO MATCHING add match state updated time stamp
 
 
 class MatchVerbose(Match):
