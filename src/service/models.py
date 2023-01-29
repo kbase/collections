@@ -43,6 +43,8 @@ FIELD_MATCHERS = "matchers"
 FIELD_MATCHERS_MATCHER = "matcher"
 FIELD_MATCH_LAST_ACCESS = "last_access"
 FIELD_MATCH_USER_PERMS = "user_last_perm_check"
+FIELD_MATCH_STATE = "match_state"
+FIELD_MATCH_MATCHES = "matches"
 FIELD_DATE_CREATE = "date_create"
 FIELD_USER_CREATE = "user_create"
 FIELD_DATE_ACTIVE = "date_active"
@@ -243,7 +245,7 @@ class MatchState(Enum):
     """
     PROCESSING = "processing"
     COMPLETE = "complete"
-    DELETED = "deleted"
+    FAILED = "failed"
 
 
 class Match(BaseModel):

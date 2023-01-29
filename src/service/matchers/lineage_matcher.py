@@ -9,7 +9,7 @@ from typing import Any, Callable
 
 from src.common.storage.collection_and_field_names import FLD_GENOME_ATTRIBS_GTDB_LINEAGE
 from src.service import errors
-from src.service.app_state import PickleableStorage
+from src.service.app_state import PickleableDependencies
 from src.service.match_processing import MatchProcess
 from src.service.data_products import genome_attributes
 from src.service.matchers.common_models import Matcher
@@ -34,7 +34,7 @@ class GTDBLineageMatcherCollectionParameters(BaseModel):
     )
 
 
-async def _process_match_async(match_id: str, pstorage: PickleableStorage, args: list[list[str]]):
+async def _process_match_async(match_id: str, pstorage: PickleableDependencies, args: list[list[str]]):
     lineages = args[0]
     print(f"Got {len(lineages)} lineages for match {match_id}")
     arangoclient, storage = await pstorage.get_storage()
@@ -53,7 +53,7 @@ async def _process_match_async(match_id: str, pstorage: PickleableStorage, args:
         await arangoclient.close()
 
 
-def _process_match(match_id: str, pstorage: PickleableStorage, args: list[list[str]]):
+def _process_match(match_id: str, pstorage: PickleableDependencies, args: list[list[str]]):
     asyncio.run(_process_match_async(match_id, pstorage, args))
 
 
