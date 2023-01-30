@@ -58,26 +58,26 @@ def _parse_lineage_from_line(line, source):
 
     if source == 'GTDB':
         # line from taxonomy file downloaded directly from the GTDB website, such as 'bac120_taxonomy_r207.tsv'
-        lineage = line.strip().split("\t")[1]
+        lineage_str = line.strip().split("\t")[1]
     elif source == 'genome_attributes':
         # line from genome attributes file created by running 'parse_computed_genome_attribs.py' script
         data = json.loads(line)
 
         if TAXA_ATTRI_NAME not in data:
             raise ValueError(f'Missing {TAXA_ATTRI_NAME} attribute from genome attributes file')
-        lineage = data[TAXA_ATTRI_NAME]
+        lineage_str = data[TAXA_ATTRI_NAME]
     else:
         raise ValueError(f'Unsupported input file source: {source}')
 
-    return lineage
+    return lineage_str
 
 
 def _parse_files(load_files, source):
     nodes = defaultdict(lambda: defaultdict(int))
     for load_file in load_files:
         for line in load_file:
-            lineage = _parse_lineage_from_line(line, source)
-            lineage = parse_gtdb_lineage_string(lineage)
+            lineage_str = _parse_lineage_from_line(line, source)
+            lineage = parse_gtdb_lineage_string(lineage_str)
             for lin in lineage:
                 nodes[GTDB_RANK_ABBREV_TO_FULL_NAME[lin.abbreviation]][lin.name] += 1
     return nodes
