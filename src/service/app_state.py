@@ -1,5 +1,8 @@
 """
 Functions for creating and handling application state.
+
+All functions assume that the application state has been appropriately initialized via
+calling the build_app() method
 """
 
 import aioarango
@@ -128,10 +131,10 @@ def get_workspace(r: Request, token: str) -> Workspace:
     return r.app.state._get_ws(token)
 
 
-class PickleableStorage:
+class PickleableDependencies:
     """
-    Enables getting a storage instance in a separate process via pickling the information needed
-    to recreate the storage.
+    Enables getting a system dependencies in a separate process via pickling the information needed
+    to recreate said dependencies.
     """
 
     def __init__(
@@ -149,10 +152,18 @@ class PickleableStorage:
         """
         return await _build_storage(self._cfg, self._dps)
 
+    async def get_workspace(self, token):
+        """
+        Get the workspace client.
 
-def get_pickleable_storage(r: Request) -> PickleableStorage:
+        token - the user's token.
+        """
+        return Workspace(cfg.workspace_url, token=token)
+
+
+def get_pickleable_dependencies(r: Request) -> PickleableDependencies:
     """
     Get an object that can be pickled, passed to another process, and used to reinitialize the
-    storage system there.
+    system dependencies there.
     """
-    return PickleableStorage(r.app.state._cfg, r.app.state._data_products)
+    return PickleableDependencies(r.app.state._cfg, r.app.state._data_products)

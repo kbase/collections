@@ -7,7 +7,7 @@ import multiprocessing
 from pydantic import BaseModel, Field
 from typing import Callable, Any
 from src.service import models
-from src.service.app_state import PickleableStorage
+from src.service.app_state import PickleableDependencies
 from src.service.models import remove_non_model_fields
 from src.service.storage_arango import ArangoStorage
 from src.service.timestamp import now_epoch_millis
@@ -22,7 +22,7 @@ class MatchProcess(BaseModel):
     """
     Defines a match process.
     """
-    process: Callable[[str, PickleableStorage, list[Any]], None] = Field(
+    process: Callable[[str, PickleableDependencies, list[Any]], None] = Field(
         description="A callable that processes a match. Takes the match ID, the storage system, "
             + "and the arguments for the match as the callable arguments."
     )
@@ -30,7 +30,7 @@ class MatchProcess(BaseModel):
         description="The arguments for the match."
     )
 
-    def start(self, match_id: str, storage: PickleableStorage):
+    def start(self, match_id: str, storage: PickleableDependencies):
         """
         Start the match process in a forkserver.
 
@@ -59,7 +59,8 @@ async def get_match(
         empty.
     """
     # TODO MATCHERS add ability to check for state & throw error if not completed
-    # TODO MATCHERS add abiltiy to throw error if match is against old version of collection
+    # TODO MATCHERS add abiltiy to throw error if match is against old version of collection or
+    #   wrong collection
     # could save bandwidth if we added option to not return upas and match IDs if not verbose
     match = await storage.get_match_full(match_id)
     last_perm_check = match.user_last_perm_check.get(username)

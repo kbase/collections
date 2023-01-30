@@ -49,7 +49,9 @@ GENOME_ATTRIBS_SPEC = DataProductSpec(
 _OPT_AUTH = KBaseHTTPBearer(optional=True)
 
 def _remove_keys(doc):
-    return remove_collection_keys(remove_arango_keys(doc))
+    doc = remove_collection_keys(remove_arango_keys(doc))
+    doc.pop(names.FLD_GENOME_ATTRIBS_MATCHES, None)
+    return doc
 
 
 class AttributeName(BaseModel):
