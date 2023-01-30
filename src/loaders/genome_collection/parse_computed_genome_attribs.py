@@ -38,7 +38,7 @@ import sys
 import pandas as pd
 
 from src.loaders.common import loader_common_names
-from src.loaders.genome_attributes.loader_helper import convert_to_json, init_genome_atrri_doc, merge_docs
+from src.loaders.common.loader_helper import convert_to_json, init_genome_atrri_doc, merge_docs
 
 # Default result file name for parsed computed genome attributes data for arango import.
 # Collection and load version information will be prepended to this file name.
@@ -217,11 +217,10 @@ def main():
     if args.output and not args.output.closed:
         args.output.close()
 
-    (tools,
-     load_ver,
-     kbase_collection,
-     root_dir) = (args.tools, getattr(args, loader_common_names.LOAD_VER_ARG_NAME),
-                  getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME), args.root_dir)
+    tools = args.tools
+    load_ver = getattr(args, loader_common_names.LOAD_VER_ARG_NAME)
+    kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
+    root_dir = args.root_dir
 
     result_dir = _locate_dir(root_dir, kbase_collection, load_ver, check_exists=True)
 
