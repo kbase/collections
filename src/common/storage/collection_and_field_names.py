@@ -76,3 +76,6 @@ FLD_GENOME_ATTRIBS_KBASE_GENOME_ID = "kbase_genome_id"
 
 # Used for lineage matchers
 FLD_GENOME_ATTRIBS_GTDB_LINEAGE = "gtdb_taxonomy"
+
+# Used for marking matches. Underscore to separate from "real" attribs
+FLD_GENOME_ATTRIBS_MATCHES = "_matches"

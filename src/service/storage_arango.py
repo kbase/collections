@@ -475,3 +475,43 @@ class ArangoStorage:
         doc = await self._get_match(match_id)
         return models.InternalMatch.construct(
             **models.remove_non_model_fields(doc, models.InternalMatch))
+
+    async def update_match_state(
+        self,
+        match_id: str,
+        match_state: models.MatchState,
+        matches: list[str] = None
+    ) -> None:
+        """
+        Update the state of the match, optionally setting match IDs.
+
+        match_id - the ID of the match to update
+        match_state - the state of the match to set
+        matches - the matches to add to the match
+        """
+        bind_vars = {
+            f"@{_FLD_COLLECTION}": COLL_SRV_MATCHES,
+            _FLD_MATCH_ID: match_id,
+            "match_state": match_state.value,
+        }
+        aql = f"""
+            FOR d in @@{_FLD_COLLECTION}
+                FILTER d.{FLD_ARANGO_KEY} == @{_FLD_MATCH_ID}
+                UPDATE d WITH {{
+                    {models.FIELD_MATCH_STATE}: @match_state,
+            """
+        if matches:
+            aql += f"""
+                    {models.FIELD_MATCH_MATCHES}: @matches,
+            """
+            bind_vars["matches"] = matches
+        aql += f"""
+                }} IN @@{_FLD_COLLECTION}
+                OPTIONS {{exclusive: true}}
+                LET updated = NEW
+                RETURN KEEP(updated, "{FLD_ARANGO_KEY}")
+            """
+        cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
+        # having a count > 1 is impossible since keys are unique
+        if cur.empty():
+            raise errors.NoSuchMatchError(match_id)
