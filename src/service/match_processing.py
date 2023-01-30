@@ -64,6 +64,7 @@ async def get_match(
     match = await storage.get_match_full(match_id)
     last_perm_check = match.user_last_perm_check.get(username)
     now = now_epoch_millis()
+    # if we ever go back in time to 1970 the first part of this clause will be an issue
     if not last_perm_check or now - last_perm_check > _PERM_RECHECK_LIMIT:
         # If we want to be really careful we should recheck all the UPAs again since
         # objects might've been deleted, but this is in most cases way faster and it's not clear
@@ -80,5 +81,3 @@ async def get_match(
         match.upas = []
         match.matches = []
     return match
-
-    
