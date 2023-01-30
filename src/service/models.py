@@ -276,6 +276,7 @@ class Match(BaseModel):
         example=FIELD_USER_PARAMETERS_EXAMPLE,
         description=FIELD_USER_PARAMETERS_DESCRIPTION,
     )
+    # TODO MATCHERS enums don't seem to play well with fastapi/pydantic. find a fix
     match_state: MatchState = Field(
         example=MatchState.PROCESSING.value,
         description="The state of the matching process."
@@ -341,3 +342,11 @@ class InternalMatch(MatchVerbose):
             + "match was checked in Unix epoch milliseconds. Used to determine when to recheck "
             + "permissions for a user."
     )
+
+
+def remove_non_model_fields(doc: dict, model: BaseModel) -> dict:
+    """
+    Removes any fields in `doc` that aren't fields in the pydantic model.
+    """
+    modelfields = set(model.__fields__.keys())
+    return {f: doc[f] for f in doc if f in modelfields}

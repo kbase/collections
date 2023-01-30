@@ -27,6 +27,7 @@ from src.service.data_products.common_models import DBCollection
 _FLD_COLLECTION = "collection"
 _FLD_COLLECTION_ID = "collection_id"
 _FLD_MATCH_ID = "match_id"
+_FLD_CHECK_TIME = "check_time"
 _FLD_COUNTER = "counter"
 _FLD_VER_NUM = "ver_num"
 _FLD_LIMIT = "limit"
@@ -71,14 +72,6 @@ def remove_arango_keys(doc: dict):
     return doc
 
 
-def remove_non_model_fields(doc: dict, model: BaseModel) -> dict:
-    """
-    Removes any fields in `doc` that aren't fields in the pydantic model.
-    """
-    modelfields = set(model.__fields__.keys())
-    return {f: doc[f] for f in doc if f in modelfields}
-
-
 _DP = models.FIELD_DATA_PRODUCTS
 _MTC = models.FIELD_MATCHERS
 
@@ -98,14 +91,15 @@ def _doc_to_active_coll(doc: dict):
     doc[_DP] = _data_product_docs_to_model(doc[_DP])
     doc[_MTC] = _matcher_docs_to_model(doc.get(_MTC))
     return models.ActiveCollection.construct(
-        **remove_non_model_fields(doc, models.ActiveCollection)
+        **models.remove_non_model_fields(doc, models.ActiveCollection)
     )
 
 
 def _doc_to_saved_coll(doc: dict):
     doc[_DP] = _data_product_docs_to_model(doc[_DP])
     doc[_MTC] = _matcher_docs_to_model(doc.get(_MTC))
-    return models.SavedCollection.construct(**remove_non_model_fields(doc, models.SavedCollection))
+    return models.SavedCollection.construct(
+        **models.remove_non_model_fields(doc, models.SavedCollection))
 
 
 def _get_and_check_col_names(dps: dict[str, list[DBCollection]]):
@@ -365,7 +359,9 @@ class ArangoStorage:
         col = self._db.collection(COLL_SRV_MATCHES)
         try:
             await col.insert(doc)
-            return models.Match.construct(**remove_non_model_fields(doc, models.Match)), False
+            return models.Match.construct(
+                **models.remove_non_model_fields(doc, models.Match)
+            ), False
         except DocumentInsertError as e:
             if e.error_code == _ARANGO_ERR_UNIQUE_CONSTRAINT:
                 username = next(iter(match.user_last_perm_check.keys()))
@@ -382,7 +378,8 @@ class ArangoStorage:
             else:
                 raise e
 
-    async def update_match_permissions_check(self, match_id: str, username: str, check_time: int):
+    async def update_match_permissions_check(self, match_id: str, username: str, check_time: int
+    ) -> models.Match:
         """
         Update the last time permissions were checked for a user for a match.
         Also updates the overall document access time.
@@ -396,8 +393,8 @@ class ArangoStorage:
             FOR d in @@{_FLD_COLLECTION}
                 FILTER d.{FLD_ARANGO_KEY} == @{_FLD_MATCH_ID}
                 UPDATE d WITH {{
-                    {models.FIELD_MATCH_LAST_ACCESS}: @CHECK_TIME,
-                    {models.FIELD_MATCH_USER_PERMS}: {{@USERNAME: @CHECK_TIME}}
+                    {models.FIELD_MATCH_LAST_ACCESS}: @{_FLD_CHECK_TIME},
+                    {models.FIELD_MATCH_USER_PERMS}: {{@USERNAME: @{_FLD_CHECK_TIME}}}
                 }} IN @@{_FLD_COLLECTION}
                 OPTIONS {{exclusive: true}}
                 LET updated = NEW
@@ -407,16 +404,43 @@ class ArangoStorage:
             f"@{_FLD_COLLECTION}": COLL_SRV_MATCHES,
             _FLD_MATCH_ID: match_id,
             "USERNAME": username,
-            "CHECK_TIME": check_time,
+            _FLD_CHECK_TIME: check_time,
             "KEEP_LIST": list(models.Match.__fields__.keys()),
         }
-        # TODO TEST test no match - is it empty cur or something else?
         cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
         # having a count > 1 is impossible since keys are unique
         if cur.empty():
             raise errors.NoSuchMatchError(match_id)
         doc = await cur.next()
-        return models.Match.construct(**remove_non_model_fields(doc, models.Match))
+        return models.Match.construct(**models.remove_non_model_fields(doc, models.Match))
+
+    async def update_match_last_access(self, match_id: str, last_access: int) -> None:
+        """
+        Update the last time the match was accessed.
+        Throws an error if the match doesn't exist.
+
+        match_id - the ID of the match.
+        check_time - the time at which the match was accessed.
+        """
+        aql = f"""
+            FOR d in @@{_FLD_COLLECTION}
+                FILTER d.{FLD_ARANGO_KEY} == @{_FLD_MATCH_ID}
+                UPDATE d WITH {{
+                    {models.FIELD_MATCH_LAST_ACCESS}: @{_FLD_CHECK_TIME}
+                }} IN @@{_FLD_COLLECTION}
+                OPTIONS {{exclusive: true}}
+                LET updated = NEW
+                RETURN KEEP(updated, "{FLD_ARANGO_KEY}")
+            """
+        bind_vars = {
+            f"@{_FLD_COLLECTION}": COLL_SRV_MATCHES,
+            _FLD_MATCH_ID: match_id,
+            _FLD_CHECK_TIME: last_access,
+        }
+        cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
+        # having a count > 1 is impossible since keys are unique
+        if cur.empty():
+            raise errors.NoSuchMatchError(match_id)
 
     async def _get_match(self, match_id: str):
         col = self._db.collection(COLL_SRV_MATCHES)
@@ -436,7 +460,8 @@ class ArangoStorage:
         # could potentially speed things up a bit and reduce bandwidth by using AQL and
         # KEEP(). Don't bother for now.
         doc = await self._get_match(match_id)
-        match = models.MatchVerbose.construct(**remove_non_model_fields(doc, models.MatchVerbose))
+        match = models.MatchVerbose.construct(
+            **models.remove_non_model_fields(doc, models.MatchVerbose))
         if not verbose:
             match.upas = []
             match.matches = []
@@ -448,4 +473,5 @@ class ArangoStorage:
         Get the full match associated with the match id.
         """
         doc = await self._get_match(match_id)
-        return models.InternalMatch.construct(**remove_non_model_fields(doc, models.InternalMatch))
+        return models.InternalMatch.construct(
+            **models.remove_non_model_fields(doc, models.InternalMatch))
