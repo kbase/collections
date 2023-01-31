@@ -37,6 +37,7 @@ import sys
 
 import pandas as pd
 
+from src.common.storage.collection_and_field_names import FLD_GENOME_ATTRIBS_GTDB_LINEAGE
 from src.loaders.common import loader_common_names
 from src.loaders.common.loader_helper import convert_to_json, init_genome_atrri_doc, merge_docs
 
@@ -52,6 +53,11 @@ SELECTED_CHECKM2_FEATURES = {'Completeness', 'Contamination'}
 # ('gtdbtk.ar53.summary.tsv' or 'gtdbtk.bac120.summary.tsv') as computed genome attributes
 # If empty, select all available fields
 SELECTED_GTDBTK_SUMMARY_FEATURES = {}
+
+# Taxonomy attribute name derived from genome attributes using GTDB-TK tool.
+TAXA_ATTRI_NAME = 'classification'
+# Map for updating parsed document name
+GENOME_ATTRI_MAPPING = {TAXA_ATTRI_NAME: FLD_GENOME_ATTRIBS_GTDB_LINEAGE}
 
 
 def _locate_dir(root_dir, kbase_collection, load_ver, check_exists=False, tool=''):
@@ -90,6 +96,8 @@ def _create_doc(row, kbase_collection, load_version, genome_id, features, prefix
     else:
         doc.update(row.rename(lambda x: prefix + '_' + x if prefix else x).to_dict())
 
+    # maps key specified in GENOME_ATTRI_MAPPING and uses original keys if no mapping is specified
+    doc = {GENOME_ATTRI_MAPPING.get(k, k): v for k, v in doc.items()}
     return doc
 
 
