@@ -50,6 +50,8 @@ GENOME_TAXA_COUNT_FILE = "parsed_genome_taxa_counts.json"
 VALID_SOURCE = ['GTDB', 'genome_attributes']
 
 
+
+
 def _parse_lineage_from_line(line, source):
     # parse lineage from one line of file containing genome taxonomy info
 

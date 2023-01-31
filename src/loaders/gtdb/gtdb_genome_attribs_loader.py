@@ -5,9 +5,6 @@ import pandas as pd
 import src.common.storage.collection_and_field_names as names
 import src.loaders.common.loader_common_names as loader_common_names
 import src.loaders.common.loader_helper as loader_helper
-from src.common.storage.collection_and_field_names import (
-    FLD_GENOME_ATTRIBS_GTDB_LINEAGE,
-)
 
 """
 PROTOTYPE - Prepare GTDB genome statistics data in JSON format for arango import.
@@ -47,13 +44,19 @@ GTDB_GENOME_ATTR_FILE = "gtdb_genome_attribs.json"
 # Note that FLD_GENOME_ATTRIBS_GTDB_LINEAGE is required for some matchers to function.
 # Since it's always part of the GTDB file we don't bother independently checking for its
 # presence
+
+# Taxonomy attribute name derived from GTDB metadata file
+TAXA_ATTRI_NAME = 'gtdb_taxonomy'
+# Map for updating generated document name
+GENOME_ATTRI_MAPPING = {TAXA_ATTRI_NAME: names.FLD_GENOME_ATTRIBS_GTDB_LINEAGE}
+
 """
 The following features will be extracted from the GTDB metadata file 
 (e.g. ar122_metadata_r202.tsv and bac120_metadata_r202.tsv)
 """
 SELECTED_FEATURES = {'accession', 'checkm_completeness', 'checkm_contamination', 'checkm_marker_count',
                      'checkm_marker_lineage', 'checkm_marker_set_count', 'contig_count', 'gc_count', 'gc_percentage',
-                     'genome_size', FLD_GENOME_ATTRIBS_GTDB_LINEAGE, 'longest_contig', 'longest_scaffold',
+                     'genome_size', TAXA_ATTRI_NAME, 'longest_contig', 'longest_scaffold',
                      'mean_contig_length',
                      'mean_scaffold_length', 'mimag_high_quality', 'mimag_low_quality', 'mimag_medium_quality',
                      'n50_contigs', 'n50_scaffolds', 'ncbi_assembly_level', 'ncbi_assembly_name', 'ncbi_bioproject',
@@ -95,6 +98,9 @@ def _row_to_doc(row, kbase_collection, load_version):
     doc = loader_helper.init_genome_atrri_doc(kbase_collection, load_version, genome_id)
 
     doc.update(row.to_dict())
+
+    # maps key specified in GENOME_ATTRI_MAPPING and uses original keys if no mapping is specified
+    doc = {GENOME_ATTRI_MAPPING.get(k, k): v for k, v in doc.items()}
 
     return doc
 
