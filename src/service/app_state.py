@@ -1,5 +1,8 @@
 """
 Functions for creating and handling application state.
+
+All functions assume that the application state has been appropriately initialized via
+calling the build_app() method
 """
 
 import aioarango
@@ -9,19 +12,24 @@ import sys
 from fastapi import FastAPI, Request
 from src.service.clients.workspace_client import Workspace
 from src.service.config import CollectionsServiceConfig
-from src.service.data_products.common_models import DataProductSpec
+from src.service.data_products.common_models import DataProductSpec, DBCollection
 from src.service.kb_auth import KBaseAuth
 from src.service.storage_arango import ArangoStorage, ARANGO_ERR_NAME_EXISTS
 
 # The main point of this module is to handle all the stuff we add to app.state in one place
 # to keep it consistent and allow for refactoring without breaking other code
 
+
 async def build_app(
     app: FastAPI, cfg: CollectionsServiceConfig, data_products: list[DataProductSpec]
 ) -> None:
     """ Build the application state. """
     app.state._kb_auth = await KBaseAuth.create(cfg.auth_url, cfg.auth_full_admin_roles)
-    cli, storage = await _build_storage(cfg, data_products)
+    # pickling problems with the full spec, see
+    # https://github.com/cloudpipe/cloudpickle/issues/408
+    app.state._data_products = {dp.data_product: dp.db_collections for dp in data_products}
+    cli, storage = await _build_storage(cfg, app.state._data_products)
+    app.state._cfg = cfg
     app.state._arango_cli = cli
     app.state._storage = storage
     app.state._ws_url = await _get_workspace_url(cfg)
@@ -37,7 +45,9 @@ async def clean_app(app: FastAPI) -> None:
         await app.state._arango_cli.close()
 
 
-async def _build_storage(cfg: CollectionsServiceConfig, data_products: list[DataProductSpec]
+async def _build_storage(
+    cfg: CollectionsServiceConfig,
+    data_products: dict[str, list[DBCollection]],
 ) -> tuple[aioarango.ArangoClient, ArangoStorage]:
     if cfg.dont_connect_to_external_services:
         return False, False
@@ -119,3 +129,41 @@ def get_workspace(r: Request, token: str) -> Workspace:
     if not r.app.state._ws_url:
         raise ValueError("Service is running in no external connections mode")
     return r.app.state._get_ws(token)
+
+
+class PickleableDependencies:
+    """
+    Enables getting a system dependencies in a separate process via pickling the information needed
+    to recreate said dependencies.
+    """
+
+    def __init__(
+        self,
+        cfg: CollectionsServiceConfig,
+        data_products: dict[str, list[DBCollection]]
+    ):
+        self._cfg = cfg
+        self._dps = data_products
+    
+    async def get_storage(self) -> tuple[aioarango.ArangoClient, ArangoStorage]:
+        """
+        Get the Arango client and storage system. The arango client must be closed when the
+        storage system is no longer necessary.
+        """
+        return await _build_storage(self._cfg, self._dps)
+
+    async def get_workspace(self, token):
+        """
+        Get the workspace client.
+
+        token - the user's token.
+        """
+        return Workspace(cfg.workspace_url, token=token)
+
+
+def get_pickleable_dependencies(r: Request) -> PickleableDependencies:
+    """
+    Get an object that can be pickled, passed to another process, and used to reinitialize the
+    system dependencies there.
+    """
+    return PickleableDependencies(r.app.state._cfg, r.app.state._data_products)

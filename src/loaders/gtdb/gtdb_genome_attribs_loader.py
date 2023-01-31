@@ -4,7 +4,7 @@ import pandas as pd
 
 import src.common.storage.collection_and_field_names as names
 import src.loaders.common.loader_common_names as loader_common_names
-import src.loaders.genome_attributes.loader_helper as loader_helper
+import src.loaders.common.loader_helper as loader_helper
 from src.common.storage.collection_and_field_names import (
     FLD_GENOME_ATTRIBS_GTDB_LINEAGE,
 )

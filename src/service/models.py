@@ -43,6 +43,8 @@ FIELD_MATCHERS = "matchers"
 FIELD_MATCHERS_MATCHER = "matcher"
 FIELD_MATCH_LAST_ACCESS = "last_access"
 FIELD_MATCH_USER_PERMS = "user_last_perm_check"
+FIELD_MATCH_STATE = "match_state"
+FIELD_MATCH_MATCHES = "matches"
 FIELD_DATE_CREATE = "date_create"
 FIELD_USER_CREATE = "user_create"
 FIELD_DATE_ACTIVE = "date_active"
@@ -243,7 +245,7 @@ class MatchState(Enum):
     """
     PROCESSING = "processing"
     COMPLETE = "complete"
-    DELETED = "deleted"
+    FAILED = "failed"
 
 
 class Match(BaseModel):
@@ -276,6 +278,7 @@ class Match(BaseModel):
         example=FIELD_USER_PARAMETERS_EXAMPLE,
         description=FIELD_USER_PARAMETERS_DESCRIPTION,
     )
+    # TODO MATCHERS enums don't seem to play well with fastapi/pydantic. find a fix
     match_state: MatchState = Field(
         example=MatchState.PROCESSING.value,
         description="The state of the matching process."
@@ -324,6 +327,8 @@ class InternalMatch(MatchVerbose):
         description="The set of workspace IDs from the UPAs."
     )
     # TODO MATCHERS heartbeat timestamp
+    # We keep the created time internal since matches are not user specific. One user could
+    # "create" a match but have it be really old. Avoid the confusion, keep it internal
     created: int = Field(
         example=1674243789864,
         description="Milliseconds since the Unix epoch at the point the match was created."
@@ -339,3 +344,11 @@ class InternalMatch(MatchVerbose):
             + "match was checked in Unix epoch milliseconds. Used to determine when to recheck "
             + "permissions for a user."
     )
+
+
+def remove_non_model_fields(doc: dict, model: BaseModel) -> dict:
+    """
+    Removes any fields in `doc` that aren't fields in the pydantic model.
+    """
+    modelfields = set(model.__fields__.keys())
+    return {f: doc[f] for f in doc if f in modelfields}

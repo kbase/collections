@@ -6,6 +6,7 @@ from aioarango.aql import AQL
 from aioarango.database import StandardDatabase
 from aioarango.exceptions import CollectionCreateError, DocumentInsertError
 from fastapi.encoders import jsonable_encoder
+from pydantic import BaseModel
 from typing import Any
 from src.common.hash import md5_string
 from src.common.storage.collection_and_field_names import (
@@ -18,7 +19,7 @@ from src.common.storage.collection_and_field_names import (
 )
 from src.service import models
 from src.service import errors
-from src.service.data_products.common_models import DataProductSpec
+from src.service.data_products.common_models import DBCollection
 
 
 # service collection names that aren't shared with data loaders.
@@ -26,6 +27,7 @@ from src.service.data_products.common_models import DataProductSpec
 _FLD_COLLECTION = "collection"
 _FLD_COLLECTION_ID = "collection_id"
 _FLD_MATCH_ID = "match_id"
+_FLD_CHECK_TIME = "check_time"
 _FLD_COUNTER = "counter"
 _FLD_VER_NUM = "ver_num"
 _FLD_LIMIT = "limit"
@@ -88,29 +90,30 @@ def _data_product_docs_to_model(docs: list[dict[str, str]]):
 def _doc_to_active_coll(doc: dict):
     doc[_DP] = _data_product_docs_to_model(doc[_DP])
     doc[_MTC] = _matcher_docs_to_model(doc.get(_MTC))
-    return models.ActiveCollection.construct(**remove_arango_keys(doc))
+    return models.ActiveCollection.construct(
+        **models.remove_non_model_fields(doc, models.ActiveCollection)
+    )
 
 
 def _doc_to_saved_coll(doc: dict):
     doc[_DP] = _data_product_docs_to_model(doc[_DP])
     doc[_MTC] = _matcher_docs_to_model(doc.get(_MTC))
-    return models.SavedCollection.construct(**remove_arango_keys(doc))
+    return models.SavedCollection.construct(
+        **models.remove_non_model_fields(doc, models.SavedCollection))
 
 
-def _get_and_check_col_names(dps: list[DataProductSpec]):
+def _get_and_check_col_names(dps: dict[str, list[DBCollection]]):
     col_to_id = {col: _BUILTIN for col in _COLLECTIONS}
-    seen_ids = {_BUILTIN}
     collections = [] + _COLLECTIONS  # don't mutate original list
-    for dp in dps:
-        if dp.data_product in seen_ids:
-            raise ValueError(f"duplicate data product ID: {dp.data_product}")
-        seen_ids.add(dp.data_product)
-        for colspec in dp.db_collections:
+    for dpid, db_collections in dps.items():
+        if dpid == _BUILTIN:
+            raise ValueError(f"Cannot use name {_BUILTIN} for a data product ID")
+        for colspec in db_collections:
             if colspec.name in col_to_id:
                 raise ValueError(
-                    f"two data products, {dp.data_product} and {col_to_id[colspec.name]}, "
+                    f"two data products, {dpid} and {col_to_id[colspec.name]}, "
                     + f"are using the same collection, {colspec.name}")
-            col_to_id[colspec.name] = dp.data_product
+            col_to_id[colspec.name] = dpid
             collections.append(colspec.name)
     return collections
     
@@ -124,21 +127,22 @@ class ArangoStorage:
     async def create(
         cls,
         db: StandardDatabase,
-        data_products: list[DataProductSpec] = None,
+        data_products: dict[str, list[DBCollection]] = None,
         create_collections_on_startup: bool = False
     ):
         """
         Create the ArangoDB wrapper.
 
         db - the database where the data is stored. The DB must exist.
-        data_products - any data products the database must support. Collections and indexes
-            are checked/created based on the data product specification.
+        data_products - any data products the database must support as a mapping of data product
+            ID to the index specifications. Collections and indexes are checked/created based
+            on said specifications.
         create_collections_on_startup - on starting the wrapper, create all collections and indexes
             rather than just checking for their existence. Usually this should be false to
             allow for system administrators to set up sharding to their liking, but auto
             creation is useful for quickly standing up a test service.
         """
-        dps = data_products or []
+        dps = data_products or {}
         for colname in _get_and_check_col_names(dps):
             if create_collections_on_startup:
                 await _create_collection(db, colname)
@@ -149,8 +153,8 @@ class ArangoStorage:
         matchcol = db.collection(COLL_SRV_MATCHES)
         # find matches ready for deletion
         await matchcol.add_persistent_index([models.FIELD_MATCH_LAST_ACCESS])
-        for dp in dps:
-            for col in dp.db_collections:
+        for col_list in dps.values():
+            for col in col_list:
                 dbcol = db.collection(col.name)
                 for index in col.indexes:
                     await dbcol.add_persistent_index(index)
@@ -333,12 +337,15 @@ class ArangoStorage:
         cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
         return [_doc_to_saved_coll(d) async for d in cur]
 
-    async def save_match(self, match: models.InternalMatch) -> models.Match:
+    async def save_match(self, match: models.InternalMatch) -> tuple[models.Match, bool]:
         """
         Save a collection match. If the match already exists (based on the match ID),
         that match is updated with the user permissions and last access data from the incoming
         match (using the last access date for both the permissions check and access date) and
         the updated match is returned.
+
+        Returns a tuple of the match and boolean indicating whether the match already
+        existed (true) or was created anew (false)
         """
         if len(match.user_last_perm_check) != 1:
             raise ValueError(f"There must be exactly one user in {models.FIELD_MATCH_USER_PERMS}")
@@ -352,13 +359,15 @@ class ArangoStorage:
         col = self._db.collection(COLL_SRV_MATCHES)
         try:
             await col.insert(doc)
-            return models.Match.construct(**doc)
+            return models.Match.construct(
+                **models.remove_non_model_fields(doc, models.Match)
+            ), False
         except DocumentInsertError as e:
             if e.error_code == _ARANGO_ERR_UNIQUE_CONSTRAINT:
                 username = next(iter(match.user_last_perm_check.keys()))
                 try:
                     return await self.update_match_permissions_check(
-                        match.match_id, username, match.last_access)
+                        match.match_id, username, match.last_access), True
                 except errors.NoSuchMatchError as e:
                     # This is highly unlikely. Not worth spending any time trying to recover
                     raise ValueError(
@@ -369,7 +378,8 @@ class ArangoStorage:
             else:
                 raise e
 
-    async def update_match_permissions_check(self, match_id: str, username: str, check_time: int):
+    async def update_match_permissions_check(self, match_id: str, username: str, check_time: int
+    ) -> models.Match:
         """
         Update the last time permissions were checked for a user for a match.
         Also updates the overall document access time.
@@ -383,8 +393,8 @@ class ArangoStorage:
             FOR d in @@{_FLD_COLLECTION}
                 FILTER d.{FLD_ARANGO_KEY} == @{_FLD_MATCH_ID}
                 UPDATE d WITH {{
-                    {models.FIELD_MATCH_LAST_ACCESS}: @CHECK_TIME,
-                    {models.FIELD_MATCH_USER_PERMS}: {{@USERNAME: @CHECK_TIME}}
+                    {models.FIELD_MATCH_LAST_ACCESS}: @{_FLD_CHECK_TIME},
+                    {models.FIELD_MATCH_USER_PERMS}: {{@USERNAME: @{_FLD_CHECK_TIME}}}
                 }} IN @@{_FLD_COLLECTION}
                 OPTIONS {{exclusive: true}}
                 LET updated = NEW
@@ -394,13 +404,114 @@ class ArangoStorage:
             f"@{_FLD_COLLECTION}": COLL_SRV_MATCHES,
             _FLD_MATCH_ID: match_id,
             "USERNAME": username,
-            "CHECK_TIME": check_time,
+            _FLD_CHECK_TIME: check_time,
             "KEEP_LIST": list(models.Match.__fields__.keys()),
         }
-        # TODO TEST test no match - is it empty cur or something else?
         cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
         # having a count > 1 is impossible since keys are unique
         if cur.empty():
             raise errors.NoSuchMatchError(match_id)
         doc = await cur.next()
-        return models.Match.construct(**doc)
+        return models.Match.construct(**models.remove_non_model_fields(doc, models.Match))
+
+    async def update_match_last_access(self, match_id: str, last_access: int) -> None:
+        """
+        Update the last time the match was accessed.
+        Throws an error if the match doesn't exist.
+
+        match_id - the ID of the match.
+        check_time - the time at which the match was accessed.
+        """
+        aql = f"""
+            FOR d in @@{_FLD_COLLECTION}
+                FILTER d.{FLD_ARANGO_KEY} == @{_FLD_MATCH_ID}
+                UPDATE d WITH {{
+                    {models.FIELD_MATCH_LAST_ACCESS}: @{_FLD_CHECK_TIME}
+                }} IN @@{_FLD_COLLECTION}
+                OPTIONS {{exclusive: true}}
+                LET updated = NEW
+                RETURN KEEP(updated, "{FLD_ARANGO_KEY}")
+            """
+        bind_vars = {
+            f"@{_FLD_COLLECTION}": COLL_SRV_MATCHES,
+            _FLD_MATCH_ID: match_id,
+            _FLD_CHECK_TIME: last_access,
+        }
+        cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
+        # having a count > 1 is impossible since keys are unique
+        if cur.empty():
+            raise errors.NoSuchMatchError(match_id)
+
+    async def _get_match(self, match_id: str):
+        col = self._db.collection(COLL_SRV_MATCHES)
+        doc = await col.get(match_id)
+        if doc is None:
+            raise errors.NoSuchMatchError(match_id)
+        return doc
+
+    async def get_match(self, match_id: str, verbose: bool = False) -> models.MatchVerbose:
+        """
+        Get a match.
+
+        match_id - the ID of the match to get.
+        verbose - include the UPAs and matching IDs, default false. If false, the UPA and matching
+            ID fields are empty.
+        """
+        # could potentially speed things up a bit and reduce bandwidth by using AQL and
+        # KEEP(). Don't bother for now.
+        doc = await self._get_match(match_id)
+        match = models.MatchVerbose.construct(
+            **models.remove_non_model_fields(doc, models.MatchVerbose))
+        if not verbose:
+            match.upas = []
+            match.matches = []
+        return match
+
+
+    async def get_match_full(self, match_id: str) -> models.InternalMatch:
+        """
+        Get the full match associated with the match id.
+        """
+        doc = await self._get_match(match_id)
+        return models.InternalMatch.construct(
+            **models.remove_non_model_fields(doc, models.InternalMatch))
+
+    async def update_match_state(
+        self,
+        match_id: str,
+        match_state: models.MatchState,
+        matches: list[str] = None
+    ) -> None:
+        """
+        Update the state of the match, optionally setting match IDs.
+
+        match_id - the ID of the match to update
+        match_state - the state of the match to set
+        matches - the matches to add to the match
+        """
+        bind_vars = {
+            f"@{_FLD_COLLECTION}": COLL_SRV_MATCHES,
+            _FLD_MATCH_ID: match_id,
+            "match_state": match_state.value,
+        }
+        aql = f"""
+            FOR d in @@{_FLD_COLLECTION}
+                FILTER d.{FLD_ARANGO_KEY} == @{_FLD_MATCH_ID}
+                UPDATE d WITH {{
+                    {models.FIELD_MATCH_STATE}: @match_state,
+            """
+        if matches:
+            aql += f"""
+                    {models.FIELD_MATCH_MATCHES}: @matches,
+            """
+            bind_vars["matches"] = matches
+        aql += f"""
+                }} IN @@{_FLD_COLLECTION}
+                OPTIONS {{exclusive: true}}
+                LET updated = NEW
+                RETURN KEEP(updated, "{FLD_ARANGO_KEY}")
+            """
+        cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
+        # having a count > 1 is impossible since keys are unique
+        if cur.empty():
+            raise errors.NoSuchMatchError(match_id)

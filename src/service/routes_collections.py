@@ -18,18 +18,20 @@ from src.service import data_product_specs
 from src.service import errors
 from src.service import kb_auth
 from src.service import matcher_registry
+from src.service import match_processing
 from src.service import models
 from src.service.clients.workspace_client import Workspace
 from src.service.http_bearer import KBaseHTTPBearer, KBaseUser
 from src.service.matchers.common_models import Matcher
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID, err_on_control_chars
 from src.service.storage_arango import ArangoStorage
-from src.service.timestamp import timestamp
+from src.service.timestamp import timestamp, now_epoch_millis
 from src.service.workspace_wrapper import WorkspaceWrapper
 
 SERVICE_NAME = "Collections Prototype"
 
 ROUTER_GENERAL = APIRouter(tags=["General"])
+ROUTER_MATCHES = APIRouter(tags=["Matches"])
 ROUTER_COLLECTIONS = APIRouter(tags=["Collections"])
 ROUTER_COLLECTIONS_ADMIN = APIRouter(tags=["Collection Administration"])
 
@@ -38,10 +40,6 @@ MAX_UPAS = 10000
 UTF_8 = "utf-8"
 
 _AUTH = KBaseHTTPBearer()
-
-
-def _now_epoch_millis():
-    return int(time.time() * 1000)
 
 
 def _ensure_admin(user: KBaseUser, err_msg: str):
@@ -278,15 +276,6 @@ async def whoami(user: KBaseUser=Depends(_AUTH)):
     }
 
 
-@ROUTER_GENERAL.get(
-    "/matchers/",
-    response_model=MatcherList,
-    description="List all matchers available in the service."
-)
-async def matchers():
-    return {"data": list(matcher_registry.MATCHERS.values())}
-
-
 @ROUTER_COLLECTIONS.get("/collectionids/", response_model = CollectionIDs)
 async def get_collection_ids(r: Request):
     ids = await app_state.get_storage(r).get_collection_ids()
@@ -335,7 +324,7 @@ async def match(
     upas, wsids = _check_and_sort_UPAs_and_get_wsids(match_params.upas)
     ws = app_state.get_workspace(r, user.token)
     match_process = _check_perms_and_setup_match_process(ws, upas, matcher_info)
-    perm_check = _now_epoch_millis()
+    perm_check = now_epoch_millis()
     params = match_params.parameters or {}
     int_match = models.InternalMatch(
         match_id=_calc_match_id_md5(matcher_id, collection_id, coll.ver_num, params, upas),
@@ -353,12 +342,56 @@ async def match(
         user_last_perm_check={user.user.id: perm_check}
     )
     storage = app_state.get_storage(r)
-    curr_match = await storage.save_match(int_match)
-    match_process(curr_match.match_id, storage)  # TODO MATCHERS do this in multiprocessing
+    curr_match, exists = await storage.save_match(int_match)
+    # don't bother checking if the match heartbeat is old here, just do it in the access methods
+    if not exists:
+        match_process.start(curr_match.match_id, app_state.get_pickleable_dependencies(r))
     # TODO MATCHERS add failed state to match status
     # TODO MATCHERS add endpoint to get match details - needs to check WS perms if perm check
     #   not cached
     return curr_match
+
+
+@ROUTER_MATCHES.get(
+    "/matchers/",
+    response_model=MatcherList,
+    summary="Get matchers available in the system",
+    description="List all matchers available in the service.",
+)
+async def matchers():
+    return {"data": list(matcher_registry.MATCHERS.values())}
+
+
+@ROUTER_MATCHES.get(
+    "/matches/{match_id}/",
+    response_model=models.MatchVerbose,
+    summary="Get a match",
+    description="Get the status of a particular match.",
+)
+async def get_match(
+    r: Request,
+    match_id: str = Path(
+        description="The ID of the match"
+    ),
+    verbose: bool = Query(
+        default=False,
+        example=False,
+        description="Whether to return the KBase workspace UPAs and the matching IDs along with "
+            + "the other match information. These data may be much larger than the rest of the "
+            + "match and aren't often needed; in most cases they can be ignored. When false, "
+            + "the UPAs and matching ID lists will be empty."
+    ),
+    user: KBaseUser = Depends(_AUTH),
+) -> models.MatchVerbose:
+    storage = app_state.get_storage(r)
+    ws = app_state.get_workspace(r, user.token)
+    return await match_processing.get_match(
+        match_id,
+        user.user.id,
+        storage,
+        WorkspaceWrapper(ws),
+        verbose=verbose
+    )
 
 
 @ROUTER_COLLECTIONS_ADMIN.put(

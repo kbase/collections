@@ -12,3 +12,4 @@ gtdb_attribs.jsonl
 .dockerignore
 *_pycache__
 gtdb_attribs2.jsonl
+.DS_Store
