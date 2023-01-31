@@ -346,9 +346,6 @@ async def match(
     # don't bother checking if the match heartbeat is old here, just do it in the access methods
     if not exists:
         match_process.start(curr_match.match_id, app_state.get_pickleable_dependencies(r))
-    # TODO MATCHERS add failed state to match status
-    # TODO MATCHERS add endpoint to get match details - needs to check WS perms if perm check
-    #   not cached
     return curr_match
 
 
