@@ -4,9 +4,11 @@ The genome_attribs data product, which provides geneome attributes for a collect
 
 from fastapi import APIRouter, Request, Depends, Query
 from pydantic import BaseModel, Field, Extra
+from src.common.gtdb_lineage import parse_gtdb_lineage_string
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
 from src.service import errors
+from src.service import models
 from src.service.data_products.common_functions import get_load_version, remove_collection_keys
 from src.service.data_products.common_models import (
     DataProductSpec,
@@ -39,6 +41,19 @@ GENOME_ATTRIBS_SPEC = DataProductSpec(
                     # Since this is the default sort option (see below), we specify an index
                     # for fast sorts since every time the user hits the UI for the first time
                     # or without specifying a sort order it'll sort on this field
+                ],
+                [
+                    names.FLD_COLLECTION_ID,
+                    names.FLD_LOAD_VERSION,
+                    names.FLD_GENOME_ATTRIBS_GTDB_LINEAGE,
+                    # for matching on lineage
+                ],
+                [
+                    names.FLD_COLLECTION_ID,
+                    names.FLD_LOAD_VERSION,
+                    names.FLD_GENOME_ATTRIBS_MATCHES,
+                    names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID,
+                    # for finding matches, and optionally a default sort on the genome ID
                 ]
             ]
         )
@@ -233,3 +248,52 @@ async def _count(store: ArangoStorage, collection_id: str, load_ver: str):
     }
     cur = await store.aql().execute(aql, bind_vars=bind_vars)
     return {_FLD_SKIP: 0, _FLD_LIMIT: 0, "count": await cur.next()}
+
+
+async def perform_match(match_id: str, storage: ArangoStorage, lineages: list[str]):
+    # TODO MATCHERS take a rank argument and truncate the lineages to that rank
+    # TODO MATCHERS start a heartbeat that updates a time stamp on the arango match document
+    #   - be sure to stop when match execution is done
+    
+    # Could save some bandwidth here buy adding a method to just get the internal ID
+    # Microoptimization, wait until it's a problem
+    match = await storage.get_match_full(match_id)
+    coll = await storage.get_collection_active(match.collection_id)  # support non-active cols?
+    load_ver = {dp.product: dp for dp in coll.data_products}[ID].version
+    filtered_lineages = []
+    for lin in lineages:
+        # TODO MATCHERS reverse look up the abbreviation from the rank when rank input is done
+        if parse_gtdb_lineage_string(lin, force_complete=False)[-1].abbreviation == "s":
+            filtered_lineages.append(lin)
+    # TODO MATCHERS for non full lineages, use STARTS_WITH for the match. check that
+    #   uses an index, if not, may need another solution. Don't use a regex based solution
+    #   since lineages aren't necessarily coming from us. Probably need to batch it up as
+    #   there's one OR query per lineage
+
+    # may need to batch this if lineages is too big
+    # retries?
+    mtch = names.FLD_GENOME_ATTRIBS_MATCHES
+    aql = f"""
+        FOR d IN @@{_FLD_COL_NAME}
+            FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
+            FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
+            FILTER d.{names.FLD_GENOME_ATTRIBS_GTDB_LINEAGE} IN @lineages
+            UPDATE d WITH {{
+                {mtch}: APPEND(d.{mtch}, [@internal_match_id], true)
+            }} IN @@{_FLD_COL_NAME}
+            OPTIONS {{exclusive: true}}
+            LET updated = NEW
+            RETURN KEEP(updated, "{names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID}")
+        """
+    bind_vars = {
+        f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
+        _FLD_COL_ID: coll.id,
+        _FLD_COL_LV: load_ver,
+        "lineages": filtered_lineages,
+        "internal_match_id": match.internal_match_id,
+    }
+    cur = await storage.aql().execute(aql, bind_vars=bind_vars)
+    genome_ids = []
+    async for d in cur:
+        genome_ids.append(d[names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID])
+    await storage.update_match_state(match_id, models.MatchState.COMPLETE, genome_ids)
