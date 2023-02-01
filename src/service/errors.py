@@ -52,10 +52,16 @@ class ErrorType(Enum):
     NO_SUCH_MATCHER =            (30050, "No such matcher")  # noqa: E222 @IgnorePep8
     """ There is no such matcher available in the service. """
 
-    MISSING_LINEAGE_ERROR =      (30060, "Missing lineage error")  # noqa: E222 @IgnorePep8
+    INVALID_MATCH_STATE =        (30060, "Invalid match state")  # noqa: E222 @IgnorePep8
+    """ 
+    The match state is invalid for the context - e.g. it's not complete, the user
+    is trying to use the match in the wrong collection or collection version, etc.
+    """
+
+    MISSING_LINEAGE_ERROR =      (30070, "Missing lineage error")  # noqa: E222 @IgnorePep8
     """ Data in a external data source is missing required lineage information. """
 
-    LINEAGE_VERSION_ERROR =      (30070, "Lineage version error")  # noqa: E222 @IgnorePep8
+    LINEAGE_VERSION_ERROR =      (30080, "Lineage version error")  # noqa: E222 @IgnorePep8
     """ Data in a external data source does not match the lineage version for the collection. """
     
     NO_DATA_FOUND =              (40000, "Requested data not found")  # noqa: E222 @IgnorePep8
@@ -202,6 +208,15 @@ class NoSuchMatcher(CollectionError):
 
     def __init__(self, message: str = None):
         super().__init__(ErrorType.NO_SUCH_MATCHER, message)
+
+
+class InvalidMatchState(CollectionError):
+    """
+    An error thrown when the state of a match is invalid..
+    """
+
+    def __init__(self, message: str = None):
+        super().__init__(ErrorType.INVALID_MATCH_STATE, message)
 
 
 class MissingLineageError(CollectionError):

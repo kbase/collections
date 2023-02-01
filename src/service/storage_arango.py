@@ -447,6 +447,7 @@ class ArangoStorage:
         doc = await col.get(match_id)
         if doc is None:
             raise errors.NoSuchMatchError(match_id)
+        doc[models.FIELD_MATCH_STATE] = models.MatchState(doc[models.FIELD_MATCH_STATE])
         return doc
 
     async def get_match(self, match_id: str, verbose: bool = False) -> models.MatchVerbose:

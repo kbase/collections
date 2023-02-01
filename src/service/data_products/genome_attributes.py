@@ -8,8 +8,13 @@ from src.common.gtdb_lineage import parse_gtdb_lineage_string
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
 from src.service import errors
+from src.service import match_processing
 from src.service import models
-from src.service.data_products.common_functions import get_load_version, remove_collection_keys
+from src.service.data_products.common_functions import (
+    get_load_version,
+    get_load_ver_from_collection,
+    remove_collection_keys
+)
 from src.service.data_products.common_models import (
     DataProductSpec,
     DBCollection,
@@ -18,6 +23,7 @@ from src.service.data_products.common_models import (
 from src.service.http_bearer import KBaseHTTPBearer, KBaseUser
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
+from src.service.workspace_wrapper import WorkspaceWrapper
 from typing import Any
 
 # Implementation note - we know FLD_GENOME_ATTRIBS_KBASE_GENOME_ID is unique per collection id /
@@ -51,7 +57,8 @@ GENOME_ATTRIBS_SPEC = DataProductSpec(
                 [
                     names.FLD_COLLECTION_ID,
                     names.FLD_LOAD_VERSION,
-                    names.FLD_GENOME_ATTRIBS_MATCHES,
+                    # https://www.arangodb.com/docs/stable/indexing-index-basics.html#indexing-array-values
+                    names.FLD_GENOME_ATTRIBS_MATCHES + "[*]",
                     names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID,
                     # for finding matches, and optionally a default sort on the genome ID
                 ]
@@ -160,6 +167,11 @@ async def get_genome_attributes(
         description="Whether to return the number of records that match the query rather than "
             + "the records themselves"
     ),
+    match_id: str | None = Query(
+        default = None,
+        description="A match ID to set the view to the match rather than "
+            + "the entire collection. Note that if a match ID is set, any load version override "
+            + "is ignored."),  # matches are against a specific load version, so...
     load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
     user: KBaseUser = Depends(_OPT_AUTH)
 ):
@@ -167,12 +179,38 @@ async def get_genome_attributes(
     # we have a max limit of 1000, which means sorting is O(n log2 1000).
     # Otherwise we need indexes for every sort
     store = app_state.get_storage(r)
-    load_ver = await get_load_version(store, collection_id, ID, load_ver_override, user)
+    internal_match_id = None
+    if match_id:
+        if not user:
+            raise errors.UnauthorizedError("Authentication is required if a match ID is supplied")
+        coll = await store.get_collection_active(collection_id)
+        load_ver = get_load_ver_from_collection(coll, ID)
+        ws = app_state.get_workspace(r, user.token)
+        match = await match_processing.get_match_full(
+            match_id,
+            user.user.id,
+            store,
+            WorkspaceWrapper(ws),
+            require_complete=True,
+            require_collection=coll
+        )
+        internal_match_id = match.internal_match_id
+    else:
+        load_ver = await get_load_version(store, collection_id, ID, load_ver_override, user)
     if count:
-        return await _count(store, collection_id, load_ver)
+        return await _count(store, collection_id, load_ver, internal_match_id)
     else:
         return await _query(
-            store, collection_id, load_ver, sort_on, sort_desc, skip, limit, output_table) 
+            store,
+            collection_id,
+            load_ver,
+            sort_on,
+            sort_desc,
+            skip,
+            limit,
+            output_table,
+            internal_match_id,
+        ) 
 
 
 async def _query(
@@ -185,15 +223,8 @@ async def _query(
     skip: int,
     limit: int,
     output_table: bool,
+    internal_match_id: str | None,
 ):
-    aql = f"""
-    FOR d IN @@{_FLD_COL_NAME}
-        FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
-        FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
-        SORT d.@{_FLD_SORT} @{_FLD_SORT_DIR}
-        LIMIT @{_FLD_SKIP}, @{_FLD_LIMIT}
-        RETURN d
-    """
     bind_vars = {
         f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
         _FLD_COL_ID: collection_id,
@@ -203,6 +234,21 @@ async def _query(
         _FLD_SKIP: skip,
         _FLD_LIMIT: limit
     }
+    aql = f"""
+    FOR d IN @@{_FLD_COL_NAME}
+        FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
+        FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
+    """
+    if internal_match_id:
+        bind_vars["internal_match_id"] = internal_match_id
+        aql += f"""
+            FILTER @internal_match_id IN d.{names.FLD_GENOME_ATTRIBS_MATCHES}
+        """
+    aql += f"""
+        SORT d.@{_FLD_SORT} @{_FLD_SORT_DIR}
+        LIMIT @{_FLD_SKIP}, @{_FLD_LIMIT}
+        RETURN d
+    """
     # could get the doc count, but that'll be slower since all docs have to be counted vs. just
     # getting LIMIT docs. YAGNI for now
     cur = await store.aql().execute(aql, bind_vars=bind_vars)
@@ -229,23 +275,35 @@ async def _query(
         return {_FLD_SKIP: skip, _FLD_LIMIT: limit, "data": data}
 
 
-async def _count(store: ArangoStorage, collection_id: str, load_ver: str):
-    # for now this method doesn't do much. One we have some matching and filtering implemented
+async def _count(
+    store: ArangoStorage,
+    collection_id: str,
+    load_ver: str,
+    internal_match_id: str | None
+):
+    # for now this method doesn't do much. One we have some filtering implemented
     # it'll need to take that into account.
 
-    aql = f"""
-    FOR d IN @@{_FLD_COL_NAME}
-        FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
-        FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
-        COLLECT WITH COUNT INTO length
-        RETURN length
-    """
     bind_vars = {
         # will be different if matches are stored in a different collection
         f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
         _FLD_COL_ID: collection_id,
         _FLD_COL_LV: load_ver,
     }
+    aql = f"""
+    FOR d IN @@{_FLD_COL_NAME}
+        FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
+        FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
+    """
+    if internal_match_id:
+        bind_vars["internal_match_id"] = internal_match_id
+        aql += f"""
+            FILTER @internal_match_id IN d.{names.FLD_GENOME_ATTRIBS_MATCHES}
+        """
+    aql += f"""
+        COLLECT WITH COUNT INTO length
+        RETURN length
+    """
     cur = await store.aql().execute(aql, bind_vars=bind_vars)
     return {_FLD_SKIP: 0, _FLD_LIMIT: 0, "count": await cur.next()}
 
