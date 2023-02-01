@@ -23,6 +23,7 @@ from src.service.data_products.common_models import (
 from src.service.http_bearer import KBaseHTTPBearer, KBaseUser
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
+from src.service.timestamp import now_epoch_millis
 from src.service.workspace_wrapper import WorkspaceWrapper
 from typing import Any
 
@@ -318,11 +319,11 @@ async def perform_match(match_id: str, storage: ArangoStorage, lineages: list[st
     match = await storage.get_match_full(match_id)
     coll = await storage.get_collection_active(match.collection_id)  # support non-active cols?
     load_ver = {dp.product: dp for dp in coll.data_products}[ID].version
-    filtered_lineages = []
+    filtered_lineages = set()  # remove duplicates
     for lin in lineages:
         # TODO MATCHERS reverse look up the abbreviation from the rank when rank input is done
         if parse_gtdb_lineage_string(lin, force_complete=False)[-1].abbreviation == "s":
-            filtered_lineages.append(lin)
+            filtered_lineages.add(lin)
     # TODO MATCHERS for non full lineages, use STARTS_WITH for the match. check that
     #   uses an index, if not, may need another solution. Don't use a regex based solution
     #   since lineages aren't necessarily coming from us. Probably need to batch it up as
@@ -347,11 +348,13 @@ async def perform_match(match_id: str, storage: ArangoStorage, lineages: list[st
         f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
         _FLD_COL_ID: coll.id,
         _FLD_COL_LV: load_ver,
-        "lineages": filtered_lineages,
+        "lineages": list(filtered_lineages),
         "internal_match_id": match.internal_match_id,
     }
     cur = await storage.aql().execute(aql, bind_vars=bind_vars)
     genome_ids = []
     async for d in cur:
         genome_ids.append(d[names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID])
-    await storage.update_match_state(match_id, models.MatchState.COMPLETE, genome_ids)
+    await storage.update_match_state(
+        match_id, models.MatchState.COMPLETE, now_epoch_millis(), genome_ids
+    )

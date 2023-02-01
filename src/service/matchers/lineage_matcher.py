@@ -16,6 +16,7 @@ from src.service.match_processing import MatchProcess
 from src.service.data_products import genome_attributes
 from src.service.matchers.common_models import Matcher
 from src.service.storage_arango import ArangoStorage
+from src.service.timestamp import now_epoch_millis
 
 
 # See the workspace specs for the types listed in the matcher
@@ -36,14 +37,18 @@ class GTDBLineageMatcherCollectionParameters(BaseModel):
     )
 
 
-async def _process_match_async(match_id: str, pstorage: PickleableDependencies, args: list[list[str]]):
+async def _process_match_async(
+    match_id: str,
+    pstorage: PickleableDependencies,
+    args: list[list[str]]
+):
     lineages = args[0]
     arangoclient, storage = await pstorage.get_storage()
     try:
         await genome_attributes.perform_match(match_id, storage, lineages)
     except Exception as e:
         logging.getLogger(__name__).exception(f"Matching process for match {match_id} failed")
-        await storage.update_match_state(match_id, models.MatchState.FAILED)
+        await storage.update_match_state(match_id, models.MatchState.FAILED, now_epoch_millis())
     finally:
         await arangoclient.close()
 

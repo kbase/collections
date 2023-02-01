@@ -333,6 +333,7 @@ async def match(
         collection_ver=coll.ver_num,
         user_parameters=params,
         match_state=models.MatchState.PROCESSING,
+        match_state_updated=perm_check,
         upas=upas,
         matches=[],
         internal_match_id=str(uuid.uuid4()),
