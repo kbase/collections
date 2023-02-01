@@ -4,6 +4,7 @@ Functions common to all data products
 
 import src.common.storage.collection_and_field_names as names
 from src.service import errors
+from src.service import models
 from src.service import kb_auth
 from src.service.storage_arango import ArangoStorage
 from src.service.http_bearer import KBaseUser
@@ -16,7 +17,7 @@ async def get_load_version(
     data_product: str,
     load_ver: str,
     user: KBaseUser,
-):
+) -> str:
     """
     Get the load version of a data product given a Collection ID and the ID of the data product,
     optionally allowing an override of the load versionn if the user is a service administrator.
@@ -39,11 +40,18 @@ async def get_load_version(
                 "To override the load version a user must be a system administrator")
         return load_ver
     ac = await store.get_collection_active(collection_id)
-    for dp in ac.data_products:
+    return get_load_ver_from_collection(ac, data_product)
+
+
+def get_load_ver_from_collection(collection: models.SavedCollection, data_product: str) -> str:
+    """
+    Get the load version of a data product given a collection and the ID of the data product.
+    """
+    for dp in collection.data_products:
         if dp.product == data_product:
             return dp.version
     raise errors.NoRegisteredDataProduct(
-        f"The {ac.id} collection does not have a {data_product} data product registered.")
+        f"The {collection.id} collection does not have a {data_product} data product registered.")
 
 
 def remove_collection_keys(doc: dict):
