@@ -16,7 +16,7 @@ jinja-cli = "==1.2.2"
 pandas = "==1.5.2"
 aioarango = "==1.0.0"
 ftputil = "==5.0.4"
-beautifulsoup4 = "==4.11.1"
+beautifulsoup4 = "==4.11.2"
 gtdbtk = "2.1.1"
 jsonschema = "==4.17.3"
 
