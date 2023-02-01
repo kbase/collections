@@ -49,8 +49,7 @@ GENOME_TAXA_COUNT_FILE = "parsed_genome_taxa_counts.json"
 # genome_attributes - genome attributes file created by running 'parse_computed_genome_attribs.py' script.
 VALID_SOURCE = ['GTDB', 'genome_attributes']
 
-# taxonomy attribute name from computed genome attributes
-TAXA_ATTRI_NAME = 'classification'
+
 
 
 def _parse_lineage_from_line(line, source):
@@ -63,9 +62,9 @@ def _parse_lineage_from_line(line, source):
         # line from genome attributes file created by running 'parse_computed_genome_attribs.py' script
         data = json.loads(line)
 
-        if TAXA_ATTRI_NAME not in data:
-            raise ValueError(f'Missing {TAXA_ATTRI_NAME} attribute from genome attributes file')
-        lineage_str = data[TAXA_ATTRI_NAME]
+        if names.FLD_GENOME_ATTRIBS_GTDB_LINEAGE not in data:
+            raise ValueError(f'Missing {names.FLD_GENOME_ATTRIBS_GTDB_LINEAGE} attribute from genome attributes file')
+        lineage_str = data[names.FLD_GENOME_ATTRIBS_GTDB_LINEAGE]
     else:
         raise ValueError(f'Unsupported input file source: {source}')
 

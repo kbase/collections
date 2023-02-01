@@ -90,6 +90,7 @@ def _create_doc(row, kbase_collection, load_version, genome_id, features, prefix
     else:
         doc.update(row.rename(lambda x: prefix + '_' + x if prefix else x).to_dict())
 
+
     return doc
 
 
