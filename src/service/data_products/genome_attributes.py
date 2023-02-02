@@ -259,11 +259,14 @@ async def _query(
     # and we order by that
     data = []
     d = None
-    async for d in cur:
-        if output_table:
-            data.append([d[k] for k in sorted(_remove_keys(d))])
-        else:
-            data.append({k: d[k] for k in sorted(_remove_keys(d))})
+    try:
+        async for d in cur:
+            if output_table:
+                data.append([d[k] for k in sorted(_remove_keys(d))])
+            else:
+                data.append({k: d[k] for k in sorted(_remove_keys(d))})
+    finally:
+        await cur.close(ignore_missing=True)
     fields = []
     if d:
         if sort_on not in d: 
@@ -306,7 +309,10 @@ async def _count(
         RETURN length
     """
     cur = await store.aql().execute(aql, bind_vars=bind_vars)
-    return {_FLD_SKIP: 0, _FLD_LIMIT: 0, "count": await cur.next()}
+    try:
+        return {_FLD_SKIP: 0, _FLD_LIMIT: 0, "count": await cur.next()}
+    finally:
+        await cur.close(ignore_missing=True)
 
 
 async def perform_match(match_id: str, storage: ArangoStorage, lineages: list[str]):
@@ -353,8 +359,11 @@ async def perform_match(match_id: str, storage: ArangoStorage, lineages: list[st
     }
     cur = await storage.aql().execute(aql, bind_vars=bind_vars)
     genome_ids = []
-    async for d in cur:
-        genome_ids.append(d[names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID])
+    try:
+        async for d in cur:
+            genome_ids.append(d[names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID])
+    finally:
+        await cur.close(ignore_missing=True)
     await storage.update_match_state(
         match_id, models.MatchState.COMPLETE, now_epoch_millis(), genome_ids
     )

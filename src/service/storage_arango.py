@@ -184,7 +184,10 @@ class ArangoStorage:
                 RETURN NEW
         """
         cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
-        verdoc = await cur.next()
+        try:
+            verdoc = await cur.next()
+        finally:
+            await cur.close(ignore_missing=True)
         return verdoc[_FLD_COUNTER]
 
     async def get_current_version(self, collection_id: str) -> int:
@@ -241,7 +244,10 @@ class ArangoStorage:
                 RETURN d.{FLD_ARANGO_KEY}
             """
         cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
-        return [d async for d in cur]
+        try:
+            return [d async for d in cur]
+        finally:
+            await cur.close(ignore_missing=True)
 
     async def get_collections_active(self) -> list[models.ActiveCollection]:
         # Will probably want alternate sorts in the future, will need indexes etc.
@@ -252,7 +258,10 @@ class ArangoStorage:
                 RETURN d
             """
         cur = await self._db.aql.execute(aql, bind_vars={f"@{_FLD_COLLECTION}": COLL_SRV_ACTIVE})
-        return [_doc_to_active_coll(d) async for d in cur]
+        try:
+            return [_doc_to_active_coll(d) async for d in cur]
+        finally:
+            await cur.close(ignore_missing=True)
 
     async def get_collection_active(self, collection_id: str) -> models.ActiveCollection:
         """ Get an active collection. """
@@ -289,14 +298,17 @@ class ArangoStorage:
             models.FIELD_COLLECTION_ID: collection_id,
             models.FIELD_VER_NUM: ver_num
         })
-        if cur.count() > 1:
-            raise ValueError(
-                f"Found more than 1 document in the db for collection {collection_id} "
-                + f"and version number {ver_num}")
-        if cur.count() < 1:
-            raise errors.NoSuchCollectionVersionError(
-                f"No collection {collection_id} with version number {ver_num}")
-        doc = await cur.next()
+        try:
+            if cur.count() > 1:
+                raise ValueError(
+                    f"Found more than 1 document in the db for collection {collection_id} "
+                    + f"and version number {ver_num}")
+            if cur.count() < 1:
+                raise errors.NoSuchCollectionVersionError(
+                    f"No collection {collection_id} with version number {ver_num}")
+            doc = await cur.next()
+        finally:
+            await cur.close(ignore_missing=True)
         return _doc_to_saved_coll(doc)
     
     async def get_collection_versions(
@@ -335,7 +347,10 @@ class ArangoStorage:
                     RETURN d
                 """
         cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
-        return [_doc_to_saved_coll(d) async for d in cur]
+        try:
+            return [_doc_to_saved_coll(d) async for d in cur]
+        finally:
+            await cur.close(ignore_missing=True)
 
     async def save_match(self, match: models.InternalMatch) -> tuple[models.Match, bool]:
         """
@@ -409,9 +424,12 @@ class ArangoStorage:
         }
         cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
         # having a count > 1 is impossible since keys are unique
-        if cur.empty():
-            raise errors.NoSuchMatchError(match_id)
-        doc = await cur.next()
+        try:
+            if cur.empty():
+                raise errors.NoSuchMatchError(match_id)
+            doc = await cur.next()
+        finally:
+            await cur.close(ignore_missing=True)
         return models.Match.construct(**models.remove_non_model_fields(doc, models.Match))
 
     async def update_match_last_access(self, match_id: str, last_access: int) -> None:
@@ -439,8 +457,11 @@ class ArangoStorage:
         }
         cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
         # having a count > 1 is impossible since keys are unique
-        if cur.empty():
-            raise errors.NoSuchMatchError(match_id)
+        try:
+            if cur.empty():
+                raise errors.NoSuchMatchError(match_id)
+        finally:
+            await cur.close(ignore_missing=True)
 
     async def _get_match(self, match_id: str):
         col = self._db.collection(COLL_SRV_MATCHES)
@@ -518,5 +539,8 @@ class ArangoStorage:
             """
         cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
         # having a count > 1 is impossible since keys are unique
-        if cur.empty():
-            raise errors.NoSuchMatchError(match_id)
+        try:
+            if cur.empty():
+                raise errors.NoSuchMatchError(match_id)
+        finally:
+            await cur.close(ignore_missing=True)
