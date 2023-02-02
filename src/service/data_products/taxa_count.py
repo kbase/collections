@@ -125,13 +125,16 @@ async def get_ranks_from_db(
         _FLD_KEY: ranks_key(collection_id, load_ver)
     }
     cur = await store.aql().execute(aql, bind_vars=bind_vars, count=True)
-    if cur.count() < 1:
-        err = f"No data loaded for {collection_id} collection load version {load_ver}"
-        if load_ver_overridden:
-            raise errors.NoDataFoundError(err)
-        raise ValueError(err)
-    # since we're getting a doc by _key > 1 is impossible
-    doc = await cur.next()
+    try:
+        if cur.count() < 1:
+            err = f"No data loaded for {collection_id} collection load version {load_ver}"
+            if load_ver_overridden:
+                raise errors.NoDataFoundError(err)
+            raise ValueError(err)
+        # since we're getting a doc by _key > 1 is impossible
+        doc = await cur.next()
+    finally:
+        await cur.close(ignore_missing=True)
     return Ranks(data=doc[names.FLD_TAXA_COUNT_RANKS])
 
 
@@ -177,7 +180,10 @@ async def get_taxa_counts(
     # getting LIMIT docs. YAGNI for now
     cur = await store.aql().execute(aql, bind_vars=bind_vars)
     ret = []
-    async for d in cur:
-        # not clear there's any benefit to creating a bunch of TaxaCount objects here
-        ret.append(_remove_counts_keys(remove_arango_keys(d)))
+    try:
+        async for d in cur:
+            # not clear there's any benefit to creating a bunch of TaxaCount objects here
+            ret.append(_remove_counts_keys(remove_arango_keys(d)))
+    finally:
+        await cur.close(ignore_missing=True)
     return {"data": ret}
