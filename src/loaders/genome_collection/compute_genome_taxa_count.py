@@ -6,10 +6,10 @@ from collections import defaultdict
 import src.common.storage.collection_and_field_names as names
 import src.loaders.common.loader_common_names as loader_common_names
 from src.common.gtdb_lineage import (
-    parse_gtdb_lineage_string,
     GTDB_RANK_ABBREV_TO_FULL_NAME,
+    GTDBTaxaCount
 )
-from src.common.hash import md5_string
+from src.common.storage.db_doc_conversions import taxa_node_count_to_doc
 from src.loaders.common.loader_helper import convert_to_json
 from src.service.data_products import taxa_count
 
@@ -72,33 +72,21 @@ def _parse_lineage_from_line(line, source):
 
 
 def _parse_files(load_files, source):
-    nodes = defaultdict(lambda: defaultdict(int))
+    nodes = GTDBTaxaCount()
     for load_file in load_files:
         for line in load_file:
             lineage_str = _parse_lineage_from_line(line, source)
-            lineage = parse_gtdb_lineage_string(lineage_str)
-            for lin in lineage:
-                nodes[GTDB_RANK_ABBREV_TO_FULL_NAME[lin.abbreviation]][lin.name] += 1
+            nodes.add(lineage_str)
     return nodes
 
 
 def _create_count_docs(nodes, kbase_collection, load_version):
     count_docs, identical_ranks = list(), set()
-    for rank in nodes:
-        for name in nodes[rank]:
-            doc = {
-                names.FLD_ARANGO_KEY: md5_string(
-                    f"{kbase_collection}_{load_version}_{rank}_{name}"
-                ),
-                names.FLD_COLLECTION_ID: kbase_collection,
-                names.FLD_LOAD_VERSION: load_version,
-                names.FLD_TAXA_COUNT_RANK: rank,
-                names.FLD_TAXA_COUNT_NAME: name,
-                names.FLD_TAXA_COUNT_COUNT: nodes[rank][name]
-            }
-            count_docs.append(doc)
+    for node in nodes:
+        doc = taxa_node_count_to_doc(kbase_collection, load_version, node)
+        count_docs.append(doc)
 
-        identical_ranks.add(rank)
+        identical_ranks.add(GTDB_RANK_ABBREV_TO_FULL_NAME[node.rank])
 
     return count_docs, identical_ranks
 
