@@ -25,7 +25,7 @@ from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
 from src.service.timestamp import now_epoch_millis
 from src.service.workspace_wrapper import WorkspaceWrapper
-from typing import Any
+from typing import Any, Callable
 
 # Implementation note - we know FLD_GENOME_ATTRIBS_KBASE_GENOME_ID is unique per collection id /
 # load version combination since the loader uses those 3 fields as the arango _key
@@ -289,7 +289,6 @@ async def _count(
     # it'll need to take that into account.
 
     bind_vars = {
-        # will be different if matches are stored in a different collection
         f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
         _FLD_COL_ID: collection_id,
         _FLD_COL_LV: load_ver,
@@ -367,3 +366,44 @@ async def perform_match(match_id: str, storage: ArangoStorage, lineages: list[st
     await storage.update_match_state(
         match_id, models.MatchState.COMPLETE, now_epoch_millis(), genome_ids
     )
+
+
+async def process_match_documents(
+    storage: ArangoStorage,
+    collection_id: str,
+    load_version: str,
+    internal_match_id: str,
+    acceptor: Callable[[dict[str, Any]], None],
+    fields: list[str] | None = None,
+) -> None:
+    """
+    Iterate through the documents for a match, passing them to an acceptor fuction for processing.
+
+    storage - the storage system containing the data.
+    collection_id - the ID of the collection the match is against.
+    load_version - the load version of the data in the match.
+    internal_match_id = the internal match ID to use to find matched documents.
+    acceptor - the function that will accept the documents.
+    fields - which fields are required from the database documents. Fewer fields means less
+        bandwidth consumed.
+    """
+    bind_vars = {
+        f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
+        _FLD_COL_ID: collection_id,
+        _FLD_COL_LV: load_version,
+        "internal_match_id": internal_match_id,
+        "keep": fields,
+    }
+    aql = f"""
+    FOR d IN @@{_FLD_COL_NAME}
+        FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
+        FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
+        FILTER @internal_match_id IN d.{names.FLD_GENOME_ATTRIBS_MATCHES}
+        RETURN KEEP(d, @keep)
+    """
+    cur = await storage.aql().execute(aql, bind_vars=bind_vars)
+    try:
+        async for d in cur:
+            acceptor(d)
+    finally:
+        await cur.close(ignore_missing=True)
