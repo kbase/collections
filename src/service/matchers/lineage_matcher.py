@@ -37,6 +37,10 @@ class GTDBLineageMatcherCollectionParameters(BaseModel):
     )
 
 
+def _process_match(match_id: str, pstorage: PickleableDependencies, args: list[list[str]]):
+    asyncio.run(_process_match_async(match_id, pstorage, args))
+
+
 async def _process_match_async(
     match_id: str,
     pstorage: PickleableDependencies,
@@ -51,10 +55,6 @@ async def _process_match_async(
         await storage.update_match_state(match_id, models.MatchState.FAILED, now_epoch_millis())
     finally:
         await arangoclient.close()
-
-
-def _process_match(match_id: str, pstorage: PickleableDependencies, args: list[list[str]]):
-    asyncio.run(_process_match_async(match_id, pstorage, args))
 
 
 class GTDBLineageMatcher(Matcher):
