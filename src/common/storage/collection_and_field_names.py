@@ -23,6 +23,9 @@ FLD_COLLECTION_ID = "coll"
 FLD_LOAD_VERSION = "load_ver"
 """ The name of the key that has a load version as its value. """
 
+FLD_MATCH_ID = "match_id"
+""" The name of the key that has a match ID as its value. """
+
 # Collections
 
 COLLECTION_PREFIX = "kbcoll_"
