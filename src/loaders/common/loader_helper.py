@@ -72,6 +72,7 @@ def init_genome_atrri_doc(kbase_collection, load_version, genome_id):
         names.FLD_ARANGO_KEY: md5_string(f"{kbase_collection}_{load_version}_{genome_id}"),
         names.FLD_COLLECTION_ID: kbase_collection,
         names.FLD_LOAD_VERSION: load_version,
+        names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID: genome_id,  # Begin with the input genome_id, though it may be altered by the calling script.
         names.FLD_GENOME_ATTRIBS_MATCHES: []  # for saving matches
     }
 
