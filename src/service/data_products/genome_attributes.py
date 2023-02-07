@@ -395,15 +395,23 @@ async def process_match_documents(
         _FLD_COL_ID: collection.id,
         _FLD_COL_LV: load_ver,
         "internal_match_id": internal_match_id,
-        "keep": fields,
     }
     aql = f"""
     FOR d IN @@{_FLD_COL_NAME}
         FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
         FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
         FILTER @internal_match_id IN d.{names.FLD_GENOME_ATTRIBS_MATCHES}
-        RETURN KEEP(d, @keep)
-    """
+        """
+    if fields:
+        aql += """
+            RETURN KEEP(d, @keep)
+        """
+        bind_vars["keep"] = fields
+    else:    
+        aql += """
+            RETURN d
+        """
+
     cur = await storage.aql().execute(aql, bind_vars=bind_vars)
     try:
         async for d in cur:

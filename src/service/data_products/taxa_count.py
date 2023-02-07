@@ -353,4 +353,3 @@ async def _process_match(match_id: str, pstorage: app_state.PickleableDependenci
             # otherwise not much to do, something went very wrong
     finally:
         await arangoclient.close()
-
