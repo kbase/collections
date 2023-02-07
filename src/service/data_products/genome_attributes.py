@@ -322,8 +322,9 @@ async def perform_match(match_id: str, storage: ArangoStorage, lineages: list[st
     # Could save some bandwidth here buy adding a method to just get the internal ID
     # Microoptimization, wait until it's a problem
     match = await storage.get_match_full(match_id)
-    coll = await storage.get_collection_active(match.collection_id)  # support non-active cols?
-    load_ver = {dp.product: dp for dp in coll.data_products}[ID].version
+    # use version number to avoid race conditions with activating collections
+    coll = await storage.get_collection_version_by_num(match.collection_id, match.collection_ver)
+    load_ver = {dp.product: dp.version for dp in coll.data_products}[ID]
     filtered_lineages = set()  # remove duplicates
     for lin in lineages:
         # TODO MATCHERS reverse look up the abbreviation from the rank when rank input is done
@@ -370,8 +371,7 @@ async def perform_match(match_id: str, storage: ArangoStorage, lineages: list[st
 
 async def process_match_documents(
     storage: ArangoStorage,
-    collection_id: str,
-    load_version: str,
+    collection: models.SavedCollection,
     internal_match_id: str,
     acceptor: Callable[[dict[str, Any]], None],
     fields: list[str] | None = None,
@@ -387,20 +387,31 @@ async def process_match_documents(
     fields - which fields are required from the database documents. Fewer fields means less
         bandwidth consumed.
     """
+    load_ver = {d.product: d.version for d in collection.data_products}.get(ID)
+    if not load_ver:
+        raise ValueError(f"The collection does not have a {ID} data product")
     bind_vars = {
         f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
-        _FLD_COL_ID: collection_id,
-        _FLD_COL_LV: load_version,
+        _FLD_COL_ID: collection.id,
+        _FLD_COL_LV: load_ver,
         "internal_match_id": internal_match_id,
-        "keep": fields,
     }
     aql = f"""
     FOR d IN @@{_FLD_COL_NAME}
         FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
         FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
         FILTER @internal_match_id IN d.{names.FLD_GENOME_ATTRIBS_MATCHES}
-        RETURN KEEP(d, @keep)
-    """
+        """
+    if fields:
+        aql += """
+            RETURN KEEP(d, @keep)
+        """
+        bind_vars["keep"] = fields
+    else:    
+        aql += """
+            RETURN d
+        """
+
     cur = await storage.aql().execute(aql, bind_vars=bind_vars)
     try:
         async for d in cur:
