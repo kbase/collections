@@ -2,6 +2,16 @@
 A storage system for collections based on an Arango backend.
 """
 
+### Notes ###
+# 1:
+# So it turns out that upsert is non-atomic, sigh
+# https://www.arangodb.com/docs/stable/aql/examples-upsert-repsert.html#upsert-is-non-atomic
+# As such, all the code needed to make an upsert work properly with bind variables
+# and large documents here seems like a waste of time.
+# Seems easier to just try to insert, and if that fails, update & get the current doc
+#
+#
+
 from aioarango.aql import AQL
 from aioarango.database import StandardDatabase
 from aioarango.exceptions import CollectionCreateError, DocumentInsertError
@@ -16,6 +26,7 @@ from src.common.storage.collection_and_field_names import (
     COLL_SRV_COUNTERS,
     COLL_SRV_VERSIONS,
     COLL_SRV_MATCHES,
+    COLL_SRV_MATCHES_DATA_PRODUCTS,
 )
 from src.service import models
 from src.service import errors
@@ -36,7 +47,13 @@ _ARANGO_SPECIAL_KEYS = [FLD_ARANGO_KEY, FLD_ARANGO_ID, "_rev"]
 ARANGO_ERR_NAME_EXISTS = 1207
 _ARANGO_ERR_UNIQUE_CONSTRAINT = 1210
 
-_COLLECTIONS = [COLL_SRV_ACTIVE, COLL_SRV_COUNTERS, COLL_SRV_VERSIONS, COLL_SRV_MATCHES]
+_COLLECTIONS = [
+    COLL_SRV_ACTIVE,
+    COLL_SRV_COUNTERS,
+    COLL_SRV_VERSIONS,
+    COLL_SRV_MATCHES,
+    COLL_SRV_MATCHES_DATA_PRODUCTS
+]
 _BUILTIN = "builtin"
 
 # TODO SCHEMA may want a schema checker at some point... YAGNI for now. See sample service
@@ -366,11 +383,7 @@ class ArangoStorage:
             raise ValueError(f"There must be exactly one user in {models.FIELD_MATCH_USER_PERMS}")
         doc = jsonable_encoder(match)
         doc[FLD_ARANGO_KEY] = match.match_id
-        # So it turns out that upsert is non-atomic, sigh
-        # https://www.arangodb.com/docs/stable/aql/examples-upsert-repsert.html#upsert-is-non-atomic
-        # As such, all the code needed to make an upsert work properly with bind variables
-        # and large documents here seems like a waste of time.
-        # Seems easier to just try to insert, and if that fails, update & get the current doc
+        # See Note 1 at the beginning of the file
         col = self._db.collection(COLL_SRV_MATCHES)
         try:
             await col.insert(doc)
@@ -544,3 +557,88 @@ class ArangoStorage:
                 raise errors.NoSuchMatchError(match_id)
         finally:
             await cur.close(ignore_missing=True)
+
+    def _data_product_match_key(self, internal_match_id: str, data_product: str) -> str:
+        return f"{internal_match_id}_{data_product}"
+
+    async def create_or_get_data_product_match(self, dp_match: models.DataProductMatchProcess
+    ) -> tuple[models.DataProductMatchProcess, bool]:
+        """
+        Save the data product match process to the database if it doesn't already exist, or
+        get the current match if it does.
+
+        Returns a tuple of the match as it currently exists in the database and a boolean
+        indicating whether it was created or already existed.
+        """
+        key = self._data_product_match_key(dp_match.internal_match_id, dp_match.data_product)
+        doc = dp_match.dict()
+        doc[FLD_ARANGO_KEY] = key
+        # See Note 1 at the beginning of the file
+        col = self._db.collection(COLL_SRV_MATCHES_DATA_PRODUCTS)
+        try:
+            await col.insert(doc)
+            return dp_match, False
+        except DocumentInsertError as e:
+            if e.error_code == _ARANGO_ERR_UNIQUE_CONSTRAINT:
+                doc = await col.get({FLD_ARANGO_KEY: key})
+                if not doc:
+                    # This is highly unlikely. Not worth spending any time trying to recover
+                    raise ValueError(
+                        "Well, I tried. Either something is very wrong with the "
+                        + "database or I just got really unlucky with timing on a match "
+                        + "deletion. Try matching again.")
+                doc[models.FIELD_DATA_PRODUCT_MATCH_STATE] = models.MatchState(
+                    doc[models.FIELD_DATA_PRODUCT_MATCH_STATE])
+                return models.DataProductMatchProcess.construct(
+                    **models.remove_non_model_fields(doc, models.DataProductMatchProcess)), True
+            raise e
+
+    async def update_data_product_match_state(
+        self,
+        internal_match_id: str,
+        data_product: str,
+        match_state: models.MatchState,
+        update_time: int,
+    ) -> None:
+        """
+        Update the state of a data product match process.
+
+        internal_match_id - the ID of the data product match to update
+        data_product - the data product performing the match
+        match_state - the state of the match to set
+        update_time - the time at which the match state was updated in epoch milliseconds
+        """
+        bind_vars = {
+            f"@{_FLD_COLLECTION}": COLL_SRV_MATCHES_DATA_PRODUCTS,
+            "key": self._data_product_match_key(internal_match_id, data_product),
+            "match_state": match_state.value,
+            "update_time": update_time,
+        }
+        aql = f"""
+            FOR d in @@{_FLD_COLLECTION}
+                FILTER d.{FLD_ARANGO_KEY} == @key
+                UPDATE d WITH {{
+                    {models.FIELD_DATA_PRODUCT_MATCH_STATE}: @match_state,
+                    {models.FIELD_DATA_PRODUCT_MATCH_STATE_UPDATED}: @update_time,
+                }} IN @@{_FLD_COLLECTION}
+                OPTIONS {{exclusive: true}}
+                LET updated = NEW
+                RETURN KEEP(updated, "{FLD_ARANGO_KEY}")
+            """
+        cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
+        # having a count > 1 is impossible since keys are unique
+        try:
+            if cur.empty():
+                raise errors.NoSuchMatchError(internal_match_id)
+        finally:
+            await cur.close(ignore_missing=True)
+
+    async def import_bulk_ignore_collisions(self, arango_collection: str, documents: dict[str, Any]
+    ) -> None:
+        """
+        Import many documents to an arango collection. Any collisions are ignored, so callers
+        of this method should ensure that a document with a given key will always contain the
+        same data.
+        """
+        col = self._db.collection(arango_collection)
+        await col.import_bulk(documents, on_duplicate="ignore")

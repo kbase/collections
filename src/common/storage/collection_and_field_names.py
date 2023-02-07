@@ -26,6 +26,9 @@ FLD_LOAD_VERSION = "load_ver"
 FLD_MATCH_ID = "match_id"
 """ The name of the key that has a match ID as its value. """
 
+FLD_INTERNAL_MATCH_ID = "internal_match_id"
+""" The name of the key that has an internal match ID as its value. """
+
 # Collections
 
 COLLECTION_PREFIX = "kbcoll_"
@@ -51,6 +54,9 @@ COLL_SRV_ACTIVE = _SRV_PREFIX + "active"
 
 COLL_SRV_MATCHES = _SRV_PREFIX + "matches"
 """ A collection holding matches to Collections. """
+
+COLL_SRV_MATCHES_DATA_PRODUCTS = COLL_SRV_MATCHES + "_data_prods"
+""" A collection holding the status of calculating secondary data products for matches. """
 
 ## Data product collections
 

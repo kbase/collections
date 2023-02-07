@@ -45,6 +45,8 @@ FIELD_MATCH_LAST_ACCESS = "last_access"
 FIELD_MATCH_USER_PERMS = "user_last_perm_check"
 FIELD_MATCH_STATE = "match_state"
 FIELD_MATCH_STATE_UPDATED = "match_state_updated"
+FIELD_DATA_PRODUCT_MATCH_STATE = "data_product_match_state"
+FIELD_DATA_PRODUCT_MATCH_STATE_UPDATED = "data_product_match_state_updated"
 FIELD_MATCH_MATCHES = "matches"
 FIELD_DATE_CREATE = "date_create"
 FIELD_USER_CREATE = "user_create"
@@ -349,6 +351,46 @@ class InternalMatch(MatchVerbose):
         description="A mapping of user name to the last time their permissions to view the "
             + "match was checked in Unix epoch milliseconds. Used to determine when to recheck "
             + "permissions for a user."
+    )
+
+
+class DataProductMatchProcess(BaseModel):
+    """
+    Defines the state of processing a match for a data product that was not part of the primary
+    match process.
+
+    For example, a gtdb_lineage match will match against the genome_attributes data product
+    as part of the primary match since the data being matched against is in that data product.
+    However, calculating the match for the taxa_count data product requires that the primary
+    match is complete first. This class represents the state of calculating the match for a
+    non-primary data product like taxa_count.
+    """
+
+    data_product: str = DATA_PRODUCT_ID_FIELD
+    created: int = Field(
+        example=1674243789864,
+        description="Milliseconds since the Unix epoch at the point the data product match "
+            + "process was created."
+    )
+    # last access / user perms are tracked in the primary match document. When that document
+    # is deleted in the DB, this one should be as well (after deleting any data associated with
+    # the match).
+    data_product_match_state_updated: int = Field(
+        example=1674243789866,
+        description="Milliseconds since the Unix epoch at the point the data product match "
+            + "state was last updated."
+    )
+    data_product_match_state: MatchState = Field(
+        example=MatchState.PROCESSING.value,
+        description="The state of the data product matching process."
+    )
+    internal_match_id: str = Field(
+        # bit of a long field name but probably not too many matches at one time
+        example="e22f2d7d-7246-4636-a91b-13f29bc32d3d",
+        description="An internal ID for the match that is unique per use. This allows for "
+            + "deleting data for a match without the risk that a new match with the same "
+            + "md5 ID is created and tries to read data in the process of deletion. "
+            + "Expected to be a v4 UUID.",
     )
 
 
