@@ -322,8 +322,9 @@ async def perform_match(match_id: str, storage: ArangoStorage, lineages: list[st
     # Could save some bandwidth here buy adding a method to just get the internal ID
     # Microoptimization, wait until it's a problem
     match = await storage.get_match_full(match_id)
-    coll = await storage.get_collection_active(match.collection_id)  # support non-active cols?
-    load_ver = {dp.product: dp for dp in coll.data_products}[ID].version
+    # use version number to avoid race conditions with activating collections
+    coll = await storage.get_collection_version_by_num(match.collection_id, match.collection_ver)
+    load_ver = {dp.product: dp.version for dp in coll.data_products}[ID]
     filtered_lineages = set()  # remove duplicates
     for lin in lineages:
         # TODO MATCHERS reverse look up the abbreviation from the rank when rank input is done

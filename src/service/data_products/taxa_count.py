@@ -311,10 +311,11 @@ async def _process_match(match_id: str, pstorage: app_state.PickleableDependenci
     try:
         # TODO MATCHERS start a heartbeat that updates a time stamp on the arango match document
         #   - be sure to stop when match execution is done
-        # TODO MATCHERS should use collection version here and in genome match to avoid
-        # race condition
         match = await storage.get_match_full(match_id)
-        coll = await storage.get_collection_active(match.collection_id)  # support non-active cols?
+        # use version number to avoid race conditions with activating collections
+        coll = await storage.get_collection_version_by_num(
+            match.collection_id, match.collection_ver
+        )
         load_ver = {dp.product: dp.version for dp in coll.data_products}[ID]
         # Right now this is hard coded to use the GTDB lineage, which is the only choice we
         # have. Might need to expand in future for other count strategies.
