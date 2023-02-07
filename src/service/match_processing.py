@@ -2,6 +2,7 @@
 Common code for processing matches.
 """
 
+import asyncio
 import multiprocessing
 
 from pydantic import BaseModel, Field
@@ -19,13 +20,13 @@ from src.service.workspace_wrapper import WorkspaceWrapper
 _PERM_RECHECK_LIMIT = 5 * 60 * 1000  # check perms every 5 mins
 
 
-class MatchProcess(BaseModel):
+class MatchProcess(BaseModel):  #TODO SELECTION can probably rename & reuse this for selections
     """
     Defines a match process.
     """
     process: Callable[[str, PickleableDependencies, list[Any]], None] = Field(
-        description="A callable that processes a match. Takes the match ID, the storage system, "
-            + "and the arguments for the match as the callable arguments."
+        description="An async callable that processes a match. Takes the match ID, "
+            + "the storage system, and the arguments for the match as the callable arguments."
     )
     args: list[Any] = Field(
         description="The arguments for the match."
@@ -39,7 +40,16 @@ class MatchProcess(BaseModel):
         storage - the storage system containing the match and the data to match against.
         """
         ctx = multiprocessing.get_context("forkserver")
-        ctx.Process(target=self.process, args=(match_id, storage, self.args)).start()
+        ctx.Process(target=_run_match, args=(self.process, match_id, storage, self.args)).start()
+
+
+def _run_match(
+    function: Callable[[str, PickleableDependencies, list[Any]], None],
+    match_id: str,
+    pstorage: PickleableDependencies,
+    args: list[Any]
+):
+    asyncio.run(function(match_id, pstorage, args))
 
 
 async def get_match(

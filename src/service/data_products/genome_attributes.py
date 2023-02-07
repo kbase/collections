@@ -370,8 +370,7 @@ async def perform_match(match_id: str, storage: ArangoStorage, lineages: list[st
 
 async def process_match_documents(
     storage: ArangoStorage,
-    collection_id: str,
-    load_version: str,
+    collection: models.SavedCollection,
     internal_match_id: str,
     acceptor: Callable[[dict[str, Any]], None],
     fields: list[str] | None = None,
@@ -387,10 +386,13 @@ async def process_match_documents(
     fields - which fields are required from the database documents. Fewer fields means less
         bandwidth consumed.
     """
+    load_ver = {d.product: d.version for d in collection.data_products}.get(ID)
+    if not load_ver:
+        raise ValueError(f"The collection does not have a {ID} data product")
     bind_vars = {
         f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
-        _FLD_COL_ID: collection_id,
-        _FLD_COL_LV: load_version,
+        _FLD_COL_ID: collection.id,
+        _FLD_COL_LV: load_ver,
         "internal_match_id": internal_match_id,
         "keep": fields,
     }

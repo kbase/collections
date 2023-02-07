@@ -2,7 +2,6 @@
 Matches assemblies and genomes to collections based on the GTDB lineage string.
 """
 
-import asyncio
 import logging
 
 from pydantic import BaseModel, Field
@@ -37,11 +36,7 @@ class GTDBLineageMatcherCollectionParameters(BaseModel):
     )
 
 
-def _process_match(match_id: str, pstorage: PickleableDependencies, args: list[list[str]]):
-    asyncio.run(_process_match_async(match_id, pstorage, args))
-
-
-async def _process_match_async(
+async def _process_match(
     match_id: str,
     pstorage: PickleableDependencies,
     args: list[list[str]]

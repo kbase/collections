@@ -2,7 +2,6 @@
 The taxa_count data product, which provides taxa counts for a collection at each taxonomy rank.
 """
 
-import asyncio
 import logging
 from fastapi import APIRouter, Request, Depends, Path, Query
 from pydantic import BaseModel, Field
@@ -307,13 +306,7 @@ async def _query(
     return ret
 
 
-def _process_match(match_id: str, pstorage: app_state.PickleableDependencies, args: list):
-    # no args necessary
-    # TODO MATCHER could probably build this into the match runner class
-    asyncio.run(_process_match_async(match_id, pstorage))
-
-
-async def _process_match_async(match_id: str, pstorage: app_state.PickleableDependencies):
+async def _process_match(match_id: str, pstorage: app_state.PickleableDependencies, args: list):
     arangoclient, storage = await pstorage.get_storage()
     try:
         # TODO MATCHERS start a heartbeat that updates a time stamp on the arango match document
@@ -322,7 +315,7 @@ async def _process_match_async(match_id: str, pstorage: app_state.PickleableDepe
         # race condition
         match = await storage.get_match_full(match_id)
         coll = await storage.get_collection_active(match.collection_id)  # support non-active cols?
-        load_vers = {dp.product: dp.version for dp in coll.data_products}
+        load_ver = {dp.product: dp.version for dp in coll.data_products}[ID]
         # Right now this is hard coded to use the GTDB lineage, which is the only choice we
         # have. Might need to expand in future for other count strategies.
         # Maybe a collection parameter, which would be available from the collection data structure
@@ -330,13 +323,12 @@ async def _process_match_async(match_id: str, pstorage: app_state.PickleableDepe
         count = GTDBTaxaCount()
         await genome_attributes.process_match_documents(
             storage,
-            coll.id,
-            load_vers[genome_attributes.ID],
+            coll,
             match.internal_match_id,
             lambda doc: count.add(doc[names.FLD_GENOME_ATTRIBS_GTDB_LINEAGE]),
             fields=[names.FLD_GENOME_ATTRIBS_GTDB_LINEAGE]
         )
-        docs = [taxa_node_count_to_doc(coll.id, load_vers[ID], tc, match.internal_match_id)
+        docs = [taxa_node_count_to_doc(coll.id, load_ver, tc, match.internal_match_id)
                 for tc in count
                 ]
         # May need to batch this?
