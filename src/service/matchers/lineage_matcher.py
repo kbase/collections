@@ -11,7 +11,7 @@ from src.common.storage.collection_and_field_names import FLD_GENOME_ATTRIBS_GTD
 from src.service import errors
 from src.service import models
 from src.service.app_state import PickleableDependencies
-from src.service.match_processing import MatchProcess
+from src.service.processing import MatchProcess
 from src.service.data_products import genome_attributes
 from src.service.matchers.common_models import Matcher
 from src.service.storage_arango import ArangoStorage
