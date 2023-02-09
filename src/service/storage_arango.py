@@ -468,6 +468,38 @@ class ArangoStorage:
             _FLD_MATCH_ID: match_id,
             _FLD_CHECK_TIME: last_access,
         }
+        self._execute_aql_and_check_match_exists(match_id, aql, bind_vars)
+
+    async def send_match_heartbeat(self, match_id: str, heartbeat_timestamp: int):
+        """
+        Send a heartbeat to a match, updating the heartbeat timestamp.
+
+        match_id - the ID of the match to modify.
+        heartbeat_timestamp - the timestamp of the heartbeat in epoch milliseconts.
+        """
+        aql = f"""
+            FOR d in @@{_FLD_COLLECTION}
+                FILTER d.{FLD_ARANGO_KEY} == @{_FLD_MATCH_ID}
+                UPDATE d WITH {{
+                    {models.FIELD_MATCH_HEARTBEAT}: @heartbeat
+                }} IN @@{_FLD_COLLECTION}
+                OPTIONS {{exclusive: true}}
+                LET updated = NEW
+                RETURN KEEP(updated, "{FLD_ARANGO_KEY}")
+            """
+        bind_vars = {
+            f"@{_FLD_COLLECTION}": COLL_SRV_MATCHES,
+            _FLD_MATCH_ID: match_id,
+            "heartbeat": heartbeat_timestamp,
+        }
+        await self._execute_aql_and_check_match_exists(match_id, aql, bind_vars)
+
+    async def _execute_aql_and_check_match_exists(
+        self,
+        match_id: str,
+        aql: str,
+        bind_vars: dict[str, Any],
+    ) -> None:
         cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
         # having a count > 1 is impossible since keys are unique
         try:
@@ -551,12 +583,7 @@ class ArangoStorage:
                 RETURN KEEP(updated, "{FLD_ARANGO_KEY}")
             """
         cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
-        # having a count > 1 is impossible since keys are unique
-        try:
-            if cur.empty():
-                raise errors.NoSuchMatchError(match_id)
-        finally:
-            await cur.close(ignore_missing=True)
+        await self._execute_aql_and_check_match_exists(match_id, aql, bind_vars)
 
     def _data_product_match_key(self, internal_match_id: str, data_product: str) -> str:
         return f"{internal_match_id}_{data_product}"
@@ -593,6 +620,36 @@ class ArangoStorage:
                     **models.remove_non_model_fields(doc, models.DataProductMatchProcess)), True
             raise e
 
+    async def send_data_product_match_heartbeat(
+        self,
+        internal_match_id: str,
+        data_product: str,
+        heartbeat_timestamp: int):
+        """
+        Send a heartbeat to a data prodduct match, updating the heartbeat timestamp.
+
+        internal_match_id - the ID of the data product match to update
+        data_product - the data product performing the match
+        heartbeat_timestamp - the timestamp of the heartbeat in epoch milliseconts.
+        """
+        key = self._data_product_match_key(internal_match_id, data_product)
+        bind_vars = {
+            f"@{_FLD_COLLECTION}": COLL_SRV_MATCHES_DATA_PRODUCTS,
+            "key": key,
+            "heartbeat": heartbeat_timestamp,
+        }
+        aql = f"""
+            FOR d in @@{_FLD_COLLECTION}
+                FILTER d.{FLD_ARANGO_KEY} == @key
+                UPDATE d WITH {{
+                    {models.FIELD_MATCH_HEARTBEAT}: @heartbeat
+                }} IN @@{_FLD_COLLECTION}
+                OPTIONS {{exclusive: true}}
+                LET updated = NEW
+                RETURN KEEP(updated, "{FLD_ARANGO_KEY}")
+            """
+        await self._execute_aql_and_check_match_exists(key, aql, bind_vars)
+
     async def update_data_product_match_state(
         self,
         internal_match_id: str,
@@ -608,9 +665,10 @@ class ArangoStorage:
         match_state - the state of the match to set
         update_time - the time at which the match state was updated in epoch milliseconds
         """
+        key = self._data_product_match_key(internal_match_id, data_product)
         bind_vars = {
             f"@{_FLD_COLLECTION}": COLL_SRV_MATCHES_DATA_PRODUCTS,
-            "key": self._data_product_match_key(internal_match_id, data_product),
+            "key": key,
             "match_state": match_state.value,
             "update_time": update_time,
         }
@@ -625,13 +683,7 @@ class ArangoStorage:
                 LET updated = NEW
                 RETURN KEEP(updated, "{FLD_ARANGO_KEY}")
             """
-        cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
-        # having a count > 1 is impossible since keys are unique
-        try:
-            if cur.empty():
-                raise errors.NoSuchMatchError(internal_match_id)
-        finally:
-            await cur.close(ignore_missing=True)
+        await self._execute_aql_and_check_match_exists(key, aql, bind_vars)
 
     async def import_bulk_ignore_collisions(self, arango_collection: str, documents: dict[str, Any]
     ) -> None:

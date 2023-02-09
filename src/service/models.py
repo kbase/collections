@@ -42,6 +42,7 @@ FIELD_DATA_PRODUCTS_PRODUCT = "product"
 FIELD_MATCHERS = "matchers"
 FIELD_MATCHERS_MATCHER = "matcher"
 FIELD_MATCH_LAST_ACCESS = "last_access"
+FIELD_MATCH_HEARTBEAT = "heartbeat"
 FIELD_MATCH_USER_PERMS = "user_last_perm_check"
 FIELD_MATCH_STATE = "match_state"
 FIELD_MATCH_STATE_UPDATED = "match_state_updated"
@@ -341,8 +342,18 @@ class InternalMatch(MatchVerbose):
         description="Milliseconds since the Unix epoch at the point the match was last accessed. "
             + "Used for determining when to delete the match."
     )
-    match_state_updated: int = Field(
+    heartbeat: int | None = Field(
         example=1674243789866,
+        description="Milliseconds since the Unix epoch at the last time the match process sent "
+            + "a heartbeat. Used to determine when the match process needs to be restarted."
+    )
+    # Note this means that match processes should be idempotent - running the same process twice,
+    # even if one of the processes was interrupted, should produce the same result when at
+    # least one process completes
+    # TODO DOCS document the above.
+
+    match_state_updated: int = Field(
+        example=1674243789867,
         description="Milliseconds since the Unix epoch at the point the match state was last "
             + "updated."
     )
@@ -372,6 +383,17 @@ class DataProductMatchProcess(BaseModel):
         description="Milliseconds since the Unix epoch at the point the data product match "
             + "process was created."
     )
+    heartbeat: int | None = Field(
+        example=1674243789866,
+        description="Milliseconds since the Unix epoch at the last time the data product match "
+            + "process sent a heartbeat. Used to determine when the match process needs to be "
+            + "restarted."
+    )
+    # Note this means that match processes should be idempotent - running the same process twice,
+    # even if one of the processes was interrupted, should produce the same result when at
+    # least one process completes.
+    # TODO DOCS document the above
+
     # last access / user perms are tracked in the primary match document. When that document
     # is deleted in the DB, this one should be as well (after deleting any data associated with
     # the match).
