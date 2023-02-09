@@ -308,11 +308,18 @@ async def _query(
 
 
 async def _process_match(match_id: str, pstorage: app_state.PickleableDependencies, args: list):
-    arangoclient, storage = await pstorage.get_storage()
+    hb = None
+    arangoclient = None
+    match = None
     try:
-        # TODO MATCHERS start a heartbeat that updates a time stamp on the arango match document
-        #   - be sure to stop when match execution is done
+        arangoclient, storage = await pstorage.get_storage()
         match = await storage.get_match_full(match_id)
+        # TODO MATCHERS check on heartbeat when getting match and restart process
+        async def heartbeat(millis: int):
+            await storage.send_data_product_match_heartbeat(match.internal_match_id, ID, millis)
+        hb = processing.Heartbeat(heartbeat, processing.HEARTBEAT_INTERVAL_SEC)
+        hb.start()
+        
         # use version number to avoid race conditions with activating collections
         coll = await storage.get_collection_version_by_num(
             match.collection_id, match.collection_ver
@@ -353,4 +360,7 @@ async def _process_match(match_id: str, pstorage: app_state.PickleableDependenci
                 match.internal_match_id, ID, models.MatchState.FAILED, now_epoch_millis())
             # otherwise not much to do, something went very wrong
     finally:
-        await arangoclient.close()
+        if hb:
+            hb.stop()
+        if arangoclient:
+            await arangoclient.close()
