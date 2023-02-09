@@ -18,7 +18,7 @@ from src.service import data_product_specs
 from src.service import errors
 from src.service import kb_auth
 from src.service import matcher_registry
-from src.service import processing
+from src.service import match_retrieval
 from src.service import models
 from src.service.clients.workspace_client import Workspace
 from src.service.http_bearer import KBaseHTTPBearer, KBaseUser
@@ -383,7 +383,7 @@ async def get_match(
 ) -> models.MatchVerbose:
     storage = app_state.get_storage(r)
     ws = app_state.get_workspace(r, user.token)
-    return await processing.get_match(
+    return await match_retrieval.get_match(
         match_id,
         user.user.id,
         storage,
