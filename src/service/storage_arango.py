@@ -468,7 +468,7 @@ class ArangoStorage:
             _FLD_MATCH_ID: match_id,
             _FLD_CHECK_TIME: last_access,
         }
-        self._execute_aql_and_check_match_exists(match_id, aql, bind_vars)
+        await self._execute_aql_and_check_match_exists(match_id, aql, bind_vars)
 
     async def send_match_heartbeat(self, match_id: str, heartbeat_timestamp: int):
         """
