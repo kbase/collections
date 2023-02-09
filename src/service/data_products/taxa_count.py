@@ -11,8 +11,9 @@ from src.common.storage.db_doc_conversions import taxa_node_count_to_doc
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
 from src.service import errors
-from src.service import processing
+from src.service import match_retrieval
 from src.service import models
+from src.service import processing
 from src.service.clients.workspace_client import Workspace
 from src.service.data_products.common_functions import (
     get_load_version,
@@ -243,7 +244,7 @@ async def _get_data_product_match(
             + f"{genome_attributes.ID} data product")
     load_ver = get_load_ver_from_collection(coll, ID)
     ws = app_state.get_workspace(r, user.token)
-    match = await processing.get_match_full(
+    match = await match_retrieval.get_match_full(
         match_id,
         user.user.id,
         store,
@@ -263,7 +264,7 @@ async def _get_data_product_match(
     )
     if not exists:
         deps = app_state.get_pickleable_dependencies(r)
-        processing.MatchProcess(process=_process_match, args=[]).start(match.match_id, deps)
+        processing.CollectionProcess(process=_process_match, args=[]).start(match.match_id, deps)
     return dp_match, load_ver
 
 

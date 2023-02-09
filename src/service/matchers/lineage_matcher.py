@@ -11,7 +11,7 @@ from src.common.storage.collection_and_field_names import FLD_GENOME_ATTRIBS_GTD
 from src.service import errors
 from src.service import models
 from src.service.app_state import PickleableDependencies
-from src.service.processing import MatchProcess
+from src.service.processing import CollectionProcess
 from src.service.data_products import genome_attributes
 from src.service.matchers.common_models import Matcher
 from src.service.storage_arango import ArangoStorage
@@ -58,10 +58,10 @@ class GTDBLineageMatcher(Matcher):
         metadata: dict[str, dict[str, Any]],
         collection_parameters: dict[str, Any],
         # TODO MATCHERS user parameters when needed
-    ) -> MatchProcess:
+    ) -> CollectionProcess:
         """
         The method checks that input metadata allows for calculating the match and throws
-        an exception if that is not the case; otherwise returns a MatchProcess that allows
+        an exception if that is not the case; otherwise returns a CollectionProcess that allows
         calculating the match.
 
         metadata - the workspace metadata of the objects to match against, mapped by its UPA.
@@ -96,7 +96,7 @@ class GTDBLineageMatcher(Matcher):
                 )
             lineages.append(meta[_GTDB_LINEAGE_METADATA_KEY])
 
-        return MatchProcess(process=_process_match, args=[lineages])
+        return CollectionProcess(process=_process_match, args=[lineages])
 
 
 MATCHER = GTDBLineageMatcher(

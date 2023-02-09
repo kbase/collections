@@ -8,7 +8,7 @@ from src.common.gtdb_lineage import parse_gtdb_lineage_string
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
 from src.service import errors
-from src.service import processing
+from src.service import match_retrieval
 from src.service import models
 from src.service.data_products.common_functions import (
     get_load_version,
@@ -187,7 +187,7 @@ async def get_genome_attributes(
         coll = await store.get_collection_active(collection_id)
         load_ver = get_load_ver_from_collection(coll, ID)
         ws = app_state.get_workspace(r, user.token)
-        match = await processing.get_match_full(
+        match = await match_retrieval.get_match_full(
             match_id,
             user.user.id,
             store,

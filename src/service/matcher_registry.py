@@ -7,10 +7,10 @@ as implement the method:
     def generate_match_process(self,
         metadata: dict[str, dict[str, Any]],
         collection_parameters: dict[str, Any],
-    ) -> MatchProcess:
+    ) -> CollectionProcess:
         
 The method checks that input metadata allows for calculating the match and throws an exception
-if that is not the case, and returns a MatchProcess that can process the match.
+if that is not the case, and returns a CollectionProcess that can process the match.
 
 metadata - the workspace metadata of the objects to match against, mapped by its UPA.
 collection_parameters - the parameters for this match from the collection specification.
