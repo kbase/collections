@@ -4,11 +4,18 @@ both performing the initial match and calculating secondary data products.
 """
 
 import asyncio
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.interval import IntervalTrigger
 import multiprocessing
 
 from pydantic import BaseModel, Field
 from typing import Callable, Any
 from src.service.app_state import PickleableDependencies
+from src.service.timestamp import now_epoch_millis
+
+
+HEARTBEAT_INTERVAL_SEC = 10  # make configurable?
+HEARTBEAT_RESTART_THRESHOLD_SEC = 60  # 1 minute without a heartbeat
 
 
 class CollectionProcess(BaseModel):
@@ -45,3 +52,48 @@ def _run_process(
     args: list[Any]
 ):
     asyncio.run(function(data_id, pstorage, args))
+
+
+class Heartbeat:
+    """
+    Sends a heatbeat timestamp in epoch seconds to an async function at a specified interval,
+    running in the default asyncio event loop.
+    """
+
+    def __init__(self, heartbeat_function: Callable[[int], None], interval_sec: int):
+        """
+        Create the hearbeat instance.
+
+        heartbeat_function - the async function to call on each heartbeat. Accepts a single
+            argument which is the heartbeat timestamp in milliseconds since the Unix epoch.
+        interval_sec - the interval between heartbeats in seconds.
+        """
+        self._hbf = heartbeat_function
+        self._interval_sec = interval_sec
+        self._schd = AsyncIOScheduler()
+        self._job_id = None
+
+    def start(self):
+        """
+        Start the heartbeat, sending the first heartbeat after one interval.
+        """
+        if self._job_id:
+            raise ValueError("Heartbeat is already running")
+        job = self._schd.add_job(
+            func=self._heartbeat,
+            trigger=IntervalTrigger(seconds=self._interval_sec)
+        )
+        self._job_id = job.id
+        self._schd.start()
+
+    async def _heartbeat(self):
+        await self._hbf(now_epoch_millis())
+
+    def stop(self):
+        """
+        Stop the heartbeat.
+        """
+        if self._job_id:
+            self._schd.shutdown(wait=True)
+            self._schd.remove_job(self._job_id)
+            self._job_id = None

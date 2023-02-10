@@ -11,7 +11,7 @@ from src.common.storage.collection_and_field_names import FLD_GENOME_ATTRIBS_GTD
 from src.service import errors
 from src.service import models
 from src.service.app_state import PickleableDependencies
-from src.service.processing import CollectionProcess
+from src.service.processing import CollectionProcess, Heartbeat, HEARTBEAT_INTERVAL_SEC
 from src.service.data_products import genome_attributes
 from src.service.matchers.common_models import Matcher
 from src.service.storage_arango import ArangoStorage
@@ -42,14 +42,24 @@ async def _process_match(
     args: list[list[str]]
 ):
     lineages = args[0]
-    arangoclient, storage = await pstorage.get_storage()
+    hb = None
+    arangoclient = None
     try:
+        arangoclient, storage = await pstorage.get_storage()
+        # TODO MATCHERS check on heartbeat when getting match and restart process
+        async def heartbeat(millis: int):
+            await storage.send_match_heartbeat(match_id, millis)
+        hb = Heartbeat(heartbeat, HEARTBEAT_INTERVAL_SEC)
+        hb.start()
         await genome_attributes.perform_match(match_id, storage, lineages)
     except Exception as e:
         logging.getLogger(__name__).exception(f"Matching process for match {match_id} failed")
         await storage.update_match_state(match_id, models.MatchState.FAILED, now_epoch_millis())
     finally:
-        await arangoclient.close()
+        if hb:
+            hb.stop()
+        if arangoclient:
+            await arangoclient.close()
 
 
 class GTDBLineageMatcher(Matcher):
