@@ -78,6 +78,7 @@ def _create_shifter_wrapper(job_dir, image_str):
     shifter_wrapper += "fi\n\n"
     shifter_wrapper += "command=\"$@\"\n\n"
     shifter_wrapper += "echo \"Running shifter --image=$image $command\"\n\n"
+    shifter_wrapper += f"cd {job_dir}\n"
     shifter_wrapper += "shifter --image=$image $command\n"  # Run the command in the Shifter environment
 
     wrapper_file = os.path.join(job_dir, 'shifter_wrapper.sh')
