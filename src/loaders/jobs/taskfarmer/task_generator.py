@@ -107,7 +107,7 @@ def _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper
 
     genome_ids_chunks = [genome_ids[i: i + CHUNK_SIZE] for i in range(0, len(genome_ids), CHUNK_SIZE)]
 
-    task_list = '#!/usr/bin/env bash\n\n'
+    task_list = '#!/usr/bin/env bash\n'
     for idx, genome_ids_chunk in enumerate(genome_ids_chunks):
 
         task_list += wrapper_file
