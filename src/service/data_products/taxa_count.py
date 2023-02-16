@@ -222,7 +222,10 @@ async def get_taxa_counts(
             d[_MATCH_COUNT] = mqd.get(d[name], 0)
         # For now always sort by the non-match data. See if ppl want sort by match data before implementing
         # something more sophisticated.
-    return {"data": q}
+    return TaxaCounts(
+        data=q,
+        taxa_count_match_state=dp_match.data_product_match_state if dp_match else None
+    )
 
 
 async def _get_data_product_match(
@@ -252,19 +255,10 @@ async def _get_data_product_match(
         require_complete=True,
         require_collection=coll
     )
-    now = now_epoch_millis()
-    dp_match, exists = await store.create_or_get_data_product_match(
-        models.DataProductMatchProcess(
-            data_product=ID,
-            internal_match_id=match.internal_match_id,
-            created=now,
-            data_product_match_state=models.MatchState.PROCESSING,
-            data_product_match_state_updated=now,
-        )
+    deps = app_state.get_pickleable_dependencies(r)
+    dp_match = await match_retrieval.get_or_create_data_product_match(
+        store, deps, match, ID, _process_match
     )
-    if not exists:
-        deps = app_state.get_pickleable_dependencies(r)
-        processing.CollectionProcess(process=_process_match, args=[]).start(match.match_id, deps)
     return dp_match, load_ver
 
 

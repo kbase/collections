@@ -15,7 +15,7 @@ from src.service.timestamp import now_epoch_millis
 
 
 HEARTBEAT_INTERVAL_SEC = 10  # make configurable?
-HEARTBEAT_RESTART_THRESHOLD_SEC = 60  # 1 minute without a heartbeat
+HEARTBEAT_RESTART_THRESHOLD_MS = 60 * 1000  # 1 minute without a heartbeat
 
 
 class CollectionProcess(BaseModel):
