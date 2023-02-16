@@ -149,9 +149,9 @@ def _create_batch_script(job_dir, task_list_file, n_jobs):
     batch_script += '#SBATCH -q regular\n'
     batch_script += '#SBATCH --time=2:00:00\n'
     batch_script += '#SBATCH --time-min=0:30:00\n'
-    batch_script += '#SBATCH -C cpu\nn'
+    batch_script += '#SBATCH -C cpu\n\n'
     batch_script += f'cd {job_dir}\n'
-    batch_script += 'export THREADS=32\nn'
+    batch_script += 'export THREADS=32\n\n'
     batch_script += f'runcommands.sh {task_list_file}'
 
     batch_script_file = os.path.join(job_dir, 'submit_taskfarmer.sl')
