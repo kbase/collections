@@ -85,6 +85,8 @@ def _create_shifter_wrapper(job_dir, image_str):
     with open(wrapper_file, "w") as f:
         f.write(shifter_wrapper)
 
+    os.chmod(wrapper_file, 0o777)
+
     return wrapper_file
 
 
@@ -185,6 +187,9 @@ def main():
     optional.add_argument('--root_dir', type=str, default=loader_common_names.ROOT_DIR,
                           help=f'Root directory for the collections project. (default: {loader_common_names.ROOT_DIR})')
 
+    parser.add_argument('--submit_job', action='store_true', help='Submit job to slurm')
+    parser.add_argument('--no_submit_job', dest='submit_job', action='store_false', help='Do not submit job to slurm')
+
     args = parser.parse_args()
 
     tool = args.tool
@@ -205,7 +210,11 @@ def main():
 
     batch_script = _create_batch_script(job_dir, task_list_file, n_jobs)
 
-    print(f'Please go to Job Directory: {job_dir} and submit the batch script: {batch_script} to the scheduler.')
+    if args.submit_job:
+        std_out, std_err, returncode = _run_command(['sbatch', os.path.join(job_dir, 'submit_taskfarmer.sl')])
+        print(f'Job submitted to slurm. Job ID: {std_out.strip()}')
+    else:
+        print(f'Please go to Job Directory: {job_dir} and submit the batch script: {batch_script} to the scheduler.')
 
 
 if __name__ == "__main__":
