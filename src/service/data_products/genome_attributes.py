@@ -179,14 +179,14 @@ async def get_genome_attributes(
     # sorting only works here since we expect the largest collection to be ~300K records and
     # we have a max limit of 1000, which means sorting is O(n log2 1000).
     # Otherwise we need indexes for every sort
-    store = app_state.get_storage(r)
+    store = app_state.get_app_state(r).arangostorage
     internal_match_id = None
     if match_id:
         if not user:
             raise errors.UnauthorizedError("Authentication is required if a match ID is supplied")
         coll = await store.get_collection_active(collection_id)
         load_ver = get_load_ver_from_collection(coll, ID)
-        ws = app_state.get_workspace(r, user.token)
+        ws = app_state.get_app_state(r).get_workspace_client(user.token)
         match = await match_retrieval.get_match_full(
             match_id,
             user.user.id,

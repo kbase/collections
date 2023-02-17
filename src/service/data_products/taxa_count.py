@@ -140,7 +140,7 @@ async def get_ranks(
     load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
     user: KBaseUser = Depends(_OPT_AUTH)
 ):
-    store = app_state.get_storage(r)
+    store = app_state.get_app_state(r).arangostorage
     load_ver = await get_load_version(store, collection_id, ID, load_ver_override, user)
     return await get_ranks_from_db(store, collection_id, load_ver, bool(load_ver_override))
 
@@ -196,10 +196,13 @@ async def get_taxa_counts(
     load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
     user: KBaseUser = Depends(_OPT_AUTH)
 ):
-    store = app_state.get_storage(r)
+    appstate = app_state.get_app_state(r)
+    store = appstate.arangostorage
     dp_match = None
     if match_id:
-        dp_match, load_ver = await _get_data_product_match(r, store, collection_id, match_id, user)
+        dp_match, load_ver = await _get_data_product_match(
+            appstate, store, collection_id, match_id, user
+        )
         if dp_match.data_product_match_state != models.MatchState.COMPLETE:
             return TaxaCounts(taxa_count_match_state=dp_match.data_product_match_state)
     else:
@@ -229,7 +232,7 @@ async def get_taxa_counts(
 
 
 async def _get_data_product_match(
-    r: Request,
+    appstate: app_state.CollectionsState,
     store: ArangoStorage,
     collection_id: str,
     match_id: str,
@@ -246,7 +249,7 @@ async def _get_data_product_match(
             f"Cannot perform a {ID} match when the collection does not have a "
             + f"{genome_attributes.ID} data product")
     load_ver = get_load_ver_from_collection(coll, ID)
-    ws = app_state.get_workspace(r, user.token)
+    ws = appstate.get_workspace_client(user.token)
     match = await match_retrieval.get_match_full(
         match_id,
         user.user.id,
@@ -255,7 +258,7 @@ async def _get_data_product_match(
         require_complete=True,
         require_collection=coll
     )
-    deps = app_state.get_pickleable_dependencies(r)
+    deps = appstate.get_pickleable_dependencies()
     dp_match = await match_retrieval.get_or_create_data_product_match(
         store, deps, match, ID, _process_match
     )
