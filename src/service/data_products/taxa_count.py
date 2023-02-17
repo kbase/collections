@@ -140,7 +140,7 @@ async def get_ranks(
     load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
     user: KBaseUser = Depends(_OPT_AUTH)
 ):
-    store = app_state.get_storage(r)
+    store = app_state.get_app_state(r).arangostorage
     load_ver = await get_load_version(store, collection_id, ID, load_ver_override, user)
     return await get_ranks_from_db(store, collection_id, load_ver, bool(load_ver_override))
 
@@ -196,10 +196,13 @@ async def get_taxa_counts(
     load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
     user: KBaseUser = Depends(_OPT_AUTH)
 ):
-    store = app_state.get_storage(r)
+    appstate = app_state.get_app_state(r)
+    store = appstate.arangostorage
     dp_match = None
     if match_id:
-        dp_match, load_ver = await _get_data_product_match(r, store, collection_id, match_id, user)
+        dp_match, load_ver = await _get_data_product_match(
+            appstate, store, collection_id, match_id, user
+        )
         if dp_match.data_product_match_state != models.MatchState.COMPLETE:
             return TaxaCounts(taxa_count_match_state=dp_match.data_product_match_state)
     else:
@@ -222,11 +225,14 @@ async def get_taxa_counts(
             d[_MATCH_COUNT] = mqd.get(d[name], 0)
         # For now always sort by the non-match data. See if ppl want sort by match data before implementing
         # something more sophisticated.
-    return {"data": q}
+    return TaxaCounts(
+        data=q,
+        taxa_count_match_state=dp_match.data_product_match_state if dp_match else None
+    )
 
 
 async def _get_data_product_match(
-    r: Request,
+    appstate: app_state.CollectionsState,
     store: ArangoStorage,
     collection_id: str,
     match_id: str,
@@ -243,7 +249,7 @@ async def _get_data_product_match(
             f"Cannot perform a {ID} match when the collection does not have a "
             + f"{genome_attributes.ID} data product")
     load_ver = get_load_ver_from_collection(coll, ID)
-    ws = app_state.get_workspace(r, user.token)
+    ws = appstate.get_workspace_client(user.token)
     match = await match_retrieval.get_match_full(
         match_id,
         user.user.id,
@@ -252,19 +258,10 @@ async def _get_data_product_match(
         require_complete=True,
         require_collection=coll
     )
-    now = now_epoch_millis()
-    dp_match, exists = await store.create_or_get_data_product_match(
-        models.DataProductMatchProcess(
-            data_product=ID,
-            internal_match_id=match.internal_match_id,
-            created=now,
-            data_product_match_state=models.MatchState.PROCESSING,
-            data_product_match_state_updated=now,
-        )
+    deps = appstate.get_pickleable_dependencies()
+    dp_match = await match_retrieval.get_or_create_data_product_match(
+        store, deps, match, ID, _process_match
     )
-    if not exists:
-        deps = app_state.get_pickleable_dependencies(r)
-        processing.CollectionProcess(process=_process_match, args=[]).start(match.match_id, deps)
     return dp_match, load_ver
 
 

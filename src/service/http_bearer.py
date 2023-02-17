@@ -60,7 +60,7 @@ class KBaseHTTPBearer(HTTPBase):
             # don't put the received scheme in the error message, might be a token
             raise errors.InvalidAuthHeader(f"Authorization header requires {_SCHEME} scheme")
         try:
-            admin_perm, user = await app_state.get_kbase_auth(request).get_user(credentials)
+            admin_perm, user = await app_state.get_app_state(request).auth.get_user(credentials)
         except kb_auth.InvalidTokenError:
             raise errors.InvalidTokenError()
         return KBaseUser(user, admin_perm, credentials)

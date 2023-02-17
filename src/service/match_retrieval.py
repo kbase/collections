@@ -3,9 +3,13 @@ Methods for retriving matches from a storage system, ensuring that the user has 
 to the match, the match is in the expected state, and access times are updated correctly.
 """
 
+import logging
+from typing import Any, Callable
+
+from src.service import app_state
 from src.service import errors
 from src.service import models
-from src.service.models import remove_non_model_fields
+from src.service import processing
 from src.service.storage_arango import ArangoStorage
 from src.service.timestamp import now_epoch_millis
 from src.service.workspace_wrapper import WorkspaceWrapper
@@ -99,7 +103,7 @@ async def _get_match(
         _check_match_state(match, require_complete, require_collection)
         await storage.update_match_last_access(match_id, now)
     if not internal:
-        match = models.MatchVerbose.construct(**remove_non_model_fields(
+        match = models.MatchVerbose.construct(**models.remove_non_model_fields(
             match.dict(), models.MatchVerbose
         ))
     if not verbose:
@@ -125,3 +129,76 @@ def _check_match_state(
             raise errors.InvalidMatchState(
                 f"Match {match.match_id} is for collection version {match.collection_ver}, "
                 + f"while the current version is {col.ver_num}")
+
+
+async def get_or_create_data_product_match(
+    storage: ArangoStorage,
+    # could theoretically get storage from here, but why instantiate another arango client
+    deps: app_state.PickleableDependencies,
+    match: models.InternalMatch,
+    data_product: str,
+    match_process: Callable[[str, app_state.PickleableDependencies, list[Any]], None],
+) -> models.DataProductMatchProcess:
+    """
+    Get a match process data structure for a data product match.
+
+    Creates the match and starts the matching process if the match does not already exist.
+
+    If the match exists but hasn't had a heartbeat in the required time frame, starts another
+    instance of the processes.
+
+    In either case, the list of arguments to the match process is empty.
+
+    storage - the storage system holding the match data.
+    deps - pickleable dependencies to pass to the match process.
+    match - the parent match for the data product match.
+    data_product - the data product for the match.
+    match_process - the match process to run if there is no match information in the database or
+        the match heartbeat is too old.
+    """
+    now = now_epoch_millis()
+    dp_match, exists = await storage.create_or_get_data_product_match(
+        models.DataProductMatchProcess(
+            data_product=data_product,
+            internal_match_id=match.internal_match_id,
+            created=now,
+            data_product_match_state=models.MatchState.PROCESSING,
+            data_product_match_state_updated=now,
+        )
+    )
+    if not exists:
+        _start_process(match.match_id, match_process, deps)
+    elif dp_match.data_product_match_state == models.MatchState.PROCESSING:
+        # "failed" indicates the failure is not necessarily recoverable
+        # E.g. an admin should take a look
+        # We may need to add another state for recoverable errors like loss of contact w/ arango...
+        # but that kind of thing could lead to a lot of jobs being kicked off over and over
+        # Better to put retries in the matching code or arango storage wrapper
+        maxdiff = processing.HEARTBEAT_RESTART_THRESHOLD_MS
+        now = now_epoch_millis()
+        if dp_match.heartbeat is None:
+            if now - dp_match.created > maxdiff:
+                _warn(dp_match.internal_match_id, data_product)    
+                _start_process(match.match_id, match_process, deps)
+        elif now - dp_match.heartbeat > maxdiff:
+            _warn(dp_match.internal_match_id, data_product)    
+            _start_process(match.match_id, match_process, deps)
+    return dp_match
+
+
+def _warn(
+    internal_match_id: str,
+    data_product: str,
+) -> None:
+    logging.getLogger(__name__).warn(
+        f"Restarting match process for match {internal_match_id} "
+        + f"data product {data_product}"
+    )
+
+
+def _start_process(
+    match_id: str,
+    match_process: Callable[[str, app_state.PickleableDependencies, list[Any]], None],
+    deps: app_state.PickleableDependencies,
+) -> None:
+    processing.CollectionProcess(process=match_process, args=[]).start(match_id, deps)

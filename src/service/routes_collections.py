@@ -17,7 +17,6 @@ from src.service import app_state
 from src.service import data_product_specs
 from src.service import errors
 from src.service import kb_auth
-from src.service import matcher_registry
 from src.service import match_retrieval
 from src.service import models
 from src.service.clients.workspace_client import Workspace
@@ -52,16 +51,18 @@ def _precheck_admin_and_get_storage(
 ) -> ArangoStorage:
     _ensure_admin(user, f"Only collections service admins can {op}")
     err_on_control_chars(ver_tag, "ver_tag")
-    return app_state.get_storage(r)
+    return app_state.get_app_state(r).arangostorage
 
 
-def _check_matchers_and_data_products(col: models.Collection):
+def _check_matchers_and_data_products(
+    appstate: app_state.CollectionsState, col: models.Collection
+):
     data_products = set([dp.product for dp in col.data_products])
     for dp in data_products:
         if dp not in data_product_specs.DATA_PRODUCTS:
             raise errors.NoSuchDataProduct(f"No such data product: {dp}")
     for m in col.matchers:
-        matcher = matcher_registry.MATCHERS.get(m.matcher)
+        matcher = appstate.get_matcher(m.matcher)
         if not matcher:
             raise errors.NoSuchMatcher(f"No such matcher: {m.matcher}")
         missing_dps = set(matcher.required_data_products) - data_products
@@ -87,7 +88,8 @@ def _get_matcher_from_collection(collection: models.SavedCollection, matcher_id:
 
 # Assumes matcher_info is valid
 def _check_perms_and_setup_match_process(
-    ws: Workspace,
+    appstate: app_state.CollectionsState,
+    token: str,
     upas: list[str],
     matcher_info: models.Matcher):
     # All matchers will need to check permissions and deletion state for the workspace objects,
@@ -99,7 +101,8 @@ def _check_perms_and_setup_match_process(
 
     # TODO MATCHERS if the workspace check only includes that workspace IDs, it's not checking
     #   for deleted objects. Maybe that's ok? Document it anyway
-    matcher = matcher_registry.MATCHERS[matcher_info.matcher]
+    matcher = appstate.get_matcher(matcher_info.matcher)
+    ws = appstate.get_workspace_client(token)
     meta = WorkspaceWrapper(ws).get_object_metadata(upas, allowed_types=matcher.types)
     return matcher.generate_match_process(
         {u: m for u, m in zip(upas, meta)},
@@ -278,27 +281,28 @@ async def whoami(user: KBaseUser=Depends(_AUTH)):
 
 @ROUTER_COLLECTIONS.get("/collectionids/", response_model = CollectionIDs)
 async def get_collection_ids(r: Request):
-    ids = await app_state.get_storage(r).get_collection_ids()
+    ids = await app_state.get_app_state(r).arangostorage.get_collection_ids()
     return CollectionIDs(data=ids)
 
 
 @ROUTER_COLLECTIONS.get("/collections/", response_model = CollectionsList)
 async def list_collections(r: Request):
-    cols = await app_state.get_storage(r).get_collections_active()
+    cols = await app_state.get_app_state(r).arangostorage.get_collections_active()
     return CollectionsList(data=cols)
 
 
 @ROUTER_COLLECTIONS.get("/collections/{collection_id}/", response_model=models.ActiveCollection)
 async def get_collection(r: Request, collection_id: str = PATH_VALIDATOR_COLLECTION_ID
 ) -> models.ActiveCollection:
-    return await app_state.get_storage(r).get_collection_active(collection_id)
+    return await app_state.get_app_state(r).arangostorage.get_collection_active(collection_id)
 
 
 @ROUTER_COLLECTIONS.get("/collections/{collection_id}/matchers", response_model=MatcherList)
 async def get_collection_matchers(r: Request, collection_id: str = PATH_VALIDATOR_COLLECTION_ID
 ) -> MatcherList:
     coll = await get_collection(r, collection_id)
-    return {"data": [matcher_registry.MATCHERS[m.matcher] for m in coll.matchers]}
+    appstate = app_state.get_app_state(r)
+    return {"data": [appstate.get_matcher(m.matcher) for m in coll.matchers]}
 
 
 @ROUTER_COLLECTIONS.post(
@@ -322,8 +326,8 @@ async def match(
     # TODO MATCHERS check user parameters when a matcher needs them
     # TODO MATCHERS handle genome and assembly set types
     upas, wsids = _check_and_sort_UPAs_and_get_wsids(match_params.upas)
-    ws = app_state.get_workspace(r, user.token)
-    match_process = _check_perms_and_setup_match_process(ws, upas, matcher_info)
+    appstate = app_state.get_app_state(r)
+    match_process = _check_perms_and_setup_match_process(appstate, user.token, upas, matcher_info)
     perm_check = now_epoch_millis()
     params = match_params.parameters or {}
     int_match = models.InternalMatch(
@@ -342,11 +346,10 @@ async def match(
         last_access=perm_check,
         user_last_perm_check={user.user.id: perm_check}
     )
-    storage = app_state.get_storage(r)
-    curr_match, exists = await storage.save_match(int_match)
+    curr_match, exists = await appstate.arangostorage.save_match(int_match)
     # don't bother checking if the match heartbeat is old here, just do it in the access methods
     if not exists:
-        match_process.start(curr_match.match_id, app_state.get_pickleable_dependencies(r))
+        match_process.start(curr_match.match_id, appstate.get_pickleable_dependencies())
     return curr_match
 
 
@@ -356,8 +359,8 @@ async def match(
     summary="Get matchers available in the system",
     description="List all matchers available in the service.",
 )
-async def matchers():
-    return {"data": list(matcher_registry.MATCHERS.values())}
+async def matchers(r: Request):
+    return {"data": app_state.get_app_state(r).get_matchers()}
 
 
 @ROUTER_MATCHES.get(
@@ -381,12 +384,12 @@ async def get_match(
     ),
     user: KBaseUser = Depends(_AUTH),
 ) -> models.MatchVerbose:
-    storage = app_state.get_storage(r)
-    ws = app_state.get_workspace(r, user.token)
+    appstate = app_state.get_app_state(r)
+    ws = appstate.get_workspace_client(user.token)
     return await match_retrieval.get_match(
         match_id,
         user.user.id,
-        storage,
+        appstate.arangostorage,
         WorkspaceWrapper(ws),
         verbose=verbose
     )
@@ -412,7 +415,7 @@ async def save_collection(
     # Maybe the method implementations should go into a different module / class...
     # But the method implementation is intertwined with the path validation
     store = _precheck_admin_and_get_storage(r, user, ver_tag, "save data")
-    _check_matchers_and_data_products(col)
+    _check_matchers_and_data_products(app_state.get_app_state(r), col)
     doc = col.dict()
     exists = await store.has_collection_version_by_tag(collection_id, ver_tag)
     if exists:
