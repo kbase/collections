@@ -5,6 +5,31 @@ import subprocess
 
 from src.loaders.common import loader_common_names
 
+
+'''
+usage: task_generator.py [-h] --tool {checkm2,gtdb_tk} --kbase_collection KBASE_COLLECTION --load_ver LOAD_VER --source_data_dir SOURCE_DATA_DIR
+                         [--root_dir ROOT_DIR] [--submit_job] [--no_submit_job]
+
+PROTOTYPE - Create the required documents/scripts for the TaskFarmer Workflow Manager.
+
+optional arguments:
+  -h, --help            show this help message and exit
+
+required named arguments:
+  --tool {checkm2,gtdb_tk}
+                        Name of tool to be executed. (e.g. gtdb_tk, checkm2, etc.)
+  --kbase_collection KBASE_COLLECTION
+                        KBase collection identifier name (e.g. GTDB).
+  --load_ver LOAD_VER   KBase load version (e.g. r207.kbase.1).
+  --source_data_dir SOURCE_DATA_DIR
+                        Source data (genome files) directory. (e.g. /global/cfs/cdirs/kbase/collections/sourcedata/GTDB/r207
+
+optional arguments:
+  --root_dir ROOT_DIR   Root directory for the collections project. (default: /global/cfs/cdirs/kbase/collections)
+  --submit_job          Submit job to slurm
+  --no_submit_job       Do not submit job to slurm
+'''
+
 TOOLS_AVAILABLE = ['checkm2', 'gtdb_tk']
 CHUNK_SIZE = 1000
 
@@ -187,8 +212,8 @@ def main():
     optional.add_argument('--root_dir', type=str, default=loader_common_names.ROOT_DIR,
                           help=f'Root directory for the collections project. (default: {loader_common_names.ROOT_DIR})')
 
-    parser.add_argument('--submit_job', action='store_true', help='Submit job to slurm')
-    parser.add_argument('--no_submit_job', dest='submit_job', action='store_false', help='Do not submit job to slurm')
+    optional.add_argument('--submit_job', action='store_true', help='Submit job to slurm')
+    optional.add_argument('--no_submit_job', dest='submit_job', action='store_false', help='Do not submit job to slurm')
 
     args = parser.parse_args()
 
@@ -212,7 +237,7 @@ def main():
 
     if args.submit_job:
         std_out, std_err, returncode = _run_command(['sbatch', os.path.join(job_dir, 'submit_taskfarmer.sl')])
-        print(f'Job submitted to slurm. Job ID: {std_out.strip()}')
+        print(f'Job submitted to slurm.\n{std_out.strip()}')
     else:
         print(f'Please go to Job Directory: {job_dir} and submit the batch script: {batch_script} to the scheduler.')
 
