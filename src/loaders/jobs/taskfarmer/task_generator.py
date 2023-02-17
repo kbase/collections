@@ -7,10 +7,11 @@ from src.loaders.common import loader_common_names
 
 
 '''
+
+Create required documents and scripts for the TaskFarmer Workflow Manager.
+
 usage: task_generator.py [-h] --tool {checkm2,gtdb_tk} --kbase_collection KBASE_COLLECTION --load_ver LOAD_VER --source_data_dir SOURCE_DATA_DIR
                          [--root_dir ROOT_DIR] [--submit_job] [--no_submit_job]
-
-PROTOTYPE - Create the required documents/scripts for the TaskFarmer Workflow Manager.
 
 optional arguments:
   -h, --help            show this help message and exit

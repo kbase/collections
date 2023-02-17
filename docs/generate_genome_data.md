@@ -2,25 +2,25 @@
 
 ## Generate Genome Attributes
 
-This section describes the steps and scripts used to generate attributes of genomes. 
+This section describes the steps and scripts used to generate attributes of genomes.
 The scripts used in the process are located in the `src/loaders` directory.
 
 1. Retrieve Source Genome Files
-   * From NCBI
-      * Download the genome files from the NCBI FTP server using the script 
-      `ncbi_downloader/ncbi_downloader.py`. 
-   * From workspace
-     * `TODO: work remains to be done`
+    * From NCBI
+        * Download the genome files from the NCBI FTP server using the script
+          `ncbi_downloader/ncbi_downloader.py`.
+    * From workspace
+        * `TODO: work remains to be done`
 2. Compute Genome Attributes
-   * The next step is to execute tools to compute various attributes of the genome using the script 
-   `genome_attributes/compute_genome_attribs.py`. 
-   * This script currently supports two tools for attribute computation:
-   [GTDB-TK](https://ecogenomics.github.io/GTDBTk/index.html) 
-   and [CheckM2](https://github.com/chklovski/CheckM2)
+    * The next step is to execute tools to compute various attributes of the genome using the script
+      `genome_attributes/compute_genome_attribs.py`.
+    * This script currently supports two tools for attribute computation:
+      [GTDB-TK](https://ecogenomics.github.io/GTDBTk/index.html)
+      and [CheckM2](https://github.com/chklovski/CheckM2)
 3. Parse Tool Results
-   * After the attribute computation tools have been executed, the results need to be parsed and organized 
-   into a format that is suitable for importing into ArangoDB. This is done using the script 
-   `genome_attributes/parse_computed_genome_attribs.py`. 
+    * After the attribute computation tools have been executed, the results need to be parsed and organized
+      into a format that is suitable for importing into ArangoDB. This is done using the script
+      `genome_attributes/parse_computed_genome_attribs.py`.
 4. Import JSON Format File Into ArangoDB
    ```commandline
    # set up an SSH tunnel (Not required when using an internal KBase machine such as dev03) 
@@ -41,25 +41,59 @@ The scripts used in the process are located in the `src/loaders` directory.
     --collection kbcoll_genome_attribs
    ```
 
-
 Note:
+
 * For usage instructions for each script, please refer to the help option (-h) of the script.
 * Default directory layout at NERSC
-  * source genome files: `/global/cfs/cdirs/kbase/collections/sourcedata/[kbase_collection]/[load_ver]`
-  * computed genome files: `/global/cfs/cdirs/kbase/collections/collectionsdata/[kbase_collection]/[load_ver]/[tool_name]`
+    * source genome files: `/global/cfs/cdirs/kbase/collections/sourcedata/[kbase_collection]/[load_ver]`
+    * computed genome
+      files: `/global/cfs/cdirs/kbase/collections/collectionsdata/[kbase_collection]/[load_ver]/[tool_name]`
 
 ## Generate Genome Taxonomy Ranks
 
-This section outlines the procedures and tools utilized to determine the taxonomic ranks, in order of hierarchy, 
+This section outlines the procedures and tools utilized to determine the taxonomic ranks, in order of hierarchy,
 for the genome taxa counts.
 
 1. Retrieve Taxonomy File
-   * From GTDB
-     * Download taxonomy files (e.g. `ar53_taxonomy_r207.tsv`) from [GTDB](https://data.gtdb.ecogenomic.org/)
-   * Using computational tools such as GTDB-TK
-     * Please refer to the "Generate Genome Attributes" section above and follow the steps 1, 2, 3 as described.
+    * From GTDB
+        * Download taxonomy files (e.g. `ar53_taxonomy_r207.tsv`) from [GTDB](https://data.gtdb.ecogenomic.org/)
+    * Using computational tools such as GTDB-TK
+        * Please refer to the "Generate Genome Attributes" section above and follow the steps 1, 2, 3 as described.
 2. Prepare Taxa Count Data
-   * Process the file containing taxonomy info by utilizing the script `TODO: modify gtdb/gtdb_taxa_count_loader.py`. 
+    * Process the file containing taxonomy info by utilizing the script `TODO: modify gtdb/gtdb_taxa_count_loader.py`.
 3. Import JSON Format File Into ArangoDB
-   * Please refer to step 4 in the "Generate Genome Attributes" section above.
-   * NOTE: please make sure to use the collection `kbcoll_taxa_count` instead
+    * Please refer to step 4 in the "Generate Genome Attributes" section above.
+    * NOTE: please make sure to use the collection `kbcoll_taxa_count` instead
+
+## Run NERSC jobs - Taskfarmer
+
+1. Log into NERSC Perlmutter node
+
+```commandline
+ssh user_name@perlmutter-p1.nersc.gov
+```
+
+2. Go to the collections project directory
+
+```commandline
+cd /global/cfs/cdirs/kbase/collections
+```
+
+3. generate Taskfarmer job files and submit jobs
+
+```commandline
+
+# example configuration
+load_ver=r207
+kbase_collection=GTDB
+source_data_dir=/global/cfs/cdirs/kbase/collections/sourcedata/GTDB/r207
+tool=gtdb_tk
+module load taskfarmer
+
+PYTHONPATH=collections python collections/src/loaders/jobs/taskfarmer/task_generator.py  \
+    --tool $tool \
+    --load_ver $load_ver \
+    --kbase_collection $kbase_collection \
+    --source_data_dir $source_data_dir \
+    --submit_job
+```
