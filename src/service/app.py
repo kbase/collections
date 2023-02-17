@@ -16,6 +16,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from src.common.version import VERSION
 from src.service import app_state
 from src.service import errors
+from src.service import matcher_registry
 from src.service import models_errors
 from src.service.config import CollectionsServiceConfig
 from src.service.data_product_specs import DATA_PRODUCTS
@@ -75,11 +76,16 @@ def create_app(noop=False):
     app.include_router(ROUTER_COLLECTIONS_ADMIN)
 
     async def build_app_wrapper():
-        await app_state.build_app(app, cfg, DATA_PRODUCTS.values())
+        await app_state.build_app(
+            app,
+            cfg,
+            DATA_PRODUCTS.values(),
+            matcher_registry.MATCHERS.values()
+        )
     app.add_event_handler("startup", build_app_wrapper)
 
     async def clean_app_wrapper():
-        await app_state.clean_app(app)
+        await app_state.get_app_state_from_app(app).destroy()
     app.add_event_handler("shutdown", clean_app_wrapper)
     return app
 
