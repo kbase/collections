@@ -202,7 +202,7 @@ async def get_taxa_counts(
     dp_match = None
     if match_id:
         dp_match, load_ver = await _get_data_product_match(
-            appstate, store, collection_id, match_id, user
+            appstate, collection_id, match_id, user
         )
         if dp_match.data_product_match_state != models.MatchState.COMPLETE:
             return TaxaCounts(taxa_count_match_state=dp_match.data_product_match_state)
@@ -234,14 +234,13 @@ async def get_taxa_counts(
 
 async def _get_data_product_match(
     appstate: app_state.CollectionsState,
-    store: ArangoStorage,
     collection_id: str,
     match_id: str,
     user: kb_auth.KBaseUser
 ):
     if not user:
         raise errors.UnauthorizedError("Authentication is required if a match ID is supplied")
-    coll = await store.get_collection_active(collection_id)
+    coll = await appstate.arangostorage.get_collection_active(collection_id)
     # I'm kind of uncomfortable hard coding this dependency... but it's real so... I dunno.
     # Might need refactoring later once it become more clear how data products should
     # interact.
@@ -260,7 +259,7 @@ async def _get_data_product_match(
     )
     deps = appstate.get_pickleable_dependencies()
     dp_match = await match_retrieval.get_or_create_data_product_match(
-        store, deps, match, ID, _process_match
+        appstate.arangostorage, deps, match, ID, _process_match
     )
     return dp_match, load_ver
 
