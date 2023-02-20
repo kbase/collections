@@ -11,6 +11,7 @@ from src.common.storage.db_doc_conversions import taxa_node_count_to_doc
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
 from src.service import errors
+from src.service import kb_auth
 from src.service import match_retrieval
 from src.service import models
 from src.service import processing
@@ -25,7 +26,7 @@ from src.service.data_products.common_models import (
     QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
 )
 from src.service.data_products import genome_attributes
-from src.service.http_bearer import KBaseHTTPBearer, KBaseUser
+from src.service.http_bearer import KBaseHTTPBearer
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
 from src.service.timestamp import now_epoch_millis
@@ -138,7 +139,7 @@ async def get_ranks(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
-    user: KBaseUser = Depends(_OPT_AUTH)
+    user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
 ):
     store = app_state.get_app_state(r).arangostorage
     load_ver = await get_load_version(store, collection_id, ID, load_ver_override, user)
@@ -194,7 +195,7 @@ async def get_taxa_counts(
             + "the entire collection. Note that if a match ID is set, any load version override "
             + "is ignored."),  # matches are against a specific load version, so...
     load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
-    user: KBaseUser = Depends(_OPT_AUTH)
+    user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
 ):
     appstate = app_state.get_app_state(r)
     store = appstate.arangostorage
@@ -236,7 +237,7 @@ async def _get_data_product_match(
     store: ArangoStorage,
     collection_id: str,
     match_id: str,
-    user: KBaseUser
+    user: kb_auth.KBaseUser
 ):
     if not user:
         raise errors.UnauthorizedError("Authentication is required if a match ID is supplied")
@@ -251,10 +252,9 @@ async def _get_data_product_match(
     load_ver = get_load_ver_from_collection(coll, ID)
     ws = appstate.get_workspace_client(user.token)
     match = await match_retrieval.get_match_full(
+        appstate,
         match_id,
-        user.user.id,
-        store,
-        WorkspaceWrapper(ws),
+        user,
         require_complete=True,
         require_collection=coll
     )
@@ -305,6 +305,9 @@ async def _query(
 
 
 async def _process_match(match_id: str, pstorage: app_state.PickleableDependencies, args: list):
+    # TODO DOCS document that match processes should run the process regardless of the state
+    #      of the match. It is up to the code starting the process to ensure it is correct to
+    #      start the match process. As such, the match processes should be idempotent.
     hb = None
     arangoclient = None
     match = None

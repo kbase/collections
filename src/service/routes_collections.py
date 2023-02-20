@@ -20,7 +20,7 @@ from src.service import kb_auth
 from src.service import match_retrieval
 from src.service import models
 from src.service.clients.workspace_client import Workspace
-from src.service.http_bearer import KBaseHTTPBearer, KBaseUser
+from src.service.http_bearer import KBaseHTTPBearer
 from src.service.matchers.common_models import Matcher
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID, err_on_control_chars
 from src.service.storage_arango import ArangoStorage
@@ -41,13 +41,13 @@ UTF_8 = "utf-8"
 _AUTH = KBaseHTTPBearer()
 
 
-def _ensure_admin(user: KBaseUser, err_msg: str):
+def _ensure_admin(user: kb_auth.KBaseUser, err_msg: str):
     if user.admin_perm != kb_auth.AdminPermission.FULL:
         raise errors.UnauthorizedError(err_msg)
 
 
 def _precheck_admin_and_get_storage(
-    r: Request, user: KBaseUser, ver_tag: str, op: str
+    r: Request, user: kb_auth.KBaseUser, ver_tag: str, op: str
 ) -> ArangoStorage:
     _ensure_admin(user, f"Only collections service admins can {op}")
     err_on_control_chars(ver_tag, "ver_tag")
@@ -86,32 +86,8 @@ def _get_matcher_from_collection(collection: models.SavedCollection, matcher_id:
     raise errors.NoRegisteredMatcher(matcher_id)
 
 
-# Assumes matcher_info is valid
-def _check_perms_and_setup_match_process(
-    appstate: app_state.CollectionsState,
-    token: str,
-    upas: list[str],
-    matcher_info: models.Matcher):
-    # All matchers will need to check permissions and deletion state for the workspace objects,
-    # so we get the metadata which is the cheapest way to do that. Most matchers will need
-    # the metadata anyway.
-    # Getting the objects might be really expensive depending on the size and number, so we
-    # leave that to the matchers themselves, which should probably start a ee2 (?) job if object
-    # downloads are required
-
-    # TODO MATCHERS if the workspace check only includes that workspace IDs, it's not checking
-    #   for deleted objects. Maybe that's ok? Document it anyway
-    matcher = appstate.get_matcher(matcher_info.matcher)
-    ws = appstate.get_workspace_client(token)
-    meta = WorkspaceWrapper(ws).get_object_metadata(upas, allowed_types=matcher.types)
-    return matcher.generate_match_process(
-        {u: m for u, m in zip(upas, meta)},
-        matcher_info.parameters,
-    )
-
-
 async def _activate_collection_version(
-    user: KBaseUser, store: ArangoStorage, col: models.SavedCollection
+    user: kb_auth.KBaseUser, store: ArangoStorage, col: models.SavedCollection
 ) -> models.ActiveCollection:
     doc = col.dict()
     doc.update({
@@ -272,7 +248,7 @@ async def root():
 
 
 @ROUTER_GENERAL.get("/whoami/", response_model = WhoAmI)
-async def whoami(user: KBaseUser=Depends(_AUTH)):
+async def whoami(user: kb_auth.KBaseUser=Depends(_AUTH)):
     return {
         "user": user.user.id,
         "is_service_admin": kb_auth.AdminPermission.FULL == user.admin_perm
@@ -317,7 +293,7 @@ async def match(
     match_params: MatchParameters,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     matcher_id: str = Path(**models.MATCHER_ID_PROPS),  # is there a cleaner way to do this?
-    user: KBaseUser=Depends(_AUTH),
+    user: kb_auth.KBaseUser=Depends(_AUTH),
 ) -> models.Match:
     if len(match_params.upas) > MAX_UPAS:
         raise errors.IllegalParameterError(f"No more than {MAX_UPAS} UPAs are allowed per match")
@@ -327,7 +303,11 @@ async def match(
     # TODO MATCHERS handle genome and assembly set types
     upas, wsids = _check_and_sort_UPAs_and_get_wsids(match_params.upas)
     appstate = app_state.get_app_state(r)
-    match_process = _check_perms_and_setup_match_process(appstate, user.token, upas, matcher_info)
+    ws = appstate.get_workspace_client(user.token)
+    matcher = appstate.get_matcher(matcher_info.matcher)
+    match_process = await match_retrieval.create_match_process(
+        matcher, WorkspaceWrapper(ws), upas, matcher_info.parameters,
+    )
     perm_check = now_epoch_millis()
     params = match_params.parameters or {}
     int_match = models.InternalMatch(
@@ -336,6 +316,7 @@ async def match(
         collection_id=coll.id,
         collection_ver=coll.ver_num,
         user_parameters=params,
+        collection_parameters=matcher_info.parameters,
         match_state=models.MatchState.PROCESSING,
         match_state_updated=perm_check,
         upas=upas,
@@ -382,15 +363,12 @@ async def get_match(
             + "match and aren't often needed; in most cases they can be ignored. When false, "
             + "the UPAs and matching ID lists will be empty."
     ),
-    user: KBaseUser = Depends(_AUTH),
+    user: kb_auth.KBaseUser = Depends(_AUTH),
 ) -> models.MatchVerbose:
-    appstate = app_state.get_app_state(r)
-    ws = appstate.get_workspace_client(user.token)
     return await match_retrieval.get_match(
+        app_state.get_app_state(r),
         match_id,
-        user.user.id,
-        appstate.arangostorage,
-        WorkspaceWrapper(ws),
+        user,
         verbose=verbose
     )
 
@@ -410,7 +388,7 @@ async def save_collection(
     col: models.Collection,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     ver_tag: str = _PATH_VER_TAG,
-    user: KBaseUser=Depends(_AUTH)
+    user: kb_auth.KBaseUser=Depends(_AUTH)
 ) -> models.SavedCollection:
     # Maybe the method implementations should go into a different module / class...
     # But the method implementation is intertwined with the path validation
@@ -449,7 +427,7 @@ async def save_collection(
 
 
 @ROUTER_COLLECTIONS_ADMIN.get("/collectionids/all/", response_model = CollectionIDs)
-async def get_all_collection_ids(r: Request, user: KBaseUser=Depends(_AUTH)):
+async def get_all_collection_ids(r: Request, user: kb_auth.KBaseUser=Depends(_AUTH)):
     store = _precheck_admin_and_get_storage(r, user, "", "view collection versions")
     ids = await store.get_collection_ids(all_=True)
     return CollectionIDs(data=ids)
@@ -463,7 +441,7 @@ async def get_collection_by_ver_tag(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     ver_tag: str = _PATH_VER_TAG,
-    user: KBaseUser=Depends(_AUTH)
+    user: kb_auth.KBaseUser=Depends(_AUTH)
 ) -> models.SavedCollection:
     store = _precheck_admin_and_get_storage(r, user, ver_tag, "view collection versions")
     return await store.get_collection_version_by_tag(collection_id, ver_tag)
@@ -477,7 +455,7 @@ async def activate_collection_by_ver_tag(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     ver_tag: str = _PATH_VER_TAG,
-    user: KBaseUser=Depends(_AUTH)
+    user: kb_auth.KBaseUser=Depends(_AUTH)
 ) -> models.ActiveCollection:
     store = _precheck_admin_and_get_storage(r, user, ver_tag, "activate a collection version")
     col = await store.get_collection_version_by_tag(collection_id, ver_tag)
@@ -492,7 +470,7 @@ async def get_collection_by_ver_num(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     ver_num: int = _PATH_VER_NUM,
-    user: KBaseUser=Depends(_AUTH)
+    user: kb_auth.KBaseUser=Depends(_AUTH)
 ) -> models.SavedCollection:
     store = _precheck_admin_and_get_storage(r, user, "", "view collection versions")
     return await store.get_collection_version_by_num(collection_id, ver_num)
@@ -506,7 +484,7 @@ async def activate_collection_by_ver_num(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     ver_num: int = _PATH_VER_NUM,
-    user: KBaseUser=Depends(_AUTH)
+    user: kb_auth.KBaseUser=Depends(_AUTH)
 ) -> models.ActiveCollection:
     store = _precheck_admin_and_get_storage(r, user, "", "activate a collection version")
     col = await store.get_collection_version_by_num(collection_id, ver_num)
@@ -523,7 +501,7 @@ async def get_collection_versions(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     max_ver: int | None = _QUERY_MAX_VER,
-    user: KBaseUser=Depends(_AUTH),
+    user: kb_auth.KBaseUser=Depends(_AUTH),
 ) -> CollectionVersions:
     store = _precheck_admin_and_get_storage(r, user, "", "view collection versions")
     versions = await store.get_collection_versions(collection_id, max_ver=max_ver)
