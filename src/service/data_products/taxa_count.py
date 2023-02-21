@@ -11,6 +11,7 @@ from src.common.storage.db_doc_conversions import taxa_node_count_to_doc
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
 from src.service import errors
+from src.service import kb_auth
 from src.service import match_retrieval
 from src.service import models
 from src.service import processing
@@ -25,7 +26,7 @@ from src.service.data_products.common_models import (
     QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
 )
 from src.service.data_products import genome_attributes
-from src.service.http_bearer import KBaseHTTPBearer, KBaseUser
+from src.service.http_bearer import KBaseHTTPBearer
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
 from src.service.timestamp import now_epoch_millis
@@ -138,7 +139,7 @@ async def get_ranks(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
-    user: KBaseUser = Depends(_OPT_AUTH)
+    user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
 ):
     store = app_state.get_app_state(r).arangostorage
     load_ver = await get_load_version(store, collection_id, ID, load_ver_override, user)
@@ -194,14 +195,14 @@ async def get_taxa_counts(
             + "the entire collection. Note that if a match ID is set, any load version override "
             + "is ignored."),  # matches are against a specific load version, so...
     load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
-    user: KBaseUser = Depends(_OPT_AUTH)
+    user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
 ):
     appstate = app_state.get_app_state(r)
     store = appstate.arangostorage
     dp_match = None
     if match_id:
         dp_match, load_ver = await _get_data_product_match(
-            appstate, store, collection_id, match_id, user
+            appstate, collection_id, match_id, user
         )
         if dp_match.data_product_match_state != models.MatchState.COMPLETE:
             return TaxaCounts(taxa_count_match_state=dp_match.data_product_match_state)
@@ -233,14 +234,13 @@ async def get_taxa_counts(
 
 async def _get_data_product_match(
     appstate: app_state.CollectionsState,
-    store: ArangoStorage,
     collection_id: str,
     match_id: str,
-    user: KBaseUser
+    user: kb_auth.KBaseUser
 ):
     if not user:
         raise errors.UnauthorizedError("Authentication is required if a match ID is supplied")
-    coll = await store.get_collection_active(collection_id)
+    coll = await appstate.arangostorage.get_collection_active(collection_id)
     # I'm kind of uncomfortable hard coding this dependency... but it's real so... I dunno.
     # Might need refactoring later once it become more clear how data products should
     # interact.
@@ -249,18 +249,15 @@ async def _get_data_product_match(
             f"Cannot perform a {ID} match when the collection does not have a "
             + f"{genome_attributes.ID} data product")
     load_ver = get_load_ver_from_collection(coll, ID)
-    ws = appstate.get_workspace_client(user.token)
     match = await match_retrieval.get_match_full(
+        appstate,
         match_id,
-        user.user.id,
-        store,
-        WorkspaceWrapper(ws),
+        user,
         require_complete=True,
         require_collection=coll
     )
-    deps = appstate.get_pickleable_dependencies()
     dp_match = await match_retrieval.get_or_create_data_product_match(
-        store, deps, match, ID, _process_match
+        appstate, match, ID, _process_match
     )
     return dp_match, load_ver
 
@@ -305,6 +302,9 @@ async def _query(
 
 
 async def _process_match(match_id: str, pstorage: app_state.PickleableDependencies, args: list):
+    # TODO DOCS document that match processes should run the process regardless of the state
+    #      of the match. It is up to the code starting the process to ensure it is correct to
+    #      start the match process. As such, the match processes should be idempotent.
     hb = None
     arangoclient = None
     match = None

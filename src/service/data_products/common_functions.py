@@ -7,7 +7,6 @@ from src.service import errors
 from src.service import models
 from src.service import kb_auth
 from src.service.storage_arango import ArangoStorage
-from src.service.http_bearer import KBaseUser
 
 
 
@@ -16,7 +15,7 @@ async def get_load_version(
     collection_id: str,
     data_product: str,
     load_ver: str,
-    user: KBaseUser,
+    user: kb_auth.KBaseUser,
 ) -> str:
     """
     Get the load version of a data product given a Collection ID and the ID of the data product,

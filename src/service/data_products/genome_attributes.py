@@ -8,6 +8,7 @@ from src.common.gtdb_lineage import parse_gtdb_lineage_string
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
 from src.service import errors
+from src.service import kb_auth
 from src.service import match_retrieval
 from src.service import models
 from src.service.data_products.common_functions import (
@@ -20,7 +21,7 @@ from src.service.data_products.common_models import (
     DBCollection,
     QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
 )
-from src.service.http_bearer import KBaseHTTPBearer, KBaseUser
+from src.service.http_bearer import KBaseHTTPBearer
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
 from src.service.timestamp import now_epoch_millis
@@ -174,7 +175,7 @@ async def get_genome_attributes(
             + "the entire collection. Note that if a match ID is set, any load version override "
             + "is ignored."),  # matches are against a specific load version, so...
     load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
-    user: KBaseUser = Depends(_OPT_AUTH)
+    user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
 ):
     # sorting only works here since we expect the largest collection to be ~300K records and
     # we have a max limit of 1000, which means sorting is O(n log2 1000).
@@ -188,10 +189,9 @@ async def get_genome_attributes(
         load_ver = get_load_ver_from_collection(coll, ID)
         ws = app_state.get_app_state(r).get_workspace_client(user.token)
         match = await match_retrieval.get_match_full(
+            app_state.get_app_state(r),
             match_id,
-            user.user.id,
-            store,
-            WorkspaceWrapper(ws),
+            user,
             require_complete=True,
             require_collection=coll
         )

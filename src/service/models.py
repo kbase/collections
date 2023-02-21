@@ -77,6 +77,9 @@ V is the version. The version may not be omitted. Reference paths
 )
 FIELD_USER_PARAMETERS_EXAMPLE = {"rank": "genus"}
 FIELD_USER_PARAMETERS_DESCRIPTION = "The user parameters for the match."
+FIELD_MATCHER_PARAMETERS_EXAMPLE = {'gtdb_version': '207.0'}
+FIELD_MATCHER_PARAMETERS_DESCRIPTION = ("Any collection (as opposed to user provided) parameters "
+    + "for the matcher. What these are will depend on the matcher in question")
 
 
 DATA_PRODUCT_ID_FIELD = Field(
@@ -123,9 +126,8 @@ class Matcher(BaseModel):
     """The ID of a matcher associated with a collection and any parameters for the matcher"""
     matcher: str = MATCHER_ID_FIELD
     parameters: dict[str, Any] = Field(
-        example={'gtdb_version': '207.0'},
-        description="Any collection (as opposed to user provided) parameters for the matcher. "
-            + "What these are will depend on the matcher in question"
+        example=FIELD_MATCHER_PARAMETERS_EXAMPLE,
+        description=FIELD_MATCHER_PARAMETERS_DESCRIPTION,
     )
 
 
@@ -282,6 +284,13 @@ class Match(BaseModel):
     user_parameters: dict[str, Any] = Field(
         example=FIELD_USER_PARAMETERS_EXAMPLE,
         description=FIELD_USER_PARAMETERS_DESCRIPTION,
+    )
+    # Strictly speaking this could be looked up from the db with the collection id, ver, and
+    # matcher ID, but it's immutable given those parameters and so saves a DB lookup to store it
+    # here as well
+    collection_parameters: dict[str, Any] = Field(
+        example=FIELD_MATCHER_PARAMETERS_EXAMPLE,
+        description=FIELD_MATCHER_PARAMETERS_DESCRIPTION,
     )
     match_state: MatchState = Field(
         example=MatchState.PROCESSING.value,

@@ -15,17 +15,11 @@ from src.service import app_state
 from src.service import errors
 from src.service import kb_auth
 from src.service.user import UserID
-from typing import Optional, NamedTuple
+from typing import Optional
 
 # Modified from https://github.com/tiangolo/fastapi/blob/e13df8ee79d11ad8e338026d99b1dcdcb2261c9f/fastapi/security/http.py#L100
 
 _SCHEME = "Bearer"
-
-
-class KBaseUser(NamedTuple):
-    user: UserID
-    admin_perm: kb_auth.AdminPermission
-    token: str
 
 
 class KBaseHTTPBearer(HTTPBase):
@@ -46,7 +40,7 @@ class KBaseHTTPBearer(HTTPBase):
         self.scheme_name = scheme_name or self.__class__.__name__
         self.optional = optional
 
-    async def __call__(self, request: Request) -> KBaseUser:
+    async def __call__(self, request: Request) -> kb_auth.KBaseUser:
         authorization: str = request.headers.get("Authorization")
         if not authorization:
             if self.optional:
@@ -60,7 +54,6 @@ class KBaseHTTPBearer(HTTPBase):
             # don't put the received scheme in the error message, might be a token
             raise errors.InvalidAuthHeader(f"Authorization header requires {_SCHEME} scheme")
         try:
-            admin_perm, user = await app_state.get_app_state(request).auth.get_user(credentials)
+            return await app_state.get_app_state(request).auth.get_user(credentials)
         except kb_auth.InvalidTokenError:
             raise errors.InvalidTokenError()
-        return KBaseUser(user, admin_perm, credentials)
