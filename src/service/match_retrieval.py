@@ -200,9 +200,7 @@ async def create_match_process(
 
 
 async def get_or_create_data_product_match(
-    storage: ArangoStorage,
-    # could theoretically get storage from here, but why instantiate another arango client
-    deps: app_state.PickleableDependencies,
+    deps: app_state.CollectionsState,
     match: models.InternalMatch,
     data_product: str,
     match_process: Callable[[str, app_state.PickleableDependencies, list[Any]], None],
@@ -217,15 +215,14 @@ async def get_or_create_data_product_match(
 
     In either case, the list of arguments to the match process is empty.
 
-    storage - the storage system holding the match data.
-    deps - pickleable dependencies to pass to the match process.
+    deps - the collections service state.
     match - the parent match for the data product match.
     data_product - the data product for the match.
     match_process - the match process to run if there is no match information in the database or
         the match heartbeat is too old.
     """
     now = now_epoch_millis()
-    dp_match, exists = await storage.create_or_get_data_product_match(
+    dp_match, exists = await deps.arangostorage.create_or_get_data_product_match(
         models.DataProductMatchProcess(
             data_product=data_product,
             internal_match_id=match.internal_match_id,
@@ -235,13 +232,13 @@ async def get_or_create_data_product_match(
         )
     )
     if not exists:
-        _start_process(match.match_id, match_process, deps)
+        _start_process(match.match_id, match_process, deps.get_pickleable_dependencies())
     elif _requires_restart(dp_match, dp_match.data_product_match_state):
         logging.getLogger(__name__).warn(
             f"Restarting match process for match {dp_match.internal_match_id} "
             + f"data product {data_product}"
         )
-        _start_process(match.match_id, match_process, deps)
+        _start_process(match.match_id, match_process, deps.get_pickleable_dependencies())
     return dp_match
 
 

@@ -249,7 +249,6 @@ async def _get_data_product_match(
             f"Cannot perform a {ID} match when the collection does not have a "
             + f"{genome_attributes.ID} data product")
     load_ver = get_load_ver_from_collection(coll, ID)
-    ws = appstate.get_workspace_client(user.token)
     match = await match_retrieval.get_match_full(
         appstate,
         match_id,
@@ -257,9 +256,8 @@ async def _get_data_product_match(
         require_complete=True,
         require_collection=coll
     )
-    deps = appstate.get_pickleable_dependencies()
     dp_match = await match_retrieval.get_or_create_data_product_match(
-        appstate.arangostorage, deps, match, ID, _process_match
+        appstate, match, ID, _process_match
     )
     return dp_match, load_ver
 
