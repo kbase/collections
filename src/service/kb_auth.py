@@ -10,7 +10,7 @@ from cacheout.lru import LRUCache
 from enum import IntEnum
 import logging
 import time
-from typing import List, Sequence, Tuple
+from typing import List, Sequence, NamedTuple
 
 from src.service.arg_checkers import not_falsy as _not_falsy
 from src.service.user import UserID
@@ -23,6 +23,12 @@ class AdminPermission(IntEnum):
     NONE = 1
     # leave some space for potential future levels
     FULL = 10
+
+
+class KBaseUser(NamedTuple):
+    user: UserID
+    admin_perm: AdminPermission
+    token: str
 
 
 async def _get(url, headers):
@@ -96,23 +102,22 @@ class KBaseAuth:
 
         # could use the server time to adjust for clock skew, probably not worth the trouble
 
-    async def get_user(self, token: str) -> Tuple[AdminPermission, UserID]:
+    async def get_user(self, token: str) -> KBaseUser:
         '''
         Get a username from a token as well as the user's administration status.
         :param token: The user's token.
-        :returns: A tuple consisting of an enum indicating the user's administration permissions,
-          if any, and the username.
+        :returns: the user.
         '''
         # TODO CODE should check the token for \n etc.
         _not_falsy(token, 'token')
 
         admin_cache = self._admin_cache.get(token, default=False)
         if admin_cache:
-            return admin_cache 
+            return KBaseUser(admin_cache[1], admin_cache[0], token) 
         j = await _get(self._me_url, {"Authorization": token})
         v = (self._get_role(j['customroles']), UserID(j['user']))
         self._admin_cache.set(token, v)
-        return v
+        return KBaseUser(v[1], v[0], token)
 
     def _get_role(self, roles):
         r = set(roles)
