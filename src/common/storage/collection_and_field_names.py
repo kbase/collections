@@ -55,6 +55,9 @@ COLL_SRV_ACTIVE = _SRV_PREFIX + "active"
 COLL_SRV_MATCHES = _SRV_PREFIX + "matches"
 """ A collection holding matches to Collections. """
 
+COLL_SRV_MATCHES_DELETED = COLL_SRV_MATCHES + "_deleted"
+""" A collection holding matches in the deleted state. """
+
 COLL_SRV_MATCHES_DATA_PRODUCTS = COLL_SRV_MATCHES + "_data_prods"
 """ A collection holding the status of calculating secondary data products for matches. """
 
