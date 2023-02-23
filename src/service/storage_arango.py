@@ -26,6 +26,7 @@ from src.common.storage.collection_and_field_names import (
     COLL_SRV_COUNTERS,
     COLL_SRV_VERSIONS,
     COLL_SRV_MATCHES,
+    COLL_SRV_MATCHES_DELETED,
     COLL_SRV_MATCHES_DATA_PRODUCTS,
 )
 from src.service import models
@@ -52,6 +53,7 @@ _COLLECTIONS = [
     COLL_SRV_COUNTERS,
     COLL_SRV_VERSIONS,
     COLL_SRV_MATCHES,
+    COLL_SRV_MATCHES_DELETED,
     COLL_SRV_MATCHES_DATA_PRODUCTS
 ]
 _BUILTIN = "builtin"
@@ -168,7 +170,9 @@ class ArangoStorage:
         vercol = db.collection(COLL_SRV_VERSIONS)
         await vercol.add_persistent_index([models.FIELD_COLLECTION_ID, models.FIELD_VER_NUM])
         matchcol = db.collection(COLL_SRV_MATCHES)
-        # find matches ready for deletion
+        # find matches by internal match ID
+        await matchcol.add_persistent_index([models.FIELD_MATCH_INTERNAL_MATCH_ID])
+        # find matches ready to be moved to the deleted state
         await matchcol.add_persistent_index([models.FIELD_MATCH_LAST_ACCESS])
         for col_list in dps.values():
             for col in col_list:
@@ -406,6 +410,45 @@ class ArangoStorage:
             else:
                 raise e
 
+    async def remove_match(self, match_id: str, last_access: int) -> bool:
+        """
+        Removes the match record from the database if the last access time is as provided.
+        If the last access time does not match, it does nothing. This allows the match to be
+        removed safely after some reasonable period after a last access without a race condition,
+        as a new access will change the access time and prevent the match from being removed.
+
+        Does not move the match to a deleted state or otherwise modify the database.
+        Deleting matches that have not completed running is not prevented, but is generally unwise.
+
+        match_id - the ID of the match to remove.
+        last_access - the time the match was accessed last.
+
+        Returns true if the match document was removed, false otherwise.
+        """
+        return await self._remove_match(match_id, last_access, COLL_SRV_MATCHES)
+
+    async def _remove_match(self, match_id: str, last_access: int, coll: str) -> bool:
+        # match_id is the match ID for regular matches, internal_match_id for deleted matches
+        aql = f"""
+            FOR d in @@{_FLD_COLLECTION}
+                FILTER d.{FLD_ARANGO_KEY} == @{_FLD_MATCH_ID}
+                FILTER d.{models.FIELD_MATCH_LAST_ACCESS} == @last_access
+                REMOVE d IN @@{_FLD_COLLECTION}
+                OPTIONS {{exclusive: true}}
+                RETURN KEEP(d, "{FLD_ARANGO_KEY}")
+            """
+        bind_vars = {
+            f"@{_FLD_COLLECTION}": coll,
+            _FLD_MATCH_ID: match_id,
+            "last_access": last_access,
+        }
+        cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
+        # having a count > 1 is impossible since keys are unique
+        try:
+            return not cur.empty()
+        finally:
+            await cur.close(ignore_missing=True)
+
     async def update_match_permissions_check(self, match_id: str, username: str, check_time: int
     ) -> models.Match:
         """
@@ -508,8 +551,8 @@ class ArangoStorage:
         finally:
             await cur.close(ignore_missing=True)
 
-    async def _get_match(self, match_id: str):
-        col = self._db.collection(COLL_SRV_MATCHES)
+    async def _get_match(self, coll: str, match_id: str):
+        col = self._db.collection(coll)
         doc = await col.get(match_id)
         if doc is None:
             raise errors.NoSuchMatchError(match_id)
@@ -526,7 +569,7 @@ class ArangoStorage:
         """
         # could potentially speed things up a bit and reduce bandwidth by using AQL and
         # KEEP(). Don't bother for now.
-        doc = await self._get_match(match_id)
+        doc = await self._get_match(COLL_SRV_MATCHES, match_id)
         match = models.MatchVerbose.construct(
             **models.remove_non_model_fields(doc, models.MatchVerbose))
         if not verbose:
@@ -539,7 +582,7 @@ class ArangoStorage:
         """
         Get the full match associated with the match id.
         """
-        doc = await self._get_match(match_id)
+        doc = await self._get_match(COLL_SRV_MATCHES, match_id)
         return models.InternalMatch.construct(
             **models.remove_non_model_fields(doc, models.InternalMatch))
 
@@ -584,6 +627,40 @@ class ArangoStorage:
             """
         cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
         await self._execute_aql_and_check_match_exists(match_id, aql, bind_vars)
+
+    async def add_deleted_match(self, match: models.DeletedMatch):
+        """
+        Adds a match in the deleted state to the database. This will overwrite any deleted match
+        already present with the same internal match ID. Does not alter the source match.
+        """
+        doc = jsonable_encoder(match)
+        doc[FLD_ARANGO_KEY] = match.internal_match_id
+        col = self._db.collection(COLL_SRV_MATCHES_DELETED)
+        await col.insert(doc, overwrite=True, silent=True)
+
+    async def get_deleted_match(self, internal_match_id: str) -> models.DeletedMatch:
+        """
+        Get a match in the deleted state from the database given its internal match ID.
+        """
+        doc = await self._get_match(COLL_SRV_MATCHES_DELETED, internal_match_id)
+        return models.DeletedMatch.construct(
+            **models.remove_non_model_fields(doc, models.DeletedMatch))
+
+    async def remove_deleted_match(self, internal_match_id: str, last_access: int) -> bool:
+        """
+        Removes the deleted match record from the database if the last access time is as provided.
+        If the last access time does not match, it does nothing. This allows the deleted match to
+        be removed safely without causing a race condition if another match deletion thread
+        updates the deleted match record in between retrieving the match from the database.
+
+        Does not otherwise modify the database.
+
+        internal_match_id - the internal ID of the match to remove.
+        last_access - the time the match was accessed last.
+
+        Returns true if the match document was removed, false otherwise.
+        """
+        return await self._remove_match(internal_match_id, last_access, COLL_SRV_MATCHES_DELETED)
 
     def _data_product_match_key(self, internal_match_id: str, data_product: str) -> str:
         return f"{internal_match_id}_{data_product}"
