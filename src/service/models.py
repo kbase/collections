@@ -42,6 +42,7 @@ FIELD_DATA_PRODUCTS_PRODUCT = "product"
 FIELD_MATCHERS = "matchers"
 FIELD_MATCHERS_MATCHER = "matcher"
 FIELD_MATCH_LAST_ACCESS = "last_access"
+FIELD_MATCH_INTERNAL_MATCH_ID = "internal_match_id"
 FIELD_MATCH_HEARTBEAT = "heartbeat"
 FIELD_MATCH_USER_PERMS = "user_last_perm_check"
 FIELD_MATCH_STATE = "match_state"
@@ -371,6 +372,14 @@ class InternalMatch(MatchVerbose):
         description="A mapping of user name to the last time their permissions to view the "
             + "match was checked in Unix epoch milliseconds. Used to determine when to recheck "
             + "permissions for a user."
+    )
+
+
+class DeletedMatch(InternalMatch):
+    """ A match in the deleted state, waiting for permanent deletion. """
+    deleted: int = Field(
+        example=1674243789870,
+        description="Milliseconds since the Unix epoch at the point the match was deleted."
     )
 
 
