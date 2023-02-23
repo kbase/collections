@@ -65,7 +65,8 @@ for the genome taxa counts.
     * Please refer to step 4 in the "Generate Genome Attributes" section above.
     * NOTE: please make sure to use the collection `kbcoll_taxa_count` instead
 
-## Run NERSC jobs - Taskfarmer
+
+## [Run NERSC jobs - Taskfarmer](#Generate Genome Attributes)
 
 1. Log into NERSC Perlmutter node
 

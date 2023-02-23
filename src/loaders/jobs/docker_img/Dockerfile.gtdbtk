@@ -22,4 +22,4 @@ WORKDIR /app
 ENV GTDBTK_DATA_PATH /gtdbtk_reference_data
 ENV PYTHONPATH /app/collections
 
-ENTRYPOINT ["conda", "run", "-n", "gtdbtk-2.1.1", "python", "collections/src/loaders/genome_collection/compute_genome_attribs.py"]
+ENTRYPOINT ["conda", "run", "-n", $CONDA_ENV, "python", "collections/src/loaders/genome_collection/compute_genome_attribs.py"]

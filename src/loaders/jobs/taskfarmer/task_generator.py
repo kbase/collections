@@ -8,10 +8,10 @@ from src.loaders.common import loader_common_names
 
 '''
 
-Create required documents and scripts for the TaskFarmer Workflow Manager.
+Create required documents and scripts for the TaskFarmer Workflow Manager and execute the task.
 
 usage: task_generator.py [-h] --tool {checkm2,gtdb_tk} --kbase_collection KBASE_COLLECTION --load_ver LOAD_VER --source_data_dir SOURCE_DATA_DIR
-                         [--root_dir ROOT_DIR] [--submit_job] [--no_submit_job]
+                         [--root_dir ROOT_DIR] [--submit_job]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -28,7 +28,6 @@ required named arguments:
 optional arguments:
   --root_dir ROOT_DIR   Root directory for the collections project. (default: /global/cfs/cdirs/kbase/collections)
   --submit_job          Submit job to slurm
-  --no_submit_job       Do not submit job to slurm
 '''
 
 TOOLS_AVAILABLE = ['checkm2', 'gtdb_tk']
@@ -95,17 +94,17 @@ def _create_shifter_wrapper(job_dir, image_str):
     """
 
     # The content of the Shifter wrapper script
-    shifter_wrapper = "#!/bin/bash\n\n"
-    shifter_wrapper += f"image={image_str}\n\n"
-    shifter_wrapper += "if [ $# -lt 1 ]; then\n"
-    shifter_wrapper += '    echo "Error: Missing command argument."\n'
-    shifter_wrapper += '    echo "Usage: shifter_wrapper.sh your-command-arguments"\n'
-    shifter_wrapper += "    exit 1\n"
-    shifter_wrapper += "fi\n\n"
-    shifter_wrapper += "command=\"$@\"\n\n"
-    shifter_wrapper += "echo \"Running shifter --image=$image $command\"\n\n"
-    shifter_wrapper += f"cd $HOME\n"
-    shifter_wrapper += "shifter --image=$image $command\n"  # Run the command in the Shifter environment
+    shifter_wrapper = '''#!/bin/bash\n\n'''
+    shifter_wrapper += f'''image={image_str}\n\n'''
+    shifter_wrapper += '''if [ $# -lt 1 ]; then\n'''
+    shifter_wrapper += '''    echo "Error: Missing command argument."\n'''
+    shifter_wrapper += '''    echo "Usage: shifter_wrapper.sh your-command-arguments"\n'''
+    shifter_wrapper += '''    exit 1\n'''
+    shifter_wrapper += '''fi\n\n'''
+    shifter_wrapper += '''command=\"$@\"\n\n'''
+    shifter_wrapper += '''echo \"Running shifter --image=$image $command\"\n\n'''
+    shifter_wrapper += f'''cd $HOME\n'''
+    shifter_wrapper += '''shifter --image=$image $command\n'''  # Run the command in the Shifter environment
 
     wrapper_file = os.path.join(job_dir, 'shifter_wrapper.sh')
     with open(wrapper_file, "w") as f:
@@ -172,15 +171,15 @@ def _create_batch_script(job_dir, task_list_file, n_jobs):
     """
     Create the batch script (submit_taskfarmer.sl) for job submission
     """
-    batch_script = '#!/bin/sh\n'
-    batch_script += f'#SBATCH -N {n_jobs + 1} -c 64\n'
-    batch_script += '#SBATCH -q regular\n'
-    batch_script += '#SBATCH --time=2:00:00\n'
-    batch_script += '#SBATCH --time-min=0:30:00\n'
-    batch_script += '#SBATCH -C cpu\n\n'
-    batch_script += f'cd {job_dir}\n'
-    batch_script += 'export THREADS=32\n\n'
-    batch_script += f'runcommands.sh {task_list_file}'
+    batch_script = '''#!/bin/sh\n'''
+    batch_script += f'''#SBATCH -N {n_jobs + 1} -c 64\n'''
+    batch_script += '''#SBATCH -q regular\n'''
+    batch_script += '''#SBATCH --time=2:00:00\n'''
+    batch_script += '''#SBATCH --time-min=0:30:00\n'''
+    batch_script += '''#SBATCH -C cpu\n\n'''
+    batch_script += f'''cd {job_dir}\n'''
+    batch_script += '''export THREADS=32\n\n'''
+    batch_script += f'''runcommands.sh {task_list_file}'''
 
     batch_script_file = os.path.join(job_dir, 'submit_taskfarmer.sl')
     with open(batch_script_file, "w") as f:
@@ -191,7 +190,8 @@ def _create_batch_script(job_dir, task_list_file, n_jobs):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='PROTOTYPE - Create the required documents/scripts for the TaskFarmer Workflow Manager.')
+        description='PROTOTYPE - Create the required documents/scripts for the TaskFarmer Workflow Manager'
+                    'and provide the choice to execute tasks.')
     required = parser.add_argument_group('required named arguments')
     optional = parser.add_argument_group('optional arguments')
 
@@ -214,7 +214,6 @@ def main():
                           help=f'Root directory for the collections project. (default: {loader_common_names.ROOT_DIR})')
 
     optional.add_argument('--submit_job', action='store_true', help='Submit job to slurm')
-    optional.add_argument('--no_submit_job', dest='submit_job', action='store_false', help='Do not submit job to slurm')
 
     args = parser.parse_args()
 
