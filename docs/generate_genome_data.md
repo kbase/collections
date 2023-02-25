@@ -8,19 +8,21 @@ The scripts used in the process are located in the `src/loaders` directory.
 1. Retrieve Source Genome Files
     * From NCBI
         * Download the genome files from the NCBI FTP server using the script
-          `ncbi_downloader/ncbi_downloader.py`.
+          [ncbi_downloader.py](../src/loaders/ncbi_downloader/ncbi_downloader.py).
     * From workspace
         * `TODO: work remains to be done`
 2. Compute Genome Attributes
     * The next step is to execute tools to compute various attributes of the genome using the script
-      `genome_attributes/compute_genome_attribs.py`.
+      [compute_genome_attribs.py](../src/loaders/genome_collection/compute_genome_attribs.py).
     * This script currently supports two tools for attribute computation:
       [GTDB-TK](https://ecogenomics.github.io/GTDBTk/index.html)
       and [CheckM2](https://github.com/chklovski/CheckM2)
+    * To schedule and execute jobs on NERSC, please refer to the
+      section [Run NERSC Taskfarmer jobs](#run-nersc-taskfarmer-jobs) below.
 3. Parse Tool Results
     * After the attribute computation tools have been executed, the results need to be parsed and organized
       into a format that is suitable for importing into ArangoDB. This is done using the script
-      `genome_attributes/parse_computed_genome_attribs.py`.
+      [parse_computed_genome_attribs.py](../src/loaders/genome_collection/parse_computed_genome_attribs.py).
 4. Import JSON Format File Into ArangoDB
    ```commandline
    # set up an SSH tunnel (Not required when using an internal KBase machine such as dev03) 
@@ -60,13 +62,13 @@ for the genome taxa counts.
     * Using computational tools such as GTDB-TK
         * Please refer to the "Generate Genome Attributes" section above and follow the steps 1, 2, 3 as described.
 2. Prepare Taxa Count Data
-    * Process the file containing taxonomy info by utilizing the script `TODO: modify gtdb/gtdb_taxa_count_loader.py`.
+    * Process the file containing taxonomy info by utilizing the script
+      [compute_genome_taxa_count.py](../src/loaders/genome_collection/compute_genome_taxa_count.py).
 3. Import JSON Format File Into ArangoDB
     * Please refer to step 4 in the "Generate Genome Attributes" section above.
     * NOTE: please make sure to use the collection `kbcoll_taxa_count` instead
 
-
-## [Run NERSC jobs - Taskfarmer](#Generate Genome Attributes)
+## Run NERSC Taskfarmer jobs
 
 1. Log into NERSC Perlmutter node
 

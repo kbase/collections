@@ -36,9 +36,12 @@ CHUNK_SIZE = 1000
 REGISTRY = 'tiangu01'  # public Docker Hub registry to pull images from
 
 # directory containing the unarchived GTDB-Tk reference data
+# download data following the instructions provided on
+# https://ecogenomics.github.io/GTDBTk/installing/index.html#gtdb-tk-reference-data
 GTDBTK_DATA_PATH = '/global/cfs/cdirs/kbase/collections/libraries/gtdb_tk/release207_v2'
 
 # DIAMOND database CheckM2 relies on
+# download data following the instructions provided on https://github.com/chklovski/CheckM2#database
 CHECKM2_DB = '/global/cfs/cdirs/kbase/collections/libraries/CheckM2_database'
 
 
