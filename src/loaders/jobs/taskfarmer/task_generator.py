@@ -5,10 +5,9 @@ import subprocess
 
 from src.loaders.common import loader_common_names
 
-
 '''
 
-Create required documents and scripts for the TaskFarmer Workflow Manager and execute the task.
+Create the required documents and scripts for the TaskFarmer Workflow Manager and provide the option to execute tasks.
 
 usage: task_generator.py [-h] --tool {checkm2,gtdb_tk} --kbase_collection KBASE_COLLECTION --load_ver LOAD_VER --source_data_dir SOURCE_DATA_DIR
                          [--root_dir ROOT_DIR] [--submit_job]
@@ -31,7 +30,10 @@ optional arguments:
 '''
 
 TOOLS_AVAILABLE = ['checkm2', 'gtdb_tk']
-CHUNK_SIZE = 1000
+
+# All nodes in Perlmutter have identical computational resources
+CHUNK_SIZE = {'checkm2': 5000,
+              'gtdb_tk': 1000}
 
 REGISTRY = 'tiangu01'  # public Docker Hub registry to pull images from
 
@@ -86,7 +88,9 @@ def _fetch_image(registry, image_name, ver='latest'):
     std_out, std_err, returncode = _run_command(["shifterimg", "pull", image_str])
 
     if 'FAILURE' in std_out:
-        raise ValueError(f"Error fetching Shifter image {image_str}.")
+        raise ValueError(f"Error fetching Shifter image {image_str}.\n"
+                         f"Standard output: {std_out}\n"
+                         f"Standard error: {std_err}")
 
     return image_str
 
@@ -135,7 +139,8 @@ def _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper
     genome_ids = [path for path in os.listdir(source_data_dir) if
                   os.path.isdir(os.path.join(source_data_dir, path))]
 
-    genome_ids_chunks = [genome_ids[i: i + CHUNK_SIZE] for i in range(0, len(genome_ids), CHUNK_SIZE)]
+    chunk_size = CHUNK_SIZE[tool]
+    genome_ids_chunks = [genome_ids[i: i + chunk_size] for i in range(0, len(genome_ids), chunk_size)]
 
     task_list = '#!/usr/bin/env bash\n'
     for idx, genome_ids_chunk in enumerate(genome_ids_chunks):
@@ -146,7 +151,7 @@ def _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper
         _create_genome_id_file(genome_ids_chunk, genome_id_file)
 
         if tool == 'checkm2':
-            task_list += f'	--volume={CHECKM2_DB}:/CheckM2_database --volume={root_dir}:/checkm2_root_dir ' \
+            task_list += f'	--volume={CHECKM2_DB}:/CheckM2_database ' \
                          f'conda run -n checkm2-1.0.0 ' \
                          f'python collections/src/loaders/genome_collection/compute_genome_attribs.py ' \
                          f'--tools checkm2 '
@@ -177,7 +182,7 @@ def _create_batch_script(job_dir, task_list_file, n_jobs):
     batch_script = '''#!/bin/sh\n'''
     batch_script += f'''#SBATCH -N {n_jobs + 1} -c 64\n'''
     batch_script += '''#SBATCH -q regular\n'''
-    batch_script += '''#SBATCH --time=2:00:00\n'''
+    batch_script += '''#SBATCH --time=4:00:00\n'''
     batch_script += '''#SBATCH --time-min=0:30:00\n'''
     batch_script += '''#SBATCH -C cpu\n\n'''
     batch_script += f'''cd {job_dir}\n'''
@@ -194,7 +199,7 @@ def _create_batch_script(job_dir, task_list_file, n_jobs):
 def main():
     parser = argparse.ArgumentParser(
         description='PROTOTYPE - Create the required documents/scripts for the TaskFarmer Workflow Manager'
-                    'and provide the choice to execute tasks.')
+                    'and provide the option to execute tasks.')
     required = parser.add_argument_group('required named arguments')
     optional = parser.add_argument_group('optional arguments')
 
