@@ -14,7 +14,6 @@ from src.service import models
 from src.service import processing
 from src.service.matchers.common_models import Matcher
 from src.service.storage_arango import ArangoStorage
-from src.service.timestamp import now_epoch_millis
 from src.service.workspace_wrapper import WorkspaceWrapper
 
 
@@ -91,7 +90,7 @@ async def _get_match(
     # could save bandwidth if we added option to not return upas and match IDs if not verbose
     match = await storage.get_match_full(match_id)
     last_perm_check = match.user_last_perm_check.get(user.user.id)
-    now = now_epoch_millis()
+    now = deps.get_epoch_ms()
     # if we ever go back in time to 1970 the first part of this clause will be an issue
     if not last_perm_check or now - last_perm_check > _PERM_RECHECK_LIMIT:
         # If we want to be really careful we should recheck all the UPAs again since
@@ -133,7 +132,7 @@ async def _check_match_state(
                 + f"while the current version is {col.ver_num}")
     # Don't restart the match if the collection is out of date
     # Also only restart if the match is requested for the correct collection
-    if _requires_restart(match, match.match_state):
+    if _requires_restart(deps, match, match.match_state):
         mp = await create_match_process(
             deps.get_matcher(match.matcher_id), ww, match.upas, match.collection_parameters
         )
@@ -145,6 +144,7 @@ async def _check_match_state(
 
 
 def _requires_restart(
+    deps: app_state.CollectionsState,
     match: models.InternalMatch | models.DataProductMatchProcess,
     match_state: models.MatchState,
 ) -> bool:
@@ -155,7 +155,7 @@ def _requires_restart(
         # but that kind of thing could lead to a lot of jobs being kicked off over and over
         # Better to put retries in the matching code or arango storage wrapper
         maxdiff = processing.HEARTBEAT_RESTART_THRESHOLD_MS
-        now = now_epoch_millis()
+        now = deps.get_epoch_ms()
         if match.heartbeat is None:
             if now - match.created > maxdiff:
                 return True
@@ -221,7 +221,7 @@ async def get_or_create_data_product_match(
     match_process - the match process to run if there is no match information in the database or
         the match heartbeat is too old.
     """
-    now = now_epoch_millis()
+    now = deps.get_epoch_ms()
     dp_match, exists = await deps.arangostorage.create_or_get_data_product_match(
         models.DataProductMatchProcess(
             data_product=data_product,
@@ -233,7 +233,7 @@ async def get_or_create_data_product_match(
     )
     if not exists:
         _start_process(match.match_id, match_process, deps.get_pickleable_dependencies())
-    elif _requires_restart(dp_match, dp_match.data_product_match_state):
+    elif _requires_restart(deps, dp_match, dp_match.data_product_match_state):
         logging.getLogger(__name__).warn(
             f"Restarting match process for match {dp_match.internal_match_id} "
             + f"data product {data_product}"

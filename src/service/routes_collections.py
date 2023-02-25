@@ -24,7 +24,7 @@ from src.service.http_bearer import KBaseHTTPBearer
 from src.service.matchers.common_models import Matcher
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID, err_on_control_chars
 from src.service.storage_arango import ArangoStorage
-from src.service.timestamp import timestamp, now_epoch_millis
+from src.service.timestamp import timestamp
 from src.service.workspace_wrapper import WorkspaceWrapper
 
 SERVICE_NAME = "Collections Prototype"
@@ -308,7 +308,7 @@ async def match(
     match_process = await match_retrieval.create_match_process(
         matcher, WorkspaceWrapper(ws), upas, matcher_info.parameters,
     )
-    perm_check = now_epoch_millis()
+    perm_check = appstate.get_epoch_ms()
     params = match_params.parameters or {}
     int_match = models.InternalMatch(
         match_id=_calc_match_id_md5(matcher_id, collection_id, coll.ver_num, params, upas),
