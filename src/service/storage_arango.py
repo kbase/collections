@@ -663,7 +663,7 @@ class ArangoStorage:
         return await self._remove_match(internal_match_id, last_access, COLL_SRV_MATCHES_DELETED)
 
     def _data_product_match_key(self, internal_match_id: str, data_product: str) -> str:
-        return f"{internal_match_id}_{data_product}"
+        return f"{data_product}_{internal_match_id}"
 
     async def create_or_get_data_product_match(self, dp_match: models.DataProductMatchProcess
     ) -> tuple[models.DataProductMatchProcess, bool]:

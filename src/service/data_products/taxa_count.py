@@ -29,7 +29,6 @@ from src.service.data_products import genome_attributes
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
-from src.service.timestamp import now_epoch_millis
 from src.service.workspace_wrapper import WorkspaceWrapper
 
 
@@ -301,7 +300,7 @@ async def _query(
     return ret
 
 
-async def _process_match(match_id: str, pstorage: app_state.PickleableDependencies, args: list):
+async def _process_match(match_id: str, deps: app_state.PickleableDependencies, args: list):
     # TODO DOCS document that match processes should run the process regardless of the state
     #      of the match. It is up to the code starting the process to ensure it is correct to
     #      start the match process. As such, the match processes should be idempotent.
@@ -309,7 +308,7 @@ async def _process_match(match_id: str, pstorage: app_state.PickleableDependenci
     arangoclient = None
     match = None
     try:
-        arangoclient, storage = await pstorage.get_storage()
+        arangoclient, storage = await deps.get_storage()
         match = await storage.get_match_full(match_id)
         # TODO MATCHERS check on heartbeat when getting match and restart process
         async def heartbeat(millis: int):
@@ -347,14 +346,15 @@ async def _process_match(match_id: str, pstorage: app_state.PickleableDependenci
         # is the same and neither fails.
         await storage.import_bulk_ignore_collisions(names.COLL_TAXA_COUNT, docs)
         await storage.update_data_product_match_state(
-            match.internal_match_id, ID, models.MatchState.COMPLETE, now_epoch_millis()
+            match.internal_match_id, ID, models.MatchState.COMPLETE, deps.get_epoch_ms()
         )
     except Exception as e:
         logging.getLogger(__name__).exception(
             f"Matching process data product {ID} for match {match_id} failed")
         if match:
             await storage.update_data_product_match_state(
-                match.internal_match_id, ID, models.MatchState.FAILED, now_epoch_millis())
+                match.internal_match_id, ID, models.MatchState.FAILED, deps.get_epoch_ms()
+            )
             # otherwise not much to do, something went very wrong
     finally:
         if hb:

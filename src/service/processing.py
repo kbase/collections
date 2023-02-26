@@ -41,17 +41,20 @@ class CollectionProcess(BaseModel):
             or selection ID.
         storage - the storage system containing the ID data and the data to match against.
         """
-        ctx = multiprocessing.get_context("forkserver")
-        ctx.Process(target=_run_process, args=(self.process, data_id, storage, self.args)).start()
+        run_async_process(target=self.process, args=(data_id, storage, self.args))
 
 
-def _run_process(
-    function: Callable[[str, PickleableDependencies, list[Any]], None],
-    data_id: str,
-    pstorage: PickleableDependencies,
-    args: list[Any]
-):
-    asyncio.run(function(data_id, pstorage, args))
+def run_async_process(target: Callable, args: list[Any]):
+    """
+    Start a separate process, calliung `target` with the provided `args` and starting the event
+    loop.
+    """
+    ctx = multiprocessing.get_context("forkserver")
+    ctx.Process(target=_run_async_process, args=[target, args]).start()
+
+
+def _run_async_process(target: Callable, args: list[Any]):
+    asyncio.run(target(*args))
 
 
 class Heartbeat:
