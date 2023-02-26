@@ -50,6 +50,15 @@ To start the service Docker container:
 * The PR creator merges the PR and deletes branches (after builds / tests / linters complete).
 * To add new data products, see [Adding data products](/docs/adding_data_products.md)
 
+#### Timestamps
+
+* Timestamps visible in the API must be fully qualified ISO8601 timestamps in the format
+  `2023-01-29T21:41:48.867140+00:00`.
+* Timestamps may be stored in the database as either the above format or as Unix epoch
+  milliseconds, depending on the use case.
+* If timestamps are stored as epoch ms, they must be converted to the ISO8601 format prior to
+  returning them via the API.
+
 ### Versioning
 
 * The code is versioned according to [Semantic Versioning](https://semver.org/).

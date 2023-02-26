@@ -16,6 +16,7 @@ from src.service.data_products.common_models import DataProductSpec, DBCollectio
 from src.service.matchers.common_models import Matcher
 from src.service.kb_auth import KBaseAuth
 from src.service.storage_arango import ArangoStorage, ARANGO_ERR_NAME_EXISTS
+from src.service.timestamp import now_epoch_millis
 
 # The main point of this module is to handle all the application state in one place
 # to keep it consistent and allow for refactoring without breaking other code
@@ -49,6 +50,14 @@ class PickleableDependencies:
         token - the user's token.
         """
         return Workspace(cfg.workspace_url, token=token)
+    
+    def get_epoch_ms(self) -> int:
+        """
+        Get the Unix epoch time in milliseconds.
+        """
+        # This allows for easy mocking of time generation rather than having to monkey patch
+        # time.time
+        return now_epoch_millis()
 
 
 class CollectionsState:
@@ -114,6 +123,14 @@ class CollectionsState:
         Get all the matchers registered in the system.
         """
         return list(self._matchers.values())
+
+    def get_epoch_ms(self) -> int:
+        """
+        Get the Unix epoch time in milliseconds.
+        """
+        # This allows for easy mocking of time generation rather than having to monkey patch
+        # time.time
+        return now_epoch_millis()
 
 
 async def build_app(
