@@ -36,6 +36,7 @@ CHUNK_SIZE = {'checkm2': 5000,
               'gtdb_tk': 1000}
 
 REGISTRY = 'tiangu01'  # public Docker Hub registry to pull images from
+REPO_URL = 'https://github.com/kbase/collections.git'  # URL to the collections repo
 
 # directory containing the unarchived GTDB-Tk reference data
 # download data following the instructions provided on
@@ -47,32 +48,55 @@ GTDBTK_DATA_PATH = '/global/cfs/cdirs/kbase/collections/libraries/gtdb_tk/releas
 CHECKM2_DB = '/global/cfs/cdirs/kbase/collections/libraries/CheckM2_database'
 
 
-def _run_command(command, check_return_code=True):
+def _run_command(command, job_dir, log_file_prefix='', check_return_code=True):
     """
     Runs the specified command and captures its standard output and standard error.
     """
+    log_dir = os.path.join(job_dir, 'logs')
+    os.makedirs(log_dir, exist_ok=True)
+    std_out_file = os.path.join(log_dir,
+                                f'stdout_{log_file_prefix}_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}')
+    std_err_file = os.path.join(log_dir,
+                                f'stderr_{log_file_prefix}_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}')
 
-    process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    std_out = process.stdout.decode("utf-8").strip()
-    std_err = process.stderr.decode("utf-8").strip()
-    return_code = process.returncode
+    with open(std_out_file, "w") as std_out, open(std_err_file, "w") as std_err:
+        p = subprocess.Popen(command, stdout=std_out, stderr=std_err, text=True)
 
-    if check_return_code and return_code != 0:
-        raise Exception(f"Error running command '{command}'.\n"
-                        f"Standard output: {std_out}\n"
-                        f"Standard error: {std_err}")
+    exit_code = p.wait()
 
-    return std_out, std_err, process.returncode
+    if check_return_code and exit_code != 0:
+        with open(std_out_file, "r") as std_out, open(std_err_file, "r") as std_err:
+            raise ValueError(f"Error running command '{command}'.\n"
+                             f"Standard output: {std_out.read()}\n"
+                             f"Standard error: {std_err.read()}")
+
+    return std_out_file, std_err_file, exit_code
 
 
-def _fetch_image(registry, image_name, ver='latest'):
+def _clone_repo(job_dir):
+    """
+    Clones the collections repo into the specified directory.
+    """
+    repo_dir = os.path.join(job_dir, 'collections')
+    os.rmdir(repo_dir) if os.path.exists(repo_dir) else None  # remove existing repo otherwise git clone will fail
+    _run_command(["git", "clone", REPO_URL, repo_dir], job_dir, log_file_prefix='git_clone')
+
+    if not os.path.exists(repo_dir):
+        raise ValueError(f"Error cloning repo '{REPO_URL}' into '{repo_dir}'.")
+
+
+def _fetch_image(registry, image_name, job_dir, ver='latest'):
     """
     Fetches the specified Shifter image, if it's not already present on the system.
     """
     image_str = f"{registry}/{image_name}:{ver}"
 
     # Check if the image is already present on the system
-    std_out, std_err, returncode = _run_command(["shifterimg", "images"])
+    std_out_file, std_err_file, exit_code = _run_command(["shifterimg", "images"], job_dir,
+                                                         log_file_prefix='shifterimg_images')
+
+    with open(std_out_file, "r") as f:
+        std_out = f.read()
 
     images = std_out.split("\n")
     for image in images:
@@ -85,12 +109,14 @@ def _fetch_image(registry, image_name, ver='latest'):
 
     # Pull the image from the registry
     print(f"Fetching Shifter image {image_str}...")
-    std_out, std_err, returncode = _run_command(["shifterimg", "pull", image_str])
+    std_out_file, std_err_file, exit_code = _run_command(["shifterimg", "pull", image_str], job_dir,
+                                                         log_file_prefix='shifterimg_pull')
 
     if 'FAILURE' in std_out:
-        raise ValueError(f"Error fetching Shifter image {image_str}.\n"
-                         f"Standard output: {std_out}\n"
-                         f"Standard error: {std_err}")
+        with open(std_out_file, "r") as std_out, open(std_err_file, "r") as std_err:
+            raise ValueError(f"Error fetching Shifter image {image_str}.\n"
+                             f"Standard output: {std_out.read()}\n"
+                             f"Standard error: {std_err.read()}")
 
     return image_str
 
@@ -110,7 +136,7 @@ def _create_shifter_wrapper(job_dir, image_str):
     shifter_wrapper += '''fi\n\n'''
     shifter_wrapper += '''command=\"$@\"\n\n'''
     shifter_wrapper += '''echo \"Running shifter --image=$image $command\"\n\n'''
-    shifter_wrapper += f'''cd $HOME\n'''
+    shifter_wrapper += f'''cd {job_dir}\n'''
     shifter_wrapper += '''shifter --image=$image $command\n'''  # Run the command in the Shifter environment
 
     wrapper_file = os.path.join(job_dir, 'shifter_wrapper.sh')
@@ -235,7 +261,8 @@ def main():
     job_dir = os.path.join(root_dir, 'task_farmer_jobs', f'{tool}_{current_datetime.strftime("%Y_%m_%d_%H_%M_%S")}')
     os.makedirs(job_dir, exist_ok=True)
 
-    image_str = _fetch_image(REGISTRY, tool)
+    _clone_repo(job_dir)
+    image_str = _fetch_image(REGISTRY, tool, job_dir)
     wrapper_file = _create_shifter_wrapper(job_dir, image_str)
 
     task_list_file, n_jobs = _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper_file, job_dir,
@@ -244,8 +271,11 @@ def main():
     batch_script = _create_batch_script(job_dir, task_list_file, n_jobs)
 
     if args.submit_job:
-        std_out, std_err, returncode = _run_command(['sbatch', os.path.join(job_dir, 'submit_taskfarmer.sl')])
-        print(f'Job submitted to slurm.\n{std_out.strip()}')
+        os.chdir(job_dir)
+        std_out_file, std_err_file, exit_code = _run_command(['sbatch', os.path.join(job_dir, 'submit_taskfarmer.sl')],
+                                                             job_dir, log_file_prefix='sbatch_submit')
+        with open(std_out_file, "r") as f:
+            print(f'Job submitted to slurm.\n{f.read().strip()}')
     else:
         print(f'Please go to Job Directory: {job_dir} and submit the batch script: {batch_script} to the scheduler.')
 
