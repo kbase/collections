@@ -40,9 +40,15 @@ the reader is familiar with
   and name their variables.
 * Create a `FastAPI` `APIRouter` with a tag containing a short name for your data product in
   your data product module.
-* Create a [DataProductSpec](/src/service/data_products/common_models.py) in your data product
-  module, specifying your data product ID, router, and the ArangoDB collections and indexes your
-  data product will use.
+* Create a class inheriting from [DataProductSpec](/src/service/data_products/common_models.py)
+  in your data product module, specifying your data product ID, router, and the ArangoDB
+  collections and indexes your data product will use.
+  * The class must implement a method with the signature
+    ```
+    async def delete_match(self, storage: ArangoStorage, internal_match_id: str) -> None:
+    ```
+    * When called, this method must delete any match data associated with the given internal
+      match ID.
 * Create the endpoints / routes for your data product in the new module.
   * See the existing implementations for examples.
   * Routes must start with `/collection/{collection_id}/data_products/<data_product_id>/`
@@ -50,8 +56,8 @@ the reader is familiar with
       the responsibility of the data product developer.
   * There is already a Collection ID validator available in
     [/src/service/routes_common.py](/src/service/routes_common.py)
-* To get the storage instance call the `src.service.app_state.get_storage()` method, providing
-  the `FastAPI` `Request` as the argument.
+* To get application dependencies call the `src.service.app_state.get_app_state()`
+  method, providing the `FastAPI` `Request` as the argument.
   * The storage `aql()` method will allow you to run arbitrary AQL queries against the database.
 * Add your new data product to the list in
   [/src/service/data_product_specs.py](/src/service/data_product_specs.py)
