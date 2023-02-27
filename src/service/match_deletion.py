@@ -2,23 +2,43 @@
 Routines to safely delete matches and clean up match data in the collections system
 """
 
+import logging
+
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from datetime import datetime
-
 from src.service import app_state
+from src.service import models
 from src.service import processing
+from src.service.storage_arango import ArangoStorage
+
+async def _move_match_to_deletion(
+        deps: app_state.PickleableDependencies,
+        storage: ArangoStorage,
+        match: models.InternalMatch
+    ):
+    delmatch = models.DeletedMatch(deleted=deps.get_epoch_ms(), **match.dict())
+    logging.getLogger(__name__).info(f"Moving match {match.match_id} to deleted state")
+    await storage.add_deleted_match(delmatch)
+    # We don't worry about whether this fails or not. The actual deletion routine will
+    # clean up if there's a match both in the deleted state and non-deleted state.
+    await storage.remove_match(match.match_id, match.last_access)
+
 
 async def _move_matches_to_deletion(deps: app_state.PickleableDependencies, match_age_ms: int):
-    print("_move_matches_to_deletion", datetime.now(), match_age_ms, flush=True)
-    # Find matches with last_access < now - age
-    # Save deleted match
-    # Delete std match IF last_access hasn't changed
-    #   If it has, punt and let _delete_matches clean up (or a future run of _move)
+    logging.basicConfig(level=logging.INFO)
+    cli, storage = await deps.get_storage()
+    try:
+        cutoff = deps.get_epoch_ms() - match_age_ms
+        async def proc(m):
+            await _move_match_to_deletion(deps, storage, m)
+        await storage.process_old_matches(cutoff, proc)
+    finally:
+        await cli.close()
 
 
 async def _delete_matches(deps: app_state.PickleableDependencies):
-    print("_delete_matches", datetime.now(), flush=True)
+    pass
+    # print("_delete_matches", datetime.now(), flush=True)
     # * Find deleted matches
     # * If standard match exists (e.g. server went down)
     #   * if last_access is the same as the deleted match, delete the standard match

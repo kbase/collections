@@ -17,7 +17,7 @@ from aioarango.database import StandardDatabase
 from aioarango.exceptions import CollectionCreateError, DocumentInsertError
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
-from typing import Any
+from typing import Any, Callable, Awaitable
 from src.common.hash import md5_string
 from src.common.storage.collection_and_field_names import (
     FLD_ARANGO_KEY,
@@ -577,14 +577,16 @@ class ArangoStorage:
             match.matches = []
         return match
 
+    def _to_internal_match(self, doc: dict[str, Any]) -> models.InternalMatch:
+        return models.InternalMatch.construct(
+            **models.remove_non_model_fields(doc, models.InternalMatch))
 
     async def get_match_full(self, match_id: str) -> models.InternalMatch:
         """
         Get the full match associated with the match id.
         """
         doc = await self._get_match(COLL_SRV_MATCHES, match_id)
-        return models.InternalMatch.construct(
-            **models.remove_non_model_fields(doc, models.InternalMatch))
+        return self._to_internal_match(doc)
 
     async def update_match_state(
         self,
@@ -625,8 +627,35 @@ class ArangoStorage:
                 LET updated = NEW
                 RETURN KEEP(updated, "{FLD_ARANGO_KEY}")
             """
-        cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
         await self._execute_aql_and_check_match_exists(match_id, aql, bind_vars)
+
+    async def process_old_matches(
+        self,
+        match_max_last_access_ms: int,
+        processor: Callable[[models.InternalMatch], Awaitable[None]],
+    ):
+        """
+        Process matches with a last access date older than the given date.
+
+        match_max_last_access_ms - process matches with a last acess date older that this in epoch
+            milliseconds.
+        processor - an async callable to which each match will be provided in turn.
+        """
+        aql = f"""
+            FOR d IN @@{_FLD_COLLECTION}
+                FILTER d.{models.FIELD_MATCH_LAST_ACCESS} < @max_last_access
+                RETURN d
+            """
+        bind_vars = {
+            f"@{_FLD_COLLECTION}": COLL_SRV_MATCHES,
+            "max_last_access": match_max_last_access_ms,
+        }
+        cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
+        try:
+            async for d in cur:
+                await processor(self._to_internal_match(d))
+        finally:
+            await cur.close(ignore_missing=True)
 
     async def add_deleted_match(self, match: models.DeletedMatch):
         """
