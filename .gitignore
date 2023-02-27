@@ -14,3 +14,4 @@ gtdb_attribs.jsonl
 gtdb_attribs2.jsonl
 .DS_Store
 .vscode/settings.json
+collections_config.toml
