@@ -35,7 +35,20 @@ ID = "genome_attribs"
 
 _ROUTER = APIRouter(tags=["Genome Attributes"], prefix=f"/{ID}")
 
-GENOME_ATTRIBS_SPEC = DataProductSpec(
+
+class GenomeAttribsSpec(DataProductSpec):
+
+    async def delete_match(self, storage: ArangoStorage, internal_match_id: str):
+        """
+        Delete genome attribute match data.
+
+        storage - the storage system
+        internal_match_id - the match to delete.
+        """
+        await delete_match(storage, internal_match_id)
+
+
+GENOME_ATTRIBS_SPEC = GenomeAttribsSpec(
     data_product=ID,
     router=_ROUTER,
     db_collections=[
@@ -63,7 +76,8 @@ GENOME_ATTRIBS_SPEC = DataProductSpec(
                     names.FLD_GENOME_ATTRIBS_MATCHES + "[*]",
                     names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID,
                     # for finding matches, and optionally a default sort on the genome ID
-                ]
+                ],
+                [names.FLD_GENOME_ATTRIBS_MATCHES + "[*]"]  # for match deletion
             ]
         )
     ]
@@ -316,8 +330,6 @@ async def _count(
 
 async def perform_match(match_id: str, storage: ArangoStorage, lineages: list[str]):
     # TODO MATCHERS take a rank argument and truncate the lineages to that rank
-    # TODO MATCHERS start a heartbeat that updates a time stamp on the arango match document
-    #   - be sure to stop when match execution is done
     
     # Could save some bandwidth here buy adding a method to just get the internal ID
     # Microoptimization, wait until it's a problem
@@ -418,3 +430,27 @@ async def process_match_documents(
             acceptor(d)
     finally:
         await cur.close(ignore_missing=True)
+
+
+async def delete_match(storage: ArangoStorage, internal_match_id: str):
+    """
+    Delete genome attribues match data.
+
+    storage - the storage system
+    internal_match_id - the match to delete.
+    """
+    m = names.FLD_GENOME_ATTRIBS_MATCHES
+    bind_vars = {
+        f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
+        "internal_match_id": internal_match_id,
+    }
+    aql = f"""
+        FOR d IN @@{_FLD_COL_NAME}
+            FILTER @internal_match_id IN d.{m}
+            UPDATE d WITH {{
+                {m}: REMOVE_VALUE(d.{m}, @internal_match_id)
+            }} IN @@{_FLD_COL_NAME}
+            OPTIONS {{exclusive: true}}
+        """
+    cur = await storage.aql().execute(aql, bind_vars=bind_vars)
+    await cur.close(ignore_missing=True)
