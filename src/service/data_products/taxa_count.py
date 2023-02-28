@@ -36,7 +36,20 @@ ID = "taxa_count"
 
 _ROUTER = APIRouter(tags=["Taxa count"], prefix=f"/{ID}")
 
-TAXA_COUNT_SPEC = DataProductSpec(
+
+class TaxaCountSpec(DataProductSpec):
+
+    async def delete_match(self, storage: ArangoStorage, internal_match_id: str):
+        """
+        Delete taxa count match data.
+
+        storage - the storage system
+        internal_match_id - the match to delete.
+        """
+        await delete_match(storage, internal_match_id)
+
+
+TAXA_COUNT_SPEC = TaxaCountSpec(
     data_product=ID,
     router=_ROUTER,
     db_collections=[
@@ -53,7 +66,8 @@ TAXA_COUNT_SPEC = DataProductSpec(
                     names.FLD_INTERNAL_MATCH_ID,
                     names.FLD_TAXA_COUNT_RANK,
                     names.FLD_TAXA_COUNT_COUNT,
-                ]
+                ],
+                [names.FLD_INTERNAL_MATCH_ID]  # for deleting match data
             ]
         )
     ]
@@ -361,3 +375,24 @@ async def _process_match(match_id: str, deps: app_state.PickleableDependencies, 
             hb.stop()
         if arangoclient:
             await arangoclient.close()
+
+
+async def delete_match(storage: ArangoStorage, internal_match_id: str):
+    """
+    Delete taxa count match data.
+
+    storage - the storage system
+    internal_match_id - the match to delete.
+    """
+    bind_vars = {
+        f"@{_FLD_COL_NAME}": names.COLL_TAXA_COUNT,
+        "internal_match_id": internal_match_id,
+    }
+    aql = f"""
+        FOR d IN @@{_FLD_COL_NAME}
+            FILTER d.{names.FLD_INTERNAL_MATCH_ID} == @internal_match_id
+            REMOVE d IN @@{_FLD_COL_NAME}
+            OPTIONS {{exclusive: true}}
+    """
+    cur = await storage.aql().execute(aql, bind_vars=bind_vars)
+    await cur.close(ignore_missing=True)
