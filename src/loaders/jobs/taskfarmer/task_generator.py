@@ -9,15 +9,18 @@ from src.loaders.common import loader_common_names
 
 Create the required documents and scripts for the TaskFarmer Workflow Manager and provide the option to execute tasks.
 
-usage: task_generator.py [-h] --tool {checkm2,gtdb_tk} --kbase_collection KBASE_COLLECTION --load_ver LOAD_VER --source_data_dir SOURCE_DATA_DIR
-                         [--root_dir ROOT_DIR] [--submit_job]
+usage: task_generator.py [-h] --tool {gtdb_tk} --kbase_collection
+                         KBASE_COLLECTION --load_ver LOAD_VER
+                         --source_data_dir SOURCE_DATA_DIR
+                         [--root_dir ROOT_DIR] [--image_tag IMAGE_TAG]
+                         [--use_cached_image] [--submit_job]
 
 optional arguments:
   -h, --help            show this help message and exit
 
 required named arguments:
-  --tool {checkm2,gtdb_tk}
-                        Name of tool to be executed. (e.g. gtdb_tk, checkm2, etc.)
+  --tool {gtdb_tk}      Name of tool to be executed. (e.g. gtdb_tk, checkm2,
+                        etc.)
   --kbase_collection KBASE_COLLECTION
                         KBase collection identifier name (e.g. GTDB).
   --load_ver LOAD_VER   KBase load version (e.g. r207.kbase.1).
@@ -26,6 +29,9 @@ required named arguments:
 
 optional arguments:
   --root_dir ROOT_DIR   Root directory for the collections project. (default: /global/cfs/cdirs/kbase/collections)
+  --image_tag IMAGE_TAG
+                        Docker/Shifter image tag. (default: latest)
+  --use_cached_image    Use an existing image without pulling
   --submit_job          Submit job to slurm
 '''
 
