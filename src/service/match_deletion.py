@@ -8,8 +8,15 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 from src.service import app_state
 from src.service import models
+from src.service.data_product_specs import DATA_PRODUCTS
+from src.service.data_products.common_models import DataProductSpec
 from src.service import processing
 from src.service.storage_arango import ArangoStorage
+
+
+def _logger() -> logging.Logger:
+    return logging.getLogger(__name__)
+
 
 async def _move_match_to_deletion(
         deps: app_state.PickleableDependencies,
@@ -17,7 +24,7 @@ async def _move_match_to_deletion(
         match: models.InternalMatch
     ):
     delmatch = models.DeletedMatch(deleted=deps.get_epoch_ms(), **match.dict())
-    logging.getLogger(__name__).info(f"Moving match {match.match_id} to deleted state")
+    _logger().info(f"Moving match {match.match_id} to deleted state")
     await storage.add_deleted_match(delmatch)
     # We don't worry about whether this fails or not. The actual deletion routine will
     # clean up if there's a match both in the deleted state and non-deleted state.
@@ -36,20 +43,59 @@ async def _move_matches_to_deletion(deps: app_state.PickleableDependencies, matc
         await cli.close()
 
 
+async def _delete_match(
+    storage: ArangoStorage,
+    # Passing in the specs is a hack so they can be mocked without monkeypatching the real
+    # repository. Longer term need to figure out a way to get them from PickleableDependencies.
+    # The issue is that DataProductSpec fails to pickle for reasons I don't entirely understand
+    # and updating app_state to know about DATA_PRODUCTS causes an import loop.
+    # Possible solution - list strings to import in data_product_specs.py vs doing the impoarts,
+    # should break the import loop. e.g. "src.service.data_products.taxa_count.TAXA_COUNT_SPEC"
+    data_product_specs: dict[str, DataProductSpec],
+    delmatch: models.DeletedMatch
+):
+    match = await storage.get_match_full(delmatch.match_id, exception=False)
+    # if the internal match IDs are different it's safe to go ahead with match deletion
+    if match and match.internal_match_id == delmatch.internal_match_id:
+        if match.last_access == delmatch.last_access:
+            _logger().info(f"Internal match {match.internal_match_id} in inconsistent deletion "
+                + "state, attempting to delete standard match")
+            deleted = await storage.remove_match(match.match_id, match.last_access)
+            if not deleted:
+                _logger().info(f"Internal match {match.internal_match_id} was accessed post "
+                    + "deletion, giving up.")
+                return  # try again next time
+        else:
+            _logger().info(f"Match {match.match_id} in inconsistent deletion state, "
+                + "attempting to delete deleted match record")
+            await storage.remove_deleted_match(match.internal_match_id, delmatch.last_access)
+            return  # punt either way and try again on the next go round
+    # okay, the main match document for our internal match ID is for sure deleted so we're safe
+    # to delete all the associated data
+    col = await storage.get_collection_version_by_num(
+        delmatch.collection_id, delmatch.collection_ver)
+    minfo = f"{delmatch.match_id}/{delmatch.internal_match_id}"
+    for dpinfo in col.data_products:
+        dp = data_product_specs[dpinfo.product]
+        _logger().info(
+            f"Removing match data for match {minfo} data product {dpinfo.product}")
+        await dp.delete_match(storage, delmatch.internal_match_id)
+        _logger().info(
+            f"Removing match document for {minfo} data product {dpinfo.product}")
+        await storage.remove_data_product_match(delmatch.internal_match_id, dpinfo.product)
+    _logger().info(f"Removing match document for {minfo}")
+    await storage.remove_deleted_match(delmatch.internal_match_id, delmatch.last_access)
+    
+
 async def _delete_matches(deps: app_state.PickleableDependencies):
-    pass
-    # print("_delete_matches", datetime.now(), flush=True)
-    # * Find deleted matches
-    # * If standard match exists (e.g. server went down)
-    #   * if last_access is the same as the deleted match, delete the standard match
-    #     (requiring last_access to be the same when deleting) and continue
-    #     * if last_access changes during that time punt
-    #   * otherwise, delete the deleted match if last_access is the same as previous and punt
-    #     either way
-    # * For each data product in the collection
-    #   * remove all secondary data for each DP
-    #   * remove the DP match doc
-    # * Remove the deleted match doc
+    logging.basicConfig(level=logging.INFO)
+    cli, storage = await deps.get_storage()
+    try:
+        async def proc(m):
+            await _delete_match(storage, DATA_PRODUCTS, m)
+        await storage.process_deleted_matches(proc)
+    finally:
+        await cli.close()
 
 
 class MatchCleanup:

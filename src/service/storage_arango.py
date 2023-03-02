@@ -170,8 +170,6 @@ class ArangoStorage:
         vercol = db.collection(COLL_SRV_VERSIONS)
         await vercol.add_persistent_index([models.FIELD_COLLECTION_ID, models.FIELD_VER_NUM])
         matchcol = db.collection(COLL_SRV_MATCHES)
-        # find matches by internal match ID
-        await matchcol.add_persistent_index([models.FIELD_MATCH_INTERNAL_MATCH_ID])
         # find matches ready to be moved to the deleted state
         await matchcol.add_persistent_index([models.FIELD_MATCH_LAST_ACCESS])
         for col_list in dps.values():
@@ -551,12 +549,17 @@ class ArangoStorage:
         finally:
             await cur.close(ignore_missing=True)
 
-    async def _get_match(self, coll: str, match_id: str):
+    def _correct_match_doc_in_place(self, doc: dict[str, Any]):
+        doc[models.FIELD_MATCH_STATE] = models.MatchState(doc[models.FIELD_MATCH_STATE])
+
+    async def _get_match(self, coll: str, match_id: str, exception: bool = True):
         col = self._db.collection(coll)
         doc = await col.get(match_id)
         if doc is None:
+            if not exception:
+                return None
             raise errors.NoSuchMatchError(match_id)
-        doc[models.FIELD_MATCH_STATE] = models.MatchState(doc[models.FIELD_MATCH_STATE])
+        self._correct_match_doc_in_place(doc)
         return doc
 
     async def get_match(self, match_id: str, verbose: bool = False) -> models.MatchVerbose:
@@ -578,15 +581,19 @@ class ArangoStorage:
         return match
 
     def _to_internal_match(self, doc: dict[str, Any]) -> models.InternalMatch:
+        self._correct_match_doc_in_place(doc)
         return models.InternalMatch.construct(
             **models.remove_non_model_fields(doc, models.InternalMatch))
 
-    async def get_match_full(self, match_id: str) -> models.InternalMatch:
+    async def get_match_full(self, match_id: str, exception: bool = True) -> models.InternalMatch:
         """
         Get the full match associated with the match id.
+
+        match_id - the ID of the match.
+        exception - True to throw an exception if the match is missing, False to return None.
         """
-        doc = await self._get_match(COLL_SRV_MATCHES, match_id)
-        return self._to_internal_match(doc)
+        doc = await self._get_match(COLL_SRV_MATCHES, match_id, exception)
+        return None if not doc else self._to_internal_match(doc)
 
     async def update_match_state(
         self,
@@ -667,13 +674,17 @@ class ArangoStorage:
         col = self._db.collection(COLL_SRV_MATCHES_DELETED)
         await col.insert(doc, overwrite=True, silent=True)
 
+    def _to_deleted_match(self, doc: dict[str, Any]) -> models.DeletedMatch:
+        self._correct_match_doc_in_place(doc)
+        return models.DeletedMatch.construct(
+            **models.remove_non_model_fields(doc, models.DeletedMatch))
+
     async def get_deleted_match(self, internal_match_id: str) -> models.DeletedMatch:
         """
         Get a match in the deleted state from the database given its internal match ID.
         """
         doc = await self._get_match(COLL_SRV_MATCHES_DELETED, internal_match_id)
-        return models.DeletedMatch.construct(
-            **models.remove_non_model_fields(doc, models.DeletedMatch))
+        return self._to_deleted_match(doc)
 
     async def remove_deleted_match(self, internal_match_id: str, last_access: int) -> bool:
         """
@@ -690,6 +701,23 @@ class ArangoStorage:
         Returns true if the match document was removed, false otherwise.
         """
         return await self._remove_match(internal_match_id, last_access, COLL_SRV_MATCHES_DELETED)
+    
+    async def process_deleted_matches(
+        self,
+        processor: Callable[[models.DeletedMatch], Awaitable[None]]
+    ):
+        """
+        Process deleted matches.
+
+        processor - an async callable to which each match will be provided in turn.
+        """
+        col = self._db.collection(COLL_SRV_MATCHES_DELETED)
+        cur = await col.all()
+        try:
+            async for d in cur:
+                await processor(self._to_deleted_match(d))
+        finally:
+            await cur.close(ignore_missing=True)
 
     def _data_product_match_key(self, internal_match_id: str, data_product: str) -> str:
         return f"{data_product}_{internal_match_id}"
@@ -790,6 +818,17 @@ class ArangoStorage:
                 RETURN KEEP(updated, "{FLD_ARANGO_KEY}")
             """
         await self._execute_aql_and_check_match_exists(key, aql, bind_vars)
+
+    async def remove_data_product_match(self, internal_match_id: str, data_product: str):
+        """
+        Remove a data product match document.
+
+        internal_match_id - the internal match ID for the match.
+        data_product - the data product ID.
+        """
+        key = self._data_product_match_key(internal_match_id, data_product)
+        col = self._db.collection(COLL_SRV_MATCHES_DATA_PRODUCTS)
+        await col.delete(key, ignore_missing=True, silent=True)
 
     async def import_bulk_ignore_collisions(self, arango_collection: str, documents: dict[str, Any]
     ) -> None:
