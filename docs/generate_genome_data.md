@@ -76,13 +76,34 @@ for the genome taxa counts.
 ssh user_name@perlmutter-p1.nersc.gov
 ```
 
-2. Go to the collections project directory
+2. Before executing the jobs, it is necessary to download the libraries essential for tools like GTDB-TK and CheckM2 manually.
+
+   * In case you want to utilize an alternative tooling library, you can download the library and update the global 
+   variable that denotes its location, such as `GTDBTK_DATA_PATH` or `CHECKM2_DB` in the 
+   [task_generator.py](../src/loaders/jobs/taskfarmer/task_generator.py) file.
+
+   * The default directory at NERSC for libraries is:
+   ```text
+   /global/cfs/cdirs/kbase/collections/libraries
+   ```
+   * Guidelines for downloading [GTDB-TK](https://ecogenomics.github.io/GTDBTk/installing/index.html#gtdb-tk-reference-data) reference data:
+   ```commandline
+   wget https://data.gtdb.ecogenomic.org/releases/latest/auxillary_files/gtdbtk_v2_data.tar.gz
+   wget https://data.ace.uq.edu.au/public/gtdb/data/releases/latest/auxillary_files/gtdbtk_v2_data.tar.gz  (or, mirror)
+   tar xvzf gtdbtk_v2_data.tar.gz
+   ```
+   * Guidelines for downloading [CheckM2](https://github.com/chklovski/CheckM2#database) DIAMOND DB:
+   ```commandline
+   checkm2 database --download --path /custom/path/
+   ```
+
+3. Go to the collections project directory
 
 ```commandline
 cd /global/cfs/cdirs/kbase/collections
 ```
 
-3. generate Taskfarmer job files and submit jobs
+4. generate Taskfarmer job files and submit jobs
 
 ```commandline
 

@@ -73,18 +73,6 @@ def _run_command(command, job_dir, log_file_prefix='', check_return_code=True):
     return std_out_file, std_err_file, exit_code
 
 
-def _clone_repo(job_dir):
-    """
-    Clones the collections repo into the specified directory.
-    """
-    repo_dir = os.path.join(job_dir, 'collections')
-    os.rmdir(repo_dir) if os.path.exists(repo_dir) else None  # remove existing repo otherwise git clone will fail
-    _run_command(["git", "clone", REPO_URL, repo_dir], job_dir, log_file_prefix='git_clone')
-
-    if not os.path.exists(repo_dir):
-        raise ValueError(f"Error cloning repo '{REPO_URL}' into '{repo_dir}'.")
-
-
 def _fetch_image(registry, image_name, job_dir, ver='latest'):
     """
     Fetches the specified Shifter image, if it's not already present on the system.
@@ -92,13 +80,13 @@ def _fetch_image(registry, image_name, job_dir, ver='latest'):
     image_str = f"{registry}/{image_name}:{ver}"
 
     # Check if the image is already present on the system
-    std_out_file, std_err_file, exit_code = _run_command(["shifterimg", "images"], job_dir,
-                                                         log_file_prefix='shifterimg_images')
+    si_std_out_file, si_std_err_file, si_exit_code = _run_command(["shifterimg", "images"], job_dir,
+                                                                  log_file_prefix='shifterimg_images')
 
-    with open(std_out_file, "r") as f:
-        std_out = f.read()
+    with open(si_std_out_file, "r") as f:
+        si_std_out = f.read()
 
-    images = std_out.split("\n")
+    images = si_std_out.split("\n")
     for image in images:
         parts = image.split()
         if len(parts) != 6:
@@ -109,13 +97,16 @@ def _fetch_image(registry, image_name, job_dir, ver='latest'):
 
     # Pull the image from the registry
     print(f"Fetching Shifter image {image_str}...")
-    std_out_file, std_err_file, exit_code = _run_command(["shifterimg", "pull", image_str], job_dir,
-                                                         log_file_prefix='shifterimg_pull')
+    sp_std_out_file, sp_std_err_file, sp_exit_code = _run_command(["shifterimg", "pull", image_str], job_dir,
+                                                                  log_file_prefix='shifterimg_pull')
 
-    if 'FAILURE' in std_out:
-        with open(std_out_file, "r") as std_out, open(std_err_file, "r") as std_err:
+    with open(sp_std_out_file, "r") as std_out, open(sp_std_err_file, "r") as std_err:
+
+        sp_std_out = std_out.read()
+
+        if 'FAILURE' in sp_std_out:
             raise ValueError(f"Error fetching Shifter image {image_str}.\n"
-                             f"Standard output: {std_out.read()}\n"
+                             f"Standard output: {sp_std_out}\n"
                              f"Standard error: {std_err.read()}")
 
     return image_str
@@ -127,17 +118,22 @@ def _create_shifter_wrapper(job_dir, image_str):
     """
 
     # The content of the Shifter wrapper script
-    shifter_wrapper = '''#!/bin/bash\n\n'''
-    shifter_wrapper += f'''image={image_str}\n\n'''
-    shifter_wrapper += '''if [ $# -lt 1 ]; then\n'''
-    shifter_wrapper += '''    echo "Error: Missing command argument."\n'''
-    shifter_wrapper += '''    echo "Usage: shifter_wrapper.sh your-command-arguments"\n'''
-    shifter_wrapper += '''    exit 1\n'''
-    shifter_wrapper += '''fi\n\n'''
-    shifter_wrapper += '''command=\"$@\"\n\n'''
-    shifter_wrapper += '''echo \"Running shifter --image=$image $command\"\n\n'''
-    shifter_wrapper += f'''cd {job_dir}\n'''
-    shifter_wrapper += '''shifter --image=$image $command\n'''  # Run the command in the Shifter environment
+    shifter_wrapper = f'''#!/bin/bash
+
+image={image_str}
+
+if [ $# -lt 1 ]; then
+    echo "Error: Missing command argument."
+    echo "Usage: shifter_wrapper.sh your-command-arguments"
+    exit 1
+fi
+
+command="$@"
+echo "Running shifter --image=$image $command"
+
+cd {job_dir}
+shifter --image=$image $command
+            '''
 
     wrapper_file = os.path.join(job_dir, 'shifter_wrapper.sh')
     with open(wrapper_file, "w") as f:
@@ -170,29 +166,16 @@ def _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper
 
     task_list = '#!/usr/bin/env bash\n'
     for idx, genome_ids_chunk in enumerate(genome_ids_chunks):
-
         task_list += wrapper_file
 
         genome_id_file = os.path.join(job_dir, f'genome_id_{idx}.tsv')
         _create_genome_id_file(genome_ids_chunk, genome_id_file)
 
-        if tool == 'checkm2':
-            task_list += f'	--volume={CHECKM2_DB}:/CheckM2_database ' \
-                         f'conda run -n checkm2-1.0.0 ' \
-                         f'python collections/src/loaders/genome_collection/compute_genome_attribs.py ' \
-                         f'--tools checkm2 '
-        elif tool == 'gtdb_tk':
-            task_list += f' --volume={GTDBTK_DATA_PATH}:/gtdbtk_reference_data ' \
-                         f'conda run -n gtdbtk-2.1.1 ' \
-                         f'python collections/src/loaders/genome_collection/compute_genome_attribs.py ' \
-                         f'--tools gtdb_tk '
-        else:
-            raise ValueError(f'Unexpected tool {tool}')
-
-        task_list += f'--load_ver {load_ver} --source_data_dir {source_data_dir} ' \
-                     f'--kbase_collection {kbase_collection} --root_dir {root_dir} ' \
-                     f'--threads 128 --program_threads 128 --node_id job_{idx} ' \
-                     f'--debug --source_file_ext genomic.fna.gz --genome_id_file {genome_id_file}\n'
+        task_list += f''' --volume={GTDBTK_DATA_PATH}:/gtdbtk_reference_data '''
+        task_list += f'''--env TOOLS={tool} --env LOAD_VER={load_ver} --env SOURCE_DATA_DIR={source_data_dir} '''
+        task_list += f'''--env KBASE_COLLECTION={kbase_collection} --env ROOT_DIR={root_dir} '''
+        task_list += f'''--env NODE_ID=job_{idx} --env GENOME_ID_FILE={genome_id_file} '''
+        task_list += f'''--entrypoint\n'''
 
     task_list_file = os.path.join(job_dir, 'tasks.txt')
     with open(task_list_file, "w") as f:
@@ -261,7 +244,6 @@ def main():
     job_dir = os.path.join(root_dir, 'task_farmer_jobs', f'{tool}_{current_datetime.strftime("%Y_%m_%d_%H_%M_%S")}')
     os.makedirs(job_dir, exist_ok=True)
 
-    _clone_repo(job_dir)
     image_str = _fetch_image(REGISTRY, tool, job_dir)
     wrapper_file = _create_shifter_wrapper(job_dir, image_str)
 
