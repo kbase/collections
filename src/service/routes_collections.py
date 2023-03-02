@@ -59,8 +59,7 @@ def _check_matchers_and_data_products(
 ):
     data_products = set([dp.product for dp in col.data_products])
     for dp in data_products:
-        if dp not in data_product_specs.DATA_PRODUCTS:
-            raise errors.NoSuchDataProduct(f"No such data product: {dp}")
+        data_product_specs.get_data_product_spec(dp)  # throws an exception if missing
     for m in col.matchers:
         matcher = appstate.get_matcher(m.matcher)
         if not matcher:

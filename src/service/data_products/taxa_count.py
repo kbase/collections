@@ -10,6 +10,7 @@ from src.common.gtdb_lineage import GTDBTaxaCount
 from src.common.storage.db_doc_conversions import taxa_node_count_to_doc
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
+from src.service.app_state_data_structures import PickleableDependencies, CollectionsState
 from src.service import errors
 from src.service import kb_auth
 from src.service import match_retrieval
@@ -246,7 +247,7 @@ async def get_taxa_counts(
 
 
 async def _get_data_product_match(
-    appstate: app_state.CollectionsState,
+    appstate: CollectionsState,
     collection_id: str,
     match_id: str,
     user: kb_auth.KBaseUser
@@ -314,7 +315,7 @@ async def _query(
     return ret
 
 
-async def _process_match(match_id: str, deps: app_state.PickleableDependencies, args: list):
+async def _process_match(match_id: str, deps: PickleableDependencies, args: list):
     # TODO DOCS document that match processes should run the process regardless of the state
     #      of the match. It is up to the code starting the process to ensure it is correct to
     #      start the match process. As such, the match processes should be idempotent.

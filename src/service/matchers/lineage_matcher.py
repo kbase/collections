@@ -10,7 +10,7 @@ from typing import Any, Callable
 from src.common.storage.collection_and_field_names import FLD_GENOME_ATTRIBS_GTDB_LINEAGE
 from src.service import errors
 from src.service import models
-from src.service.app_state import PickleableDependencies
+from src.service.app_state_data_structures import PickleableDependencies
 from src.service.processing import CollectionProcess, Heartbeat, HEARTBEAT_INTERVAL_SEC
 from src.service.data_products import genome_attributes
 from src.service.matchers.common_models import Matcher

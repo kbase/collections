@@ -10,7 +10,7 @@ import multiprocessing
 
 from pydantic import BaseModel, Field
 from typing import Callable, Any
-from src.service.app_state import PickleableDependencies
+from src.service.app_state_data_structures import PickleableDependencies
 from src.service.timestamp import now_epoch_millis
 
 
