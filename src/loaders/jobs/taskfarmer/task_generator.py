@@ -29,14 +29,13 @@ optional arguments:
   --submit_job          Submit job to slurm
 '''
 
-TOOLS_AVAILABLE = ['checkm2', 'gtdb_tk']
+TOOLS_AVAILABLE = ['gtdb_tk']  # TODO: fix checkm2 container bug
 
 # All nodes in Perlmutter have identical computational resources
 CHUNK_SIZE = {'checkm2': 5000,
               'gtdb_tk': 1000}
 
 REGISTRY = 'tiangu01'  # public Docker Hub registry to pull images from
-REPO_URL = 'https://github.com/kbase/collections.git'  # URL to the collections repo
 
 # directory containing the unarchived GTDB-Tk reference data
 # download data following the instructions provided on
@@ -46,6 +45,13 @@ GTDBTK_DATA_PATH = '/global/cfs/cdirs/kbase/collections/libraries/gtdb_tk/releas
 # DIAMOND database CheckM2 relies on
 # download data following the instructions provided on https://github.com/chklovski/CheckM2#database
 CHECKM2_DB = '/global/cfs/cdirs/kbase/collections/libraries/CheckM2_database'
+
+# volume mapping for the Docker containers
+TOOL_VOLUME_MAP = {'checkm2': {CHECKM2_DB: '/CheckM2_database'},
+                   'gtdb_tk': {GTDBTK_DATA_PATH: '/gtdbtk_reference_data'}}
+
+# Docker image tags for the tools
+DEFAULT_IMG_TAG = 'latest'
 
 
 def _run_command(command, job_dir, log_file_prefix='', check_return_code=True):
@@ -73,41 +79,51 @@ def _run_command(command, job_dir, log_file_prefix='', check_return_code=True):
     return std_out_file, std_err_file, exit_code
 
 
-def _fetch_image(registry, image_name, job_dir, ver='latest'):
+def _pull_image(image_str, job_dir):
     """
-    Fetches the specified Shifter image, if it's not already present on the system.
+    Pulls the specified Shifter image from the specified registry.
     """
-    image_str = f"{registry}/{image_name}:{ver}"
 
-    # Check if the image is already present on the system
-    si_std_out_file, si_std_err_file, si_exit_code = _run_command(["shifterimg", "images"], job_dir,
-                                                                  log_file_prefix='shifterimg_images')
-
-    with open(si_std_out_file, "r") as f:
-        si_std_out = f.read()
-
-    images = si_std_out.split("\n")
-    for image in images:
-        parts = image.split()
-        if len(parts) != 6:
-            continue
-        if parts[5] == image_str:
-            print(f"Shifter image {image_name}:{ver} from registry {registry} already exists.")
-            return parts[5]
-
-    # Pull the image from the registry
     print(f"Fetching Shifter image {image_str}...")
     sp_std_out_file, sp_std_err_file, sp_exit_code = _run_command(["shifterimg", "pull", image_str], job_dir,
                                                                   log_file_prefix='shifterimg_pull')
 
     with open(sp_std_out_file, "r") as std_out, open(sp_std_err_file, "r") as std_err:
-
         sp_std_out = std_out.read()
 
         if 'FAILURE' in sp_std_out:
-            raise ValueError(f"Error fetching Shifter image {image_str}.\n"
+            raise ValueError(f"Error pulling Shifter image {image_str}.\n"
                              f"Standard output: {sp_std_out}\n"
                              f"Standard error: {std_err.read()}")
+
+
+def _fetch_image(registry, image_name, job_dir, tag='latest', force_pull=True):
+    """
+    Fetches the specified Shifter image if it is not already present on the system.
+
+    When force_pull is set to True, the image is always pulled from the registry
+    """
+    image_str = f"{registry}/{image_name}:{tag}"
+
+    if not force_pull:
+        # Check if the image is already present on the system
+        si_std_out_file, si_std_err_file, si_exit_code = _run_command(["shifterimg", "images"], job_dir,
+                                                                      log_file_prefix='shifterimg_images')
+
+        with open(si_std_out_file, "r") as f:
+            si_std_out = f.read()
+
+        images = si_std_out.split("\n")
+        for image in images:
+            parts = image.split()
+            if len(parts) != 6:
+                continue
+            if parts[5] == image_str:
+                print(f"Shifter image {image_name}:{tag} from registry {registry} already exists.")
+                return parts[5]
+
+    # Pull the image from the registry
+    _pull_image(image_str, job_dir)
 
     return image_str
 
@@ -154,7 +170,8 @@ def _create_genome_id_file(genome_ids, genome_id_file):
             f.write(f"{genome_id}\n")
 
 
-def _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper_file, job_dir, root_dir):
+def _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper_file, job_dir, root_dir,
+                      threads=256, program_threads=256, source_file_ext='genomic.fna.gz'):
     """
     Create task list file (tasks.txt)
     """
@@ -164,6 +181,8 @@ def _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper
     chunk_size = CHUNK_SIZE[tool]
     genome_ids_chunks = [genome_ids[i: i + chunk_size] for i in range(0, len(genome_ids), chunk_size)]
 
+    vol_mounts = TOOL_VOLUME_MAP.get(tool, {})
+
     task_list = '#!/usr/bin/env bash\n'
     for idx, genome_ids_chunk in enumerate(genome_ids_chunks):
         task_list += wrapper_file
@@ -171,10 +190,17 @@ def _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper
         genome_id_file = os.path.join(job_dir, f'genome_id_{idx}.tsv')
         _create_genome_id_file(genome_ids_chunk, genome_id_file)
 
-        task_list += f''' --volume={GTDBTK_DATA_PATH}:/gtdbtk_reference_data '''
-        task_list += f'''--env TOOLS={tool} --env LOAD_VER={load_ver} --env SOURCE_DATA_DIR={source_data_dir} '''
-        task_list += f'''--env KBASE_COLLECTION={kbase_collection} --env ROOT_DIR={root_dir} '''
-        task_list += f'''--env NODE_ID=job_{idx} --env GENOME_ID_FILE={genome_id_file} '''
+        env_vars = {'TOOLS': tool, 'LOAD_VER': load_ver, 'SOURCE_DATA_DIR': source_data_dir,
+                    'KBASE_COLLECTION': kbase_collection, 'ROOT_DIR': root_dir,
+                    'NODE_ID': f'job_{idx}', 'GENOME_ID_FILE': genome_id_file,
+                    'THREADS': threads, 'PROGRAM_THREADS': program_threads, 'SOURCE_FILE_EXT': source_file_ext}
+
+        for mount_vol, docker_vol in vol_mounts.items():
+            task_list += f''' --volume={mount_vol}:{docker_vol} '''
+
+        for env_var, env_val in env_vars.items():
+            task_list += f'''--env {env_var}={env_val} '''
+
         task_list += f'''--entrypoint\n'''
 
     task_list_file = os.path.join(job_dir, 'tasks.txt')
@@ -188,15 +214,18 @@ def _create_batch_script(job_dir, task_list_file, n_jobs):
     """
     Create the batch script (submit_taskfarmer.sl) for job submission
     """
-    batch_script = '''#!/bin/sh\n'''
-    batch_script += f'''#SBATCH -N {n_jobs + 1} -c 64\n'''
-    batch_script += '''#SBATCH -q regular\n'''
-    batch_script += '''#SBATCH --time=4:00:00\n'''
-    batch_script += '''#SBATCH --time-min=0:30:00\n'''
-    batch_script += '''#SBATCH -C cpu\n\n'''
-    batch_script += f'''cd {job_dir}\n'''
-    batch_script += '''export THREADS=32\n\n'''
-    batch_script += f'''runcommands.sh {task_list_file}'''
+    batch_script = f'''#!/bin/sh
+
+#SBATCH -N {n_jobs + 1} -c 64
+#SBATCH -q regular
+#SBATCH --time=4:00:00
+#SBATCH --time-min=0:30:00
+#SBATCH -C cpu
+
+cd {job_dir}
+export THREADS=32
+
+runcommands.sh {task_list_file}'''
 
     batch_script_file = os.path.join(job_dir, 'submit_taskfarmer.sl')
     with open(batch_script_file, "w") as f:
@@ -229,7 +258,10 @@ def main():
     # Optional arguments
     optional.add_argument('--root_dir', type=str, default=loader_common_names.ROOT_DIR,
                           help=f'Root directory for the collections project. (default: {loader_common_names.ROOT_DIR})')
-
+    optional.add_argument('--image_tag', type=str, default=DEFAULT_IMG_TAG,
+                          help=f'Docker/Shifter image tag. (default: {DEFAULT_IMG_TAG})')
+    optional.add_argument('--use_cached_image', action='store_true',
+                          help='Use an existing image without pulling')
     optional.add_argument('--submit_job', action='store_true', help='Submit job to slurm')
 
     args = parser.parse_args()
@@ -244,7 +276,7 @@ def main():
     job_dir = os.path.join(root_dir, 'task_farmer_jobs', f'{tool}_{current_datetime.strftime("%Y_%m_%d_%H_%M_%S")}')
     os.makedirs(job_dir, exist_ok=True)
 
-    image_str = _fetch_image(REGISTRY, tool, job_dir)
+    image_str = _fetch_image(REGISTRY, tool, job_dir, tag=args.image_tag, force_pull=not args.use_cached_image)
     wrapper_file = _create_shifter_wrapper(job_dir, image_str)
 
     task_list_file, n_jobs = _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper_file, job_dir,

@@ -88,13 +88,16 @@ ssh user_name@perlmutter-p1.nersc.gov
    ```
    * Guidelines for downloading [GTDB-TK](https://ecogenomics.github.io/GTDBTk/installing/index.html#gtdb-tk-reference-data) reference data:
    ```commandline
+   # download the reference data to the default directory at NERSC
+   cd /global/cfs/cdirs/kbase/collections/libraries/gtdb_tk
    wget https://data.gtdb.ecogenomic.org/releases/latest/auxillary_files/gtdbtk_v2_data.tar.gz
    wget https://data.ace.uq.edu.au/public/gtdb/data/releases/latest/auxillary_files/gtdbtk_v2_data.tar.gz  (or, mirror)
    tar xvzf gtdbtk_v2_data.tar.gz
    ```
    * Guidelines for downloading [CheckM2](https://github.com/chklovski/CheckM2#database) DIAMOND DB:
    ```commandline
-   checkm2 database --download --path /custom/path/
+   # download the database to the default directory at NERSC
+   checkm2 database --download --path /global/cfs/cdirs/kbase/collections/libraries/CheckM2_database
    ```
 
 3. Go to the collections project directory

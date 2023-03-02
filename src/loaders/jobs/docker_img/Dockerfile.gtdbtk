@@ -22,11 +22,6 @@ ENV PYTHONPATH /app/collections
 
 WORKDIR /app
 
-# Default variables for compute_genome_attributes script
-ENV THREADS 128
-ENV PROGRAM_THREADS 128
-ENV SOURCE_FILE_EXT genomic.fna.gz
-
 ENV ENTRYPOINT_PATH /app/collections/src/loaders/jobs/docker_img/scripts/compute_genome_entrypoint.sh
 
 RUN chmod -R 777 /app/collections
