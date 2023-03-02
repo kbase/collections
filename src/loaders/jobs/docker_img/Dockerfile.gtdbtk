@@ -14,14 +14,13 @@ RUN conda install -n $CONDA_ENV numpy=1.23.1
 RUN echo "source activate $CONDA_ENV" >> ~/.bashrc
 
 RUN mkdir -p /gtdbtk_reference_data
-
-WORKDIR /app
-
 RUN mkdir -p /app
 COPY ./ /app/collections
 
 ENV GTDBTK_DATA_PATH /gtdbtk_reference_data
 ENV PYTHONPATH /app/collections
+
+WORKDIR /app
 
 # Default variables for compute_genome_attributes script
 ENV THREADS 128
