@@ -19,7 +19,7 @@ from src.service import errors
 from src.service import matcher_registry
 from src.service import models_errors
 from src.service.config import CollectionsServiceConfig
-from src.service.data_product_specs import DATA_PRODUCTS
+from src.service import data_product_specs
 from src.service.routes_collections import (
     ROUTER_GENERAL,
     ROUTER_COLLECTIONS,
@@ -71,7 +71,8 @@ def create_app(noop=False):
     app.include_router(ROUTER_GENERAL)
     app.include_router(ROUTER_COLLECTIONS)
     app.include_router(ROUTER_MATCHES)
-    for dp in sorted(DATA_PRODUCTS.values(), key=lambda dp: str(dp.router.tags[0])):
+    for dp in sorted(data_product_specs.get_data_products(),
+                     key=lambda dp: str(dp.router.tags[0])):
         app.include_router(dp.router, prefix="/collections/{collection_id}/data_products")
     app.include_router(ROUTER_COLLECTIONS_ADMIN)
 
@@ -79,7 +80,7 @@ def create_app(noop=False):
         await app_state.build_app(
             app,
             cfg,
-            DATA_PRODUCTS.values(),
+            data_product_specs.get_data_products(),
             matcher_registry.MATCHERS.values()
         )
     app.add_event_handler("startup", build_app_wrapper)

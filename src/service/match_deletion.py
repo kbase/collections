@@ -6,9 +6,9 @@ import logging
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from src.service import app_state
+from src.service.app_state_data_structures import PickleableDependencies
 from src.service import models
-from src.service.data_product_specs import DATA_PRODUCTS
+from src.service import data_product_specs
 from src.service.data_products.common_models import DataProductSpec
 from src.service import processing
 from src.service.storage_arango import ArangoStorage
@@ -19,7 +19,7 @@ def _logger() -> logging.Logger:
 
 
 async def _move_match_to_deletion(
-        deps: app_state.PickleableDependencies,
+        deps: PickleableDependencies,
         storage: ArangoStorage,
         match: models.InternalMatch
     ):
@@ -31,7 +31,7 @@ async def _move_match_to_deletion(
     await storage.remove_match(match.match_id, match.last_access)
 
 
-async def _move_matches_to_deletion(deps: app_state.PickleableDependencies, match_age_ms: int):
+async def _move_matches_to_deletion(deps: PickleableDependencies, match_age_ms: int):
     logging.basicConfig(level=logging.INFO)
     cli, storage = await deps.get_storage()
     try:
@@ -45,12 +45,7 @@ async def _move_matches_to_deletion(deps: app_state.PickleableDependencies, matc
 
 async def _delete_match(
     storage: ArangoStorage,
-    # Passing in the specs is a hack so they can be mocked without monkeypatching the real
-    # repository. Longer term need to figure out a way to get them from PickleableDependencies.
-    # The issue is that DataProductSpec fails to pickle for reasons I don't entirely understand
-    # and updating app_state to know about DATA_PRODUCTS causes an import loop.
-    # Possible solution - list strings to import in data_product_specs.py vs doing the impoarts,
-    # should break the import loop. e.g. "src.service.data_products.taxa_count.TAXA_COUNT_SPEC"
+    # pass in specs so they can be mocked without monkey patching the spec repository
     data_product_specs: dict[str, DataProductSpec],
     delmatch: models.DeletedMatch
 ):
@@ -87,12 +82,13 @@ async def _delete_match(
     await storage.remove_deleted_match(delmatch.internal_match_id, delmatch.last_access)
     
 
-async def _delete_matches(deps: app_state.PickleableDependencies):
+async def _delete_matches(deps: PickleableDependencies):
     logging.basicConfig(level=logging.INFO)
     cli, storage = await deps.get_storage()
     try:
+        specs = {s.data_product: s for s in data_product_specs.get_data_products()}
         async def proc(m):
-            await _delete_match(storage, DATA_PRODUCTS, m)
+            await _delete_match(storage, specs, m)
         await storage.process_deleted_matches(proc)
     finally:
         await cli.close()
@@ -106,7 +102,7 @@ class MatchCleanup:
     
     def __init__(
         self,
-        pickleable_dependencies: app_state.PickleableDependencies,
+        pickleable_dependencies: PickleableDependencies,
         interval_sec: int = 1 * 24 * 60 * 60,
         jitter_sec: int | None = 60 * 60,
         match_age_ms: int = 7 * 24 * 60 * 60 * 1000,

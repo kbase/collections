@@ -6,7 +6,7 @@ to the match, the match is in the expected state, and access times are updated c
 import logging
 from typing import Any, Callable
 
-from src.service import app_state
+from src.service.app_state_data_structures import PickleableDependencies, CollectionsState
 # kinda feel like users should be more generic, but not work the trouble
 from src.service import kb_auth
 from src.service import errors
@@ -22,7 +22,7 @@ _PERM_RECHECK_LIMIT = 5 * 60 * 1000  # check perms every 5 mins
 
 
 async def get_match(
-    deps: app_state.CollectionsState,
+    deps: CollectionsState,
     match_id: str,
     user: kb_auth.KBaseUser,
     verbose: bool = False,
@@ -56,7 +56,7 @@ async def get_match(
 
 
 async def get_match_full(
-    deps: app_state.CollectionsState,
+    deps: CollectionsState,
     match_id: str,
     user: kb_auth.KBaseUser,
     verbose: bool = False,
@@ -78,7 +78,7 @@ async def get_match_full(
 
 async def _get_match(
     internal: bool,
-    deps: app_state.CollectionsState,
+    deps: CollectionsState,
     match_id: str,
     user: kb_auth.KBaseUser,
     verbose: bool,
@@ -118,7 +118,7 @@ async def _check_match_state(
     match: models.MatchVerbose,
     require_complete: bool,
     require_collection: models.SavedCollection,
-    deps: app_state.CollectionsState,
+    deps: CollectionsState,
     ww: WorkspaceWrapper,
 ) -> None:
     col = require_collection
@@ -144,7 +144,7 @@ async def _check_match_state(
 
 
 def _requires_restart(
-    deps: app_state.CollectionsState,
+    deps: CollectionsState,
     match: models.InternalMatch | models.DataProductMatchProcess,
     match_state: models.MatchState,
 ) -> bool:
@@ -200,10 +200,10 @@ async def create_match_process(
 
 
 async def get_or_create_data_product_match(
-    deps: app_state.CollectionsState,
+    deps: CollectionsState,
     match: models.InternalMatch,
     data_product: str,
-    match_process: Callable[[str, app_state.PickleableDependencies, list[Any]], None],
+    match_process: Callable[[str, PickleableDependencies, list[Any]], None],
 ) -> models.DataProductMatchProcess:
     """
     Get a match process data structure for a data product match.
@@ -244,7 +244,7 @@ async def get_or_create_data_product_match(
 
 def _start_process(
     match_id: str,
-    match_process: Callable[[str, app_state.PickleableDependencies, list[Any]], None],
-    deps: app_state.PickleableDependencies,
+    match_process: Callable[[str, PickleableDependencies, list[Any]], None],
+    deps: PickleableDependencies,
 ) -> None:
     processing.CollectionProcess(process=match_process, args=[]).start(match_id, deps)
