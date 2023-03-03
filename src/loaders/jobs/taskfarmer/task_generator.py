@@ -225,7 +225,6 @@ def _create_batch_script(job_dir, task_list_file, n_jobs):
 #SBATCH -N {n_jobs + 1} -c 64
 #SBATCH -q regular
 #SBATCH --time=4:00:00
-#SBATCH --time-min=0:30:00
 #SBATCH -C cpu
 
 cd {job_dir}
@@ -302,3 +301,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
