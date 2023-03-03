@@ -325,7 +325,6 @@ async def _process_match(match_id: str, deps: PickleableDependencies, args: list
     try:
         arangoclient, storage = await deps.get_storage()
         match = await storage.get_match_full(match_id)
-        # TODO MATCHERS check on heartbeat when getting match and restart process
         async def heartbeat(millis: int):
             await storage.send_data_product_match_heartbeat(match.internal_match_id, ID, millis)
         hb = processing.Heartbeat(heartbeat, processing.HEARTBEAT_INTERVAL_SEC)
