@@ -5,6 +5,7 @@ to the match, the match is in the expected state, and access times are updated c
 
 import logging
 from typing import Any, Callable
+from collections.abc import Iterable
 
 from src.service.app_state_data_structures import PickleableDependencies, CollectionsState
 # kinda feel like users should be more generic, but not work the trouble
@@ -14,8 +15,10 @@ from src.service import models
 from src.service import processing
 from src.service.matchers.common_models import Matcher
 from src.service.storage_arango import ArangoStorage
-from src.service.workspace_wrapper import WorkspaceWrapper
+from src.service.workspace_wrapper import WorkspaceWrapper, WORKSPACE_UPA_PATH
 
+
+MAX_UPAS = 10000
 
 # might want to make this configurable
 _PERM_RECHECK_LIMIT = 5 * 60 * 1000  # check perms every 5 mins
@@ -192,11 +195,70 @@ async def create_match_process(
     # downloads are required
     # TODO PERFORMANCE might want to write our own async routines for contacting the workspace
     #      vs using the compiled client. Made this method async just in case
-    meta = ww.get_object_metadata(upas, allowed_types=matcher.types)
-    return matcher.generate_match_process(
-        {u: m for u, m in zip(upas, meta)},
-        collection_parameters,
+    upas, _ = _check_and_sort_UPAs_and_get_wsids(upas)
+    if len(upas) > MAX_UPAS:
+        raise errors.IllegalParameterError(f"No more than {MAX_UPAS} UPAs are allowed per match")
+    meta = ww.get_object_metadata(
+        upas,
+        allowed_types=matcher.types,
+        allowed_set_types=matcher.set_types
     )
+    upa2meta = {m[WORKSPACE_UPA_PATH]: m for m in meta}
+    upas, wsids = _check_and_sort_UPAs_and_get_wsids(upa2meta.keys())
+    if len(upas) > MAX_UPAS:
+        raise errors.IllegalParameterError(f"No more than {MAX_UPAS} are allowed per match - "
+            + "this limit was violated after set expansion")
+    upa2meta = {u: upa2meta[u] for u in upas}
+    return matcher.generate_match_process(upa2meta, collection_parameters), upas, wsids
+
+
+def _check_and_sort_UPAs_and_get_wsids(upas: Iterable[str]) -> tuple[list[str], set[int]]:
+    # We check UPA format prior to sending them to the workspace since figuring out the
+    # type of the WS error is too much of a pain. Easier to figure out obvious errors first
+    
+    # Probably a way to make this faster / more compact w/ list comprehensions, but not worth
+    # the time I was putting into it
+
+    # Removes upa paths that point at the same object, preferentially taking the first shortest
+    # path
+    upa_parsed = {}
+    for i, upapath in enumerate(upas):
+        upapath_parsed = []
+        upapath_split = upapath.strip().split(";")
+        # deal with trailing ';'
+        upapath_split = upapath_split[:-1] if not upapath_split[-1] else upapath_split
+        for upa in upapath_split:
+            upaparts = upa.split("/")
+            if len(upaparts) != 3:
+                _upaerror(upa, upapath, len(upapath_split), i)
+            try:
+                upapath_parsed.append(tuple(int(part) for part in upaparts))
+            except ValueError:
+                _upaerror(upa, upapath, len(upapath_split), i)
+        target_object = upapath_parsed[-1]
+        if target_object in upa_parsed:
+            if len(upapath_parsed) < len(upa_parsed[target_object]):
+                # if there are multiple paths to the same object, use the shortest
+                upa_parsed[target_object] = upapath_parsed
+        else:
+            upa_parsed[target_object] = upapath_parsed
+    upa_parsed = sorted(upa_parsed.values())
+    wsids = {arr[0][0] for arr in upa_parsed}
+    ret = []
+    for path in upa_parsed:
+        path_list = []
+        for upa in path:
+            path_list.append("/".join([str(x) for x in upa]))
+        ret.append(";".join(path_list))
+    return ret, wsids
+
+
+def _upaerror(upa, upapath, upapathlen, index):
+    if upapathlen > 1:
+        raise errors.IllegalParameterError(
+            f"Illegal UPA '{upa}' in path '{upapath}' at index {index}")
+    else:
+        raise errors.IllegalParameterError(f"Illegal UPA '{upa}' at index {index}")
 
 
 async def get_or_create_data_product_match(

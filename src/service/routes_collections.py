@@ -36,8 +36,6 @@ ROUTER_COLLECTIONS = APIRouter(tags=["Collections"])
 ROUTER_COLLECTIONS_ADMIN = APIRouter(tags=["Collection Administration"])
 ROUTER_MATCH_ADMIN = APIRouter(tags=["Match Administration"], prefix="/matchadmin")
 
-MAX_UPAS = 10000
-
 UTF_8 = "utf-8"
 
 _AUTH = KBaseHTTPBearer()
@@ -98,55 +96,6 @@ async def _activate_collection_version(
     ac = models.ActiveCollection.construct(**doc)
     await store.save_collection_active(ac)
     return ac
-
-
-def _upaerror(upa, upapath, upapathlen, index):
-    if upapathlen > 1:
-        raise errors.IllegalParameterError(
-            f"Illegal UPA '{upa}' in path '{upapath}' at index {index}")
-    else:
-        raise errors.IllegalParameterError(f"Illegal UPA '{upa}' at index {index}")
-
-
-def _check_and_sort_UPAs_and_get_wsids(upas: list[str]) -> tuple[list[str], set[int]]:
-    # We check UPA format prior to sending them to the workspace since figuring out the
-    # type of the WS error is too much of a pain. Easier to figure out obvious errors first
-    
-    # Probably a way to make this faster / more compact w/ list comprehensions, but not worth
-    # the time I was putting into it
-
-    # Removes upa paths that point at the same object, preferentially taking the first shortest
-    # path
-    upa_parsed = {}
-    for i, upapath in enumerate(upas):
-        upapath_parsed = []
-        upapath_split = upapath.strip().split(";")
-        # deal with trailing ';'
-        upapath_split = upapath_split[:-1] if not upapath_split[-1] else upapath_split
-        for upa in upapath_split:
-            upaparts = upa.split("/")
-            if len(upaparts) != 3:
-                _upaerror(upa, upapath, len(upapath_split), i)
-            try:
-                upapath_parsed.append(tuple(int(part) for part in upaparts))
-            except ValueError:
-                _upaerror(upa, upapath, len(upapath_split), i)
-        target_object = upapath_parsed[-1]
-        if target_object in upa_parsed:
-            if len(upapath_parsed) < len(upa_parsed[target_object]):
-                # if there are multiple paths to the same object, use the shortest
-                upa_parsed[target_object] = upapath_parsed
-        else:
-            upa_parsed[target_object] = upapath_parsed
-    upa_parsed = sorted(upa_parsed.values())
-    wsids = {arr[0][0] for arr in upa_parsed}
-    ret = []
-    for path in upa_parsed:
-        path_list = []
-        for upa in path:
-            path_list.append("/".join([str(x) for x in upa]))
-        ret.append(";".join(path_list))
-    return ret, wsids
 
 
 # assumes UPAs are sorted
@@ -306,7 +255,9 @@ async def get_collection_matchers(r: Request, collection_id: str = PATH_VALIDATO
     "/collections/{collection_id}/matchers/{matcher_id}",
     response_model=models.Match,
     description="Match KBase workspace data against a collection.\n\n"
-        + f"At most {MAX_UPAS} objects may be submitted."
+        + f"At most {match_retrieval.MAX_UPAS} objects may be submitted. "
+        + "If sets are sumbitted, the set is expanded from the list of references in the set "
+        + "returned by the workspace, ignoring any context for the references."
 )
 async def match(
     # could add a collection version endpoint so admins could try matches on non-active colls
@@ -316,18 +267,14 @@ async def match(
     matcher_id: str = Path(**models.MATCHER_ID_PROPS),  # is there a cleaner way to do this?
     user: kb_auth.KBaseUser=Depends(_AUTH),
 ) -> models.Match:
-    if len(match_params.upas) > MAX_UPAS:
-        raise errors.IllegalParameterError(f"No more than {MAX_UPAS} UPAs are allowed per match")
     coll = await get_collection(r, collection_id)
     matcher_info = _get_matcher_from_collection(coll, matcher_id)
     # TODO MATCHERS check user parameters when a matcher needs them
-    # TODO MATCHERS handle genome and assembly set types
-    upas, wsids = _check_and_sort_UPAs_and_get_wsids(match_params.upas)
     appstate = app_state.get_app_state(r)
     ws = appstate.get_workspace_client(user.token)
     matcher = appstate.get_matcher(matcher_info.matcher)
-    match_process = await match_retrieval.create_match_process(
-        matcher, WorkspaceWrapper(ws), upas, matcher_info.parameters,
+    match_process, upas, wsids = await match_retrieval.create_match_process(
+        matcher, WorkspaceWrapper(ws), match_params.upas, matcher_info.parameters,
     )
     perm_check = appstate.get_epoch_ms()
     params = match_params.parameters or {}
