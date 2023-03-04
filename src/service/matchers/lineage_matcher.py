@@ -7,6 +7,7 @@ import logging
 from pydantic import BaseModel, Field
 from typing import Any, Callable
 
+from src.common.gtdb_lineage import GTDBRank
 from src.common.storage.collection_and_field_names import FLD_GENOME_ATTRIBS_GTDB_LINEAGE
 from src.service import errors
 from src.service import models
@@ -33,6 +34,14 @@ class GTDBLineageMatcherCollectionParameters(BaseModel):
             "Input data to the matcher must match this version of GTDB or the match will " +
             "abort.",
         regex=r"^\d{2,4}\.\d{1,2}$"  # giving a little room for expansion
+    )
+
+
+class GTDBLineageMatcherUserParameters(BaseModel):
+    "User parameters for the GTDB lineage matcher."
+    gtdb_rank: GTDBRank = Field(
+        example=GTDBRank.SPECIES,
+        description="A rank in the the GTDB lineage."
     )
 
 
@@ -120,6 +129,6 @@ MATCHER = GTDBLineageMatcher(
         "KBaseSets.AssemblySet",
         ],
     required_data_products=[genome_attributes.ID],
-    user_parameters=None, # TODO MATCHERS add rank parameter when supporting rank based matching
+    user_parameters=GTDBLineageMatcherUserParameters.schema(),
     collection_parameters=GTDBLineageMatcherCollectionParameters.schema()
 )

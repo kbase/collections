@@ -3,7 +3,7 @@ Convert data structures to documents suitable for saving in a document-based dat
 MongoDB or ArangoDB.
 """
 
-from src.common.gtdb_lineage import TaxaNodeCount, GTDB_RANK_ABBREV_TO_FULL_NAME
+from src.common.gtdb_lineage import TaxaNodeCount
 from src.common.hash import md5_string
 from src.common.storage import collection_and_field_names as names
 
@@ -22,7 +22,7 @@ def taxa_node_count_to_doc(
     taxa_count - the taxa count information to convert
     internal_match_id - the internal match ID of the related match, if any
     """
-    full_rank = GTDB_RANK_ABBREV_TO_FULL_NAME[taxa_count.rank]
+    full_rank = taxa_count.rank.value
     match_id_str = f"{internal_match_id}_" if internal_match_id else ""
     doc = {
         names.FLD_ARANGO_KEY: md5_string(
