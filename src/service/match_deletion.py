@@ -129,6 +129,10 @@ class MatchCleanup:
         self._schd = BackgroundScheduler(daemon=True)
         self._schd.start(paused=True)
         self._started = False
+        # add jobs without triggers that will run on startup
+        self._schd.add_job(self._move_matches_to_deletion)
+        self._schd.add_job(self._delete_matches)
+        # add jobs with triggers that will run after interval_sec
         self._schd.add_job(
             self._move_matches_to_deletion,
             "interval",
