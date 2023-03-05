@@ -328,7 +328,23 @@ async def _count(
         await cur.close(ignore_missing=True)
 
 
-async def perform_match(match_id: str, storage: ArangoStorage, lineages: list[str]):
+async def perform_gtdb_lineage_match(
+    match_id: str,
+    storage: ArangoStorage,
+    lineages: list[str],
+    rank: GTDBRank
+):
+    """
+    Add an internal match ID to genome records in the attributes table that match a set of
+    GTDB lineages.
+
+    match_id - the ID of the match.
+    storage - the storage system containing the match and the genome attribute records.
+    lineages - the GTDB lineage strings to match against the genome attributes
+    rank - the rank at which to match. This effectively truncatest the lineage strings when
+        matching.
+    """
+    print("match rank:", rank)
     # TODO MATCHERS take a rank argument and truncate the lineages to that rank
     
     # Could save some bandwidth here buy adding a method to just get the internal ID
