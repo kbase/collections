@@ -86,7 +86,7 @@ def create_app(noop=False):
     app.add_event_handler("startup", build_app_wrapper)
 
     async def clean_app_wrapper():
-        await app_state.get_app_state_from_app(app).destroy()
+        await app_state.destroy_app_state(app)
     app.add_event_handler("shutdown", clean_app_wrapper)
     return app
 

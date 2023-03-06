@@ -24,7 +24,7 @@ async def _move_match_to_deletion(
         match: models.InternalMatch
     ):
     delmatch = models.DeletedMatch(deleted=deps.get_epoch_ms(), **match.dict())
-    _logger().info(f"Moving match {match.match_id} to deleted state")
+    _logger().info(f"Moving match {match.match_id}/{match.internal_match_id} to deleted state")
     await storage.add_deleted_match(delmatch)
     # We don't worry about whether this fails or not. The actual deletion routine will
     # clean up if there's a match both in the deleted state and non-deleted state.
@@ -33,6 +33,7 @@ async def _move_match_to_deletion(
 
 async def _move_matches_to_deletion(deps: PickleableDependencies, match_age_ms: int):
     logging.basicConfig(level=logging.INFO)
+    _logger().info("Marking matches for deletion")
     cli, storage = await deps.get_storage()
     try:
         cutoff = deps.get_epoch_ms() - match_age_ms
@@ -50,18 +51,19 @@ async def _delete_match(
     delmatch: models.DeletedMatch
 ):
     match = await storage.get_match_full(delmatch.match_id, exception=False)
+    minfo = f"{delmatch.match_id}/{delmatch.internal_match_id}"
     # if the internal match IDs are different it's safe to go ahead with match deletion
     if match and match.internal_match_id == delmatch.internal_match_id:
         if match.last_access == delmatch.last_access:
-            _logger().info(f"Internal match {match.internal_match_id} in inconsistent deletion "
+            _logger().info(f"Match {minfo} in inconsistent deletion "
                 + "state, attempting to delete standard match")
             deleted = await storage.remove_match(match.match_id, match.last_access)
             if not deleted:
-                _logger().info(f"Internal match {match.internal_match_id} was accessed post "
+                _logger().info(f"Match {minfo} was accessed post "
                     + "deletion, giving up.")
                 return  # try again next time
         else:
-            _logger().info(f"Match {match.match_id} in inconsistent deletion state, "
+            _logger().info(f"Match {minfo} in inconsistent deletion state, "
                 + "attempting to delete deleted match record")
             await storage.remove_deleted_match(match.internal_match_id, delmatch.last_access)
             return  # punt either way and try again on the next go round
@@ -69,7 +71,6 @@ async def _delete_match(
     # to delete all the associated data
     col = await storage.get_collection_version_by_num(
         delmatch.collection_id, delmatch.collection_ver)
-    minfo = f"{delmatch.match_id}/{delmatch.internal_match_id}"
     for dpinfo in col.data_products:
         dp = data_product_specs[dpinfo.product]
         _logger().info(
@@ -84,6 +85,7 @@ async def _delete_match(
 
 async def _delete_matches(deps: PickleableDependencies):
     logging.basicConfig(level=logging.INFO)
+    _logger().info("Starting match data deletion process")
     cli, storage = await deps.get_storage()
     try:
         specs = {s.data_product: s for s in data_product_specs.get_data_products()}
@@ -127,6 +129,10 @@ class MatchCleanup:
         self._schd = BackgroundScheduler(daemon=True)
         self._schd.start(paused=True)
         self._started = False
+        # add jobs without triggers that will run on startup
+        self._schd.add_job(self._move_matches_to_deletion)
+        self._schd.add_job(self._delete_matches)
+        # add jobs with triggers that will run after interval_sec
         self._schd.add_job(
             self._move_matches_to_deletion,
             "interval",
