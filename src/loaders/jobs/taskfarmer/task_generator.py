@@ -1,5 +1,6 @@
 import argparse
 import datetime
+import math
 import os
 import subprocess
 
@@ -37,9 +38,11 @@ optional arguments:
 
 TOOLS_AVAILABLE = ['gtdb_tk']  # TODO: fix checkm2 container bug
 
-# All nodes in Perlmutter have identical computational resources
-CHUNK_SIZE = {'checkm2': 5000,
-              'gtdb_tk': 1000}
+# estimated execution time (in minutes) for each tool to process a chunk of data
+TASK_META = {'checkm2': {'chunk_size': 5000, 'exe_time': 60},
+             'gtdb_tk': {'chunk_size': 1000, 'exe_time': 90}}
+NODE_TIME_LIMIT = 10  # hours
+MAX_NODE_NUM = 1000  # maximum number of nodes to use
 
 REGISTRY = 'tiangu01'  # public Docker Hub registry to pull images from
 
@@ -154,8 +157,7 @@ command="$@"
 echo "Running shifter --image=$image $command"
 
 cd {job_dir}
-shifter --image=$image $command
-            '''
+shifter --image=$image $command'''
 
     wrapper_file = os.path.join(job_dir, 'shifter_wrapper.sh')
     with open(wrapper_file, "w") as f:
@@ -184,7 +186,7 @@ def _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper
     genome_ids = [path for path in os.listdir(source_data_dir) if
                   os.path.isdir(os.path.join(source_data_dir, path))]
 
-    chunk_size = CHUNK_SIZE[tool]
+    chunk_size = TASK_META[tool]['chunk_size']
     genome_ids_chunks = [genome_ids[i: i + chunk_size] for i in range(0, len(genome_ids), chunk_size)]
 
     vol_mounts = TOOL_VOLUME_MAP.get(tool, {})
@@ -216,16 +218,34 @@ def _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper
     return task_list_file, len(genome_ids_chunks)
 
 
-def _create_batch_script(job_dir, task_list_file, n_jobs):
+def _cal_node_num(tool, n_jobs):
+    """
+    Calculate the number of nodes required for the task
+    """
+
+    tool_exe_time = TASK_META[tool]['exe_time']
+    jobs_per_node = NODE_TIME_LIMIT * 60 // tool_exe_time
+
+    num_nodes = min(math.ceil(n_jobs / jobs_per_node), MAX_NODE_NUM)
+
+    return num_nodes
+
+
+def _create_batch_script(job_dir, task_list_file, n_jobs, tool):
     """
     Create the batch script (submit_taskfarmer.sl) for job submission
     """
+
+    node_num = _cal_node_num(tool, n_jobs)
+
     batch_script = f'''#!/bin/sh
 
-#SBATCH -N {n_jobs + 1} -c 64
+#SBATCH -N {node_num + 1} -c 256
 #SBATCH -q regular
-#SBATCH --time=4:00:00
+#SBATCH --time={NODE_TIME_LIMIT}:00:00
 #SBATCH -C cpu
+
+module load taskfarmer
 
 cd {job_dir}
 export THREADS=32
@@ -287,7 +307,7 @@ def main():
     task_list_file, n_jobs = _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper_file, job_dir,
                                                root_dir)
 
-    batch_script = _create_batch_script(job_dir, task_list_file, n_jobs)
+    batch_script = _create_batch_script(job_dir, task_list_file, n_jobs, tool)
 
     if args.submit_job:
         os.chdir(job_dir)
@@ -301,4 +321,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
