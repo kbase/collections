@@ -344,9 +344,6 @@ async def perform_gtdb_lineage_match(
     rank - the rank at which to match. This effectively truncates the lineage strings when
         matching.
     """
-    print("match rank:", rank)
-    # TODO MATCHERS take a rank argument and truncate the lineages to that rank
-    
     # Could save some bandwidth here buy adding a method to just get the internal ID
     # Microoptimization, wait until it's a problem
     match = await storage.get_match_full(match_id)
@@ -355,14 +352,27 @@ async def perform_gtdb_lineage_match(
     load_ver = {dp.product: dp.version for dp in coll.data_products}[ID]
     filtered_lineages = set()  # remove duplicates
     for lin in lineages:
-        # TODO MATCHERS reverse look up the abbreviation from the rank when rank input is done
-        if parse_gtdb_lineage_string(lin, force_complete=False)[-1].rank == GTDBRank.SPECIES:
-            filtered_lineages.add(lin)
-    # TODO MATCHERS for non full lineages, use STARTS_WITH for the match. check that
-    #   uses an index, if not, may need another solution. Don't use a regex based solution
-    #   since lineages aren't necessarily coming from us. Probably need to batch it up as
-    #   there's one OR query per lineage
+        lineage = parse_gtdb_lineage_string(lin, force_complete=False).truncate_to_rank(rank)
+        if lineage:
+            filtered_lineages.add(str(lineage))
+    if rank == GTDBRank.SPECIES:
+        await _mark_gtdb_matches_IN_strategy(
+            storage, coll.id, load_ver, filtered_lineages, match.match_id, match.internal_match_id
+        )
+    else:
+        await _mark_gtdb_matches_STARTS_WITH_strategy(
+            storage, coll.id, load_ver, filtered_lineages, match.match_id, match.internal_match_id
+        )
 
+
+async def _mark_gtdb_matches_IN_strategy(
+    storage: ArangoStorage,
+    collection_id: str,
+    load_ver: str,
+    lineages: set[str],
+    match_id: str,
+    internal_match_id: str
+):
     # may need to batch this if lineages is too big
     # retries?
     mtch = names.FLD_GENOME_ATTRIBS_MATCHES
@@ -380,11 +390,20 @@ async def perform_gtdb_lineage_match(
         """
     bind_vars = {
         f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
-        _FLD_COL_ID: coll.id,
+        _FLD_COL_ID: collection_id,
         _FLD_COL_LV: load_ver,
-        "lineages": list(filtered_lineages),
-        "internal_match_id": match.internal_match_id,
+        "lineages": list(lineages),
+        "internal_match_id": internal_match_id,
     }
+    await _mark_gtdb_matches_complete(storage, aql, bind_vars, match_id)
+
+
+async def _mark_gtdb_matches_complete(
+    storage: ArangoStorage,
+    aql: str,
+    bind_vars: dict[str, Any],
+    match_id: str
+):
     cur = await storage.aql().execute(aql, bind_vars=bind_vars)
     genome_ids = []
     try:
@@ -395,6 +414,55 @@ async def perform_gtdb_lineage_match(
     await storage.update_match_state(
         match_id, models.MatchState.COMPLETE, now_epoch_millis(), genome_ids
     )
+
+
+async def _mark_gtdb_matches_STARTS_WITH_strategy(
+    storage: ArangoStorage,
+    collection_id: str,
+    load_ver: str,
+    lineages: set[str],
+    match_id: str,
+    internal_match_id: str
+):
+    # this almost certainly needs to be batched, but let's write it stupid for now and improve
+    # later
+    # could also probably DRY up this and the above method
+    # retries?
+    mtch = names.FLD_GENOME_ATTRIBS_MATCHES
+    lin = names.FLD_GENOME_ATTRIBS_GTDB_LINEAGE
+    aql = f"""
+        FOR d IN @@{_FLD_COL_NAME}
+            FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
+            FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
+            FILTER"""
+    for i in range(len(lineages)):
+        if i != 0:
+            aql += "                  "
+        aql += f" (d.{lin} >= @linbottom{i} AND d.{lin} < @lintop{i})"
+        if i < len(lineages) - 1:
+            aql += " OR "
+        aql += "\n"
+    aql += f"""
+            UPDATE d WITH {{
+                {mtch}: APPEND(d.{mtch}, [@internal_match_id], true)
+            }} IN @@{_FLD_COL_NAME}
+            OPTIONS {{exclusive: true}}
+            LET updated = NEW
+            RETURN KEEP(updated, "{names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID}")
+        """
+    bind_vars = {
+        f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
+        _FLD_COL_ID: collection_id,
+        _FLD_COL_LV: load_ver,
+        "internal_match_id": internal_match_id,
+    }
+    for i, lin in enumerate(lineages):
+        bind_vars[f"linbottom{i}"] = lin
+        # weird stuff could happen if the last character in the string is below a non-printable
+        # character, but that seems pretty edgy. Don't worry about it for now
+        # Famous last words...
+        bind_vars[f"lintop{i}"] = lin[:-1] + chr(ord(lin[-1]) + 1)
+    await _mark_gtdb_matches_complete(storage, aql, bind_vars, match_id)
 
 
 async def process_match_documents(
