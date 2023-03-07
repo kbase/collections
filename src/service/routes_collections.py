@@ -114,7 +114,10 @@ def _check_and_sort_UPAs_and_get_wsids(upas: list[str]) -> tuple[list[str], set[
     
     # Probably a way to make this faster / more compact w/ list comprehensions, but not worth
     # the time I was putting into it
-    upa_parsed = []
+
+    # Removes upa paths that point at the same object, preferentially taking the first shortest
+    # path
+    upa_parsed = {}
     for i, upapath in enumerate(upas):
         upapath_parsed = []
         upapath_split = upapath.strip().split(";")
@@ -128,8 +131,14 @@ def _check_and_sort_UPAs_and_get_wsids(upas: list[str]) -> tuple[list[str], set[
                 upapath_parsed.append(tuple(int(part) for part in upaparts))
             except ValueError:
                 _upaerror(upa, upapath, len(upapath_split), i)
-        upa_parsed.append(upapath_parsed)
-    upa_parsed = sorted(upa_parsed)
+        target_object = upapath_parsed[-1]
+        if target_object in upa_parsed:
+            if len(upapath_parsed) < len(upa_parsed[target_object]):
+                # if there are multiple paths to the same object, use the shortest
+                upa_parsed[target_object] = upapath_parsed
+        else:
+            upa_parsed[target_object] = upapath_parsed
+    upa_parsed = sorted(upa_parsed.values())
     wsids = {arr[0][0] for arr in upa_parsed}
     ret = []
     for path in upa_parsed:
