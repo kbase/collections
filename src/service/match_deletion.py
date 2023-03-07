@@ -18,12 +18,19 @@ def _logger() -> logging.Logger:
     return logging.getLogger(__name__)
 
 
-async def _move_match_to_deletion(
-        deps: PickleableDependencies,
-        storage: ArangoStorage,
-        match: models.InternalMatch
-    ):
-    delmatch = models.DeletedMatch(deleted=deps.get_epoch_ms(), **match.dict())
+async def move_match_to_deleted_state(
+    storage: ArangoStorage,
+    match: models.InternalMatch,
+    deletion_time_ms: int
+):
+    """
+    Move a match to the deleted state, readying it for cleanup.
+
+    storage - the storage system containing the match data.
+    match - the match to delete.
+    deletion_time_ms - the time to set as the deletion time.
+    """
+    delmatch = models.DeletedMatch(deleted=deletion_time_ms, **match.dict())
     _logger().info(f"Moving match {match.match_id}/{match.internal_match_id} to deleted state")
     await storage.add_deleted_match(delmatch)
     # We don't worry about whether this fails or not. The actual deletion routine will
@@ -38,7 +45,7 @@ async def _move_matches_to_deletion(deps: PickleableDependencies, match_age_ms: 
     try:
         cutoff = deps.get_epoch_ms() - match_age_ms
         async def proc(m):
-            await _move_match_to_deletion(deps, storage, m)
+            await move_match_to_deleted_state(storage, m, deps.get_epoch_ms())
         await storage.process_old_matches(cutoff, proc)
     finally:
         await cli.close()

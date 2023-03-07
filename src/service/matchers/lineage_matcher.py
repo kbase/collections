@@ -46,7 +46,6 @@ async def _process_match(
     arangoclient = None
     try:
         arangoclient, storage = await pstorage.get_storage()
-        # TODO MATCHERS check on heartbeat when getting match and restart process
         async def heartbeat(millis: int):
             await storage.send_match_heartbeat(match_id, millis)
         hb = Heartbeat(heartbeat, HEARTBEAT_INTERVAL_SEC)

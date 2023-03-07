@@ -2,6 +2,7 @@
 API for the collections service.
 '''
 
+import logging
 import os
 import sys
 
@@ -25,6 +26,7 @@ from src.service.routes_collections import (
     ROUTER_COLLECTIONS,
     ROUTER_MATCHES,
     ROUTER_COLLECTIONS_ADMIN,
+    ROUTER_MATCH_ADMIN,
     SERVICE_NAME
 )
 from src.service.timestamp import timestamp
@@ -41,6 +43,7 @@ def create_app(noop=False):
     """
     Create the Collections application
     """
+    logging.basicConfig(level=logging.INFO)
     # deliberately not documenting noop, should go away when we have real tests
     if noop:
         # temporary for prototype status. Eventually need full test suite with 
@@ -75,6 +78,7 @@ def create_app(noop=False):
                      key=lambda dp: str(dp.router.tags[0])):
         app.include_router(dp.router, prefix="/collections/{collection_id}/data_products")
     app.include_router(ROUTER_COLLECTIONS_ADMIN)
+    app.include_router(ROUTER_MATCH_ADMIN)
 
     async def build_app_wrapper():
         await app_state.build_app(

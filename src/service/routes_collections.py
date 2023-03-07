@@ -17,6 +17,7 @@ from src.service import app_state
 from src.service import data_product_specs
 from src.service import errors
 from src.service import kb_auth
+from src.service import match_deletion
 from src.service import match_retrieval
 from src.service import models
 from src.service.clients.workspace_client import Workspace
@@ -33,6 +34,7 @@ ROUTER_GENERAL = APIRouter(tags=["General"])
 ROUTER_MATCHES = APIRouter(tags=["Matches"])
 ROUTER_COLLECTIONS = APIRouter(tags=["Collections"])
 ROUTER_COLLECTIONS_ADMIN = APIRouter(tags=["Collection Administration"])
+ROUTER_MATCH_ADMIN = APIRouter(tags=["Match Administration"], prefix="/matchadmin")
 
 MAX_UPAS = 10000
 
@@ -112,7 +114,10 @@ def _check_and_sort_UPAs_and_get_wsids(upas: list[str]) -> tuple[list[str], set[
     
     # Probably a way to make this faster / more compact w/ list comprehensions, but not worth
     # the time I was putting into it
-    upa_parsed = []
+
+    # Removes upa paths that point at the same object, preferentially taking the first shortest
+    # path
+    upa_parsed = {}
     for i, upapath in enumerate(upas):
         upapath_parsed = []
         upapath_split = upapath.strip().split(";")
@@ -126,8 +131,14 @@ def _check_and_sort_UPAs_and_get_wsids(upas: list[str]) -> tuple[list[str], set[
                 upapath_parsed.append(tuple(int(part) for part in upaparts))
             except ValueError:
                 _upaerror(upa, upapath, len(upapath_split), i)
-        upa_parsed.append(upapath_parsed)
-    upa_parsed = sorted(upa_parsed)
+        target_object = upapath_parsed[-1]
+        if target_object in upa_parsed:
+            if len(upapath_parsed) < len(upa_parsed[target_object]):
+                # if there are multiple paths to the same object, use the shortest
+                upa_parsed[target_object] = upapath_parsed
+        else:
+            upa_parsed[target_object] = upapath_parsed
+    upa_parsed = sorted(upa_parsed.values())
     wsids = {arr[0][0] for arr in upa_parsed}
     ret = []
     for path in upa_parsed:
@@ -179,12 +190,23 @@ _PATH_VER_NUM = Path(
     description=models.FIELD_VER_NUM_DESCRIPTION
 )
 
+_PATH_MATCH_ID = Path(description="The ID of the match")
+
 _QUERY_MAX_VER = Query(
     default=None,
     ge=1,  # gt doesn't seem to be working correctly as of now
     example=57,
     description="The maximum collection version to return. This can be used to page through "
         + "the versions"
+)
+
+_QUERY_MATCH_VERBOSE = Query(
+    default=False,
+    example=False,
+    description="Whether to return the KBase workspace UPAs and the matching IDs along with "
+        + "the other match information. These data may be much larger than the rest of the "
+        + "match and aren't often needed; in most cases they can be ignored. When false, "
+        + "the UPAs and matching ID lists will be empty."
 )
 
 
@@ -351,17 +373,8 @@ async def matchers(r: Request):
 )
 async def get_match(
     r: Request,
-    match_id: str = Path(
-        description="The ID of the match"
-    ),
-    verbose: bool = Query(
-        default=False,
-        example=False,
-        description="Whether to return the KBase workspace UPAs and the matching IDs along with "
-            + "the other match information. These data may be much larger than the rest of the "
-            + "match and aren't often needed; in most cases they can be ignored. When false, "
-            + "the UPAs and matching ID lists will be empty."
-    ),
+    match_id: str = _PATH_MATCH_ID,
+    verbose: bool = _QUERY_MATCH_VERBOSE,
     user: kb_auth.KBaseUser = Depends(_AUTH),
 ) -> models.MatchVerbose:
     return await match_retrieval.get_match(
@@ -506,3 +519,37 @@ async def get_collection_versions(
     versions = await store.get_collection_versions(collection_id, max_ver=max_ver)
     counter = await store.get_current_version(collection_id)
     return CollectionVersions(counter=counter, data=versions)
+
+
+# TODO ROUTES add a admin route to get a match without updating its timestamps etc.
+#             for now just use the ArangoDB UI or API.
+
+
+@ROUTER_MATCH_ADMIN.delete(
+    "/{match_id}/",
+    response_model=models.MatchVerbose,
+    summary="!!! Danger !!! Delete a match",
+    description="Delete a match, regardless of state. **BE SURE YOU KNOW WHAT YOU'RE DOING**. "
+        + "Deleting a match when match processes are running can leave the database in an "
+        + "inconsistent state and cause user errors or corrupted results. Even if processes are "
+        + "not running, a recent request by a user can result in an error or corrupted results "
+        + "if a match deletion occurs at the same time.",
+)
+async def delete_match(
+    r: Request,
+    match_id: str = _PATH_MATCH_ID,
+    verbose: bool = _QUERY_MATCH_VERBOSE,
+    user: kb_auth.KBaseUser = Depends(_AUTH),
+) -> models.MatchVerbose:
+    _ensure_admin(user, "Only collections service admins can delete matches")
+    appstate = app_state.get_app_state(r)
+    store = appstate.arangostorage
+    match = await store.get_match_full(match_id)
+    await match_deletion.move_match_to_deleted_state(store, match, appstate.get_epoch_ms())
+    match = models.MatchVerbose(
+        **models.remove_non_model_fields(match.dict(), models.MatchVerbose))
+    if not verbose:
+        # TODO PERF do this by not requesting the fields from the DB
+        match.upas = []
+        match.matches = []
+    return match
