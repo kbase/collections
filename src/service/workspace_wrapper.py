@@ -3,7 +3,7 @@ Wrapper for a workspace client that provides a simplified interface for the need
 collections service.
 """
 
-from typing import Any
+from typing import Any, Iterable
 from src.service import errors
 from src.service.clients.workspace_client import Workspace
 from src.service.clients.baseclient import ServerError
@@ -29,8 +29,8 @@ class WorkspaceWrapper:
     def get_object_metadata(
         self,
         upas: list[str],
-        allowed_types: set[str] | None = None,
-        allowed_set_types: set[str] | None = None,
+        allowed_types: Iterable[str] | None = None,
+        allowed_set_types: Iterable[str] | None = None,
     ) -> list[dict[str, Any]]:
         f"""
         Get metadata for selected workspace objects.
@@ -49,6 +49,8 @@ class WorkspaceWrapper:
         # The workspace error format really sucks. Error codes are bascially a necessity for
         # handling errors reasonably - trying to figure out the error type from an arbitrary
         # string is not reasonable
+        allowed_types = set(allowed_types) if allowed_types else {}
+        allowed_set_types = set(allowed_set_types) if allowed_set_types else {}
         std_objs, set_objs = self._get_object_info(upas, allowed_types, allowed_set_types)
         std_objs2 = []
         if set_objs:
@@ -97,7 +99,7 @@ class WorkspaceWrapper:
             elif allowed_types and type_ not in allowed_types:
                 raise errors.IllegalParameterError(
                     f"Workspace object {upa} is type {info[2]}, which is not one of "
-                    + f"the allowed types: {allowed_types}"
+                    + f"the allowed types: {sorted(allowed_types | allowed_set_types)}"
                 )
             else:
                 std_objs.append(info[10])
