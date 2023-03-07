@@ -18,6 +18,11 @@ class Matcher(BaseModel):
         description="The KBase types against which the matcher operates. Ensure that the types "
             + "exist in the workspace service, or errors will occur when attempting to match.",
     )
+    set_types: list[str] = Field(
+        example=["KBaseSets.GenomeSet", "KBaseSets.AssemblySet"],
+        description="The KBase set types against which the matcher operates. Sets will be "
+            + "expanded to individual items."
+    )
     description: str = Field(
         example="Matches assemblies and genomes via the GTDB lineage",
         description="A free text description of the matcher.",

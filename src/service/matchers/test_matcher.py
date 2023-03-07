@@ -23,6 +23,7 @@ MATCHER = Matcher(
     id="test",
     description="stuff",
     types=["KBaseGenomes.Genome", "KBaseGenomeAnnotations.Assembly"],
+    set_types=[],
     required_data_products=[],
     user_parameters=None,
     collection_parameters=TestMatcherCollectionParameters.schema()

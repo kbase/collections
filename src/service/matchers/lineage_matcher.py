@@ -114,6 +114,11 @@ MATCHER = GTDBLineageMatcher(
         + f"in the '{FLD_GENOME_ATTRIBS_GTDB_LINEAGE}' field in the genome attributes data "
         + "product.",
     types=["KBaseGenomes.Genome", "KBaseGenomeAnnotations.Assembly"],
+    set_types=[
+        "KBaseSearch.GenomeSet",  # eventually supposed to be replaced by the KBaseSets version
+        "KBaseSets.GenomeSet",
+        "KBaseSets.AssemblySet",
+        ],
     required_data_products=[genome_attributes.ID],
     user_parameters=None, # TODO MATCHERS add rank parameter when supporting rank based matching
     collection_parameters=GTDBLineageMatcherCollectionParameters.schema()
