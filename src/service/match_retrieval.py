@@ -221,12 +221,14 @@ def _check_and_sort_UPAs_and_get_wsids(upas: Iterable[str]) -> tuple[list[str], 
 
     # Removes upa paths that point at the same object, preferentially taking the first shortest
     # path
-    upa_parsed = {}
+    upa_to_path = {}
     for i, upapath in enumerate(upas):
-        upapath_parsed = []
         upapath_split = upapath.strip().split(";")
         # deal with trailing ';'
         upapath_split = upapath_split[:-1] if not upapath_split[-1] else upapath_split
+        if not upapath_split:  # ignore empty lines
+            continue
+        upapath_parsed = []
         for upa in upapath_split:
             upaparts = upa.split("/")
             if len(upaparts) != 3:
@@ -235,17 +237,20 @@ def _check_and_sort_UPAs_and_get_wsids(upas: Iterable[str]) -> tuple[list[str], 
                 upapath_parsed.append(tuple(int(part) for part in upaparts))
             except ValueError:
                 _upaerror(upa, upapath, len(upapath_split), i)
+            if any([n < 1 for n in upapath_parsed[-1]]):
+                # might want to have a more specific error here, meh for now
+                _upaerror(upa, upapath, len(upapath_split), i)
         target_object = upapath_parsed[-1]
-        if target_object in upa_parsed:
-            if len(upapath_parsed) < len(upa_parsed[target_object]):
+        if target_object in upa_to_path:
+            if len(upapath_parsed) < len(upa_to_path[target_object]):
                 # if there are multiple paths to the same object, use the shortest
-                upa_parsed[target_object] = upapath_parsed
+                upa_to_path[target_object] = upapath_parsed
         else:
-            upa_parsed[target_object] = upapath_parsed
-    upa_parsed = sorted(upa_parsed.values())
-    wsids = {arr[0][0] for arr in upa_parsed}
+            upa_to_path[target_object] = upapath_parsed
+    upas_parsed = sorted(upa_to_path.values())
+    wsids = {arr[0][0] for arr in upas_parsed}
     ret = []
-    for path in upa_parsed:
+    for path in upas_parsed:
         path_list = []
         for upa in path:
             path_list.append("/".join([str(x) for x in upa]))
