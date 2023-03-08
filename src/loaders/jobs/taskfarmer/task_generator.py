@@ -2,7 +2,10 @@ import argparse
 import datetime
 import math
 import os
+import shutil
 import subprocess
+
+import jsonlines
 
 from src.loaders.common import loader_common_names
 
@@ -61,6 +64,10 @@ TOOL_VOLUME_MAP = {'checkm2': {CHECKM2_DB: '/CheckM2_database'},
 
 # Docker image tags for the tools
 DEFAULT_IMG_TAG = 'latest'
+
+# directory containing the TaskFarmer job scripts under the root directory
+TASKFARMER_JOB_DIR = 'task_farmer_jobs'
+TASK_INFO_FILE = 'task_info.jsonl'  # file containing the information of each task
 
 
 def _run_command(command, job_dir, log_file_prefix='', check_return_code=True):
@@ -263,6 +270,37 @@ runcommands.sh {task_list_file}'''
     return batch_script_file
 
 
+def _create_job_dir(root_dir, tool, kbase_collection, load_ver, force=False):
+    """
+    Create the job directory
+
+    Job directory structure: <root_dir>/<TASKFARMER_JOB_DIR>/<kbase_collection>_<load_ver>_<tool>
+    """
+
+    job_dir = os.path.join(root_dir, TASKFARMER_JOB_DIR, f'{kbase_collection}_{load_ver}_{tool}')
+
+    if os.path.exists(job_dir) and force:
+        shutil.rmtree(job_dir)
+
+    os.makedirs(job_dir, exist_ok=True)
+
+    return job_dir
+
+
+def _append_task_info(root_dir, task_info):
+    """
+    Append the task information to the task info file
+    """
+
+    task_info_file = os.path.join(root_dir, TASKFARMER_JOB_DIR, TASK_INFO_FILE)
+
+    # Append the new record to the file
+    with jsonlines.open(task_info_file, mode='a') as writer:
+        if not os.path.exists(task_info_file):
+            writer.write([])
+        writer.write(task_info)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='PROTOTYPE - Create the required documents/scripts for the TaskFarmer Workflow Manager'
@@ -292,6 +330,7 @@ def main():
     optional.add_argument('--use_cached_image', action='store_true',
                           help='Use an existing image without pulling')
     optional.add_argument('--submit_job', action='store_true', help='Submit job to slurm')
+    optional.add_argument('--force', action='store_true', help='Force overwrite of existing job directory')
 
     args = parser.parse_args()
 
@@ -302,8 +341,7 @@ def main():
     root_dir = args.root_dir
 
     current_datetime = datetime.datetime.now()
-    job_dir = os.path.join(root_dir, 'task_farmer_jobs', f'{tool}_{current_datetime.strftime("%Y_%m_%d_%H_%M_%S")}')
-    os.makedirs(job_dir, exist_ok=True)
+    job_dir = _create_job_dir(root_dir, tool, kbase_collection, load_ver, force=args.force)
 
     image_str = _fetch_image(REGISTRY, tool, job_dir, tag=args.image_tag, force_pull=not args.use_cached_image)
     wrapper_file = _create_shifter_wrapper(job_dir, image_str)
@@ -313,14 +351,22 @@ def main():
 
     batch_script = _create_batch_script(job_dir, task_list_file, n_jobs, tool)
 
+    job_id = None
     if args.submit_job:
         os.chdir(job_dir)
         std_out_file, std_err_file, exit_code = _run_command(['sbatch', os.path.join(job_dir, 'submit_taskfarmer.sl')],
                                                              job_dir, log_file_prefix='sbatch_submit')
         with open(std_out_file, "r") as f:
-            print(f'Job submitted to slurm.\n{f.read().strip()}')
+            sbatch_out = f.read().strip()
+            job_id = sbatch_out.split(' ')[-1]
+            print(f'Job submitted to slurm.\n{sbatch_out}')
     else:
         print(f'Please go to Job Directory: {job_dir} and submit the batch script: {batch_script} to the scheduler.')
+
+    if job_id:
+        task_info = {'kbase_collection': kbase_collection, 'load_ver': load_ver, 'tool': tool,
+                     'job_id': job_id, 'job_start_time': current_datetime.strftime("%Y-%m-%d %H:%M:%S")}
+        _append_task_info(root_dir, task_info)
 
 
 if __name__ == "__main__":
