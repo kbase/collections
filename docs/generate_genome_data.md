@@ -115,7 +115,6 @@ load_ver=r207
 kbase_collection=GTDB
 source_data_dir=/global/cfs/cdirs/kbase/collections/sourcedata/GTDB/r207
 tool=gtdb_tk
-module load taskfarmer
 
 PYTHONPATH=collections python collections/src/loaders/jobs/taskfarmer/task_generator.py  \
     --tool $tool \
