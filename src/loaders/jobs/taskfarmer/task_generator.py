@@ -42,7 +42,7 @@ TOOLS_AVAILABLE = ['gtdb_tk']  # TODO: fix checkm2 container bug
 TASK_META = {'checkm2': {'chunk_size': 5000, 'exe_time': 60},
              'gtdb_tk': {'chunk_size': 1000, 'exe_time': 90}}
 NODE_TIME_LIMIT = 10  # hours
-MAX_NODE_NUM = 1000  # maximum number of nodes to use
+MAX_NODE_NUM = 100  # maximum number of nodes to use
 
 REGISTRY = 'tiangu01'  # public Docker Hub registry to pull images from
 
@@ -226,7 +226,11 @@ def _cal_node_num(tool, n_jobs):
     tool_exe_time = TASK_META[tool]['exe_time']
     jobs_per_node = NODE_TIME_LIMIT * 60 // tool_exe_time
 
-    num_nodes = min(math.ceil(n_jobs / jobs_per_node), MAX_NODE_NUM)
+    num_nodes = math.ceil(n_jobs / jobs_per_node)
+
+    if num_nodes > MAX_NODE_NUM:
+        raise ValueError(f"The number of nodes required ({num_nodes}) is greater than the maximum "
+                         f"number of nodes allowed ({MAX_NODE_NUM}).")
 
     return num_nodes
 
