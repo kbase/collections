@@ -6,8 +6,8 @@ from collections import defaultdict
 import src.common.storage.collection_and_field_names as names
 import src.loaders.common.loader_common_names as loader_common_names
 from src.common.gtdb_lineage import (
-    GTDB_RANK_ABBREV_TO_FULL_NAME,
-    GTDBTaxaCount
+    GTDBTaxaCount,
+    GTDBRank
 )
 from src.common.storage.db_doc_conversions import taxa_node_count_to_doc
 from src.loaders.common.loader_helper import convert_to_json
@@ -86,13 +86,13 @@ def _create_count_docs(nodes, kbase_collection, load_version):
         doc = taxa_node_count_to_doc(kbase_collection, load_version, node)
         count_docs.append(doc)
 
-        identical_ranks.add(GTDB_RANK_ABBREV_TO_FULL_NAME[node.rank])
+        identical_ranks.add(node.rank.value)
 
     return count_docs, identical_ranks
 
 
 def _create_rank_docs(kbase_collection, load_version, identical_ranks):
-    rank_candidates = list(GTDB_RANK_ABBREV_TO_FULL_NAME.values())
+    rank_candidates = [r.value for r in GTDBRank]
 
     rank_doc = [{
         names.FLD_ARANGO_KEY: taxa_count.ranks_key(kbase_collection, load_version),

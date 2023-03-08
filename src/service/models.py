@@ -76,7 +76,7 @@ V is the version. The version may not be omitted. Reference paths
 (e.g. a sequence of UPAs separated by ';') are allowed.
 """
 )
-FIELD_USER_PARAMETERS_EXAMPLE = {"rank": "genus"}
+FIELD_USER_PARAMETERS_EXAMPLE = {"rank": "species"}
 FIELD_USER_PARAMETERS_DESCRIPTION = "The user parameters for the match."
 FIELD_MATCHER_PARAMETERS_EXAMPLE = {'gtdb_version': '207.0'}
 FIELD_MATCHER_PARAMETERS_DESCRIPTION = ("Any collection (as opposed to user provided) parameters "
