@@ -341,7 +341,7 @@ async def perform_gtdb_lineage_match(
     match_id - the ID of the match.
     storage - the storage system containing the match and the genome attribute records.
     lineages - the GTDB lineage strings to match against the genome attributes
-    rank - the rank at which to match. This effectively truncatest the lineage strings when
+    rank - the rank at which to match. This effectively truncates the lineage strings when
         matching.
     """
     print("match rank:", rank)
