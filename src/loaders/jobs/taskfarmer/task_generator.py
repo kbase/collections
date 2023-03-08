@@ -17,7 +17,7 @@ usage: task_generator.py [-h] --tool {gtdb_tk} --kbase_collection
                          KBASE_COLLECTION --load_ver LOAD_VER
                          --source_data_dir SOURCE_DATA_DIR
                          [--root_dir ROOT_DIR] [--image_tag IMAGE_TAG]
-                         [--use_cached_image] [--submit_job]
+                         [--use_cached_image] [--submit_job] [--force]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -37,6 +37,7 @@ optional arguments:
                         Docker/Shifter image tag. (default: latest)
   --use_cached_image    Use an existing image without pulling
   --submit_job          Submit job to slurm
+  --force               Force overwrite of existing job directory
 '''
 
 TOOLS_AVAILABLE = ['gtdb_tk']  # TODO: fix checkm2 container bug
