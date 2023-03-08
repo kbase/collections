@@ -4,7 +4,7 @@ The genome_attribs data product, which provides geneome attributes for a collect
 
 from fastapi import APIRouter, Request, Depends, Query
 from pydantic import BaseModel, Field, Extra
-from src.common.gtdb_lineage import parse_gtdb_lineage_string
+from src.common.gtdb_lineage import parse_gtdb_lineage_string, GTDBRank
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
 from src.service import errors
@@ -340,7 +340,7 @@ async def perform_match(match_id: str, storage: ArangoStorage, lineages: list[st
     filtered_lineages = set()  # remove duplicates
     for lin in lineages:
         # TODO MATCHERS reverse look up the abbreviation from the rank when rank input is done
-        if parse_gtdb_lineage_string(lin, force_complete=False)[-1].abbreviation == "s":
+        if parse_gtdb_lineage_string(lin, force_complete=False)[-1].rank == GTDBRank.SPECIES:
             filtered_lineages.add(lin)
     # TODO MATCHERS for non full lineages, use STARTS_WITH for the match. check that
     #   uses an index, if not, may need another solution. Don't use a regex based solution
