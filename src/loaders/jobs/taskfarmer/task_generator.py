@@ -297,8 +297,6 @@ def _append_task_info(root_dir, task_info):
 
     # Append the new record to the file
     with jsonlines.open(task_info_file, mode='a') as writer:
-        if not os.path.exists(task_info_file):
-            writer.write([])
         writer.write(task_info)
 
 
@@ -366,7 +364,8 @@ def main():
 
     if job_id:
         task_info = {'kbase_collection': kbase_collection, 'load_ver': load_ver, 'tool': tool,
-                     'job_id': job_id, 'job_start_time': current_datetime.strftime("%Y-%m-%d %H:%M:%S")}
+                     'job_id': job_id, 'job_start_time': current_datetime.strftime("%Y-%m-%d %H:%M:%S"),
+                     'source_data_dir': source_data_dir}
         _append_task_info(root_dir, task_info)
 
 
