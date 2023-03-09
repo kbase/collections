@@ -146,8 +146,8 @@ _FLD_LIMIT = "limit"
     response_model=GenomeAttributes,
     description="Get genome attributes for each genome in the collection, which may differ from "
         + "collection to collection.\n\n "
-        + "Authentication is not required unless overriding the load version, in which case "
-        + "service administration permissions are required.")
+        + "Authentication is not required unless submitting a match ID or overriding the load "
+        + " version; in the latter case service administration permissions are required.")
 async def get_genome_attributes(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
@@ -186,8 +186,9 @@ async def get_genome_attributes(
     match_id: str | None = Query(
         default = None,
         description="A match ID to set the view to the match rather than "
-            + "the entire collection. Note that if a match ID is set, any load version override "
-            + "is ignored."),  # matches are against a specific load version, so...
+            + "the entire collection. Authentication is required. Note that if a match ID is "
+            + "set, any load version override is ignored."),
+            # matches are against a specific load version, so...
     match_mark: bool = Query(
         default=False,
         description="Whether to mark matched rows rather than filter based on the match ID. "
