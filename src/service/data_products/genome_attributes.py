@@ -426,7 +426,7 @@ async def _mark_gtdb_matches_complete(
     finally:
         await cur.close(ignore_missing=True)
     await storage.update_match_state(
-        match_id, models.MatchState.COMPLETE, now_epoch_millis(), genome_ids
+        match_id, models.ProcessState.COMPLETE, now_epoch_millis(), genome_ids
     )
 
 

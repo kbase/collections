@@ -288,7 +288,7 @@ async def match(
         collection_ver=coll.ver_num,
         user_parameters=params,
         collection_parameters=matcher_info.parameters,
-        match_state=models.MatchState.PROCESSING,
+        match_state=models.ProcessState.PROCESSING,
         match_state_updated=perm_check,
         upas=upas,
         matches=[],

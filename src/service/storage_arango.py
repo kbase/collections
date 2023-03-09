@@ -550,7 +550,7 @@ class ArangoStorage:
             await cur.close(ignore_missing=True)
 
     def _correct_match_doc_in_place(self, doc: dict[str, Any]):
-        doc[models.FIELD_MATCH_STATE] = models.MatchState(doc[models.FIELD_MATCH_STATE])
+        doc[models.FIELD_MATCH_STATE] = models.ProcessState(doc[models.FIELD_MATCH_STATE])
 
     async def _get_match(self, coll: str, match_id: str, exception: bool = True):
         col = self._db.collection(coll)
@@ -598,7 +598,7 @@ class ArangoStorage:
     async def update_match_state(
         self,
         match_id: str,
-        match_state: models.MatchState,
+        match_state: models.ProcessState,
         update_time: int,
         matches: list[str] = None
     ) -> None:
@@ -748,7 +748,7 @@ class ArangoStorage:
                         "Well, I tried. Either something is very wrong with the "
                         + "database or I just got really unlucky with timing on a match "
                         + "deletion. Try matching again.")
-                doc[models.FIELD_DATA_PRODUCT_MATCH_STATE] = models.MatchState(
+                doc[models.FIELD_DATA_PRODUCT_MATCH_STATE] = models.ProcessState(
                     doc[models.FIELD_DATA_PRODUCT_MATCH_STATE])
                 return models.DataProductMatchProcess.construct(
                     **models.remove_non_model_fields(doc, models.DataProductMatchProcess)), True
@@ -788,7 +788,7 @@ class ArangoStorage:
         self,
         internal_match_id: str,
         data_product: str,
-        match_state: models.MatchState,
+        match_state: models.ProcessState,
         update_time: int,
     ) -> None:
         """

@@ -147,16 +147,16 @@ async def _check_match_state(
         logging.getLogger(__name__).warn(f"Restarting match process for match {match.match_id}")
         mp.start(match.match_id, deps.get_pickleable_dependencies())
     # might need to separate out the still processing error from the id / ver matching
-    if require_complete and match.match_state != models.MatchState.COMPLETE:
+    if require_complete and match.match_state != models.ProcessState.COMPLETE:
         raise errors.InvalidMatchState(f"Match {match.match_id} processing is not complete")
 
 
 def _requires_restart(
     deps: CollectionsState,
     match: models.InternalMatch | models.DataProductMatchProcess,
-    match_state: models.MatchState,
+    match_state: models.ProcessState,
 ) -> bool:
-    if match_state == models.MatchState.PROCESSING:
+    if match_state == models.ProcessState.PROCESSING:
         # "failed" indicates the failure is not necessarily recoverable
         # E.g. an admin should take a look
         # We may need to add another state for recoverable errors like loss of contact w/ arango...
@@ -308,7 +308,7 @@ async def get_or_create_data_product_match(
             data_product=data_product,
             internal_match_id=match.internal_match_id,
             created=now,
-            data_product_match_state=models.MatchState.PROCESSING,
+            data_product_match_state=models.ProcessState.PROCESSING,
             data_product_match_state_updated=now,
         )
     )
