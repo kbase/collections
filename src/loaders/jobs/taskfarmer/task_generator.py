@@ -320,6 +320,7 @@ def _check_preconditions(task_mgr, source_data_dir, force_run):
         raise ValueError(f'There is a previous run of the same tool and load version that has already completed.\n'
                          f'Please use the --force flag to overwrite the previous run.')
     elif latest_task_status in [JobStatus.RUNNING, JobStatus.PENDING]:
+        # TODO: kill the previous run and start a new one if -force is specified
         raise ValueError(f'There is a previous run of the same tool and load version that is still running.\n')
     else:
         raise ValueError(f'Unexpected job status: {latest_task_status}')
@@ -364,13 +365,13 @@ def main():
     source_data_dir = args.source_data_dir
     root_dir = args.root_dir
 
-    task_mgr = TFTaskManager(tool, kbase_collection, load_ver, root_dir)
+    task_mgr = TFTaskManager(kbase_collection, load_ver, tool, root_dir)
     job_dir = task_mgr.job_dir
+
+    _check_preconditions(task_mgr, source_data_dir, args.force)
 
     if args.force:
         task_mgr.recreate_job_dir()
-    else:
-        _check_preconditions(task_mgr, source_data_dir, args.force)
 
     image_str = _fetch_image(REGISTRY, tool, job_dir, tag=args.image_tag, force_pull=not args.use_cached_image)
     wrapper_file = _create_shifter_wrapper(job_dir, image_str)

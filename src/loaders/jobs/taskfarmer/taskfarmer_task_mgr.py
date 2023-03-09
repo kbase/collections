@@ -125,7 +125,7 @@ class TFTaskManager:
 
         with open(std_out_file, "r") as std_out, open(std_err_file, "r") as std_err:
             squeue_out = std_out.read().strip()
-            if job_id in squeue_out:
+            if str(job_id) in squeue_out:
                 return JobStatus.RUNNING
             else:
                 return JobStatus.PENDING
