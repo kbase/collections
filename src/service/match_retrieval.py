@@ -3,6 +3,7 @@ Methods for retriving matches from a storage system, ensuring that the user has 
 to the match, the match is in the expected state, and access times are updated correctly.
 """
 
+import jsonschema
 import logging
 from typing import Any, Callable
 from collections.abc import Iterable
@@ -137,7 +138,11 @@ async def _check_match_state(
     # Also only restart if the match is requested for the correct collection
     if _requires_restart(deps, match, match.match_state):
         mp = await create_match_process(
-            deps.get_matcher(match.matcher_id), ww, match.upas, match.collection_parameters
+            deps.get_matcher(match.matcher_id),
+            ww,
+            match.upas,
+            match.user_parameters,
+            match.collection_parameters
         )
         logging.getLogger(__name__).warn(f"Restarting match process for match {match.match_id}")
         mp.start(match.match_id, deps.get_pickleable_dependencies())
@@ -171,7 +176,7 @@ async def create_match_process(
     matcher: Matcher,
     ww: WorkspaceWrapper,
     upas: list[str],
-    # TODO MATCHERS user parameters when needed
+    user_parameters: dict[str, Any],
     collection_parameters: dict[str, Any],
 ) -> processing.CollectionProcess:
     """
@@ -196,6 +201,13 @@ async def create_match_process(
     # TODO PERFORMANCE might want to write our own async routines for contacting the workspace
     #      vs using the compiled client. Made this method async just in case
     upas, _ = _check_and_sort_UPAs_and_get_wsids(upas)
+    if user_parameters:
+        try:
+            jsonschema.validate(instance=user_parameters, schema=matcher.user_parameters)
+        except jsonschema.exceptions.ValidationError as e:
+            raise errors.IllegalParameterError(
+                # TODO MATCHERS str(e) is pretty gnarly. Figure out a nicer representation
+                f"Failed to validate user parameters for matcher {matcher.id}: {e}")
     if len(upas) > MAX_UPAS:
         raise errors.IllegalParameterError(f"No more than {MAX_UPAS} UPAs are allowed per match")
     meta = ww.get_object_metadata(
@@ -209,7 +221,9 @@ async def create_match_process(
         raise errors.IllegalParameterError(f"No more than {MAX_UPAS} are allowed per match - "
             + "this limit was violated after set expansion")
     upa2meta = {u: upa2meta[u] for u in upas}
-    return matcher.generate_match_process(upa2meta, collection_parameters), upas, wsids
+    return matcher.generate_match_process(
+        upa2meta, user_parameters, collection_parameters
+    ), upas, wsids
 
 
 def _check_and_sort_UPAs_and_get_wsids(upas: Iterable[str]) -> tuple[list[str], set[int]]:

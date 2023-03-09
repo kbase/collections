@@ -4,7 +4,7 @@ Matches assemblies and genomes to collections based on the GTDB lineage string.
 
 import logging
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, Extra
 from typing import Any, Callable
 
 from src.common.gtdb_lineage import GTDBRank
@@ -35,22 +35,27 @@ class GTDBLineageMatcherCollectionParameters(BaseModel):
             "abort.",
         regex=r"^\d{2,4}\.\d{1,2}$"  # giving a little room for expansion
     )
+    class Config:
+        extra = Extra.forbid
 
 
 class GTDBLineageMatcherUserParameters(BaseModel):
     "User parameters for the GTDB lineage matcher."
-    gtdb_rank: GTDBRank = Field(
+    gtdb_rank: GTDBRank | None = Field(
         example=GTDBRank.SPECIES,
         description="A rank in the the GTDB lineage."
     )
+    class Config:
+        extra = Extra.forbid
 
 
 async def _process_match(
     match_id: str,
     pstorage: PickleableDependencies,
-    args: list[list[str]]
+    args: tuple[list[str], GTDBRank]
 ):
     lineages = args[0]
+    rank = args[1]
     hb = None
     arangoclient = None
     try:
@@ -59,7 +64,7 @@ async def _process_match(
             await storage.send_match_heartbeat(match_id, millis)
         hb = Heartbeat(heartbeat, HEARTBEAT_INTERVAL_SEC)
         hb.start()
-        await genome_attributes.perform_match(match_id, storage, lineages)
+        await genome_attributes.perform_gtdb_lineage_match(match_id, storage, lineages, rank)
     except Exception as e:
         logging.getLogger(__name__).exception(f"Matching process for match {match_id} failed")
         await storage.update_match_state(match_id, models.MatchState.FAILED, now_epoch_millis())
@@ -74,8 +79,8 @@ class GTDBLineageMatcher(Matcher):
 
     def generate_match_process(self,
         metadata: dict[str, dict[str, Any]],
+        user_parameters: dict[str, Any],
         collection_parameters: dict[str, Any],
-        # TODO MATCHERS user parameters when needed
     ) -> CollectionProcess:
         """
         The method checks that input metadata allows for calculating the match and throws
@@ -113,8 +118,9 @@ class GTDBLineageMatcher(Matcher):
                     + f"is {coll_lin_ver}"
                 )
             lineages.append(meta[_GTDB_LINEAGE_METADATA_KEY])
-
-        return CollectionProcess(process=_process_match, args=[lineages])
+        rank = user_parameters.get("gtdb_rank") if user_parameters else None
+        rank = GTDBRank(rank) if rank else GTDBRank.SPECIES
+        return CollectionProcess(process=_process_match, args=[lineages, rank])
 
 
 MATCHER = GTDBLineageMatcher(
