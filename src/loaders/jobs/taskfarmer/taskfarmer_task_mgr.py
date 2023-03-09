@@ -42,8 +42,7 @@ class TFTaskManager:
 
         if os.path.exists(job_dir) and force:
             shutil.rmtree(job_dir)
-
-        os.makedirs(job_dir, exist_ok=True)
+            os.makedirs(job_dir, exist_ok=True)
 
         return job_dir
 
@@ -51,7 +50,15 @@ class TFTaskManager:
         """
         Recreate the job directory.
         """
-        self.get_job_dir(force=True)
+        return self.get_job_dir(force=True)
+
+    def create_job_dir(self):
+        """
+        Create the job directory.
+        """
+        os.makedirs(self.job_dir, exist_ok=True)
+
+        return self.job_dir
 
     def get_task_info_file(self):
         """
@@ -60,8 +67,13 @@ class TFTaskManager:
         The task info file is located under the TASKFARMER_JOB_DIR directory.
         The file name is retrieved from TASK_INFO_FILE.
         """
+        task_info_file = os.path.join(self.root_dir, tf_common.TASKFARMER_JOB_DIR, tf_common.TASK_INFO_FILE)
 
-        return os.path.join(self.root_dir, tf_common.TASKFARMER_JOB_DIR, tf_common.TASK_INFO_FILE)
+        if not os.path.exists(task_info_file):
+            with open(task_info_file, 'w') as f:
+                pass  # creates an empty file
+
+        return task_info_file
 
     def retrieve_task_info(self):
         """
