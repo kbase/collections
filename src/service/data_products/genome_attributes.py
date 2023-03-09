@@ -181,13 +181,19 @@ async def get_genome_attributes(
     count: bool = Query(
         default = False,
         description="Whether to return the number of records that match the query rather than "
-            + "the records themselves"
+            + "the records themselves. Paging parameters are ignored."
     ),
     match_id: str | None = Query(
         default = None,
         description="A match ID to set the view to the match rather than "
             + "the entire collection. Note that if a match ID is set, any load version override "
             + "is ignored."),  # matches are against a specific load version, so...
+    match_mark: bool = Query(
+        default=False,
+        description="Whether to mark matched rows rather than filter based on the match ID. "
+            + "Matched rows will be indicated by a true value in the special field "
+            + f"`{names.FLD_GENOME_ATTRIBS_MATCHED}`. Has no effect if 'count' is true."
+    ),
     load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
 ):
@@ -225,6 +231,7 @@ async def get_genome_attributes(
             limit,
             output_table,
             internal_match_id,
+            match_mark,
         ) 
 
 
@@ -239,6 +246,7 @@ async def _query(
     limit: int,
     output_table: bool,
     internal_match_id: str | None,
+    match_mark: bool,
 ):
     bind_vars = {
         f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
@@ -254,7 +262,7 @@ async def _query(
         FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
         FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
     """
-    if internal_match_id:
+    if internal_match_id and not match_mark:
         bind_vars["internal_match_id"] = internal_match_id
         aql += f"""
             FILTER @internal_match_id IN d.{names.FLD_GENOME_ATTRIBS_MATCHES}
@@ -275,6 +283,9 @@ async def _query(
     d = None
     try:
         async for d in cur:
+            if internal_match_id:
+                d[names.FLD_GENOME_ATTRIBS_MATCHED] = internal_match_id in d[
+                    names.FLD_GENOME_ATTRIBS_MATCHES]
             if output_table:
                 data.append([d[k] for k in sorted(_remove_keys(d))])
             else:
