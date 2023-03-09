@@ -31,7 +31,7 @@ class TFTaskManager:
         self.task_exists = os.path.isdir(self.job_dir)
         self.tasks_df = self.retrieve_task_info()
 
-    def get_job_dir(self, force=False):
+    def get_job_dir(self):
         """
         Get the job directory for the kbase_collection, load_ver, and tool.
 
@@ -40,17 +40,19 @@ class TFTaskManager:
         job_dir = os.path.join(self.root_dir, tf_common.TASKFARMER_JOB_DIR,
                                f'{self.kbase_collection}_{self.load_ver}_{self.tool}')
 
-        if os.path.exists(job_dir) and force:
-            shutil.rmtree(job_dir)
-            os.makedirs(job_dir, exist_ok=True)
-
         return job_dir
 
     def recreate_job_dir(self):
         """
         Recreate the job directory.
         """
-        return self.get_job_dir(force=True)
+
+        print(f'recreating job dir {self.job_dir}')
+        if os.path.exists(self.job_dir):
+            shutil.rmtree(self.job_dir)
+        os.makedirs(self.job_dir, exist_ok=True)
+
+        return self.job_dir
 
     def create_job_dir(self):
         """
