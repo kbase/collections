@@ -269,12 +269,15 @@ async def match(
 ) -> models.Match:
     coll = await get_collection(r, collection_id)
     matcher_info = _get_matcher_from_collection(coll, matcher_id)
-    # TODO MATCHERS check user parameters when a matcher needs them
     appstate = app_state.get_app_state(r)
     ws = appstate.get_workspace_client(user.token)
     matcher = appstate.get_matcher(matcher_info.matcher)
     match_process, upas, wsids = await match_retrieval.create_match_process(
-        matcher, WorkspaceWrapper(ws), match_params.upas, matcher_info.parameters,
+        matcher,
+        WorkspaceWrapper(ws),
+        match_params.upas,
+        match_params.parameters,
+        matcher_info.parameters,
     )
     perm_check = appstate.get_epoch_ms()
     params = match_params.parameters or {}
