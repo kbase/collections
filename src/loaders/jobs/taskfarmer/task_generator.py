@@ -2,9 +2,6 @@ import argparse
 import datetime
 import math
 import os
-import shutil
-
-import jsonlines
 
 import src.loaders.jobs.taskfarmer.taskfarmer_common as tf_common
 from src.loaders.common import loader_common_names
@@ -244,35 +241,6 @@ runcommands.sh {task_list_file}'''
     return batch_script_file
 
 
-def _create_job_dir(root_dir, tool, kbase_collection, load_ver, force=False):
-    """
-    Create the job directory
-
-    Job directory structure: <root_dir>/<TASKFARMER_JOB_DIR>/<kbase_collection>_<load_ver>_<tool>
-    """
-
-    job_dir = os.path.join(root_dir, tf_common.TASKFARMER_JOB_DIR, f'{kbase_collection}_{load_ver}_{tool}')
-
-    if os.path.exists(job_dir) and force:
-        shutil.rmtree(job_dir)
-
-    os.makedirs(job_dir, exist_ok=True)
-
-    return job_dir
-
-
-def _append_task_info(root_dir, task_info):
-    """
-    Append the task information to the task info file
-    """
-
-    task_info_file = os.path.join(root_dir, tf_common.TASKFARMER_JOB_DIR, tf_common.TASK_INFO_FILE)
-
-    # Append the new record to the file
-    with jsonlines.open(task_info_file, mode='a') as writer:
-        writer.write(task_info)
-
-
 def _submit_job(job_dir):
     """
     Submit the job to slurm
@@ -365,15 +333,10 @@ def main():
     source_data_dir = args.source_data_dir
     root_dir = args.root_dir
 
-    task_mgr = TFTaskManager(kbase_collection, load_ver, tool, root_dir)
-
+    task_mgr = TFTaskManager(kbase_collection, load_ver, tool, root_dir=root_dir, destroy_old_job_dir=args.force)
     _check_preconditions(task_mgr, source_data_dir, args.force)
 
-    if args.force:
-        job_dir = task_mgr.recreate_job_dir()
-    else:
-        job_dir = task_mgr.create_job_dir()
-
+    job_dir = task_mgr.job_dir
     image_str = _fetch_image(REGISTRY, tool, job_dir, tag=args.image_tag, force_pull=not args.use_cached_image)
     wrapper_file = _create_shifter_wrapper(job_dir, image_str)
     task_list_file, n_jobs = _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper_file, job_dir,
@@ -381,18 +344,16 @@ def main():
 
     batch_script = _create_batch_script(job_dir, task_list_file, n_jobs, tool)
 
-    job_id = None
-    current_datetime = datetime.datetime.now()
     if args.submit_job:
+        current_datetime = datetime.datetime.now()
         job_id = _submit_job(job_dir)
+
+        task_info = {'kbase_collection': kbase_collection, 'load_ver': load_ver, 'tool': tool,
+                     'job_id': job_id, 'job_submit_time': current_datetime.strftime("%Y-%m-%d %H:%M:%S"),
+                     'source_data_dir': source_data_dir}
+        task_mgr.append_task_info(task_info)
     else:
         print(f'Please go to Job Directory: {job_dir} and submit the batch script: {batch_script} to the scheduler.')
-
-    if job_id:
-        task_info = {'kbase_collection': kbase_collection, 'load_ver': load_ver, 'tool': tool,
-                     'job_id': job_id, 'job_start_time': current_datetime.strftime("%Y-%m-%d %H:%M:%S"),
-                     'source_data_dir': source_data_dir}
-        _append_task_info(root_dir, task_info)
 
 
 if __name__ == "__main__":
