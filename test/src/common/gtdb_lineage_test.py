@@ -2,6 +2,7 @@ from conftest import assert_exception_correct
 from pytest import raises
 from src.common.gtdb_lineage import (
     parse_gtdb_lineage_string,
+    GTDBLineage,
     GTDBLineageNode,
     GTDBTaxaCount,
     TaxaNodeCount,
@@ -37,7 +38,7 @@ def test_gtdb_lineage():
         + "f__DSM-45169;g__Marininema;s__Marininema halotolerans")
     parsed = parse_gtdb_lineage_string(linstr)
 
-    assert parsed == [
+    assert parsed == GTDBLineage([
         GTDBLineageNode(GTDBRank.DOMAIN, "Bacteria"),
         GTDBLineageNode(GTDBRank.PHYLUM, "Firmicutes"),
         GTDBLineageNode(GTDBRank.CLASS, "Bacilli"),
@@ -45,7 +46,7 @@ def test_gtdb_lineage():
         GTDBLineageNode(GTDBRank.FAMILY, "DSM-45169"),
         GTDBLineageNode(GTDBRank.GENUS, "Marininema"),
         GTDBLineageNode(GTDBRank.SPECIES, "Marininema halotolerans"),
-    ]
+    ])
 
 
 def test_taxa_count():
