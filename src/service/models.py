@@ -41,7 +41,7 @@ FIELD_DATA_PRODUCTS = "data_products"
 FIELD_DATA_PRODUCTS_PRODUCT = "product"
 FIELD_MATCHERS = "matchers"
 FIELD_MATCHERS_MATCHER = "matcher"
-FIELD_MATCH_LAST_ACCESS = "last_access"
+FIELD_LAST_ACCESS = "last_access"  # applies to both selections and matches
 FIELD_MATCH_INTERNAL_MATCH_ID = "internal_match_id"
 FIELD_MATCH_HEARTBEAT = "heartbeat"
 FIELD_MATCH_USER_PERMS = "user_last_perm_check"
@@ -50,6 +50,7 @@ FIELD_MATCH_STATE_UPDATED = "match_state_updated"
 FIELD_DATA_PRODUCT_MATCH_STATE = "data_product_match_state"
 FIELD_DATA_PRODUCT_MATCH_STATE_UPDATED = "data_product_match_state_updated"
 FIELD_MATCH_MATCHES = "matches"
+FIELD_SELECTION_STATE = "selection_state"
 FIELD_DATE_CREATE = "date_create"
 FIELD_USER_CREATE = "user_create"
 FIELD_DATE_ACTIVE = "date_active"
@@ -437,8 +438,14 @@ class ActiveSelection(BaseModel):
     since selections do not require auth, is effectively a session token) to an internal
     selection ID.
     """
-    external_selection_id: str = Field(
-        description="The external ID of the selection, presumably a session token."
+    selection_id_hash: str = Field(
+        description="The external ID of the selection, presumably a session token, hashed for "
+            + "database storage."
+    )
+    active_selection_id: str = Field(
+        example="e22f2d7d-7246-4636-a91b-13f29bc32d3d",
+        description="An ID used to refer to this active selection that is loggable, as it is "
+            + "not a session token and not visisble outside the service."
     )
     internal_selection_id: str = Field(
         example="e22f2d7d-7246-4636-a91b-13f29bc32d3d",

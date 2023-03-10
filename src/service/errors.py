@@ -76,6 +76,9 @@ class ErrorType(Enum):
     NO_SUCH_MATCH =              (40030, "No such match")  # noqa: E222 @IgnorePep8
     """ The requested match does not exist. """
 
+    NO_SUCH_SELECTION =          (40040, "No such selection")  # noqa: E222 @IgnorePep8
+    """ The requested selection does not exist. """
+
     COLLECTION_VERSION_EXISTS =  (50000, "Collection version exists")  # noqa: E222 @IgnorePep8
     """ The requested collection version already exists. """
 
@@ -282,6 +285,15 @@ class NoSuchMatchError(NoDataException):
 
     def __init__(self, message: str):
         super().__init__(ErrorType.NO_SUCH_MATCH, message)
+
+
+class NoSuchSelectionError(NoDataException):
+    """
+    An error thrown when a selection does not exist.
+    """
+
+    def __init__(self, message: str):
+        super().__init__(ErrorType.NO_SUCH_SELECTION, message)
 
 
 class DataPermissionError(CollectionError):
