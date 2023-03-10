@@ -5,6 +5,7 @@ Routes for general collections endpoints, as opposed to endpoint for a particula
 import hashlib
 import json
 import jsonschema
+import secrets
 import time
 import uuid
 
@@ -27,6 +28,8 @@ from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID, err_on_contr
 from src.service.storage_arango import ArangoStorage
 from src.service.timestamp import timestamp
 from src.service.workspace_wrapper import WorkspaceWrapper
+
+# TODO CODE it's about time to start splitting this file up
 
 SERVICE_NAME = "Collections Prototype"
 
@@ -106,6 +109,8 @@ def _calc_match_id_md5(
     params: dict[str, Any],
     upas: list[str],
 ) -> str:
+    # this would be better if it just happened automatically when constructing the pydantic
+    # match object, but that doesn't seem to work well with pydantic
     pipe = "|".encode(UTF_8)
     m = hashlib.md5()
     for var in [matcher_id, collection_id, str(collection_ver)]:
@@ -120,7 +125,16 @@ def _calc_match_id_md5(
         m.update(u.encode(UTF_8))
         m.update(pipe)
     return m.hexdigest()
-    
+
+
+# maybe these should go in a different module
+def _get_token():
+    return "coll-selection-" + secrets.token_urlsafe()  # 256 bits by default
+
+
+def _hash_token(token: str):
+    return hashlib.sha256(token.encode(UTF_8)).hexdigest()
+
 
 _PATH_VER_TAG = Path(
     min_length=1,
@@ -195,6 +209,22 @@ class MatchParameters(BaseModel):
     parameters: dict[str, Any] | None = Field(
         example=models.FIELD_USER_PARAMETERS_EXAMPLE,
         description=models.FIELD_USER_PARAMETERS_DESCRIPTION,
+    )
+
+
+class SelectionInput(BaseModel):
+    """A selection of data in a collection. """
+    selection_ids: list[str] = Field(
+        example=["GB_GCA_000006155.2", "GB_GCA_000007385.1"],
+        description="The IDs of the selected items. What these IDs are will depend on the " +
+            "collection and data product the selection is against."
+    )
+
+
+class SelectionToken(BaseModel):
+    """Contains a token that allows access to a selection. Keep the token secret."""
+    selection_token: str = Field(
+        description="An opaque, secret string that can be used to access selections."
     )
 
 
@@ -305,13 +335,53 @@ async def match(
     return curr_match
 
 
+@ROUTER_COLLECTIONS.post(
+    "/collections/{collection_id}/selections",
+    response_model=SelectionToken,
+    summary="Create a data selection",
+    description="Create a data selection, returning a selection token that can be used to "
+        + "access the selection. Keep the token secret and safe to avoid rampaging wizards."
+)
+async def create_selection(
+    r: Request,
+    selection: SelectionInput,
+    collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
+) -> SelectionToken:
+    appstate = app_state.get_app_state(r)
+    coll = await appstate.arangostorage.get_collection_active(collection_id)
+    internal_id = str(uuid.uuid4())
+    now = appstate.get_epoch_ms()
+    internal_sel = models.InternalSelection(
+        internal_selection_id=internal_id,
+        collection_id=coll.id,
+        collection_ver=coll.ver_num,
+        selection_ids=selection.selection_ids,
+        created=now,
+        heartbeat=None,
+        selection_state=models.ProcessState.PROCESSING,
+        selection_state_updated=now,
+    )
+    token = _get_token()
+    active_sel = models.ActiveSelection(
+        selection_id_hash=_hash_token(token),
+        active_selection_id=str(uuid.uuid4()),
+        internal_selection_id=internal_id,
+        last_access=now,
+    )
+    await appstate.arangostorage.save_selection_internal(internal_sel)
+    await appstate.arangostorage.save_selection_active(active_sel)
+    # TODO SELECTION start selection process
+    # TODO SELECTION what about IDs that don't match? Add to selection w/ failed state?
+    return SelectionToken(selection_token=token)
+
+
 @ROUTER_MATCHES.get(
     "/matchers/",
     response_model=MatcherList,
     summary="Get matchers available in the system",
     description="List all matchers available in the service.",
 )
-async def matchers(r: Request):
+async def matchers(r: Request) -> MatcherList:
     return {"data": app_state.get_app_state(r).get_matchers()}
 
 
