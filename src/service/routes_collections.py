@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from src.common.git_commit import GIT_COMMIT
 from src.common.version import VERSION
 from src.service import app_state
+from src.service import app_state_data_structures
 from src.service import data_product_specs
 from src.service import errors
 from src.service import kb_auth
@@ -41,6 +42,8 @@ ROUTER_COLLECTIONS_ADMIN = APIRouter(tags=["Collection Administration"])
 ROUTER_MATCH_ADMIN = APIRouter(tags=["Match Administration"], prefix="/matchadmin")
 
 UTF_8 = "utf-8"
+
+MAX_SELECTION_IDS = 10000
 
 _AUTH = KBaseHTTPBearer()
 
@@ -128,6 +131,40 @@ def _calc_match_id_md5(
     return m.hexdigest()
 
 
+async def _save_selection(
+    appstate: app_state_data_structures.CollectionsState,
+    coll: models.SavedCollection,
+    token: str,
+    active_selection_id: str,
+    selection_ids: list[str],
+    overwrite: bool = False
+):
+    if len(selection_ids) > MAX_SELECTION_IDS:
+        raise errors.IllegalParameterError(f"At most {MAX_SELECTION_IDS} can be submitted")
+    internal_id = str(uuid.uuid4())
+    now = appstate.get_epoch_ms()
+    internal_sel = models.InternalSelection(
+        internal_selection_id=internal_id,
+        collection_id=coll.id,
+        collection_ver=coll.ver_num,
+        selection_ids=selection_ids,
+        created=now,
+        heartbeat=None,
+        selection_state=models.ProcessState.PROCESSING,
+        selection_state_updated=now,
+    )
+    active_sel = models.ActiveSelection(
+        selection_id_hash=_hash_token(token),
+        active_selection_id=active_selection_id,
+        internal_selection_id=internal_id,
+        last_access=now,
+    )
+    await appstate.arangostorage.save_selection_internal(internal_sel)
+    await appstate.arangostorage.save_selection_active(active_sel, overwrite=overwrite)
+    # TODO SELECTION start selection process
+    # TODO SELECTION what about IDs that don't match? Add to selection w/ failed state?
+
+
 # maybe these should go in a different module
 def _get_token():
     return "coll-selection-" + secrets.token_urlsafe()  # 256 bits by default
@@ -181,6 +218,10 @@ _QUERY_SELECTION_VERBOSE = Query(
         + "the other selection information. These data may be much larger than the rest of the "
         + "selection and aren't often needed; in most cases they can be ignored. When false, "
         + "the selection ID list will be empty."
+)
+
+_HEADER_KBASE_COLLECTIONS_SELECTION = Header(
+    description="The selection ID / token returned when creating a selection."
 )
 
 
@@ -375,29 +416,8 @@ async def create_selection(
 ) -> SelectionToken:
     appstate = app_state.get_app_state(r)
     coll = await appstate.arangostorage.get_collection_active(collection_id)
-    internal_id = str(uuid.uuid4())
-    now = appstate.get_epoch_ms()
-    internal_sel = models.InternalSelection(
-        internal_selection_id=internal_id,
-        collection_id=coll.id,
-        collection_ver=coll.ver_num,
-        selection_ids=selection.selection_ids,
-        created=now,
-        heartbeat=None,
-        selection_state=models.ProcessState.PROCESSING,
-        selection_state_updated=now,
-    )
     token = _get_token()
-    active_sel = models.ActiveSelection(
-        selection_id_hash=_hash_token(token),
-        active_selection_id=str(uuid.uuid4()),
-        internal_selection_id=internal_id,
-        last_access=now,
-    )
-    await appstate.arangostorage.save_selection_internal(internal_sel)
-    await appstate.arangostorage.save_selection_active(active_sel)
-    # TODO SELECTION start selection process
-    # TODO SELECTION what about IDs that don't match? Add to selection w/ failed state?
+    await _save_selection(appstate, coll, token, str(uuid.uuid4()), selection.selection_ids)
     return SelectionToken(selection_token=token)
 
 
@@ -441,9 +461,7 @@ async def get_selection(
     r: Request,
     # When I use an alias="" argument in the Header so I can use a sane name for the variable
     # the server thinks the header is missing
-    KBASE_COLLECTIONS_SELECTION: str = Header(
-        description="The selection ID / token returned when creating a selection."
-    ),
+    KBASE_COLLECTIONS_SELECTION: str = _HEADER_KBASE_COLLECTIONS_SELECTION,
     verbose: bool = _QUERY_SELECTION_VERBOSE,
 ) -> Selection:
     appstate = app_state.get_app_state(r)
@@ -463,6 +481,38 @@ async def get_selection(
         collection_id=internal_sel.collection_id,
         collection_ver=internal_sel.collection_ver,
         selection_state=internal_sel.selection_state,
+    )
+
+
+@ROUTER_SELECTIONS.put(
+    "/selections/",
+    summary="Update a selection",
+    description="Change a selection's selected data."
+)
+async def update_selection(
+    r: Request,
+    selection: SelectionInput,
+    # When I use an alias="" argument in the Header so I can use a sane name for the variable
+    # the server thinks the header is missing
+    KBASE_COLLECTIONS_SELECTION: str = _HEADER_KBASE_COLLECTIONS_SELECTION,
+):
+    appstate = app_state.get_app_state(r)
+    token = KBASE_COLLECTIONS_SELECTION
+    active_sel = await appstate.arangostorage.get_selection_active(_hash_token(token))
+    internal_sel = await appstate.arangostorage.get_selection_internal(
+        active_sel.internal_selection_id)
+    coll = await appstate.arangostorage.get_collection_active(internal_sel.collection_id)
+    if coll.ver_num != internal_sel.collection_ver:
+        raise errors.InvalidSelectionStateError(
+            f"The requested selection is for {coll.id} collection version "
+            + f"{internal_sel.collection_ver}, while the current version is {coll.ver_num}")
+    await _save_selection(
+        appstate,
+        coll,
+        token,
+        active_sel.active_selection_id,
+        selection.selection_ids,
+        overwrite=True,
     )
 
 

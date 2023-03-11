@@ -877,13 +877,20 @@ class ArangoStorage:
         return models.InternalSelection.construct(
             **models.remove_non_model_fields(doc, models.InternalSelection))
 
-    async def save_selection_active(self, selection: models.ActiveSelection):
+    async def save_selection_active(
+        self,
+        selection: models.ActiveSelection,
+        overwrite: bool = False
+    ):
         """
         Save an active selection to the database.
+
+        selection - the selection to save
+        overwrite - if True, overwrite any existing selection with the same ID.
         """
         # might want to return the old one so the active internal ID can be logged?
         await self._insert_model(
-            selection, selection.selection_id_hash, COLL_SRV_ACTIVE_SELECTIONS)
+            selection, selection.selection_id_hash, COLL_SRV_ACTIVE_SELECTIONS, overwrite=True)
 
     async def get_selection_active(self, selection_id: str) -> models.ActiveSelection:
         """
@@ -917,7 +924,13 @@ class ArangoStorage:
             errstr="No selection found for the provided selection ID"
         )
 
-    async def _insert_model(self, model: BaseModel, key: str, collection: str, overwrite=False):
+    async def _insert_model(
+        self,
+        model: BaseModel,
+        key: str,
+        collection: str,
+        overwrite: bool = False
+    ):
         doc = jsonable_encoder(model)
         doc[FLD_ARANGO_KEY] = key
         col = self._db.collection(collection)
