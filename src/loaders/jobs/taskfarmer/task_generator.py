@@ -348,8 +348,7 @@ def main():
         current_datetime = datetime.datetime.now()
         job_id = _submit_job(job_dir)
 
-        task_info = {'kbase_collection': kbase_collection, 'load_ver': load_ver, 'tool': tool,
-                     'job_id': job_id, 'job_submit_time': current_datetime.strftime("%Y-%m-%d %H:%M:%S"),
+        task_info = {'job_id': job_id, 'job_submit_time': current_datetime.strftime("%Y-%m-%d %H:%M:%S"),
                      'source_data_dir': source_data_dir}
         task_mgr.append_task_info(task_info)
     else:

@@ -185,6 +185,8 @@ class TFTaskManager:
         Append the task information to the task info file
         """
 
+        task_info.update({'kbase_collection': self.kbase_collection, 'load_ver': self.load_ver, 'tool': self.tool})
+
         if not all(key in task_info for key in REQUIRED_TASK_INFO_KEYS):
             raise ValueError(f"task_info must contain all keys: {REQUIRED_TASK_INFO_KEYS}")
 
@@ -195,3 +197,6 @@ class TFTaskManager:
             fcntl.flock(writer, fcntl.LOCK_EX)
             writer.write(task_info)
             fcntl.flock(writer, fcntl.LOCK_UN)
+
+        self.task_exists = True
+        self._tasks_df = self._retrieve_all_tasks()
