@@ -1,3 +1,4 @@
+import fcntl
 import os
 import pathlib
 import shutil
@@ -9,6 +10,7 @@ import pandas as pd
 import src.loaders.jobs.taskfarmer.taskfarmer_common as tf_common
 from src.loaders.common import loader_common_names
 
+# Produced once all tasks are completed. https://docs.nersc.gov/jobs/workflow/taskfarmer/#output
 NERSC_SLURM_DONE_FILE = 'done.tasks.txt.tfin'
 REQUIRED_TASK_INFO_KEYS = ['kbase_collection', 'load_ver', 'tool', 'job_id', 'job_submit_time', 'source_data_dir']
 
@@ -97,8 +99,21 @@ class TFTaskManager:
 
             * after the period of time, squeue command will return error code 1 and error message:
             slurm_load_jobs error: Invalid job id specified
+
+        Matrix of job status:
+        Done file  Exit Code   Job listed    Status
+        Y          Any         Any           COMPLETED
+        N          0           N             PENDING or FAILED (if failed, exit code will flip to -1 within ~10m)
+        N          0           Y             RUNNING
+        N          -1          N/A           FAILED
+
+        NOTE: If job fails and squeue command hasn't flipped the exit code to -1, this function will return 'PENDING'
+        as the job status. After about 10 mins, the exit code will be flipped to -1 and this function will return
+        'FAILED' status as the job status.
         """
 
+        # Once all tasks are completed, NERSC generates this file.
+        # (ref: https://docs.nersc.gov/jobs/workflow/taskfarmer/#output)
         done_file = os.path.join(self.job_dir, NERSC_SLURM_DONE_FILE)
         if os.path.isfile(done_file):
             return JobStatus.COMPLETED
@@ -141,7 +156,7 @@ class TFTaskManager:
                                     f'{self.kbase_collection}_{self.load_ver}_{self.tool}')
         self.task_exists = os.path.isdir(self.job_dir) and os.listdir(self.job_dir)
         self._create_job_dir(destroy_old_job_dir=destroy_old_job_dir)
-        self.tasks_df = self._retrieve_all_tasks()
+        self._tasks_df = self._retrieve_all_tasks()
 
     def get_latest_task(self):
         """
@@ -150,7 +165,7 @@ class TFTaskManager:
         Tasks are sorted by job_submit_time in descending order. The latest task is the first row.
         """
 
-        return self.tasks_df.iloc[0].to_dict() if self.task_exists else {}
+        return self._tasks_df.iloc[0].to_dict() if self.task_exists else {}
 
     def retrieve_latest_task_status(self):
         """
@@ -176,4 +191,7 @@ class TFTaskManager:
         # Append the new record to the file
         task_info_file = self._get_task_info_file()
         with jsonlines.open(task_info_file, mode='a') as writer:
+            # lock the file to prevent multiple processes from writing to the same file
+            fcntl.flock(writer, fcntl.LOCK_EX)
             writer.write(task_info)
+            fcntl.flock(writer, fcntl.LOCK_UN)
