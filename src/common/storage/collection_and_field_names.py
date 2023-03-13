@@ -89,5 +89,10 @@ FLD_GENOME_ATTRIBS_KBASE_GENOME_ID = "kbase_genome_id"
 # Used for lineage matchers
 FLD_GENOME_ATTRIBS_GTDB_LINEAGE = "classification"
 
-# Used for marking matches. Underscore to separate from "real" attribs
+# Used for marking matches in the Arango collection; contains a list of internal match IDs.
+# Underscore to separate from "real" attribs
 FLD_GENOME_ATTRIBS_MATCHES = "_matches"
+
+# Used for marking matches when returning data to the user and they select match marking vs.
+# filtering on a match.
+FLD_GENOME_ATTRIBS_MATCHED = "__match__"
