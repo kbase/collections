@@ -4,7 +4,7 @@ The genome_attribs data product, which provides geneome attributes for a collect
 
 from fastapi import APIRouter, Request, Depends, Query
 from pydantic import BaseModel, Field, Extra
-from src.common.gtdb_lineage import parse_gtdb_lineage_string, GTDBRank
+from src.common.gtdb_lineage import GTDBLineage, GTDBRank
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
 from src.service import errors
@@ -352,7 +352,9 @@ async def perform_gtdb_lineage_match(
     load_ver = {dp.product: dp.version for dp in coll.data_products}[ID]
     filtered_lineages = set()  # remove duplicates
     for lin in lineages:
-        lineage = parse_gtdb_lineage_string(lin, force_complete=False).truncate_to_rank(rank)
+        # may need to catch errors here and report with object UPA or something
+        # or parse lineages prior to starting the process, that's probably better
+        lineage = GTDBLineage(lin, force_complete=False).truncate_to_rank(rank)
         if lineage:
             filtered_lineages.add(str(lineage))
     if rank == GTDBRank.SPECIES:
