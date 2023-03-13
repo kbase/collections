@@ -1,3 +1,4 @@
+import datetime
 import fcntl
 import os
 import pathlib
@@ -51,7 +52,7 @@ class TFTaskManager:
 
         Sort the tasks by job_submit_time in descending order.
         """
-        if not self.task_exists:
+        if not self._task_exists:
             return None
 
         task_info_file = self._get_task_info_file()
@@ -133,6 +134,24 @@ class TFTaskManager:
             else:
                 return JobStatus.PENDING
 
+    def _append_task_info(self, task_info):
+        """
+        Append the task information to the task info file
+        """
+
+        task_info.update({'kbase_collection': self.kbase_collection, 'load_ver': self.load_ver, 'tool': self.tool})
+
+        if not all(key in task_info for key in REQUIRED_TASK_INFO_KEYS):
+            raise ValueError(f"task_info must contain all keys: {REQUIRED_TASK_INFO_KEYS}")
+
+        # Append the new record to the file
+        task_info_file = self._get_task_info_file()
+        with jsonlines.open(task_info_file, mode='a') as writer:
+            # lock the file to prevent multiple processes from writing to the same file
+            fcntl.flock(writer, fcntl.LOCK_EX)
+            writer.write(task_info)
+            fcntl.flock(writer, fcntl.LOCK_UN)
+
     def __init__(self, kbase_collection, load_ver, tool, root_dir=loader_common_names.ROOT_DIR,
                  destroy_old_job_dir=False):
         """
@@ -154,7 +173,7 @@ class TFTaskManager:
         # job directory is named as <kbase_collection>_<load_ver>_<tool>
         self.job_dir = os.path.join(self.root_dir, tf_common.TASKFARMER_JOB_DIR,
                                     f'{self.kbase_collection}_{self.load_ver}_{self.tool}')
-        self.task_exists = os.path.isdir(self.job_dir) and os.listdir(self.job_dir)
+        self._task_exists = os.path.isdir(self.job_dir) and os.listdir(self.job_dir)
         self._create_job_dir(destroy_old_job_dir=destroy_old_job_dir)
         self._tasks_df = self._retrieve_all_tasks()
 
@@ -165,14 +184,14 @@ class TFTaskManager:
         Tasks are sorted by job_submit_time in descending order. The latest task is the first row.
         """
 
-        return self._tasks_df.iloc[0].to_dict() if self.task_exists else {}
+        return self._tasks_df.iloc[0].to_dict() if self._task_exists else {}
 
     def retrieve_latest_task_status(self):
         """
         Retrieve the latest task status.
 
         """
-        if not self.task_exists:
+        if not self._task_exists:
             raise ValueError(f"Task does not exist for {self.kbase_collection}, {self.load_ver}, {self.tool}")
 
         latest_task = self.get_latest_task()
@@ -180,23 +199,33 @@ class TFTaskManager:
 
         return job_status
 
-    def append_task_info(self, task_info):
+    def submit_job(self, source_data_dir):
         """
-        Append the task information to the task info file
+        Submit the job to slurm
         """
+        os.chdir(self.job_dir)
 
-        task_info.update({'kbase_collection': self.kbase_collection, 'load_ver': self.load_ver, 'tool': self.tool})
+        # If the .tfin files exist (these files are created by the previous run),
+        # delete them before starting a new run to avoid any issues caused by the previous run's files.
+        # TODO: investigate whether it is necessary to delete the .tfin files if a job fails due to walltime.
+        for filename in os.listdir(self.job_dir):
+            if filename.endswith(".tfin"):
+                os.remove(os.path.join(self.job_dir, filename))
 
-        if not all(key in task_info for key in REQUIRED_TASK_INFO_KEYS):
-            raise ValueError(f"task_info must contain all keys: {REQUIRED_TASK_INFO_KEYS}")
+        current_datetime = datetime.datetime.now()
+        std_out_file, std_err_file, exit_code = tf_common.run_nersc_command(
+            ['sbatch', os.path.join(self.job_dir, 'submit_taskfarmer.sl')],
+            self.job_dir, log_file_prefix='sbatch_submit')
+        with open(std_out_file, "r") as f:
+            sbatch_out = f.read().strip()
+            job_id = sbatch_out.split(' ')[-1]
+            print(f'Job submitted to slurm.\n{sbatch_out}')
 
-        # Append the new record to the file
-        task_info_file = self._get_task_info_file()
-        with jsonlines.open(task_info_file, mode='a') as writer:
-            # lock the file to prevent multiple processes from writing to the same file
-            fcntl.flock(writer, fcntl.LOCK_EX)
-            writer.write(task_info)
-            fcntl.flock(writer, fcntl.LOCK_UN)
+        task_info = {'job_id': job_id, 'job_submit_time': current_datetime.strftime("%Y-%m-%d %H:%M:%S"),
+                     'source_data_dir': source_data_dir}
+        self._append_task_info(task_info)
 
-        self.task_exists = True
+        self._task_exists = True
         self._tasks_df = self._retrieve_all_tasks()
+
+        return job_id

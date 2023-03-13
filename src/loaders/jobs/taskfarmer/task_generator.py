@@ -1,5 +1,4 @@
 import argparse
-import datetime
 import math
 import os
 
@@ -345,12 +344,7 @@ def main():
     batch_script = _create_batch_script(job_dir, task_list_file, n_jobs, tool)
 
     if args.submit_job:
-        current_datetime = datetime.datetime.now()
-        job_id = _submit_job(job_dir)
-
-        task_info = {'job_id': job_id, 'job_submit_time': current_datetime.strftime("%Y-%m-%d %H:%M:%S"),
-                     'source_data_dir': source_data_dir}
-        task_mgr.append_task_info(task_info)
+        task_mgr.submit_job(source_data_dir)
     else:
         print(f'Please go to Job Directory: {job_dir} and submit the batch script: {batch_script} to the scheduler.')
 
