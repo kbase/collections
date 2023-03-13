@@ -240,30 +240,6 @@ runcommands.sh {task_list_file}'''
     return batch_script_file
 
 
-def _submit_job(job_dir):
-    """
-    Submit the job to slurm
-    """
-    os.chdir(job_dir)
-
-    # If the .tfin files exist (these files are created by the previous run),
-    # delete them before starting a new run to avoid any issues caused by the previous run's files.
-    # TODO: investigate whether it is necessary to delete the .tfin files if a job fails due to walltime.
-    for filename in os.listdir(job_dir):
-        if filename.endswith(".tfin"):
-            os.remove(os.path.join(job_dir, filename))
-
-    std_out_file, std_err_file, exit_code = tf_common.run_nersc_command(
-        ['sbatch', os.path.join(job_dir, 'submit_taskfarmer.sl')],
-        job_dir, log_file_prefix='sbatch_submit')
-    with open(std_out_file, "r") as f:
-        sbatch_out = f.read().strip()
-        job_id = sbatch_out.split(' ')[-1]
-        print(f'Job submitted to slurm.\n{sbatch_out}')
-
-    return job_id
-
-
 def _check_preconditions(task_mgr, source_data_dir, force_run):
     """
     Check conditions from previous runs of the same tool and load version
