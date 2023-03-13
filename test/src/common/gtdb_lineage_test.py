@@ -1,12 +1,14 @@
 from conftest import assert_exception_correct
 from pytest import raises
 from src.common.gtdb_lineage import (
-    parse_gtdb_lineage_string,
     GTDBLineage,
     GTDBLineageNode,
     GTDBTaxaCount,
     TaxaNodeCount,
     GTDBRank,
+    GTDBLineageParseError,
+    GTDBLineageRankError,
+    GTDBLineageResolutionError,
 )
 
 # TODO TEST add more tests
@@ -36,9 +38,9 @@ def _bad_comparison(callable, op, type_):
 def test_gtdb_lineage():
     linstr = ("d__Bacteria;p__Firmicutes;c__Bacilli;o__Thermoactinomycetales;"
         + "f__DSM-45169;g__Marininema;s__Marininema halotolerans")
-    parsed = parse_gtdb_lineage_string(linstr)
+    parsed = GTDBLineage(linstr)
 
-    assert parsed == GTDBLineage([
+    assert parsed.lineage == (
         GTDBLineageNode(GTDBRank.DOMAIN, "Bacteria"),
         GTDBLineageNode(GTDBRank.PHYLUM, "Firmicutes"),
         GTDBLineageNode(GTDBRank.CLASS, "Bacilli"),
@@ -46,7 +48,105 @@ def test_gtdb_lineage():
         GTDBLineageNode(GTDBRank.FAMILY, "DSM-45169"),
         GTDBLineageNode(GTDBRank.GENUS, "Marininema"),
         GTDBLineageNode(GTDBRank.SPECIES, "Marininema halotolerans"),
-    ])
+    )
+
+
+def test_gtdb_lineage_truncated():
+    # internal style
+    # also test string stripping and trailing semicolons
+    parsed = GTDBLineage(
+        "d__Bacteria;p__Firmicutes;   c  __  Bacilli  ;o__Thermoactinomycetales;f__DSM-45169   ;")
+
+    assert parsed.lineage == (
+        GTDBLineageNode(GTDBRank.DOMAIN, "Bacteria"),
+        GTDBLineageNode(GTDBRank.PHYLUM, "Firmicutes"),
+        GTDBLineageNode(GTDBRank.CLASS, "Bacilli"),
+        GTDBLineageNode(GTDBRank.ORDER, "Thermoactinomycetales"),
+        GTDBLineageNode(GTDBRank.FAMILY, "DSM-45169"),
+    )
+
+    # gtdb style
+    parsed = GTDBLineage("d__Bacteria;p__Firmicutes;c__Bacilli;o__;f__;g__;s__")
+
+    assert parsed.lineage == (
+        GTDBLineageNode(GTDBRank.DOMAIN, "Bacteria"),
+        GTDBLineageNode(GTDBRank.PHYLUM, "Firmicutes"),
+        GTDBLineageNode(GTDBRank.CLASS, "Bacilli"),
+    )
+
+
+def test_gtdb_lineage_str():
+    parsed = GTDBLineage("d__Bacteria;p__Firmicutes;c__Bacilli;o__;f__;g__;s__")
+
+    assert str(parsed) == "d__Bacteria;p__Firmicutes;c__Bacilli"
+
+
+def test_gtdb_lineage_fail():
+    _gtdb_lineage_fail("   \t  ", False, GTDBLineageResolutionError(
+        "No lineage information in lineage string '   \t  '")
+    )
+    _gtdb_lineage_fail("d__", False, GTDBLineageResolutionError(
+        "No lineage information in lineage string 'd__'")
+    )
+    _gtdb_lineage_fail("d__domain;p_phylum;c__class", False, GTDBLineageParseError(
+        "Invalid lineage node 'p_phylum' in lineage 'd__domain;p_phylum;c__class'")
+    )
+    _gtdb_lineage_fail(
+        "d__Bacteria;p__Firmicutes;c__Bacilli;o__;f__fambly;g__;s__",
+        False,
+        GTDBLineageParseError("Found resolved rank after unresolved rank in lineage "
+            + "string 'd__Bacteria;p__Firmicutes;c__Bacilli;o__;f__fambly;g__;s__'")
+    )
+    _gtdb_lineage_fail(
+        "d__Bacteria;p__Firmicutes;c__Bacilli;x__Thermoactinomycetales;f__DSM-45169",
+        False,
+        GTDBLineageParseError("Illegal rank in lineage string "
+            + "'d__Bacteria;p__Firmicutes;c__Bacilli;x__Thermoactinomycetales;f__DSM-45169': "
+            + "No such GTDB rank abbreviation: x")
+    )
+    _gtdb_lineage_fail(
+        "d__Bacteria;p__Firmicutes;c__Bacilli;o__Thermoactinomycetales;"
+            + "f__DSM-45169;g__Marininema;s__",
+        True,
+        GTDBLineageResolutionError(
+            "Lineage 'd__Bacteria;p__Firmicutes;c__Bacilli;o__Thermoactinomycetales;f__DSM-45169;"
+            + "g__Marininema;s__' does not end with species")
+    )
+    _gtdb_lineage_fail(
+        "d__Bacteria;p__Firmicutes;c__Bacilli;s__Marininema halotolerans;o__Thermoactinomycetales;"
+            + "f__DSM-45169;g__Marininema",
+        False,
+        GTDBLineageRankError(
+            "Bad rank order in lineage 'd__Bacteria;p__Firmicutes;c__Bacilli;"
+            + "s__Marininema halotolerans;o__Thermoactinomycetales;f__DSM-45169;g__Marininema'"
+            )
+    )
+
+
+def _gtdb_lineage_fail(lineage: str, force_complete: bool, expected: Exception):
+    with raises(Exception) as got:
+        GTDBLineage(lineage, force_complete=force_complete)
+    assert_exception_correct(got.value, expected)
+
+
+def test_gtdb_lineage_truncate_to_rank():
+    lin = GTDBLineage(
+        "d__Bacteria;p__Firmicutes;c__Bacilli;o__Thermoactinomycetales;"
+        + "f__DSM-45169;g__Marininema;s__Marininema halotolerans"
+    ).truncate_to_rank(GTDBRank.ORDER)
+
+    assert lin.lineage == (
+        GTDBLineageNode(GTDBRank.DOMAIN, "Bacteria"),
+        GTDBLineageNode(GTDBRank.PHYLUM, "Firmicutes"),
+        GTDBLineageNode(GTDBRank.CLASS, "Bacilli"),
+        GTDBLineageNode(GTDBRank.ORDER, "Thermoactinomycetales"),
+    )
+
+    lin = GTDBLineage(
+        "d__Bacteria;p__Firmicutes;c__Bacilli;o__Thermoactinomycetales"
+    ).truncate_to_rank(GTDBRank.FAMILY)
+
+    assert lin is None
 
 
 def test_taxa_count():
