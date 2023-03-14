@@ -129,8 +129,8 @@ class TaxaCounts(BaseModel):
     The taxa counts data set. Either `data` or `match_state` is returned.
     """
     data: list[TaxaCount] | None
-    taxa_count_match_state: models.MatchState | None = Field(
-        example=models.MatchState.PROCESSING,
+    taxa_count_match_state: models.ProcessState | None = Field(
+        example=models.ProcessState.PROCESSING,
         description="The processing state of the match for this data product. This data product "
             + "requires additional processing beyone the primary match."
     )
@@ -218,7 +218,7 @@ async def get_taxa_counts(
         dp_match, load_ver = await _get_data_product_match(
             appstate, collection_id, match_id, user
         )
-        if dp_match.data_product_match_state != models.MatchState.COMPLETE:
+        if dp_match.data_product_match_state != models.ProcessState.COMPLETE:
             return TaxaCounts(taxa_count_match_state=dp_match.data_product_match_state)
     else:
         load_ver = await get_load_version(store, collection_id, ID, load_ver_override, user)
@@ -360,14 +360,14 @@ async def _process_match(match_id: str, deps: PickleableDependencies, args: list
         # is the same and neither fails.
         await storage.import_bulk_ignore_collisions(names.COLL_TAXA_COUNT, docs)
         await storage.update_data_product_match_state(
-            match.internal_match_id, ID, models.MatchState.COMPLETE, deps.get_epoch_ms()
+            match.internal_match_id, ID, models.ProcessState.COMPLETE, deps.get_epoch_ms()
         )
     except Exception as e:
         logging.getLogger(__name__).exception(
             f"Matching process data product {ID} for match {match_id} failed")
         if match:
             await storage.update_data_product_match_state(
-                match.internal_match_id, ID, models.MatchState.FAILED, deps.get_epoch_ms()
+                match.internal_match_id, ID, models.ProcessState.FAILED, deps.get_epoch_ms()
             )
             # otherwise not much to do, something went very wrong
     finally:
