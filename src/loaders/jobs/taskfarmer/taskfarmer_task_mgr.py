@@ -198,8 +198,12 @@ class TFTaskManager:
         Check if the task for kbase_collection, load_ver, tool has been submitted.
         """
 
-        # check if the job directory exists and is not empty
-        job_dir_exists = os.path.isdir(self.job_dir) and os.listdir(self.job_dir)
+        if self.force_run:
+            # check if the job directory exists (directory maybe recreated during initialization)
+            job_dir_exists = os.path.isdir(self.job_dir)
+        else:
+            # check if the job directory exists and is not empty
+            job_dir_exists = os.path.isdir(self.job_dir) and os.listdir(self.job_dir)
 
         # check task exists in the task info file
         task_info_file = self._get_task_info_file()
@@ -212,7 +216,7 @@ class TFTaskManager:
                       (df["load_ver"] == self.load_ver) &
                       (df["tool"] == self.tool)]
 
-        return job_dir_exists or not tasks_df.empty
+        return job_dir_exists and not tasks_df.empty
 
     def _cancel_job(self, job_id):
         """
