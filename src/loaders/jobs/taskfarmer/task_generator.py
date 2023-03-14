@@ -136,7 +136,7 @@ echo "Running shifter --image=$image $command"
 cd {job_dir}
 shifter --image=$image $command'''
 
-    wrapper_file = os.path.join(job_dir, 'shifter_wrapper.sh')
+    wrapper_file = os.path.join(job_dir, tf_common.WRAPPER_FILE)
     with open(wrapper_file, "w") as f:
         f.write(shifter_wrapper)
 
@@ -188,7 +188,7 @@ def _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper
 
         task_list += f'''--entrypoint\n'''
 
-    task_list_file = os.path.join(job_dir, 'tasks.txt')
+    task_list_file = os.path.join(job_dir, tf_common.TASK_FILE)
     with open(task_list_file, "w") as f:
         f.write(task_list)
 
@@ -233,7 +233,7 @@ export THREADS=32
 
 runcommands.sh {task_list_file}'''
 
-    batch_script_file = os.path.join(job_dir, 'submit_taskfarmer.sl')
+    batch_script_file = os.path.join(job_dir, tf_common.BATCH_SCRIPT)
     with open(batch_script_file, "w") as f:
         f.write(batch_script)
 
@@ -255,16 +255,14 @@ def _check_preconditions(task_mgr, source_data_dir, force_run):
             f'There is a previous run of the same tool and load version with a different source data directory.\n'
             f'Please use the --force flag to overwrite the previous run.')
 
-    latest_task_status = task_mgr.retrieve_latest_task_status()
+    latest_task_status, job_id = task_mgr.retrieve_latest_task_status()
 
-    if latest_task_status == JobStatus.FAILED:
+    if latest_task_status in [JobStatus.FAILED, JobStatus.CANCELLED]:
         return True
-    elif latest_task_status == JobStatus.COMPLETED:
-        raise ValueError(f'There is a previous run of the same tool and load version that has already completed.\n'
-                         f'Please use the --force flag to overwrite the previous run.')
-    elif latest_task_status in [JobStatus.RUNNING, JobStatus.PENDING]:
-        # TODO: kill the previous run and start a new one if -force is specified
-        raise ValueError(f'There is a previous run of the same tool and load version that is still running.\n')
+    elif latest_task_status in [JobStatus.COMPLETED, JobStatus.RUNNING, JobStatus.PENDING]:
+        raise ValueError(
+            f'There is a previous run of the same tool and load version that is {str(latest_task_status)}\n'
+            f'Please use the --force flag to overwrite the previous run.')
     else:
         raise ValueError(f'Unexpected job status: {latest_task_status}')
 

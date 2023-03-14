@@ -2,10 +2,17 @@ import datetime
 import os
 import subprocess
 
-# directory containing the TaskFarmer job scripts under the root directory
-TASKFARMER_JOB_DIR = 'task_farmer_jobs'
-# file containing the information of each task
-TASK_INFO_FILE = 'task_info.jsonl'
+# The wrapper file that specifies the executable and necessary options for the task
+# https://docs.nersc.gov/jobs/workflow/taskfarmer/#step-1-write-a-wrapper-wrappersh
+WRAPPER_FILE = 'shifter_wrapper.sh'
+
+# The task file that lists all tasks to be run
+# https://docs.nersc.gov/jobs/workflow/taskfarmer/#step-2-create-a-task-list-taskstxt
+TASK_FILE = 'tasks.txt'
+
+# The name of the script that submits the job to NERSC
+# https://docs.nersc.gov/jobs/workflow/taskfarmer/#step-3-create-a-batch-script-submit_taskfarmersl
+BATCH_SCRIPT = 'submit_taskfarmer.sl'
 
 
 def run_nersc_command(command, job_dir, log_file_prefix='', check_return_code=True):
