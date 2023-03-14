@@ -44,6 +44,7 @@ FIELD_MATCHERS_MATCHER = "matcher"
 FIELD_MATCH_INTERNAL_MATCH_ID = "internal_match_id"
 FIELD_MATCH_USER_PERMS = "user_last_perm_check"
 FIELD_MATCH_MATCHES = "matches"
+FIELD_SELECTION_UNMATCHED_IDS = "unmatched_ids"
 FIELD_DATE_CREATE = "date_create"
 FIELD_USER_CREATE = "user_create"
 FIELD_DATE_ACTIVE = "date_active"
@@ -80,6 +81,14 @@ FIELD_USER_PARAMETERS_DESCRIPTION = "The user parameters for the match."
 FIELD_MATCHER_PARAMETERS_EXAMPLE = {'gtdb_version': '207.0'}
 FIELD_MATCHER_PARAMETERS_DESCRIPTION = ("Any collection (as opposed to user provided) parameters "
     + "for the matcher. What these are will depend on the matcher in question")
+FIELD_SELECTION_EXAMPLE = ["GB_GCA_000006155.2", "GB_GCA_000007385.1"]
+FIELD_SELECTION_IDS_DESCRIPTION = (
+    "The IDs of the selected items. What these IDs are will depend on the " +
+    "collection and data product the selection is against."
+)
+FIELD_SELECTION_UNMATCHED_DESCRIPTION = (
+    "IDs of the selected items that were not found in the data."
+)
 
 
 DATA_PRODUCT_ID_FIELD = Field(
@@ -469,9 +478,12 @@ class InternalSelection(ProcessAttributes):
         description="The version of the collection for which the selection was created."
     )
     selection_ids: list[str] = Field(
-        example=["GB_GCA_000006155.2", "GB_GCA_000007385.1"],
-        description="The IDs of the selected items. What these IDs are will depend on the " +
-            "collection and data product the selection is against."
+        example=FIELD_SELECTION_EXAMPLE,
+        description=FIELD_SELECTION_IDS_DESCRIPTION
+    )
+    unmatched_ids: list[str] | None = Field(
+        example=FIELD_SELECTION_EXAMPLE,
+        description=FIELD_SELECTION_UNMATCHED_DESCRIPTION
     )
 
 

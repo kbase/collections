@@ -148,6 +148,7 @@ async def _save_selection(
         collection_id=coll.id,
         collection_ver=coll.ver_num,
         selection_ids=selection_ids,
+        unmatched_ids=None,
         created=now,
         heartbeat=None,
         state=models.ProcessState.PROCESSING,
@@ -267,9 +268,8 @@ class MatchParameters(BaseModel):
 class SelectionInput(BaseModel):
     """A selection of data in a collection. """
     selection_ids: list[str] = Field(
-        example=["GB_GCA_000006155.2", "GB_GCA_000007385.1"],
-        description="The IDs of the selected items. What these IDs are will depend on the " +
-            "collection and data product the selection is against."
+        example=models.FIELD_SELECTION_EXAMPLE,
+        description=models.FIELD_SELECTION_IDS_DESCRIPTION
     )
 
 
@@ -285,6 +285,10 @@ class Selection(SelectionInput):
     state: models.ProcessState = Field(
         example=models.ProcessState.PROCESSING.value,
         description="The state of the selection process."
+    )
+    unmatched_ids: list[str] | None = Field(
+        example=models.FIELD_SELECTION_EXAMPLE,
+        description=models.FIELD_SELECTION_UNMATCHED_DESCRIPTION,
     )
 
 
@@ -476,8 +480,10 @@ async def get_selection(
         hashed_token, appstate.get_epoch_ms())
     if not verbose:
         internal_sel.selection_ids = []
+        internal_sel.unmatched_ids = None if internal_sel.unmatched_ids is None else []
     return Selection(
         selection_ids=internal_sel.selection_ids,
+        unmatched_ids=internal_sel.unmatched_ids,
         collection_id=internal_sel.collection_id,
         collection_ver=internal_sel.collection_ver,
         state=internal_sel.state,
