@@ -225,12 +225,11 @@ class TFTaskManager:
             return True
 
         while job_status in [JobStatus.RUNNING, JobStatus.PENDING] and retry < 3:
-            time.sleep(2)
             retry += 1
             print(f"Canceling job {job_id} (try #{retry})...")
             tf_common.run_nersc_command(
                 ['scancel', str(job_id)], self.job_dir, log_file_prefix='scancel', check_return_code=True)
-
+            time.sleep(2)
             # Get the job status to confirm the job is canceled
             job_status = self._get_job_status_from_nersc(job_id)
 
@@ -325,6 +324,12 @@ class TFTaskManager:
         files for the job submission (e.g. wrapper script, task list and batch script, etc.) before calling this function.
         """
 
+        # check if all the required files exist
+        required_files = [tf_common.WRAPPER_FILE, tf_common.TASK_FILE, tf_common.BATCH_SCRIPT]
+        for filename in required_files:
+            if not os.path.isfile(os.path.join(self.job_dir, filename)):
+                raise ValueError(f"{filename} does not exist in {self.job_dir}")
+
         self._check_preconditions()
 
         os.chdir(self.job_dir)
@@ -335,12 +340,6 @@ class TFTaskManager:
         for filename in os.listdir(self.job_dir):
             if filename.endswith(".tfin"):
                 os.remove(os.path.join(self.job_dir, filename))
-
-        # check if all the required files exist
-        required_files = [tf_common.WRAPPER_FILE, tf_common.TASK_FILE, tf_common.BATCH_SCRIPT]
-        for filename in required_files:
-            if not os.path.isfile(os.path.join(self.job_dir, filename)):
-                raise ValueError(f"{filename} does not exist in {self.job_dir}")
 
         current_datetime = datetime.datetime.now()
         std_out_file, std_err_file, exit_code = tf_common.run_nersc_command(
