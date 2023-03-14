@@ -4,7 +4,7 @@ import os
 
 import src.loaders.jobs.taskfarmer.taskfarmer_common as tf_common
 from src.loaders.common import loader_common_names
-from src.loaders.jobs.taskfarmer.taskfarmer_task_mgr import TFTaskManager, JobStatus
+from src.loaders.jobs.taskfarmer.taskfarmer_task_mgr import TFTaskManager, PreconditionError
 
 '''
 
@@ -240,33 +240,6 @@ runcommands.sh {task_list_file}'''
     return batch_script_file
 
 
-def _check_preconditions(task_mgr, source_data_dir, force_run):
-    """
-    Check conditions from previous runs of the same tool and load version
-    """
-
-    latest_task = task_mgr.get_latest_task()
-
-    if not latest_task or force_run:
-        return True
-
-    if latest_task['source_data_dir'] != source_data_dir:
-        raise ValueError(
-            f'There is a previous run of the same tool and load version with a different source data directory.\n'
-            f'Please use the --force flag to overwrite the previous run.')
-
-    latest_task_status, job_id = task_mgr.retrieve_latest_task_status()
-
-    if latest_task_status in [JobStatus.FAILED, JobStatus.CANCELLED]:
-        return True
-    elif latest_task_status in [JobStatus.COMPLETED, JobStatus.RUNNING, JobStatus.PENDING]:
-        raise ValueError(
-            f'There is a previous run of the same tool and load version that is {str(latest_task_status)}\n'
-            f'Please use the --force flag to overwrite the previous run.')
-    else:
-        raise ValueError(f'Unexpected job status: {latest_task_status}')
-
-
 def main():
     parser = argparse.ArgumentParser(
         description='PROTOTYPE - Create the required documents/scripts for the TaskFarmer Workflow Manager'
@@ -306,8 +279,7 @@ def main():
     source_data_dir = args.source_data_dir
     root_dir = args.root_dir
 
-    task_mgr = TFTaskManager(kbase_collection, load_ver, tool, root_dir=root_dir, destroy_old_job_dir=args.force)
-    _check_preconditions(task_mgr, source_data_dir, args.force)
+    task_mgr = TFTaskManager(kbase_collection, load_ver, tool, source_data_dir, root_dir=root_dir, force_run=args.force)
 
     job_dir = task_mgr.job_dir
     image_str = _fetch_image(REGISTRY, tool, job_dir, tag=args.image_tag, force_pull=not args.use_cached_image)
@@ -318,7 +290,11 @@ def main():
     batch_script = _create_batch_script(job_dir, task_list_file, n_jobs, tool)
 
     if args.submit_job:
-        task_mgr.submit_job(source_data_dir)
+        try:
+            task_mgr.submit_job()
+        except PreconditionError as e:
+            raise ValueError(f'Error submitting job:\n{e}\n'
+                             f'Please use the --force flag to overwrite the previous run.') from e
     else:
         print(f'Please go to Job Directory: {job_dir} and submit the batch script: {batch_script} to the scheduler.')
 

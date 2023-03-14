@@ -1,5 +1,8 @@
 # Generate Genome Collection Data
 
+## Data Workflow
+![Data Workflow](collections_data_workflow.png)
+
 ## Generate Genome Attributes
 
 This section describes the steps and scripts used to generate attributes of genomes.

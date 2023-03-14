@@ -14,12 +14,25 @@ from src.loaders.common import loader_common_names
 
 # Produced once all tasks are completed. https://docs.nersc.gov/jobs/workflow/taskfarmer/#output
 NERSC_SLURM_DONE_FILE = 'done.tasks.txt.tfin'
-REQUIRED_TASK_INFO_KEYS = ['job_id', 'job_submit_time', 'source_data_dir']
+REQUIRED_TASK_INFO_KEYS = ['job_id', 'job_submit_time']
 
 # directory containing the TaskFarmer job scripts under the root directory
 TASKFARMER_JOB_DIR = 'task_farmer_jobs'
 # file containing the information of each task
 TASK_INFO_FILE = 'task_info.jsonl'
+
+
+class TaskError(Exception):
+    def __init__(self, message):
+        self.message = message
+
+    def __str__(self):
+        return f"{self.message}"
+
+
+class PreconditionError(TaskError):
+    def __init__(self, message):
+        super().__init__(message)
 
 
 class JobStatus(Enum):
@@ -124,7 +137,7 @@ class TFTaskManager:
         Matrix of job status:
         Done file  Exit Code   Job listed    Job Status Code  Returned Status
         Y          Any         N/A           N/A              COMPLETED
-        N          0           N             PD               PENDING
+        N          0           Y             PD               PENDING
         N          0           Y             R                RUNNING
         N          -1          N/A           N/A              FAILED (If a job is cancelled, it will be treated as failed.)
         N          0           N             N/A              FAILED (If a job is cancelled, it will be treated as failed.)
@@ -169,7 +182,8 @@ class TFTaskManager:
         if not all(key in task_info for key in REQUIRED_TASK_INFO_KEYS):
             raise ValueError(f"task_info must contain all keys: {REQUIRED_TASK_INFO_KEYS}")
 
-        task_info.update({'kbase_collection': self.kbase_collection, 'load_ver': self.load_ver, 'tool': self.tool})
+        task_info.update({'kbase_collection': self.kbase_collection, 'load_ver': self.load_ver, 'tool': self.tool,
+                          'source_data_dir': self.source_data_dir})
 
         # Append the new record to the file
         task_info_file = self._get_task_info_file()
@@ -225,32 +239,7 @@ class TFTaskManager:
         else:
             print(f"Job {job_id} is canceled.")
 
-    def __init__(self, kbase_collection, load_ver, tool, root_dir=loader_common_names.ROOT_DIR,
-                 destroy_old_job_dir=False):
-        """
-        Initialize the task manager.
-
-        :param kbase_collection: KBase collection identifier name (e.g. GTDB).
-        :param load_ver: collection load version (e.g. r207.kbase.1).
-        :param tool: tool name (e.g. gtdb_tk, checkm2, etc.)
-        :param root_dir: root directory of the collection project.
-                         Default is the ROOT_DIR defined in src/loaders/common/loader_common_names.py
-        :param destroy_old_job_dir: if True, remove contents of the old job directory.
-        """
-
-        self.kbase_collection = kbase_collection
-        self.load_ver = load_ver
-        self.tool = tool
-        self.root_dir = root_dir
-
-        # job directory is named as <kbase_collection>_<load_ver>_<tool>
-        self.job_dir = os.path.join(self.root_dir, TASKFARMER_JOB_DIR,
-                                    f'{self.kbase_collection}_{self.load_ver}_{self.tool}')
-
-        self._create_job_dir(destroy_old_job_dir=destroy_old_job_dir)
-        self._tasks_df = self._retrieve_all_tasks()
-
-    def get_latest_task(self):
+    def _get_latest_task(self):
         """
         Get the latest task information
 
@@ -258,20 +247,77 @@ class TFTaskManager:
         """
         return self._tasks_df.iloc[0].to_dict() if self._task_exists() else {}
 
-    def retrieve_latest_task_status(self):
+    def _retrieve_latest_task_status(self):
         """
         Retrieve the latest task status.
         """
         if not self._task_exists():
             raise ValueError(f"Task does not exist for {self.kbase_collection}, {self.load_ver}, {self.tool}")
 
-        latest_task = self.get_latest_task()
+        latest_task = self._get_latest_task()
         job_id = latest_task["job_id"]
         job_status = self._get_job_status_from_nersc(job_id)
 
         return job_status, job_id
 
-    def submit_job(self, source_data_dir):
+    def _check_preconditions(self):
+        """
+        Check conditions from previous runs of the same tool and load version
+        """
+
+        if not self._task_exists():
+            return True
+
+        latest_task = self._get_latest_task()
+        latest_task_status, job_id = self._retrieve_latest_task_status()
+
+        if self.force_run:
+            # cancel the previous job if it is running or pending
+            if latest_task_status in [JobStatus.RUNNING, JobStatus.PENDING]:
+                self._cancel_job(job_id)
+            return True
+
+        if latest_task['source_data_dir'] != self.source_data_dir:
+            raise PreconditionError(
+                f'There is a previous run of the same tool and load version with a different source data directory.')
+
+        if latest_task_status in [JobStatus.FAILED, JobStatus.CANCELLED]:
+            return True
+        elif latest_task_status in [JobStatus.COMPLETED, JobStatus.RUNNING, JobStatus.PENDING]:
+            raise PreconditionError(
+                f'There is a previous run of the same tool and load version that is {str(latest_task_status)}.')
+        else:
+            raise ValueError(f'Unexpected job status: {latest_task_status}')
+
+    def __init__(self, kbase_collection, load_ver, tool, source_data_dir, root_dir=loader_common_names.ROOT_DIR,
+                 force_run=False):
+        """
+        Initialize the task manager.
+
+        :param kbase_collection: KBase collection identifier name (e.g. GTDB).
+        :param load_ver: collection load version (e.g. r207.kbase.1).
+        :param tool: tool name (e.g. gtdb_tk, checkm2, etc.)
+        :param source_data_dir: source data directory.
+        :param root_dir: root directory of the collection project.
+                         Default is the ROOT_DIR defined in src/loaders/common/loader_common_names.py
+        :param force_run: if True, remove contents of the old job directory and run the job.
+        """
+
+        self.kbase_collection = kbase_collection
+        self.load_ver = load_ver
+        self.tool = tool
+        self.source_data_dir = source_data_dir
+        self.root_dir = root_dir
+        self.force_run = force_run
+
+        # job directory is named as <kbase_collection>_<load_ver>_<tool>
+        self.job_dir = os.path.join(self.root_dir, TASKFARMER_JOB_DIR,
+                                    f'{self.kbase_collection}_{self.load_ver}_{self.tool}')
+
+        self._create_job_dir(destroy_old_job_dir=self.force_run)
+        self._tasks_df = self._retrieve_all_tasks()
+
+    def submit_job(self):
         """
         Submit the job to slurm
 
@@ -279,9 +325,7 @@ class TFTaskManager:
         files for the job submission (e.g. wrapper script, task list and batch script, etc.) before calling this function.
         """
 
-        job_status, job_id = self.retrieve_latest_task_status()
-        if job_status in [JobStatus.RUNNING, JobStatus.PENDING]:
-            self._cancel_job(job_id)
+        self._check_preconditions()
 
         os.chdir(self.job_dir)
 
@@ -307,8 +351,7 @@ class TFTaskManager:
             job_id = sbatch_out.split(' ')[-1]
             print(f'Job submitted to slurm.\n{sbatch_out}')
 
-        task_info = {'job_id': job_id, 'job_submit_time': current_datetime.strftime("%Y-%m-%d %H:%M:%S"),
-                     'source_data_dir': source_data_dir}
+        task_info = {'job_id': job_id, 'job_submit_time': current_datetime.strftime("%Y-%m-%d %H:%M:%S")}
         self._append_task_info(task_info)
 
         self._tasks_df = self._retrieve_all_tasks()
