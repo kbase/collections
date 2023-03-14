@@ -47,6 +47,15 @@ class GenomeAttribsSpec(DataProductSpec):
         """
         await delete_match(storage, internal_match_id)
 
+    async def apply_selection(self, storage: ArangoStorage, internal_selection_id: str):
+        """
+        Mark selections in genome attribute data.
+
+        storage - the storage system.
+        internal_selection_id - the selection to apply.
+        """
+        await mark_selections(storage, internal_selection_id)
+
 
 GENOME_ATTRIBS_SPEC = GenomeAttribsSpec(
     data_product=ID,
@@ -89,6 +98,7 @@ _OPT_AUTH = KBaseHTTPBearer(optional=True)
 def _remove_keys(doc):
     doc = remove_collection_keys(remove_arango_keys(doc))
     doc.pop(names.FLD_GENOME_ATTRIBS_MATCHES, None)
+    doc.pop(names.FLD_GENOME_ATTRIBS_SELECTIONS, None)
     return doc
 
 
@@ -552,3 +562,47 @@ async def delete_match(storage: ArangoStorage, internal_match_id: str):
         """
     cur = await storage.aql().execute(aql, bind_vars=bind_vars)
     await cur.close(ignore_missing=True)
+
+
+async def mark_selections(storage: ArangoStorage, internal_selection_id: str):
+    """
+    Mark genome attribute entries that are present in the selection and complete the selection
+    process.
+    """
+    sel = await storage.get_selection_internal(internal_selection_id)
+    # use version number to avoid race conditions with activating collections
+    coll = await storage.get_collection_version_by_num(sel.collection_id, sel.collection_ver)
+    load_ver = {dp.product: dp.version for dp in coll.data_products}[ID]
+
+    # a bit too tricky to DRY this up with gtdb lineage matches above, although they're similar
+    # retries?
+    selfld = names.FLD_GENOME_ATTRIBS_SELECTIONS
+    aql = f"""
+        FOR d IN @@{_FLD_COL_NAME}
+            FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
+            FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
+            FILTER d.{names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID} IN @genome_ids
+            UPDATE d WITH {{
+                {selfld}: APPEND(d.{selfld}, [@internal_match_id], true)
+            }} IN @@{_FLD_COL_NAME}
+            OPTIONS {{exclusive: true}}
+            LET updated = NEW
+            RETURN KEEP(updated, "{names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID}")
+        """
+    bind_vars = {
+        f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
+        _FLD_COL_ID: coll.id,
+        _FLD_COL_LV: load_ver,
+        "genome_ids": sel.selection_ids,
+        "internal_match_id": internal_selection_id,
+    }
+    matched = set()
+    cur = await storage.aql().execute(aql, bind_vars=bind_vars)
+    try:
+        async for d in cur:
+            matched.add(d[names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID])
+    finally:
+        await cur.close(ignore_missing=True)
+    missed = sorted(set(sel.selection_ids) - matched)
+    state = models.ProcessState.FAILED if missed else models.ProcessState.COMPLETE
+    await storage.update_selection_state(internal_selection_id, state, now_epoch_millis(), missed)

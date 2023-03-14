@@ -163,7 +163,6 @@ async def _save_selection(
     await appstate.arangostorage.save_selection_internal(internal_sel)
     await appstate.arangostorage.save_selection_active(active_sel, overwrite=overwrite)
     # TODO SELECTION start selection process
-    # TODO SELECTION what about IDs that don't match? Add to selection w/ failed state?
 
 
 # maybe these should go in a different module
