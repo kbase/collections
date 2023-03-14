@@ -531,23 +531,26 @@ class ArangoStorage:
         match_id - the ID of the match to modify.
         heartbeat_timestamp - the timestamp of the heartbeat in epoch milliseconts.
         """
+        await self._send_heartbeat(
+            COLL_SRV_MATCHES, match_id, heartbeat_timestamp, errors.NoSuchMatchError)
+
+    async def _send_heartbeat(self, collection: str, key: str, heartbeat_timestamp: int, errclass):
         aql = f"""
             FOR d in @@{_FLD_COLLECTION}
-                FILTER d.{FLD_ARANGO_KEY} == @{_FLD_MATCH_ID}
+                FILTER d.{FLD_ARANGO_KEY} == @key
                 UPDATE d WITH {{
-                    {models.FIELD_MATCH_HEARTBEAT}: @heartbeat
+                    {models.FIELD_PROCESS_HEARTBEAT}: @heartbeat
                 }} IN @@{_FLD_COLLECTION}
                 OPTIONS {{exclusive: true}}
                 LET updated = NEW
                 RETURN KEEP(updated, "{FLD_ARANGO_KEY}")
             """
         bind_vars = {
-            f"@{_FLD_COLLECTION}": COLL_SRV_MATCHES,
-            _FLD_MATCH_ID: match_id,
+            f"@{_FLD_COLLECTION}": collection,
+            "key": key,
             "heartbeat": heartbeat_timestamp,
         }
-        await self._execute_aql_and_check_item_exists(
-            match_id, aql, bind_vars, errors.NoSuchMatchError)
+        await self._execute_aql_and_check_item_exists(key, aql, bind_vars, errclass)
 
     async def _execute_aql_and_check_item_exists(
         self,
@@ -567,8 +570,9 @@ class ArangoStorage:
         finally:
             await cur.close(ignore_missing=True)
 
-    def _correct_match_doc_in_place(self, doc: dict[str, Any]):
-        doc[models.FIELD_MATCH_STATE] = models.ProcessState(doc[models.FIELD_MATCH_STATE])
+    def _correct_process_doc_in_place(self, doc: dict[str, Any]):
+        doc[models.FIELD_PROCESS_STATE] = models.ProcessState(doc[models.FIELD_PROCESS_STATE])
+        return doc
 
     async def _get_match(self, coll: str, match_id: str, exception: bool = True):
         col = self._db.collection(coll)
@@ -577,7 +581,7 @@ class ArangoStorage:
             if not exception:
                 return None
             raise errors.NoSuchMatchError(match_id)
-        self._correct_match_doc_in_place(doc)
+        self._correct_process_doc_in_place(doc)
         return doc
 
     async def get_match(self, match_id: str, verbose: bool = False) -> models.MatchVerbose:
@@ -599,7 +603,6 @@ class ArangoStorage:
         return match
 
     def _to_internal_match(self, doc: dict[str, Any]) -> models.InternalMatch:
-        self._correct_match_doc_in_place(doc)
         return models.InternalMatch.construct(
             **models.remove_non_model_fields(doc, models.InternalMatch))
 
@@ -638,8 +641,8 @@ class ArangoStorage:
             FOR d in @@{_FLD_COLLECTION}
                 FILTER d.{FLD_ARANGO_KEY} == @{_FLD_MATCH_ID}
                 UPDATE d WITH {{
-                    {models.FIELD_MATCH_STATE}: @match_state,
-                    {models.FIELD_MATCH_STATE_UPDATED}: @update_time,
+                    {models.FIELD_PROCESS_STATE}: @match_state,
+                    {models.FIELD_PROCESS_STATE_UPDATED}: @update_time,
             """
         if matches:
             aql += f"""
@@ -679,7 +682,7 @@ class ArangoStorage:
         cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
         try:
             async for d in cur:
-                await processor(self._to_internal_match(d))
+                await processor(self._to_internal_match(self._correct_process_doc_in_place(d)))
         finally:
             await cur.close(ignore_missing=True)
 
@@ -692,7 +695,6 @@ class ArangoStorage:
             match, match.internal_match_id, COLL_SRV_MATCHES_DELETED, overwrite=True)
 
     def _to_deleted_match(self, doc: dict[str, Any]) -> models.DeletedMatch:
-        self._correct_match_doc_in_place(doc)
         return models.DeletedMatch.construct(
             **models.remove_non_model_fields(doc, models.DeletedMatch))
 
@@ -732,7 +734,7 @@ class ArangoStorage:
         cur = await col.all()
         try:
             async for d in cur:
-                await processor(self._to_deleted_match(d))
+                await processor(self._to_deleted_match(self._correct_process_doc_in_place(d)))
         finally:
             await cur.close(ignore_missing=True)
 
@@ -765,8 +767,7 @@ class ArangoStorage:
                         "Well, I tried. Either something is very wrong with the "
                         + "database or I just got really unlucky with timing on a match "
                         + "deletion. Try matching again.")
-                doc[models.FIELD_DATA_PRODUCT_MATCH_STATE] = models.ProcessState(
-                    doc[models.FIELD_DATA_PRODUCT_MATCH_STATE])
+                self._correct_process_doc_in_place(doc)
                 return models.DataProductMatchProcess.construct(
                     **models.remove_non_model_fields(doc, models.DataProductMatchProcess)), True
             raise e
@@ -784,23 +785,8 @@ class ArangoStorage:
         heartbeat_timestamp - the timestamp of the heartbeat in epoch milliseconts.
         """
         key = self._data_product_match_key(internal_match_id, data_product)
-        bind_vars = {
-            f"@{_FLD_COLLECTION}": COLL_SRV_MATCHES_DATA_PRODUCTS,
-            "key": key,
-            "heartbeat": heartbeat_timestamp,
-        }
-        aql = f"""
-            FOR d in @@{_FLD_COLLECTION}
-                FILTER d.{FLD_ARANGO_KEY} == @key
-                UPDATE d WITH {{
-                    {models.FIELD_MATCH_HEARTBEAT}: @heartbeat
-                }} IN @@{_FLD_COLLECTION}
-                OPTIONS {{exclusive: true}}
-                LET updated = NEW
-                RETURN KEEP(updated, "{FLD_ARANGO_KEY}")
-            """
-        await self._execute_aql_and_check_item_exists(
-            key, aql, bind_vars, errors.NoSuchMatchError)
+        await self._send_heartbeat(
+            COLL_SRV_MATCHES_DATA_PRODUCTS, key, heartbeat_timestamp, errors.NoSuchMatchError)
 
     async def update_data_product_match_state(
         self,
@@ -828,8 +814,8 @@ class ArangoStorage:
             FOR d in @@{_FLD_COLLECTION}
                 FILTER d.{FLD_ARANGO_KEY} == @key
                 UPDATE d WITH {{
-                    {models.FIELD_DATA_PRODUCT_MATCH_STATE}: @match_state,
-                    {models.FIELD_DATA_PRODUCT_MATCH_STATE_UPDATED}: @update_time,
+                    {models.FIELD_PROCESS_STATE}: @match_state,
+                    {models.FIELD_PROCESS_STATE_UPDATED}: @update_time,
                 }} IN @@{_FLD_COLLECTION}
                 OPTIONS {{exclusive: true}}
                 LET updated = NEW
@@ -873,7 +859,7 @@ class ArangoStorage:
         if doc is None:
             raise errors.NoSuchSelectionError(
                 f"There is no internal selection {internal_selection_id}")
-        doc[models.FIELD_SELECTION_STATE] = models.ProcessState(doc[models.FIELD_SELECTION_STATE])
+        self._correct_process_doc_in_place(doc)
         return models.InternalSelection.construct(
             **models.remove_non_model_fields(doc, models.InternalSelection))
 
