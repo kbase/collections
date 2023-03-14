@@ -49,7 +49,7 @@ def get_load_ver_from_collection(collection: models.SavedCollection, data_produc
     for dp in collection.data_products:
         if dp.product == data_product:
             return dp.version
-    raise errors.NoRegisteredDataProduct(
+    raise errors.NoRegisteredDataProductError(
         f"The {collection.id} collection does not have a {data_product} data product registered.")
 
 
