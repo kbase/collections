@@ -247,9 +247,9 @@ class ActiveCollection(SavedCollection):
 
 
 # https://fastapi.tiangolo.com//tutorial/path-params/#create-an-enum-class
-class MatchState(str, Enum):
+class ProcessState(str, Enum):
     """
-    The state of a matching process.
+    The state of a process.
     """
     PROCESSING = "processing"
     COMPLETE = "complete"
@@ -265,8 +265,6 @@ class Match(BaseModel):
         # In practice, this ID is the MD5 of
         # * the matcher ID
         # * the collection ID and version
-        #   * TODO MATCHERS invalidate the match if collection version doesn't match the
-        #     current collection
         # * the match user parameters
         # * the input workspace service UPAs, sorted
     )
@@ -293,8 +291,8 @@ class Match(BaseModel):
         example=FIELD_MATCHER_PARAMETERS_EXAMPLE,
         description=FIELD_MATCHER_PARAMETERS_DESCRIPTION,
     )
-    match_state: MatchState = Field(
-        example=MatchState.PROCESSING.value,
+    match_state: ProcessState = Field(
+        example=ProcessState.PROCESSING.value,
         description="The state of the matching process."
     )
 
@@ -419,8 +417,8 @@ class DataProductMatchProcess(BaseModel):
         description="Milliseconds since the Unix epoch at the point the data product match "
             + "state was last updated."
     )
-    data_product_match_state: MatchState = Field(
-        example=MatchState.PROCESSING.value,
+    data_product_match_state: ProcessState = Field(
+        example=ProcessState.PROCESSING.value,
         description="The state of the data product matching process."
     )
     internal_match_id: str = Field(
@@ -430,6 +428,87 @@ class DataProductMatchProcess(BaseModel):
             + "deleting data for a match without the risk that a new match with the same "
             + "md5 ID is created and tries to read data in the process of deletion. "
             + "Expected to be a v4 UUID.",
+    )
+
+
+class ActiveSelection(BaseModel):
+    """
+    A selection that is currently active. Primarily maps an external selection ID (which,
+    since selections do not require auth, is effectively a session token) to an internal
+    selection ID.
+    """
+    external_selection_id: str = Field(
+        description="The external ID of the selection, presumably a session token."
+    )
+    internal_selection_id: str = Field(
+        example="e22f2d7d-7246-4636-a91b-13f29bc32d3d",
+        description="An internal ID for the selection that is unique per use. This allows for "
+            + "deleting data for a selection without the risk that the selection will become "
+            + "active again while the data is being deleted. "
+            + "Expected to be a v4 UUID.",
+    )
+    last_access: int = Field(
+        example=1674243789865,
+        description="Milliseconds since the Unix epoch at the point the selection was last "
+            + "accessed. Used for determining when to delete the selection."
+    )
+
+
+class InternalSelection(BaseModel):
+    """
+    Internal details about a selection, including the state of the process to apply the selection
+    to the database. While an internal selection is referenced by an active selection, it should
+    not be deleted.
+    """
+    # Implication is that whenever a user creates or updates a selection a new process is kicked
+    # off to mark the database with the selection IDs. Same with matches though, as long as at
+    # least one of the match parameters is different.
+    # May need to protect the server a little bit if we can't do that at the reverse proxy. Maybe
+    # look up existing matches by the MD5 of the selection and just use that selection instead
+    # of kicking off a job
+    internal_selection_id: str = Field(
+        example="e22f2d7d-7246-4636-a91b-13f29bc32d3d",
+        description="An internal ID for the selection that is unique per use. This allows for "
+            + "deleting data for a selection without the risk that the selection will become "
+            + "active again while the data is being deleted. "
+            + "Expected to be a v4 UUID.",
+    )
+    collection_id: str = Field(
+        example=FIELD_COLLECTION_ID_EXAMPLE,
+        description="The ID of the collection for the selection."
+    )
+    collection_ver: int = Field(
+        example=7,
+        description="The version of the collection for which the selection was created."
+    )
+    selection_ids: list[str] = Field(
+        example=["GB_GCA_000006155.2", "GB_GCA_000007385.1"],
+        description="The IDs of the selected items. What these IDs are will depend on the " +
+            "collection and data product the selection is against."
+    )
+    created: int = Field(
+        example=1674243789864,
+        description="Milliseconds since the Unix epoch at the point the selection was created."
+    )
+    heartbeat: int | None = Field(
+        example=1674243789866,
+        description="Milliseconds since the Unix epoch at the last time the selection process "
+            + "sent a heartbeat. Used to determine when the selection process needs to be "
+            + "restarted."
+    )
+    # Note this means that selection processes should be idempotent - running the same process
+    # twice, # even if one of the processes was interrupted, should produce the same result when at
+    # least one process completes
+    # TODO DOCS document the above.
+
+    selection_state: ProcessState = Field(
+        example=ProcessState.PROCESSING.value,
+        description="The state of the selection process."
+    )
+    selection_state_updated: int = Field(
+        example=1674243789867,
+        description="Milliseconds since the Unix epoch at the point the selection state was last "
+            + "updated."
     )
 
 

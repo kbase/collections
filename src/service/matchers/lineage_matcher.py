@@ -67,7 +67,7 @@ async def _process_match(
         await genome_attributes.perform_gtdb_lineage_match(match_id, storage, lineages, rank)
     except Exception as e:
         logging.getLogger(__name__).exception(f"Matching process for match {match_id} failed")
-        await storage.update_match_state(match_id, models.MatchState.FAILED, now_epoch_millis())
+        await storage.update_match_state(match_id, models.ProcessState.FAILED, now_epoch_millis())
     finally:
         if hb:
             hb.stop()
