@@ -28,6 +28,8 @@ from src.common.storage.collection_and_field_names import (
     COLL_SRV_MATCHES,
     COLL_SRV_MATCHES_DELETED,
     COLL_SRV_MATCHES_DATA_PRODUCTS,
+    COLL_SRV_INTERNAL_SELECTIONS,
+    COLL_SRV_ACTIVE_SELECTIONS,
 )
 from src.service import models
 from src.service import errors
@@ -54,7 +56,9 @@ _COLLECTIONS = [
     COLL_SRV_VERSIONS,
     COLL_SRV_MATCHES,
     COLL_SRV_MATCHES_DELETED,
-    COLL_SRV_MATCHES_DATA_PRODUCTS
+    COLL_SRV_MATCHES_DATA_PRODUCTS,
+    COLL_SRV_INTERNAL_SELECTIONS,
+    COLL_SRV_ACTIVE_SELECTIONS,
 ]
 _BUILTIN = "builtin"
 
@@ -171,7 +175,7 @@ class ArangoStorage:
         await vercol.add_persistent_index([models.FIELD_COLLECTION_ID, models.FIELD_VER_NUM])
         matchcol = db.collection(COLL_SRV_MATCHES)
         # find matches ready to be moved to the deleted state
-        await matchcol.add_persistent_index([models.FIELD_MATCH_LAST_ACCESS])
+        await matchcol.add_persistent_index([models.FIELD_LAST_ACCESS])
         for col_list in dps.values():
             for col in col_list:
                 dbcol = db.collection(col.name)
@@ -243,10 +247,7 @@ class ArangoStorage:
         The caller is expected to retrive a collection from a `get_collection_version_by_*`
         method, update it to an active collection, and save it here.
         """
-        doc = collection.dict()
-        doc[FLD_ARANGO_KEY] = collection.id
-        col = self._db.collection(COLL_SRV_ACTIVE)
-        await col.insert(doc, overwrite=True)
+        await self._insert_model(collection, collection.id, COLL_SRV_ACTIVE, overwrite=True)
 
     async def get_collection_ids(self, all_=False):
         """
@@ -430,7 +431,7 @@ class ArangoStorage:
         aql = f"""
             FOR d in @@{_FLD_COLLECTION}
                 FILTER d.{FLD_ARANGO_KEY} == @{_FLD_MATCH_ID}
-                FILTER d.{models.FIELD_MATCH_LAST_ACCESS} == @last_access
+                FILTER d.{models.FIELD_LAST_ACCESS} == @last_access
                 REMOVE d IN @@{_FLD_COLLECTION}
                 OPTIONS {{exclusive: true}}
                 RETURN KEEP(d, "{FLD_ARANGO_KEY}")
@@ -462,7 +463,7 @@ class ArangoStorage:
             FOR d in @@{_FLD_COLLECTION}
                 FILTER d.{FLD_ARANGO_KEY} == @{_FLD_MATCH_ID}
                 UPDATE d WITH {{
-                    {models.FIELD_MATCH_LAST_ACCESS}: @{_FLD_CHECK_TIME},
+                    {models.FIELD_LAST_ACCESS}: @{_FLD_CHECK_TIME},
                     {models.FIELD_MATCH_USER_PERMS}: {{@USERNAME: @{_FLD_CHECK_TIME}}}
                 }} IN @@{_FLD_COLLECTION}
                 OPTIONS {{exclusive: true}}
@@ -492,24 +493,36 @@ class ArangoStorage:
         Throws an error if the match doesn't exist.
 
         match_id - the ID of the match.
-        check_time - the time at which the match was accessed in epoch milliseconds.
+        last_access - the time at which the match was accessed in epoch milliseconds.
         """
+        await self._update_last_access(
+            match_id, COLL_SRV_MATCHES, last_access, errors.NoSuchMatchError)
+
+    async def _update_last_access(
+        self,
+        item_id: str,
+        collection: str,
+        last_access: int,
+        errclass,
+        errstr: str | None = None
+    ) -> None:
         aql = f"""
             FOR d in @@{_FLD_COLLECTION}
-                FILTER d.{FLD_ARANGO_KEY} == @{_FLD_MATCH_ID}
+                FILTER d.{FLD_ARANGO_KEY} == @item_id
                 UPDATE d WITH {{
-                    {models.FIELD_MATCH_LAST_ACCESS}: @{_FLD_CHECK_TIME}
+                    {models.FIELD_LAST_ACCESS}: @{_FLD_CHECK_TIME}
                 }} IN @@{_FLD_COLLECTION}
                 OPTIONS {{exclusive: true}}
                 LET updated = NEW
                 RETURN KEEP(updated, "{FLD_ARANGO_KEY}")
             """
         bind_vars = {
-            f"@{_FLD_COLLECTION}": COLL_SRV_MATCHES,
-            _FLD_MATCH_ID: match_id,
+            f"@{_FLD_COLLECTION}": collection,
+            "item_id": item_id,
             _FLD_CHECK_TIME: last_access,
         }
-        await self._execute_aql_and_check_match_exists(match_id, aql, bind_vars)
+        await self._execute_aql_and_check_item_exists(
+            item_id, aql, bind_vars, errclass, errstr)
 
     async def send_match_heartbeat(self, match_id: str, heartbeat_timestamp: int):
         """
@@ -533,19 +546,24 @@ class ArangoStorage:
             _FLD_MATCH_ID: match_id,
             "heartbeat": heartbeat_timestamp,
         }
-        await self._execute_aql_and_check_match_exists(match_id, aql, bind_vars)
+        await self._execute_aql_and_check_item_exists(
+            match_id, aql, bind_vars, errors.NoSuchMatchError)
 
-    async def _execute_aql_and_check_match_exists(
+    async def _execute_aql_and_check_item_exists(
         self,
-        match_id: str,
+        item_id: str,
         aql: str,
         bind_vars: dict[str, Any],
+        # TODO TYPING how do you type this? It's a class, but not an *instance* of a class,
+        #             descending from errors.CollectionsError. Java would be Class<CollectionError>
+        errclass,
+        errstr: str = None,
     ) -> None:
         cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
         # having a count > 1 is impossible since keys are unique
         try:
             if cur.empty():
-                raise errors.NoSuchMatchError(match_id)
+                raise errclass(errstr or item_id)
         finally:
             await cur.close(ignore_missing=True)
 
@@ -634,7 +652,8 @@ class ArangoStorage:
                 LET updated = NEW
                 RETURN KEEP(updated, "{FLD_ARANGO_KEY}")
             """
-        await self._execute_aql_and_check_match_exists(match_id, aql, bind_vars)
+        await self._execute_aql_and_check_item_exists(
+            match_id, aql, bind_vars, errors.NoSuchMatchError)
 
     async def process_old_matches(
         self,
@@ -650,7 +669,7 @@ class ArangoStorage:
         """
         aql = f"""
             FOR d IN @@{_FLD_COLLECTION}
-                FILTER d.{models.FIELD_MATCH_LAST_ACCESS} < @max_last_access
+                FILTER d.{models.FIELD_LAST_ACCESS} < @max_last_access
                 RETURN d
             """
         bind_vars = {
@@ -669,10 +688,8 @@ class ArangoStorage:
         Adds a match in the deleted state to the database. This will overwrite any deleted match
         already present with the same internal match ID. Does not alter the source match.
         """
-        doc = jsonable_encoder(match)
-        doc[FLD_ARANGO_KEY] = match.internal_match_id
-        col = self._db.collection(COLL_SRV_MATCHES_DELETED)
-        await col.insert(doc, overwrite=True, silent=True)
+        await self._insert_model(
+            match, match.internal_match_id, COLL_SRV_MATCHES_DELETED, overwrite=True)
 
     def _to_deleted_match(self, doc: dict[str, Any]) -> models.DeletedMatch:
         self._correct_match_doc_in_place(doc)
@@ -782,7 +799,8 @@ class ArangoStorage:
                 LET updated = NEW
                 RETURN KEEP(updated, "{FLD_ARANGO_KEY}")
             """
-        await self._execute_aql_and_check_match_exists(key, aql, bind_vars)
+        await self._execute_aql_and_check_item_exists(
+            key, aql, bind_vars, errors.NoSuchMatchError)
 
     async def update_data_product_match_state(
         self,
@@ -817,7 +835,8 @@ class ArangoStorage:
                 LET updated = NEW
                 RETURN KEEP(updated, "{FLD_ARANGO_KEY}")
             """
-        await self._execute_aql_and_check_match_exists(key, aql, bind_vars)
+        await self._execute_aql_and_check_item_exists(
+            key, aql, bind_vars, errors.NoSuchMatchError)
 
     async def remove_data_product_match(self, internal_match_id: str, data_product: str):
         """
@@ -839,3 +858,67 @@ class ArangoStorage:
         """
         col = self._db.collection(arango_collection)
         await col.import_bulk(documents, on_duplicate="ignore")
+
+    async def save_selection_internal(self, selection: models.InternalSelection):
+        """
+        Save an internal selection to the database.
+        """
+        await self._insert_model(
+            selection, selection.internal_selection_id, COLL_SRV_INTERNAL_SELECTIONS)
+
+    async def get_selection_internal(self, internal_selection_id: str) -> models.InternalSelection:
+        """ Get an internal selection. """
+        col = self._db.collection(COLL_SRV_INTERNAL_SELECTIONS)
+        doc = await col.get(internal_selection_id)
+        if doc is None:
+            raise errors.NoSuchSelectionError(
+                f"There is no internal selection {internal_selection_id}")
+        doc[models.FIELD_SELECTION_STATE] = models.ProcessState(doc[models.FIELD_SELECTION_STATE])
+        return models.InternalSelection.construct(
+            **models.remove_non_model_fields(doc, models.InternalSelection))
+
+    async def save_selection_active(self, selection: models.ActiveSelection):
+        """
+        Save an active selection to the database.
+        """
+        # might want to return the old one so the active internal ID can be logged?
+        await self._insert_model(
+            selection, selection.selection_id_hash, COLL_SRV_ACTIVE_SELECTIONS)
+
+    async def get_selection_active(self, selection_id: str) -> models.ActiveSelection:
+        """
+        Get an active selection given a selection_id. Note that selection IDs are session tokens,
+        and so are omitted from error messages.
+        """
+        # tried to DRY this up with get internal selection but got too messy
+        col = self._db.collection(COLL_SRV_ACTIVE_SELECTIONS)
+        doc = await col.get(selection_id)
+        if doc is None:
+            raise errors.NoSuchSelectionError(
+                f"There is no selection by the given selection ID.")
+        return models.ActiveSelection.construct(
+            **models.remove_non_model_fields(doc, models.ActiveSelection))
+
+
+    async def update_selection_active_last_acess(self, selection_id_hash, last_access):
+        """
+        Update the last time the active selection was accessed.
+        Throws an error if the selection doesn't exist.
+
+        selection_id_hash - the hashed ID / token for the selection.
+        last_access - the time at which the selection was accessed in epoch milliseconds.
+        """
+        await self._update_last_access(
+            selection_id_hash,
+            COLL_SRV_ACTIVE_SELECTIONS,
+            last_access,
+            errors.NoSuchSelectionError,
+            # selection IDs are tokens, don't stick them in exception messages, dummy
+            errstr="No selection found for the provided selection ID"
+        )
+
+    async def _insert_model(self, model: BaseModel, key: str, collection: str, overwrite=False):
+        doc = jsonable_encoder(model)
+        doc[FLD_ARANGO_KEY] = key
+        col = self._db.collection(collection)
+        await col.insert(doc, overwrite=overwrite, silent=True)

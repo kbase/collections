@@ -61,6 +61,12 @@ COLL_SRV_MATCHES_DELETED = COLL_SRV_MATCHES + "_deleted"
 COLL_SRV_MATCHES_DATA_PRODUCTS = COLL_SRV_MATCHES + "_data_prods"
 """ A collection holding the status of calculating secondary data products for matches. """
 
+COLL_SRV_ACTIVE_SELECTIONS = _SRV_PREFIX + "selections_active"
+""" A collection holding active selections. """
+
+COLL_SRV_INTERNAL_SELECTIONS = _SRV_PREFIX + "selections_internal"
+""" A collection holding the internal state of selections. """
+
 ## Data product collections
 
 ### Taxa counts
