@@ -43,6 +43,10 @@ TOOLS_AVAILABLE = ['gtdb_tk']  # TODO: fix checkm2 container bug
 TASK_META = {'checkm2': {'chunk_size': 5000, 'exe_time': 60},
              'gtdb_tk': {'chunk_size': 1000, 'exe_time': 90}}
 NODE_TIME_LIMIT = 10  # hours
+# The THREADS variable controls the number of parallel tasks per node
+# we want to set it to 1 (execute tasks one by one) because batch parallelization is handled by the
+# compute_genome_attribs.py script
+NODE_THREADS = 1
 MAX_NODE_NUM = 100  # maximum number of nodes to use
 
 REGISTRY = 'tiangu01'  # public Docker Hub registry to pull images from
@@ -229,7 +233,7 @@ def _create_batch_script(job_dir, task_list_file, n_jobs, tool):
 module load taskfarmer
 
 cd {job_dir}
-export THREADS=32
+export THREADS={NODE_THREADS}
 
 runcommands.sh {task_list_file}'''
 

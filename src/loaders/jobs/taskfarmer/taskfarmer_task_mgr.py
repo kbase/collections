@@ -21,6 +21,9 @@ TASKFARMER_JOB_DIR = 'task_farmer_jobs'
 # file containing the information of each task
 TASK_INFO_FILE = 'task_info.jsonl'
 
+# specific string present in the Slurm log file which indicates that the job has timed out
+TIMEOUT_STR = 'DUE TO TIME LIMIT'
+
 
 class TaskError(Exception):
     pass
@@ -39,6 +42,7 @@ class JobStatus(Enum):
     COMPLETED = 'COMPLETED'
     FAILED = 'FAILED'
     CANCELLED = 'CANCELLED'
+    TIMEOUT = 'TIMEOUT'
 
     def __str__(self):
         return self.value.lower()
@@ -50,6 +54,34 @@ class TFTaskManager:
 
     The task manager is responsible for managing the tasks of TaskFarmer jobs.
     """
+
+    @staticmethod
+    def _read_last_line(file_path, n=5):
+        """
+        Read the last n line of the job log file.
+        """
+
+        if not os.path.exists(file_path):
+            return []
+
+        with open(file_path, 'r') as file:
+            # Move the file pointer to the end of the file
+            file.seek(0, os.SEEK_END)
+            position = file.tell()
+
+            last_lines = []
+            while len(last_lines) < n and position >= 0:
+                position -= 1
+                file.seek(position, os.SEEK_SET)
+                character = file.read(1)
+                if character == '\n':
+                    line = file.readline().strip()
+                    last_lines.insert(0, line)
+                elif position == 0:  # reached the beginning of the file
+                    line = file.readline().strip()
+                    last_lines.insert(0, line)
+
+        return last_lines
 
     def _get_task_info_file(self):
         """
@@ -103,6 +135,10 @@ class TFTaskManager:
 
         A 'done.tasks.txt.tfin' file is created in the job directory when the job is finished successfully.
 
+        When job is timed out, time out message will be written to the job slurm log file.
+        time out message looks like:
+        slurmstepd: error: *** STEP 6075199.0 ON nid004241 CANCELLED AT 2023-03-15T16:33:05 DUE TO TIME LIMIT ***
+
         When job is queued, squeue command will return code 0 and out put will be like:
         JOBID PARTITION     NAME     USER ST       TIME  NODES NODELIST(REASON)
         6049897 regular_m submit_t      tgu PD       0:00      2 (Priority)
@@ -130,13 +166,14 @@ class TFTaskManager:
             slurm_load_jobs error: Invalid job id specified
 
         Matrix of job status:
-        Done file  Exit Code   Job listed    Job Status Code  Returned Status
-        Y          Any         N/A           N/A              COMPLETED
-        N          0           Y             PD               PENDING
-        N          0           Y             R                RUNNING
-        N          -1          N/A           N/A              FAILED (If a job is cancelled, it will be treated as failed.)
-        N          0           N             N/A              FAILED (If a job is cancelled, it will be treated as failed.)
-        N          0           Y             CG               CANCELLED
+        Done file  Time out string Exit Code   Job listed    Job Status Code  Returned Status
+        Y           N              Any         N/A           N/A              COMPLETED
+        N           N              0           Y             PD               PENDING
+        N           N              0           Y             R                RUNNING
+        N           N              -1          N/A           N/A              FAILED (If a job is cancelled, it will be treated as failed.)
+        N           N              0           N             N/A              FAILED (If a job is cancelled, it will be treated as failed.)
+        N           N              0           Y             CG               CANCELLED
+        N           Y              Any         N/A           N/A              TIMEOUT
         """
 
         # Once all tasks are completed, NERSC generates this file.
@@ -144,6 +181,11 @@ class TFTaskManager:
         done_file = os.path.join(self.job_dir, NERSC_SLURM_DONE_FILE)
         if os.path.isfile(done_file):
             return JobStatus.COMPLETED
+
+        slurm_log = os.path.join(self.job_dir, f'slurm-{job_id}.out')
+        slurm_last_lines = self._read_last_line(slurm_log)
+        if TIMEOUT_STR in ''.join(slurm_last_lines):
+            return JobStatus.TIMEOUT
 
         # check job status using squeue command
         std_out_file, std_err_file, exit_code = tf_common.run_nersc_command(
@@ -220,9 +262,6 @@ class TFTaskManager:
 
         job_status, retry = self._get_job_status_from_nersc(job_id), 0
 
-        if job_status in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]:
-            return True
-
         while job_status in [JobStatus.RUNNING, JobStatus.PENDING] and retry < 3:
             retry += 1
             print(f"Canceling job {job_id} (try #{retry})...")
@@ -235,7 +274,7 @@ class TFTaskManager:
         if job_status in [JobStatus.RUNNING, JobStatus.PENDING]:
             raise ValueError(f"Failed to cancel job {job_id}.")
         else:
-            print(f"Job {job_id} is canceled.")
+            print(f"Job {job_id} is cancelled.")
 
     def _get_latest_task(self):
         """
@@ -279,8 +318,10 @@ class TFTaskManager:
             raise PreconditionError(
                 f'There is a previous run of the same tool and load version with a different source data directory.')
 
-        if latest_task_status in [JobStatus.FAILED, JobStatus.CANCELLED]:
-            return True
+        if latest_task_status in [JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.TIMEOUT]:
+            print(f'The tool and load version have been run before, '
+                  f'and the most recent status is {str(latest_task_status)}.'
+                  f'Resuming progress from the previous run.')
         elif latest_task_status in [JobStatus.COMPLETED, JobStatus.RUNNING, JobStatus.PENDING]:
             raise PreconditionError(
                 f'There is a previous run of the same tool and load version that is {str(latest_task_status)}.')
@@ -332,13 +373,6 @@ class TFTaskManager:
         self._check_preconditions()
 
         os.chdir(self.job_dir)
-
-        # If the .tfin files exist (these files are created by the previous run),
-        # delete them before starting a new run to avoid any issues caused by the previous run's files.
-        # TODO: investigate whether it is necessary to delete the .tfin files if a job fails due to walltime.
-        for filename in os.listdir(self.job_dir):
-            if filename.endswith(".tfin"):
-                os.remove(os.path.join(self.job_dir, filename))
 
         current_datetime = datetime.datetime.now()
         std_out_file, std_err_file, exit_code = tf_common.run_nersc_command(
