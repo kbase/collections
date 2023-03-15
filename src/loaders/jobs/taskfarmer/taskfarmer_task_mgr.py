@@ -23,16 +23,11 @@ TASK_INFO_FILE = 'task_info.jsonl'
 
 
 class TaskError(Exception):
-    def __init__(self, message):
-        self.message = message
-
-    def __str__(self):
-        return f"{self.message}"
+    pass
 
 
 class PreconditionError(TaskError):
-    def __init__(self, message):
-        super().__init__(message)
+    pass
 
 
 class JobStatus(Enum):
@@ -199,8 +194,8 @@ class TFTaskManager:
         """
 
         if self.force_run:
-            # check if the job directory exists (directory maybe recreated during initialization)
-            job_dir_exists = os.path.isdir(self.job_dir)
+            # The job directory is recreated as part of the initialization process.
+            job_dir_exists = True
         else:
             # check if the job directory exists and is not empty
             job_dir_exists = os.path.isdir(self.job_dir) and os.listdir(self.job_dir)
@@ -217,6 +212,7 @@ class TFTaskManager:
                       (df["tool"] == self.tool)]
 
         return job_dir_exists and not tasks_df.empty
+
 
     def _cancel_job(self, job_id):
         """
