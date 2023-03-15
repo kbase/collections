@@ -213,7 +213,6 @@ class TFTaskManager:
 
         return job_dir_exists and not tasks_df.empty
 
-
     def _cancel_job(self, job_id):
         """
         Cancel a job on NERSC.
