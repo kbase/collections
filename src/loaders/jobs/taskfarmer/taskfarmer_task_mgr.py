@@ -40,7 +40,7 @@ class JobStatus(Enum):
     PENDING = 'PENDING'
     RUNNING = 'RUNNING'
     COMPLETED = 'COMPLETED'
-    FAILED = 'FAILED'
+    FAILED = 'FAILED/CANCELLED'  # in many situations, we cannot identify whether a job has failed or cancelled
     CANCELLED = 'CANCELLED'
     TIMEOUT = 'TIMEOUT'
 
@@ -56,16 +56,15 @@ class TFTaskManager:
     """
 
     @staticmethod
-    def _read_last_line(file_path, n=5):
+    def _read_last_n_line(file_path, n=5):
         """
-        Read the last n line of the job log file.
+        Read the last n lines from a file and return them as a list of strings.
         """
 
         if not os.path.exists(file_path):
             return []
 
         with open(file_path, 'r') as file:
-            # Move the file pointer to the end of the file
             file.seek(0, os.SEEK_END)
             position = file.tell()
 
@@ -129,6 +128,16 @@ class TFTaskManager:
 
         return self.job_dir
 
+    def _check_time_out(self, job_id):
+        """
+        Check if the job has timed out
+        """
+
+        slurm_log = os.path.join(self.job_dir, f'slurm-{job_id}.out')
+        slurm_last_lines = self._read_last_n_line(slurm_log)
+
+        return TIMEOUT_STR in ''.join(slurm_last_lines)
+
     def _get_job_status_from_nersc(self, job_id):
         """
         Get the job status from NERSC using squeue command.
@@ -170,8 +179,8 @@ class TFTaskManager:
         Y           N              Any         N/A           N/A              COMPLETED
         N           N              0           Y             PD               PENDING
         N           N              0           Y             R                RUNNING
-        N           N              -1          N/A           N/A              FAILED (If a job is cancelled, it will be treated as failed.)
-        N           N              0           N             N/A              FAILED (If a job is cancelled, it will be treated as failed.)
+        N           N              -1          N/A           N/A              FAILED/CANCELLED (If a job is cancelled, it will be treated as failed.)
+        N           N              0           N             N/A              FAILED/CANCELLED (If a job is cancelled, it will be treated as failed.)
         N           N              0           Y             CG               CANCELLED
         N           Y              Any         N/A           N/A              TIMEOUT
         """
@@ -182,18 +191,12 @@ class TFTaskManager:
         if os.path.isfile(done_file):
             return JobStatus.COMPLETED
 
-        slurm_log = os.path.join(self.job_dir, f'slurm-{job_id}.out')
-        slurm_last_lines = self._read_last_line(slurm_log)
-        if TIMEOUT_STR in ''.join(slurm_last_lines):
-            return JobStatus.TIMEOUT
-
         # check job status using squeue command
         std_out_file, std_err_file, exit_code = tf_common.run_nersc_command(
             ['squeue', '-j', str(job_id)], self.job_dir, log_file_prefix='squeue', check_return_code=False)
 
         if exit_code != 0:
-            # job finished without creating the done file indicating the job is failed
-            return JobStatus.FAILED
+            return JobStatus.TIMEOUT if self._check_time_out(job_id) else JobStatus.FAILED
 
         with open(std_out_file, "r") as std_out, open(std_err_file, "r") as std_err:
             squeue_out = std_out.read().strip()
@@ -209,7 +212,7 @@ class TFTaskManager:
                 else:
                     raise ValueError(f"Unrecognized job status: {squeue_out}")
             else:
-                return JobStatus.FAILED
+                return JobStatus.TIMEOUT if self._check_time_out(job_id) else JobStatus.FAILED
 
     def _append_task_info(self, task_info):
         """
@@ -320,7 +323,7 @@ class TFTaskManager:
 
         if latest_task_status in [JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.TIMEOUT]:
             print(f'The tool and load version have been run before, '
-                  f'and the most recent status is {str(latest_task_status)}.'
+                  f'and the most recent status is {str(latest_task_status)}.\n'
                   f'Resuming progress from the previous run.')
         elif latest_task_status in [JobStatus.COMPLETED, JobStatus.RUNNING, JobStatus.PENDING]:
             raise PreconditionError(
