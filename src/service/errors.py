@@ -58,10 +58,16 @@ class ErrorType(Enum):
     is trying to use the match in the wrong collection or collection version, etc.
     """
 
-    MISSING_LINEAGE_ERROR =      (30070, "Missing lineage error")  # noqa: E222 @IgnorePep8
+    INVALID_SELECTION_STATE =    (30070, "Invalid selection state")  # noqa: E222 @IgnorePep8
+    """ 
+    The match selection is invalid for the context - e.g. it's not complete, the user
+    is trying to use the selection in the wrong collection or collection version, etc.
+    """
+
+    MISSING_LINEAGE_ERROR =      (30080, "Missing lineage error")  # noqa: E222 @IgnorePep8
     """ Data in a external data source is missing required lineage information. """
 
-    LINEAGE_VERSION_ERROR =      (30080, "Lineage version error")  # noqa: E222 @IgnorePep8
+    LINEAGE_VERSION_ERROR =      (30090, "Lineage version error")  # noqa: E222 @IgnorePep8
     """ Data in a external data source does not match the lineage version for the collection. """
     
     NO_DATA_FOUND =              (40000, "Requested data not found")  # noqa: E222 @IgnorePep8
@@ -177,6 +183,7 @@ class IllegalParameterError(CollectionError):
         super().__init__(ErrorType.ILLEGAL_PARAMETER, message)
 
 
+# TODO CODE some errors are suffixed with error, some arent. Standardize
 class NoRegisteredDataProduct(CollectionError):
     """
     An error thrown when a requested data product is not registered with the collection.
@@ -220,6 +227,15 @@ class InvalidMatchState(CollectionError):
 
     def __init__(self, message: str = None):
         super().__init__(ErrorType.INVALID_MATCH_STATE, message)
+
+
+class InvalidSelectionStateError(CollectionError):
+    """
+    An error thrown when the state of a selection is invalid.
+    """
+
+    def __init__(self, message: str = None):
+        super().__init__(ErrorType.INVALID_SELECTION_STATE, message)
 
 
 class MissingLineageError(CollectionError):
