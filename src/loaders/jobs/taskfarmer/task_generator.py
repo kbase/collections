@@ -93,8 +93,8 @@ def _fetch_image(registry, image_name, job_dir, tag='latest', force_pull=True):
 
     if not force_pull:
         # Check if the image is already present on the system
-        si_std_out_file, si_std_err_file, si_exit_code = tf_common.run_nersc_command(["shifterimg", "images"], job_dir,
-                                                                                     log_file_prefix='shifterimg_images')
+        si_std_out_file, si_std_err_file, si_exit_code = tf_common.run_nersc_command(
+            ["shifterimg", "images"], job_dir, log_file_prefix='shifterimg_images')
 
         with open(si_std_out_file, "r") as f:
             si_std_out = f.read()
