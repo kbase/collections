@@ -266,8 +266,8 @@ class TFTaskManager:
         self.root_dir = root_dir
 
         # job directory is named as <kbase_collection>_<load_ver>_<tool>
-        self.job_dir = os.path.join(self.root_dir, TASKFARMER_JOB_DIR,
-                                    f'{self.kbase_collection}_{self.load_ver}_{self.tool}')
+        self.job_dir = os.path.join(
+            self.root_dir, TASKFARMER_JOB_DIR, f'{self.kbase_collection}_{self.load_ver}_{self.tool}')
 
     def submit_job(self, restart_on_demand=False):
         """
