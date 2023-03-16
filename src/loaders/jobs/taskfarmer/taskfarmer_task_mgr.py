@@ -3,7 +3,6 @@ import fcntl
 import json
 import os
 import pathlib
-import shutil
 import time
 from enum import Enum
 
@@ -83,19 +82,6 @@ class TFTaskManager:
         tasks_df.sort_values(by="job_submit_time", ascending=False, inplace=True)
 
         return tasks_df
-
-    def _create_job_dir(self, destroy_old_job_dir=False):
-        """
-        Create the job directory. If destroy_old_job_dir is True, recreate the job directory.
-        """
-
-        if os.path.exists(self.job_dir) and destroy_old_job_dir:
-            print(f'removing job dir {self.job_dir}')
-            shutil.rmtree(self.job_dir, ignore_errors=True)
-
-        os.makedirs(self.job_dir, exist_ok=True)
-
-        return self.job_dir
 
     def _get_job_status_from_nersc(self, job_id):
         """
@@ -302,8 +288,6 @@ class TFTaskManager:
         # job directory is named as <kbase_collection>_<load_ver>_<tool>
         self.job_dir = os.path.join(self.root_dir, TASKFARMER_JOB_DIR,
                                     f'{self.kbase_collection}_{self.load_ver}_{self.tool}')
-
-        self._create_job_dir(destroy_old_job_dir=force_run)
 
     def submit_job(self):
         """

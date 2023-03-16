@@ -1,6 +1,7 @@
 import argparse
 import math
 import os
+import shutil
 
 import src.loaders.jobs.taskfarmer.taskfarmer_common as tf_common
 from src.loaders.common import loader_common_names
@@ -240,6 +241,18 @@ runcommands.sh {task_list_file}'''
     return batch_script_file
 
 
+def _create_job_dir(job_dir, destroy_old_job_dir=False):
+    """
+    Create the job directory. If destroy_old_job_dir is True, recreate the job directory.
+    """
+
+    if os.path.exists(job_dir) and destroy_old_job_dir:
+        print(f'removing job dir {job_dir}')
+        shutil.rmtree(job_dir, ignore_errors=True)
+
+    os.makedirs(job_dir, exist_ok=True)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='PROTOTYPE - Create the required documents/scripts for the TaskFarmer Workflow Manager'
@@ -282,6 +295,8 @@ def main():
     task_mgr = TFTaskManager(kbase_collection, load_ver, tool, source_data_dir, root_dir=root_dir, force_run=args.force)
 
     job_dir = task_mgr.job_dir
+    _create_job_dir(job_dir, destroy_old_job_dir=args.force)
+
     image_str = _fetch_image(REGISTRY, tool, job_dir, tag=args.image_tag, force_pull=not args.use_cached_image)
     wrapper_file = _create_shifter_wrapper(job_dir, image_str)
     task_list_file, n_jobs = _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper_file, job_dir,
