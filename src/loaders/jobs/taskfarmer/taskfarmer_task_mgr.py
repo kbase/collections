@@ -237,7 +237,8 @@ class TFTaskManager:
         Tasks are sorted by job_submit_time in descending order. The latest task is the first row.
         """
 
-        latest_task = self._tasks_df.iloc[0].to_dict() if self._task_exists() else {}
+        tasks_df = self._retrieve_all_tasks()
+        latest_task = tasks_df.iloc[0].to_dict() if self._task_exists() else {}
 
         if latest_task:
             job_status = self._get_job_status_from_nersc(latest_task["job_id"])
@@ -301,7 +302,6 @@ class TFTaskManager:
                                     f'{self.kbase_collection}_{self.load_ver}_{self.tool}')
 
         self._create_job_dir(destroy_old_job_dir=force_run)
-        self._tasks_df = self._retrieve_all_tasks()
 
     def submit_job(self):
         """
@@ -340,7 +340,5 @@ class TFTaskManager:
 
         task_info = {'job_id': job_id, 'job_submit_time': current_datetime.strftime("%Y-%m-%d %H:%M:%S")}
         self._append_task_info(task_info)
-
-        self._tasks_df = self._retrieve_all_tasks()
 
         return job_id
