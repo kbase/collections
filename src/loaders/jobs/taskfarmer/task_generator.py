@@ -279,7 +279,7 @@ def main():
     source_data_dir = args.source_data_dir
     root_dir = args.root_dir
 
-    task_mgr = TFTaskManager(kbase_collection, load_ver, tool, source_data_dir, root_dir=root_dir)
+    task_mgr = TFTaskManager(kbase_collection, load_ver, tool, source_data_dir, root_dir=root_dir, force_run=args.force)
 
     job_dir = task_mgr.job_dir
     image_str = _fetch_image(REGISTRY, tool, job_dir, tag=args.image_tag, force_pull=not args.use_cached_image)
@@ -291,7 +291,7 @@ def main():
 
     if args.submit_job:
         try:
-            task_mgr.submit_job(force_run=args.force)
+            task_mgr.submit_job()
         except PreconditionError as e:
             raise ValueError(f'Error submitting job:\n{e}\n'
                              f'Please use the --force flag to overwrite the previous run.') from e
