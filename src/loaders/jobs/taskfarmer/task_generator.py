@@ -306,7 +306,7 @@ def main():
 
     if args.submit_job:
         try:
-            task_mgr.submit_job(force_run=args.force)
+            task_mgr.submit_job(restart_on_demand=args.force)
         except PreconditionError as e:
             raise ValueError(f'Error submitting job:\n{e}\n'
                              f'Please use the --force flag to overwrite the previous run.') from e
