@@ -275,7 +275,7 @@ class TFTaskManager:
         :param source_data_dir: source data directory.
         :param root_dir: root directory of the collection project.
                          Default is the ROOT_DIR defined in src/loaders/common/loader_common_names.py
-        :param force_run: if True, remove contents of the old job directory and run the job.
+        :param force_run: if True, killed any running/pending jobs and run the tool again.
         """
 
         self.kbase_collection = kbase_collection
