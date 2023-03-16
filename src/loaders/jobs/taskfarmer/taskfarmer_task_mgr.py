@@ -287,12 +287,13 @@ class TFTaskManager:
 
         self._check_preconditions(restart_on_demand)
 
-        os.chdir(self.job_dir)
+        tf_common.run_nersc_command(
+            [f'cd {self.job_dir}'], self.job_dir, log_file_prefix='cd', shell=True)
 
         current_datetime = datetime.datetime.now()
         std_out_file, std_err_file, exit_code = tf_common.run_nersc_command(
-            ['sbatch', os.path.join(self.job_dir, tf_common.BATCH_SCRIPT)],
-            self.job_dir, log_file_prefix='sbatch_submit')
+            ['sbatch', os.path.join(self.job_dir, tf_common.BATCH_SCRIPT)], self.job_dir,
+            log_file_prefix='sbatch_submit')
         with open(std_out_file, "r") as f:
             sbatch_out = f.read().strip()
             job_id = sbatch_out.split(' ')[-1]

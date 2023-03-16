@@ -15,7 +15,7 @@ TASK_FILE = 'tasks.txt'
 BATCH_SCRIPT = 'submit_taskfarmer.sl'
 
 
-def run_nersc_command(command, job_dir, log_file_prefix='', check_return_code=True):
+def run_nersc_command(command, job_dir, log_file_prefix='', check_return_code=True, shell=False):
     """
     Run a command on NERSC.
 
@@ -31,7 +31,7 @@ def run_nersc_command(command, job_dir, log_file_prefix='', check_return_code=Tr
                                 f'stderr_{log_file_prefix}_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}')
 
     with open(std_out_file, "w") as std_out, open(std_err_file, "w") as std_err:
-        p = subprocess.Popen(command, stdout=std_out, stderr=std_err, text=True)
+        p = subprocess.Popen(command, stdout=std_out, stderr=std_err, text=True, shell=shell)
 
     exit_code = p.wait()
 
