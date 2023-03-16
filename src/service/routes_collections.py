@@ -9,7 +9,7 @@ import secrets
 import time
 import uuid
 
-from fastapi import APIRouter, Request, Depends, Path, Query
+from fastapi import APIRouter, Request, Depends, Path, Query, Header
 from typing import Any
 from pydantic import BaseModel, Field
 from src.common.git_commit import GIT_COMMIT
@@ -34,8 +34,9 @@ from src.service.workspace_wrapper import WorkspaceWrapper
 SERVICE_NAME = "Collections Prototype"
 
 ROUTER_GENERAL = APIRouter(tags=["General"])
-ROUTER_MATCHES = APIRouter(tags=["Matches"])
 ROUTER_COLLECTIONS = APIRouter(tags=["Collections"])
+ROUTER_MATCHES = APIRouter(tags=["Matches"])
+ROUTER_SELECTIONS = APIRouter(tags=["Selections"])
 ROUTER_COLLECTIONS_ADMIN = APIRouter(tags=["Collection Administration"])
 ROUTER_MATCH_ADMIN = APIRouter(tags=["Match Administration"], prefix="/matchadmin")
 
@@ -173,6 +174,16 @@ _QUERY_MATCH_VERBOSE = Query(
 )
 
 
+_QUERY_SELECTION_VERBOSE = Query(
+    default=False,
+    example=False,
+    description="Whether to return the selection IDs along with "
+        + "the other selection information. These data may be much larger than the rest of the "
+        + "selection and aren't often needed; in most cases they can be ignored. When false, "
+        + "the selection ID list will be empty."
+)
+
+
 class Root(BaseModel):
     service_name: str = Field(example=SERVICE_NAME)
     version: str = Field(example=VERSION)
@@ -218,6 +229,21 @@ class SelectionInput(BaseModel):
         example=["GB_GCA_000006155.2", "GB_GCA_000007385.1"],
         description="The IDs of the selected items. What these IDs are will depend on the " +
             "collection and data product the selection is against."
+    )
+
+
+class Selection(SelectionInput):
+    collection_id: str = Field(
+        example="GTDB",
+        description="The ID of the collection for the selection.",
+    )
+    collection_ver: int = Field(
+        example=7,
+        description="The version of the collection for which the selection was created."
+    )
+    selection_state: models.ProcessState = Field(
+        example=models.ProcessState.PROCESSING.value,
+        description="The state of the selection process."
     )
 
 
@@ -402,6 +428,41 @@ async def get_match(
         match_id,
         user,
         verbose=verbose
+    )
+
+
+@ROUTER_SELECTIONS.get(
+    "/selections/",
+    response_model=Selection,
+    summary="Get a selection",
+    description="Get the status and contents of a selection."
+)
+async def get_selection(
+    r: Request,
+    # When I use an alias="" argument in the Header so I can use a sane name for the variable
+    # the server thinks the header is missing
+    KBASE_COLLECTIONS_SELECTION: str = Header(
+        description="The selection ID / token returned when creating a selection."
+    ),
+    verbose: bool = _QUERY_SELECTION_VERBOSE,
+) -> Selection:
+    appstate = app_state.get_app_state(r)
+    hashed_token = _hash_token(KBASE_COLLECTIONS_SELECTION)
+    active_sel = await appstate.arangostorage.get_selection_active(hashed_token)
+    # could save bandwidth by passing verbose to DB layer and not pulling IDs
+    internal_sel = await appstate.arangostorage.get_selection_internal(
+        active_sel.internal_selection_id)
+    # TODO SELECTION if the process heartbeat is dead, restart the process
+    #                put that in a new module and move most of this code there
+    await appstate.arangostorage.update_selection_active_last_access(
+        hashed_token, appstate.get_epoch_ms())
+    if not verbose:
+        internal_sel.selection_ids = []
+    return Selection(
+        selection_ids=internal_sel.selection_ids,
+        collection_id=internal_sel.collection_id,
+        collection_ver=internal_sel.collection_ver,
+        selection_state=internal_sel.selection_state,
     )
 
 

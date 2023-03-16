@@ -900,7 +900,7 @@ class ArangoStorage:
             **models.remove_non_model_fields(doc, models.ActiveSelection))
 
 
-    async def update_selection_active_last_acess(self, selection_id_hash, last_access):
+    async def update_selection_active_last_access(self, selection_id_hash, last_access):
         """
         Update the last time the active selection was accessed.
         Throws an error if the selection doesn't exist.
