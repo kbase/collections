@@ -269,7 +269,9 @@ class TFTaskManager:
                 f'There is a previous run of the same tool and load version with a different source data directory.')
 
         if latest_task_status in [JobStatus.FAILED, JobStatus.CANCELLED]:
-            return True
+            print(f'The tool and load version have been run before, '
+                  f'and the most recent status is {str(latest_task_status)}.'
+                  f'Resuming progress from the previous run.')
         elif latest_task_status in [JobStatus.COMPLETED, JobStatus.RUNNING, JobStatus.PENDING]:
             raise PreconditionError(
                 f'There is a previous run of the same tool and load version that is {str(latest_task_status)}.')
