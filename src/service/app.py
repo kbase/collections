@@ -25,6 +25,7 @@ from src.service.routes_collections import (
     ROUTER_GENERAL,
     ROUTER_COLLECTIONS,
     ROUTER_MATCHES,
+    ROUTER_SELECTIONS,
     ROUTER_COLLECTIONS_ADMIN,
     ROUTER_MATCH_ADMIN,
     SERVICE_NAME
@@ -74,6 +75,7 @@ def create_app(noop=False):
     app.include_router(ROUTER_GENERAL)
     app.include_router(ROUTER_COLLECTIONS)
     app.include_router(ROUTER_MATCHES)
+    app.include_router(ROUTER_SELECTIONS)
     for dp in sorted(data_product_specs.get_data_products(),
                      key=lambda dp: str(dp.router.tags[0])):
         app.include_router(dp.router, prefix="/collections/{collection_id}/data_products")
