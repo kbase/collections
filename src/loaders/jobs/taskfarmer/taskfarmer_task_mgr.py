@@ -322,13 +322,6 @@ class TFTaskManager:
 
         os.chdir(self.job_dir)
 
-        # If the .tfin files exist (these files are created by the previous run),
-        # delete them before starting a new run to avoid any issues caused by the previous run's files.
-        # TODO: investigate whether it is necessary to delete the .tfin files if a job fails due to walltime.
-        for filename in os.listdir(self.job_dir):
-            if filename.endswith(".tfin"):
-                os.remove(os.path.join(self.job_dir, filename))
-
         current_datetime = datetime.datetime.now()
         std_out_file, std_err_file, exit_code = tf_common.run_nersc_command(
             ['sbatch', os.path.join(self.job_dir, tf_common.BATCH_SCRIPT)],
