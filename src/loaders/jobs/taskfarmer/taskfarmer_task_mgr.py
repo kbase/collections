@@ -232,7 +232,7 @@ class TFTaskManager:
 
         return latest_task
 
-    def _check_preconditions(self):
+    def _check_preconditions(self, force_run):
         """
         Check conditions from previous runs of the same tool and load version
         """
@@ -243,7 +243,7 @@ class TFTaskManager:
         latest_task = self._get_latest_task()
         latest_task_status, job_id = latest_task['job_status'], latest_task['job_id']
 
-        if self.force_run:
+        if force_run:
             # cancel the previous job if it is running or pending
             if latest_task_status in [JobStatus.RUNNING, JobStatus.PENDING]:
                 self._cancel_job(job_id)
@@ -264,8 +264,7 @@ class TFTaskManager:
         else:
             raise ValueError(f'Unexpected job status: {latest_task_status}')
 
-    def __init__(self, kbase_collection, load_ver, tool, source_data_dir, root_dir=loader_common_names.ROOT_DIR,
-                 force_run=False):
+    def __init__(self, kbase_collection, load_ver, tool, source_data_dir, root_dir=loader_common_names.ROOT_DIR):
         """
         Initialize the task manager.
 
@@ -275,7 +274,7 @@ class TFTaskManager:
         :param source_data_dir: source data directory.
         :param root_dir: root directory of the collection project.
                          Default is the ROOT_DIR defined in src/loaders/common/loader_common_names.py
-        :param force_run: if True, killed any running/pending jobs and run the tool again.
+
         """
 
         self.kbase_collection = kbase_collection
@@ -283,19 +282,19 @@ class TFTaskManager:
         self.tool = tool
         self.source_data_dir = source_data_dir
         self.root_dir = root_dir
-        self.force_run = force_run
 
         # job directory is named as <kbase_collection>_<load_ver>_<tool>
         self.job_dir = os.path.join(self.root_dir, TASKFARMER_JOB_DIR,
                                     f'{self.kbase_collection}_{self.load_ver}_{self.tool}')
 
-    def submit_job(self):
+    def submit_job(self, force_run=False):
         """
         Submit the job to slurm
 
         Follow the steps in https://docs.nersc.gov/jobs/workflow/taskfarmer/#taskfarmer and generate all the necessary
         files for the job submission (e.g. wrapper script, task list and batch script, etc.) before calling this function.
 
+        :param force_run: if True, killed any running/pending jobs and run the tool again.
         """
 
         # check if all the required files exist
@@ -304,7 +303,7 @@ class TFTaskManager:
             if not os.path.isfile(os.path.join(self.job_dir, filename)):
                 raise ValueError(f"{filename} does not exist in {self.job_dir}")
 
-        self._check_preconditions()
+        self._check_preconditions(force_run)
 
         os.chdir(self.job_dir)
 
