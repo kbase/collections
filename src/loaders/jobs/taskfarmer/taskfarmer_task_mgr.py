@@ -21,9 +21,6 @@ TASKFARMER_JOB_DIR = 'task_farmer_jobs'
 # file containing the information of each task
 TASK_INFO_FILE = 'task_info.jsonl'
 
-# specific string present in the Slurm log file which indicates that the job has timed out
-TIMEOUT_STR = 'DUE TO TIME LIMIT'
-
 
 class TaskError(Exception):
     pass
@@ -40,9 +37,8 @@ class JobStatus(Enum):
     PENDING = 'PENDING'
     RUNNING = 'RUNNING'
     COMPLETED = 'COMPLETED'
-    FAILED = 'FAILED/CANCELLED'  # in many situations, we cannot identify whether a job has failed or cancelled
+    FAILED = 'FAILED'
     CANCELLED = 'CANCELLED'
-    TIMEOUT = 'TIMEOUT'
 
     def __str__(self):
         return self.value.lower()
@@ -54,33 +50,6 @@ class TFTaskManager:
 
     The task manager is responsible for managing the tasks of TaskFarmer jobs.
     """
-
-    @staticmethod
-    def _read_last_n_line(file_path, n=5):
-        """
-        Read the last n lines from a file and return them as a list of strings.
-        """
-
-        if not os.path.exists(file_path):
-            return []
-
-        with open(file_path, 'r') as file:
-            file.seek(0, os.SEEK_END)
-            position = file.tell()
-
-            last_lines = []
-            while len(last_lines) < n and position >= 0:
-                position -= 1
-                file.seek(position, os.SEEK_SET)
-                character = file.read(1)
-                if character == '\n':
-                    line = file.readline().strip()
-                    last_lines.insert(0, line)
-                elif position == 0:  # reached the beginning of the file
-                    line = file.readline().strip()
-                    last_lines.insert(0, line)
-
-        return last_lines
 
     def _get_task_info_file(self):
         """
@@ -128,25 +97,11 @@ class TFTaskManager:
 
         return self.job_dir
 
-    def _check_time_out(self, job_id):
-        """
-        Check if the job has timed out
-        """
-
-        slurm_log = os.path.join(self.job_dir, f'slurm-{job_id}.out')
-        slurm_last_lines = self._read_last_n_line(slurm_log)
-
-        return TIMEOUT_STR in ''.join(slurm_last_lines)
-
     def _get_job_status_from_nersc(self, job_id):
         """
         Get the job status from NERSC using squeue command.
 
         A 'done.tasks.txt.tfin' file is created in the job directory when the job is finished successfully.
-
-        When job is timed out, time out message will be written to the job slurm log file.
-        time out message looks like:
-        slurmstepd: error: *** STEP 6075199.0 ON nid004241 CANCELLED AT 2023-03-15T16:33:05 DUE TO TIME LIMIT ***
 
         When job is queued, squeue command will return code 0 and out put will be like:
         JOBID PARTITION     NAME     USER ST       TIME  NODES NODELIST(REASON)
@@ -175,14 +130,13 @@ class TFTaskManager:
             slurm_load_jobs error: Invalid job id specified
 
         Matrix of job status:
-        Done file  Time out string Exit Code   Job listed    Job Status Code  Returned Status
-        Y           N              Any         N/A           N/A              COMPLETED
-        N           N              0           Y             PD               PENDING
-        N           N              0           Y             R                RUNNING
-        N           N              -1          N/A           N/A              FAILED/CANCELLED (If a job is cancelled, it will be treated as failed.)
-        N           N              0           N             N/A              FAILED/CANCELLED (If a job is cancelled, it will be treated as failed.)
-        N           N              0           Y             CG               CANCELLED
-        N           Y              Any         N/A           N/A              TIMEOUT
+        Done file  Exit Code   Job listed    Job Status Code  Returned Status
+        Y          Any         N/A           N/A              COMPLETED
+        N          0           Y             PD               PENDING
+        N          0           Y             R                RUNNING
+        N          -1          N/A           N/A              FAILED (If a job is cancelled, it will be treated as failed.)
+        N          0           N             N/A              FAILED (If a job is cancelled, it will be treated as failed.)
+        N          0           Y             CG               CANCELLED
         """
 
         # Once all tasks are completed, NERSC generates this file.
@@ -196,7 +150,8 @@ class TFTaskManager:
             ['squeue', '-j', str(job_id)], self.job_dir, log_file_prefix='squeue', check_return_code=False)
 
         if exit_code != 0:
-            return JobStatus.TIMEOUT if self._check_time_out(job_id) else JobStatus.FAILED
+            # job finished without creating the done file indicating the job is failed
+            return JobStatus.FAILED
 
         with open(std_out_file, "r") as std_out, open(std_err_file, "r") as std_err:
             squeue_out = std_out.read().strip()
@@ -212,7 +167,7 @@ class TFTaskManager:
                 else:
                     raise ValueError(f"Unrecognized job status: {squeue_out}")
             else:
-                return JobStatus.TIMEOUT if self._check_time_out(job_id) else JobStatus.FAILED
+                return JobStatus.FAILED
 
     def _append_task_info(self, task_info):
         """
@@ -238,13 +193,6 @@ class TFTaskManager:
         Check if the task for kbase_collection, load_ver, tool has been submitted.
         """
 
-        if self.force_run:
-            # The job directory is recreated as part of the initialization process.
-            job_dir_exists = True
-        else:
-            # check if the job directory exists and is not empty
-            job_dir_exists = os.path.isdir(self.job_dir) and os.listdir(self.job_dir)
-
         # check task exists in the task info file
         task_info_file = self._get_task_info_file()
         df = pd.read_json(task_info_file, lines=True)
@@ -256,7 +204,7 @@ class TFTaskManager:
                       (df["load_ver"] == self.load_ver) &
                       (df["tool"] == self.tool)]
 
-        return job_dir_exists and not tasks_df.empty
+        return not tasks_df.empty
 
     def _cancel_job(self, job_id):
         """
@@ -264,6 +212,9 @@ class TFTaskManager:
         """
 
         job_status, retry = self._get_job_status_from_nersc(job_id), 0
+
+        if job_status in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]:
+            return True
 
         while job_status in [JobStatus.RUNNING, JobStatus.PENDING] and retry < 3:
             retry += 1
@@ -277,30 +228,24 @@ class TFTaskManager:
         if job_status in [JobStatus.RUNNING, JobStatus.PENDING]:
             raise ValueError(f"Failed to cancel job {job_id}.")
         else:
-            print(f"Job {job_id} is cancelled.")
+            print(f"Job {job_id} is canceled.")
 
     def _get_latest_task(self):
         """
-        Get the latest task information
+        Get the latest task information from the task info file. Also retrieve the job status from NERSC.
 
         Tasks are sorted by job_submit_time in descending order. The latest task is the first row.
         """
-        return self._tasks_df.iloc[0].to_dict() if self._task_exists() else {}
 
-    def _retrieve_latest_task_status(self):
-        """
-        Retrieve the latest task status.
-        """
-        if not self._task_exists():
-            raise ValueError(f"Task does not exist for {self.kbase_collection}, {self.load_ver}, {self.tool}")
+        latest_task = self._tasks_df.iloc[0].to_dict() if self._task_exists() else {}
 
-        latest_task = self._get_latest_task()
-        job_id = latest_task["job_id"]
-        job_status = self._get_job_status_from_nersc(job_id)
+        if latest_task:
+            job_status = self._get_job_status_from_nersc(latest_task["job_id"])
+            latest_task['job_status'] = job_status
 
-        return job_status, job_id
+        return latest_task
 
-    def _check_preconditions(self):
+    def _check_preconditions(self, force_run):
         """
         Check conditions from previous runs of the same tool and load version
         """
@@ -309,30 +254,30 @@ class TFTaskManager:
             return True
 
         latest_task = self._get_latest_task()
-        latest_task_status, job_id = self._retrieve_latest_task_status()
+        latest_task_status, job_id = latest_task['job_status'], latest_task['job_id']
 
-        if self.force_run:
+        if force_run:
             # cancel the previous job if it is running or pending
             if latest_task_status in [JobStatus.RUNNING, JobStatus.PENDING]:
                 self._cancel_job(job_id)
+
+            # recreate the job directory
+            self._create_job_dir(destroy_old_job_dir=force_run)
             return True
 
         if latest_task['source_data_dir'] != self.source_data_dir:
             raise PreconditionError(
                 f'There is a previous run of the same tool and load version with a different source data directory.')
 
-        if latest_task_status in [JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.TIMEOUT]:
-            print(f'The tool and load version have been run before, '
-                  f'and the most recent status is {str(latest_task_status)}.\n'
-                  f'Resuming progress from the previous run.')
+        if latest_task_status in [JobStatus.FAILED, JobStatus.CANCELLED]:
+            return True
         elif latest_task_status in [JobStatus.COMPLETED, JobStatus.RUNNING, JobStatus.PENDING]:
             raise PreconditionError(
                 f'There is a previous run of the same tool and load version that is {str(latest_task_status)}.')
         else:
             raise ValueError(f'Unexpected job status: {latest_task_status}')
 
-    def __init__(self, kbase_collection, load_ver, tool, source_data_dir, root_dir=loader_common_names.ROOT_DIR,
-                 force_run=False):
+    def __init__(self, kbase_collection, load_ver, tool, source_data_dir, root_dir=loader_common_names.ROOT_DIR):
         """
         Initialize the task manager.
 
@@ -342,7 +287,7 @@ class TFTaskManager:
         :param source_data_dir: source data directory.
         :param root_dir: root directory of the collection project.
                          Default is the ROOT_DIR defined in src/loaders/common/loader_common_names.py
-        :param force_run: if True, remove contents of the old job directory and run the job.
+
         """
 
         self.kbase_collection = kbase_collection
@@ -350,21 +295,21 @@ class TFTaskManager:
         self.tool = tool
         self.source_data_dir = source_data_dir
         self.root_dir = root_dir
-        self.force_run = force_run
 
         # job directory is named as <kbase_collection>_<load_ver>_<tool>
         self.job_dir = os.path.join(self.root_dir, TASKFARMER_JOB_DIR,
                                     f'{self.kbase_collection}_{self.load_ver}_{self.tool}')
-
-        self._create_job_dir(destroy_old_job_dir=self.force_run)
+        self._create_job_dir()
         self._tasks_df = self._retrieve_all_tasks()
 
-    def submit_job(self):
+    def submit_job(self, force_run=False):
         """
         Submit the job to slurm
 
         Follow the steps in https://docs.nersc.gov/jobs/workflow/taskfarmer/#taskfarmer and generate all the necessary
         files for the job submission (e.g. wrapper script, task list and batch script, etc.) before calling this function.
+
+        :param force_run: if True, remove contents of the old job directory and run the job.
         """
 
         # check if all the required files exist
@@ -373,9 +318,16 @@ class TFTaskManager:
             if not os.path.isfile(os.path.join(self.job_dir, filename)):
                 raise ValueError(f"{filename} does not exist in {self.job_dir}")
 
-        self._check_preconditions()
+        self._check_preconditions(force_run)
 
         os.chdir(self.job_dir)
+
+        # If the .tfin files exist (these files are created by the previous run),
+        # delete them before starting a new run to avoid any issues caused by the previous run's files.
+        # TODO: investigate whether it is necessary to delete the .tfin files if a job fails due to walltime.
+        for filename in os.listdir(self.job_dir):
+            if filename.endswith(".tfin"):
+                os.remove(os.path.join(self.job_dir, filename))
 
         current_datetime = datetime.datetime.now()
         std_out_file, std_err_file, exit_code = tf_common.run_nersc_command(

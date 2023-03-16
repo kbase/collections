@@ -43,10 +43,6 @@ TOOLS_AVAILABLE = ['gtdb_tk']  # TODO: fix checkm2 container bug
 TASK_META = {'checkm2': {'chunk_size': 5000, 'exe_time': 60},
              'gtdb_tk': {'chunk_size': 1000, 'exe_time': 90}}
 NODE_TIME_LIMIT = 10  # hours
-# The THREADS variable controls the number of parallel tasks per node
-# we want to set it to 1 (execute tasks one by one) because batch parallelization is handled by the
-# compute_genome_attribs.py script
-NODE_THREADS = 1
 MAX_NODE_NUM = 100  # maximum number of nodes to use
 
 REGISTRY = 'tiangu01'  # public Docker Hub registry to pull images from
@@ -233,7 +229,7 @@ def _create_batch_script(job_dir, task_list_file, n_jobs, tool):
 module load taskfarmer
 
 cd {job_dir}
-export THREADS={NODE_THREADS}
+export THREADS=32
 
 runcommands.sh {task_list_file}'''
 
@@ -283,7 +279,7 @@ def main():
     source_data_dir = args.source_data_dir
     root_dir = args.root_dir
 
-    task_mgr = TFTaskManager(kbase_collection, load_ver, tool, source_data_dir, root_dir=root_dir, force_run=args.force)
+    task_mgr = TFTaskManager(kbase_collection, load_ver, tool, source_data_dir, root_dir=root_dir)
 
     job_dir = task_mgr.job_dir
     image_str = _fetch_image(REGISTRY, tool, job_dir, tag=args.image_tag, force_pull=not args.use_cached_image)
@@ -295,7 +291,7 @@ def main():
 
     if args.submit_job:
         try:
-            task_mgr.submit_job()
+            task_mgr.submit_job(force_run=args.force)
         except PreconditionError as e:
             raise ValueError(f'Error submitting job:\n{e}\n'
                              f'Please use the --force flag to overwrite the previous run.') from e
