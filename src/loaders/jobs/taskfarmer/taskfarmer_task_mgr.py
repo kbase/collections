@@ -67,21 +67,20 @@ class TFTaskManager:
         """
         Retrieve the task information from the task info file matching the kbase_collection, load_ver, and tool.
 
-        Sort the tasks by job_submit_time in descending order.
+        Sort the tasks by job_submit_time in descending order. Return the tasks as a pandas DataFrame. If no tasks are
+        found, return an empty DataFrame.
         """
-        if not self._task_exists():
-            return None
-
         task_info_file = self._get_task_info_file()
         df = pd.read_json(task_info_file, lines=True)
 
-        tasks_df = df[(df["kbase_collection"] == self.kbase_collection) &
-                      (df["load_ver"] == self.load_ver) &
-                      (df["tool"] == self.tool)]
+        if not df.empty:
+            df = df[(df["kbase_collection"] == self.kbase_collection) &
+                    (df["load_ver"] == self.load_ver) &
+                    (df["tool"] == self.tool)]
 
-        tasks_df.sort_values(by="job_submit_time", ascending=False, inplace=True)
+            df.sort_values(by="job_submit_time", ascending=False, inplace=True)
 
-        return tasks_df
+        return df
 
     def _get_job_status_from_nersc(self, job_id):
         """
@@ -174,24 +173,6 @@ class TFTaskManager:
             writer.write('\n')
             fcntl.flock(writer.fileno(), fcntl.LOCK_UN)
 
-    def _task_exists(self):
-        """
-        Check if the task for kbase_collection, load_ver, tool has been submitted.
-        """
-
-        # check task exists in the task info file
-        task_info_file = self._get_task_info_file()
-        df = pd.read_json(task_info_file, lines=True)
-
-        if df.empty:
-            return False
-
-        tasks_df = df[(df["kbase_collection"] == self.kbase_collection) &
-                      (df["load_ver"] == self.load_ver) &
-                      (df["tool"] == self.tool)]
-
-        return not tasks_df.empty
-
     def _cancel_job(self, job_id):
         """
         Cancel a job on NERSC.
@@ -224,7 +205,7 @@ class TFTaskManager:
         """
 
         tasks_df = self._retrieve_all_tasks()
-        latest_task = tasks_df.iloc[0].to_dict() if self._task_exists() else {}
+        latest_task = tasks_df.iloc[0].to_dict() if not tasks_df.empty else {}
 
         if latest_task:
             job_status = self._get_job_status_from_nersc(latest_task["job_id"])
@@ -237,10 +218,11 @@ class TFTaskManager:
         Check conditions from previous runs of the same tool and load version
         """
 
-        if not self._task_exists():
+        latest_task = self._get_latest_task()
+
+        if not latest_task:
             return True
 
-        latest_task = self._get_latest_task()
         latest_task_status, job_id = latest_task['job_status'], latest_task['job_id']
 
         if restart_on_demand:

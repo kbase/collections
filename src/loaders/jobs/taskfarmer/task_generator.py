@@ -71,9 +71,8 @@ def _pull_image(image_str, job_dir):
     """
 
     print(f"Fetching Shifter image {image_str}...")
-    sp_std_out_file, sp_std_err_file, sp_exit_code = tf_common.run_nersc_command(["shifterimg", "pull", image_str],
-                                                                                 job_dir,
-                                                                                 log_file_prefix='shifterimg_pull')
+    sp_std_out_file, sp_std_err_file, sp_exit_code = tf_common.run_nersc_command(
+        ["shifterimg", "pull", image_str], job_dir, log_file_prefix='shifterimg_pull')
 
     with open(sp_std_out_file, "r") as std_out, open(sp_std_err_file, "r") as std_err:
         sp_std_out = std_out.read()
