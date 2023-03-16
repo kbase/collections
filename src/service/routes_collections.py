@@ -5,7 +5,6 @@ Routes for general collections endpoints, as opposed to endpoint for a particula
 import hashlib
 import json
 import jsonschema
-import secrets
 import time
 import uuid
 
@@ -22,6 +21,8 @@ from src.service import kb_auth
 from src.service import match_deletion
 from src.service import match_retrieval
 from src.service import models
+from src.service import selection_processing
+from src.service import tokens
 from src.service.clients.workspace_client import Workspace
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.matchers.common_models import Matcher
@@ -42,8 +43,6 @@ ROUTER_COLLECTIONS_ADMIN = APIRouter(tags=["Collection Administration"])
 ROUTER_MATCH_ADMIN = APIRouter(tags=["Match Administration"], prefix="/matchadmin")
 
 UTF_8 = "utf-8"
-
-MAX_SELECTION_IDS = 10000
 
 _AUTH = KBaseHTTPBearer()
 
@@ -129,49 +128,6 @@ def _calc_match_id_md5(
         m.update(u.encode(UTF_8))
         m.update(pipe)
     return m.hexdigest()
-
-
-async def _save_selection(
-    appstate: app_state_data_structures.CollectionsState,
-    coll: models.SavedCollection,
-    token: str,
-    active_selection_id: str,
-    selection_ids: list[str],
-    overwrite: bool = False
-):
-    if len(selection_ids) > MAX_SELECTION_IDS:
-        raise errors.IllegalParameterError(f"At most {MAX_SELECTION_IDS} can be submitted")
-    internal_id = str(uuid.uuid4())
-    now = appstate.get_epoch_ms()
-    internal_sel = models.InternalSelection(
-        internal_selection_id=internal_id,
-        collection_id=coll.id,
-        collection_ver=coll.ver_num,
-        selection_ids=selection_ids,
-        unmatched_ids=None,
-        created=now,
-        heartbeat=None,
-        state=models.ProcessState.PROCESSING,
-        state_updated=now,
-    )
-    active_sel = models.ActiveSelection(
-        selection_id_hash=_hash_token(token),
-        active_selection_id=active_selection_id,
-        internal_selection_id=internal_id,
-        last_access=now,
-    )
-    await appstate.arangostorage.save_selection_internal(internal_sel)
-    await appstate.arangostorage.save_selection_active(active_sel, overwrite=overwrite)
-    # TODO SELECTION start selection process
-
-
-# maybe these should go in a different module
-def _get_token():
-    return "coll-selection-" + secrets.token_urlsafe()  # 256 bits by default
-
-
-def _hash_token(token: str):
-    return hashlib.sha256(token.encode(UTF_8)).hexdigest()
 
 
 _PATH_VER_TAG = Path(
@@ -419,8 +375,8 @@ async def create_selection(
 ) -> SelectionToken:
     appstate = app_state.get_app_state(r)
     coll = await appstate.arangostorage.get_collection_active(collection_id)
-    token = _get_token()
-    await _save_selection(appstate, coll, token, str(uuid.uuid4()), selection.selection_ids)
+    token = tokens.create_token(prefix="coll-selection-")
+    await selection_processing.save_selection(appstate, coll, token, selection.selection_ids)
     return SelectionToken(selection_token=token)
 
 
@@ -468,18 +424,9 @@ async def get_selection(
     verbose: bool = _QUERY_SELECTION_VERBOSE,
 ) -> Selection:
     appstate = app_state.get_app_state(r)
-    hashed_token = _hash_token(KBASE_COLLECTIONS_SELECTION)
-    active_sel = await appstate.arangostorage.get_selection_active(hashed_token)
-    # could save bandwidth by passing verbose to DB layer and not pulling IDs
-    internal_sel = await appstate.arangostorage.get_selection_internal(
-        active_sel.internal_selection_id)
-    # TODO SELECTION if the process heartbeat is dead, restart the process
-    #                put that in a new module and move most of this code there
-    await appstate.arangostorage.update_selection_active_last_access(
-        hashed_token, appstate.get_epoch_ms())
-    if not verbose:
-        internal_sel.selection_ids = []
-        internal_sel.unmatched_ids = None if internal_sel.unmatched_ids is None else []
+    internal_sel = await selection_processing.get_internal_selection(
+        appstate, KBASE_COLLECTIONS_SELECTION, verbose=verbose
+    )
     return Selection(
         selection_ids=internal_sel.selection_ids,
         unmatched_ids=internal_sel.unmatched_ids,
@@ -503,7 +450,7 @@ async def update_selection(
 ):
     appstate = app_state.get_app_state(r)
     token = KBASE_COLLECTIONS_SELECTION
-    active_sel = await appstate.arangostorage.get_selection_active(_hash_token(token))
+    active_sel = await appstate.arangostorage.get_selection_active(tokens.hash_token(token))
     internal_sel = await appstate.arangostorage.get_selection_internal(
         active_sel.internal_selection_id)
     coll = await appstate.arangostorage.get_collection_active(internal_sel.collection_id)
@@ -511,12 +458,12 @@ async def update_selection(
         raise errors.InvalidSelectionStateError(
             f"The requested selection is for {coll.id} collection version "
             + f"{internal_sel.collection_ver}, while the current version is {coll.ver_num}")
-    await _save_selection(
+    await selection_processing.save_selection(
         appstate,
         coll,
         token,
-        active_sel.active_selection_id,
         selection.selection_ids,
+        active_selection_id=active_sel.active_selection_id,
         overwrite=True,
     )
 
