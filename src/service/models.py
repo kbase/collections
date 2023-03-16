@@ -493,6 +493,8 @@ class InternalSelection(BaseModel):
         description="The IDs of the selected items. What these IDs are will depend on the " +
             "collection and data product the selection is against."
     )
+    # TODO MODELS try to create a shared model between matches and selection for common job
+    #             state like heartbeat, state, created, etc
     created: int = Field(
         example=1674243789864,
         description="Milliseconds since the Unix epoch at the point the selection was created."
