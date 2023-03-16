@@ -230,6 +230,11 @@ class TFTaskManager:
             if latest_task_status in [JobStatus.RUNNING, JobStatus.PENDING]:
                 self._cancel_job(job_id)
 
+            # make sure all .tfin files from previous run are removed to avoid any issues caused by them
+            for filename in os.listdir(self.job_dir):
+                if filename.endswith(".tfin"):
+                    os.remove(os.path.join(self.job_dir, filename))
+
             return True
 
         if latest_task['source_data_dir'] != self.source_data_dir:
