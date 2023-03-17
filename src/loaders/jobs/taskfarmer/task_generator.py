@@ -1,13 +1,11 @@
 import argparse
-import datetime
 import math
 import os
 import shutil
-import subprocess
 
-import jsonlines
-
+import src.loaders.jobs.taskfarmer.taskfarmer_common as tf_common
 from src.loaders.common import loader_common_names
+from src.loaders.jobs.taskfarmer.taskfarmer_task_mgr import TFTaskManager, PreconditionError
 
 '''
 
@@ -66,35 +64,6 @@ TOOL_VOLUME_MAP = {'checkm2': {CHECKM2_DB: '/CheckM2_database'},
 # Docker image tags for the tools
 DEFAULT_IMG_TAG = 'latest'
 
-# directory containing the TaskFarmer job scripts under the root directory
-TASKFARMER_JOB_DIR = 'task_farmer_jobs'
-TASK_INFO_FILE = 'task_info.jsonl'  # file containing the information of each task
-
-
-def _run_command(command, job_dir, log_file_prefix='', check_return_code=True):
-    """
-    Runs the specified command and captures its standard output and standard error.
-    """
-    log_dir = os.path.join(job_dir, 'logs')
-    os.makedirs(log_dir, exist_ok=True)
-    std_out_file = os.path.join(log_dir,
-                                f'stdout_{log_file_prefix}_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}')
-    std_err_file = os.path.join(log_dir,
-                                f'stderr_{log_file_prefix}_{datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}')
-
-    with open(std_out_file, "w") as std_out, open(std_err_file, "w") as std_err:
-        p = subprocess.Popen(command, stdout=std_out, stderr=std_err, text=True)
-
-    exit_code = p.wait()
-
-    if check_return_code and exit_code != 0:
-        with open(std_out_file, "r") as std_out, open(std_err_file, "r") as std_err:
-            raise ValueError(f"Error running command '{command}'.\n"
-                             f"Standard output: {std_out.read()}\n"
-                             f"Standard error: {std_err.read()}")
-
-    return std_out_file, std_err_file, exit_code
-
 
 def _pull_image(image_str, job_dir):
     """
@@ -102,8 +71,8 @@ def _pull_image(image_str, job_dir):
     """
 
     print(f"Fetching Shifter image {image_str}...")
-    sp_std_out_file, sp_std_err_file, sp_exit_code = _run_command(["shifterimg", "pull", image_str], job_dir,
-                                                                  log_file_prefix='shifterimg_pull')
+    sp_std_out_file, sp_std_err_file, sp_exit_code = tf_common.run_nersc_command(
+        ["shifterimg", "pull", image_str], job_dir, log_file_prefix='shifterimg_pull')
 
     with open(sp_std_out_file, "r") as std_out, open(sp_std_err_file, "r") as std_err:
         sp_std_out = std_out.read()
@@ -124,8 +93,8 @@ def _fetch_image(registry, image_name, job_dir, tag='latest', force_pull=True):
 
     if not force_pull:
         # Check if the image is already present on the system
-        si_std_out_file, si_std_err_file, si_exit_code = _run_command(["shifterimg", "images"], job_dir,
-                                                                      log_file_prefix='shifterimg_images')
+        si_std_out_file, si_std_err_file, si_exit_code = tf_common.run_nersc_command(
+            ["shifterimg", "images"], job_dir, log_file_prefix='shifterimg_images')
 
         with open(si_std_out_file, "r") as f:
             si_std_out = f.read()
@@ -167,7 +136,7 @@ echo "Running shifter --image=$image $command"
 cd {job_dir}
 shifter --image=$image $command'''
 
-    wrapper_file = os.path.join(job_dir, 'shifter_wrapper.sh')
+    wrapper_file = os.path.join(job_dir, tf_common.WRAPPER_FILE)
     with open(wrapper_file, "w") as f:
         f.write(shifter_wrapper)
 
@@ -219,7 +188,7 @@ def _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper
 
         task_list += f'''--entrypoint\n'''
 
-    task_list_file = os.path.join(job_dir, 'tasks.txt')
+    task_list_file = os.path.join(job_dir, tf_common.TASK_FILE)
     with open(task_list_file, "w") as f:
         f.write(task_list)
 
@@ -264,40 +233,23 @@ export THREADS=32
 
 runcommands.sh {task_list_file}'''
 
-    batch_script_file = os.path.join(job_dir, 'submit_taskfarmer.sl')
+    batch_script_file = os.path.join(job_dir, tf_common.BATCH_SCRIPT)
     with open(batch_script_file, "w") as f:
         f.write(batch_script)
 
     return batch_script_file
 
 
-def _create_job_dir(root_dir, tool, kbase_collection, load_ver, force=False):
+def _create_job_dir(job_dir, destroy_old_job_dir=False):
     """
-    Create the job directory
-
-    Job directory structure: <root_dir>/<TASKFARMER_JOB_DIR>/<kbase_collection>_<load_ver>_<tool>
+    Create the job directory. If destroy_old_job_dir is True, recreate the job directory.
     """
 
-    job_dir = os.path.join(root_dir, TASKFARMER_JOB_DIR, f'{kbase_collection}_{load_ver}_{tool}')
-
-    if os.path.exists(job_dir) and force:
-        shutil.rmtree(job_dir)
+    if os.path.exists(job_dir) and destroy_old_job_dir:
+        print(f'removing job dir {job_dir}')
+        shutil.rmtree(job_dir, ignore_errors=True)
 
     os.makedirs(job_dir, exist_ok=True)
-
-    return job_dir
-
-
-def _append_task_info(root_dir, task_info):
-    """
-    Append the task information to the task info file
-    """
-
-    task_info_file = os.path.join(root_dir, TASKFARMER_JOB_DIR, TASK_INFO_FILE)
-
-    # Append the new record to the file
-    with jsonlines.open(task_info_file, mode='a') as writer:
-        writer.write(task_info)
 
 
 def main():
@@ -339,34 +291,26 @@ def main():
     source_data_dir = args.source_data_dir
     root_dir = args.root_dir
 
-    current_datetime = datetime.datetime.now()
-    job_dir = _create_job_dir(root_dir, tool, kbase_collection, load_ver, force=args.force)
+    task_mgr = TFTaskManager(kbase_collection, load_ver, tool, source_data_dir, root_dir=root_dir)
+
+    job_dir = task_mgr.job_dir
+    _create_job_dir(job_dir, destroy_old_job_dir=args.force)
 
     image_str = _fetch_image(REGISTRY, tool, job_dir, tag=args.image_tag, force_pull=not args.use_cached_image)
     wrapper_file = _create_shifter_wrapper(job_dir, image_str)
-
     task_list_file, n_jobs = _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper_file, job_dir,
                                                root_dir)
 
     batch_script = _create_batch_script(job_dir, task_list_file, n_jobs, tool)
 
-    job_id = None
     if args.submit_job:
-        os.chdir(job_dir)
-        std_out_file, std_err_file, exit_code = _run_command(['sbatch', os.path.join(job_dir, 'submit_taskfarmer.sl')],
-                                                             job_dir, log_file_prefix='sbatch_submit')
-        with open(std_out_file, "r") as f:
-            sbatch_out = f.read().strip()
-            job_id = sbatch_out.split(' ')[-1]
-            print(f'Job submitted to slurm.\n{sbatch_out}')
+        try:
+            task_mgr.submit_job(restart_on_demand=args.force)
+        except PreconditionError as e:
+            raise ValueError(f'Error submitting job:\n{e}\n'
+                             f'Please use the --force flag to overwrite the previous run.') from e
     else:
         print(f'Please go to Job Directory: {job_dir} and submit the batch script: {batch_script} to the scheduler.')
-
-    if job_id:
-        task_info = {'kbase_collection': kbase_collection, 'load_ver': load_ver, 'tool': tool,
-                     'job_id': job_id, 'job_start_time': current_datetime.strftime("%Y-%m-%d %H:%M:%S"),
-                     'source_data_dir': source_data_dir}
-        _append_task_info(root_dir, task_info)
 
 
 if __name__ == "__main__":
