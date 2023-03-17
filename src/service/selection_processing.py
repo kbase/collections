@@ -2,15 +2,58 @@
 Tools for creating and getting selections and starting and recovering selection processes.
 """
 
+import logging
 import uuid
 
-from src.service.app_state_data_structures import CollectionsState
+from typing import Any
+
+from src.service.app_state_data_structures import CollectionsState, PickleableDependencies
+from src.service import data_product_specs
 from src.service import errors
 from src.service import models
+from src.service import processing
 from src.service import tokens
 
 
 MAX_SELECTION_IDS = 10000
+
+
+async def _selection_process(
+    internal_selection_id: str,
+    deps: PickleableDependencies,
+    args: list[Any]
+):
+    hb = None
+    arangoclient = None
+    try:
+        arangoclient, storage = await deps.get_storage()
+        async def heartbeat(millis: int):
+            await storage.send_selection_heartbeat(internal_selection_id, millis)
+        hb = processing.Heartbeat(heartbeat, processing.HEARTBEAT_INTERVAL_SEC)
+        hb.start()
+        internal_sel = await storage.get_selection_internal(internal_selection_id)
+        # throws an error if the data product doesn't exist
+        # may want to add a wrapper method to PickleableDependencies so this can be mocked
+        data_product = data_product_specs.get_data_product_spec(internal_sel.data_product)
+        await data_product.apply_selection(storage, internal_selection_id)
+    except Exception as e:
+        logging.getLogger(__name__).exception(
+            f"Selection process for internal selection {internal_selection_id} failed")
+        await storage.update_selection_state(
+            internal_selection_id, models.ProcessState.FAILED, deps.get_epoch_ms())
+    finally:
+        if hb:
+            hb.stop()
+        if arangoclient:
+            await arangoclient.close()
+
+
+def _start_process(internal_selection_id: str, appstate: CollectionsState):
+    # Theoretically we could save some CPU by finding selecions with the same selection list
+    # and reusing the results, but given they're isolated by token that seems like a pain
+    # YAGNI until it becomes an issue
+    processing.CollectionProcess(process=_selection_process, args=[]
+        ).start(internal_selection_id, appstate.get_pickleable_dependencies())
 
 
 async def save_selection(
@@ -22,7 +65,8 @@ async def save_selection(
     overwrite: bool = False
 ):
     """
-    Save a selection to the service database.
+    Save a selection to the service database and start the process to apply the selection to
+    the collection data.
 
     appstate - the application state, including the database where the selection will be saved.
     coll - the collection the selection applies to.
@@ -63,7 +107,7 @@ async def save_selection(
     )
     await appstate.arangostorage.save_selection_internal(internal_sel)
     await appstate.arangostorage.save_selection_active(active_sel, overwrite=overwrite)
-    # TODO SELECTION start selection process
+    _start_process(internal_id, appstate)
 
 
 async def get_internal_selection(
@@ -76,10 +120,12 @@ async def get_internal_selection(
     # could save bandwidth by passing verbose to DB layer and not pulling IDs
     internal_sel = await appstate.arangostorage.get_selection_internal(
         active_sel.internal_selection_id)
-    # TODO SELECTION if the process heartbeat is dead, restart the process
-    #                put that in a new module and move most of this code there
     await appstate.arangostorage.update_selection_active_last_access(
         hashed_token, appstate.get_epoch_ms())
+    if processing.requires_restart(appstate.get_epoch_ms(), internal_sel):
+        logging.getLogger(__name__).warn(
+            f"Restarting selection process for internal ID {internal_sel.internal_selection_id}")
+        _start_process(internal_sel.internal_selection_id, appstate)
     if not verbose:
         internal_sel.selection_ids = []
         internal_sel.unmatched_ids = None if internal_sel.unmatched_ids is None else []

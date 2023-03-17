@@ -869,12 +869,26 @@ class ArangoStorage:
         return models.InternalSelection.construct(
             **models.remove_non_model_fields(doc, models.InternalSelection))
 
+    async def send_selection_heartbeat(self, internal_selection_id: str, heartbeat_timestamp: int):
+        """
+        Send a heartbeat to a selection, updating the heartbeat timestamp.
+
+        internal_selection-id - the ID of the selection to modify.
+        heartbeat_timestamp - the timestamp of the heartbeat in epoch milliseconts.
+        """
+        await self._send_heartbeat(
+            COLL_SRV_INTERNAL_SELECTIONS,
+            internal_selection_id,
+            heartbeat_timestamp,
+            errors.NoSuchSelectionError
+        )
+
     async def update_selection_state(
         self,
         internal_selection_id: str,
         state: models.ProcessState,
         update_time: int,
-        missing_selections: list[str]
+        missing_selections: list[str] = None,
     ):
         """
         Update the state of the selection, optionally setting missing selection IDs.

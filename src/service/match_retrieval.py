@@ -136,7 +136,7 @@ async def _check_match_state(
                 + f"while the current version is {col.ver_num}")
     # Don't restart the match if the collection is out of date
     # Also only restart if the match is requested for the correct collection
-    if _requires_restart(deps, match):
+    if processing.requires_restart(deps.get_epoch_ms(), match):
         mp, _, _ = await create_match_process(
             deps.get_matcher(match.matcher_id),
             ww,
@@ -149,23 +149,6 @@ async def _check_match_state(
     # might need to separate out the still processing error from the id / ver matching
     if require_complete and match.state != models.ProcessState.COMPLETE:
         raise errors.InvalidMatchStateError(f"Match {match.match_id} processing is not complete")
-
-
-def _requires_restart(deps: CollectionsState, process: models.ProcessAttributes) -> bool:
-    if process.state == models.ProcessState.PROCESSING:
-        # "failed" indicates the failure is not necessarily recoverable
-        # E.g. an admin should take a look
-        # We may need to add another state for recoverable errors like loss of contact w/ arango...
-        # but that kind of thing could lead to a lot of jobs being kicked off over and over
-        # Better to put retries in the matching code or arango storage wrapper
-        maxdiff = processing.HEARTBEAT_RESTART_THRESHOLD_MS
-        now = deps.get_epoch_ms()
-        if process.heartbeat is None:
-            if now - process.created > maxdiff:
-                return True
-        elif now - process.heartbeat > maxdiff:
-            return True
-    return False
 
 
 async def create_match_process(
@@ -315,7 +298,7 @@ async def get_or_create_data_product_match(
     )
     if not exists:
         _start_process(match.match_id, match_process, deps.get_pickleable_dependencies())
-    elif _requires_restart(deps, dp_match):
+    elif processing.requires_restart(deps.get_epoch_ms(), dp_match):
         logging.getLogger(__name__).warn(
             f"Restarting match process for match {dp_match.internal_match_id} "
             + f"data product {data_product}"

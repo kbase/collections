@@ -11,6 +11,7 @@ import multiprocessing
 from pydantic import BaseModel, Field
 from typing import Callable, Any
 from src.service.app_state_data_structures import PickleableDependencies
+from src.service import models
 from src.service.timestamp import now_epoch_millis
 
 
@@ -55,6 +56,35 @@ def run_async_process(target: Callable, args: list[Any]):
 
 def _run_async_process(target: Callable, args: list[Any]):
     asyncio.run(target(*args))
+
+
+def requires_restart(current_time_epoch_ms: int, process: models.ProcessAttributes) -> bool:
+    f"""
+    Check if a process should be restarted.
+
+    current_time_epoch_ms - the current time in milliseconds since the epoch.
+    process - the process to check.
+
+    Returns true if:
+    * the state of the process is {models.ProcessState.PROCESSING.value} and
+    * one of the following is true
+        * the process has never sent a heartbeat and the process was created >
+          {HEARTBEAT_RESTART_THRESHOLD_MS} ms ago
+        * the heartbeat is > {HEARTBEAT_RESTART_THRESHOLD_MS} ms old
+    """
+    if process.state == models.ProcessState.PROCESSING:
+        # "failed" indicates the failure is not necessarily recoverable
+        # E.g. an admin should take a look
+        # We may need to add another state for recoverable errors like loss of contact w/ arango...
+        # but that kind of thing could lead to a lot of jobs being kicked off over and over
+        # Better to put retries in the matching code or arango storage wrapper
+        maxdiff = HEARTBEAT_RESTART_THRESHOLD_MS
+        if process.heartbeat is None:
+            if current_time_epoch_ms - process.created > maxdiff:
+                return True
+        elif current_time_epoch_ms - process.heartbeat > maxdiff:
+            return True
+    return False
 
 
 class Heartbeat:
