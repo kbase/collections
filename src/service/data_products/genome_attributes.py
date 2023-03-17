@@ -35,6 +35,9 @@ ID = "genome_attribs"
 
 _ROUTER = APIRouter(tags=["Genome Attributes"], prefix=f"/{ID}")
 
+_MATCH_ID_PREFIX = "m_"
+_SELECTION_ID_PREFIX = "s_"
+
 
 class GenomeAttribsSpec(DataProductSpec):
 
@@ -82,11 +85,11 @@ GENOME_ATTRIBS_SPEC = GenomeAttribsSpec(
                     names.FLD_COLLECTION_ID,
                     names.FLD_LOAD_VERSION,
                     # https://www.arangodb.com/docs/stable/indexing-index-basics.html#indexing-array-values
-                    names.FLD_GENOME_ATTRIBS_MATCHES + "[*]",
+                    names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS + "[*]",
                     names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID,
                     # for finding matches, and optionally a default sort on the genome ID
                 ],
-                [names.FLD_GENOME_ATTRIBS_MATCHES + "[*]"]  # for match deletion
+                [names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS + "[*]"]  # for deletion
             ]
         )
     ]
@@ -97,8 +100,7 @@ _OPT_AUTH = KBaseHTTPBearer(optional=True)
 
 def _remove_keys(doc):
     doc = remove_collection_keys(remove_arango_keys(doc))
-    doc.pop(names.FLD_GENOME_ATTRIBS_MATCHES, None)
-    doc.pop(names.FLD_GENOME_ATTRIBS_SELECTIONS, None)
+    doc.pop(names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS, None)
     return doc
 
 
@@ -274,9 +276,9 @@ async def _query(
         FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
     """
     if internal_match_id and not match_mark:
-        bind_vars["internal_match_id"] = internal_match_id
+        bind_vars["internal_match_id"] = _MATCH_ID_PREFIX + internal_match_id
         aql += f"""
-            FILTER @internal_match_id IN d.{names.FLD_GENOME_ATTRIBS_MATCHES}
+            FILTER @internal_match_id IN d.{names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS}
         """
     aql += f"""
         SORT d.@{_FLD_SORT} @{_FLD_SORT_DIR}
@@ -295,8 +297,8 @@ async def _query(
     try:
         async for d in cur:
             if internal_match_id:
-                d[names.FLD_GENOME_ATTRIBS_MATCHED] = internal_match_id in d[
-                    names.FLD_GENOME_ATTRIBS_MATCHES]
+                d[names.FLD_GENOME_ATTRIBS_MATCHED] = _MATCH_ID_PREFIX + internal_match_id in d[
+                    names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS]
             if output_table:
                 data.append([d[k] for k in sorted(_remove_keys(d))])
             else:
@@ -335,9 +337,9 @@ async def _count(
         FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
     """
     if internal_match_id:
-        bind_vars["internal_match_id"] = internal_match_id
+        bind_vars["internal_match_id"] = _MATCH_ID_PREFIX + internal_match_id
         aql += f"""
-            FILTER @internal_match_id IN d.{names.FLD_GENOME_ATTRIBS_MATCHES}
+            FILTER @internal_match_id IN d.{names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS}
         """
     aql += f"""
         COLLECT WITH COUNT INTO length
@@ -399,7 +401,7 @@ async def _mark_gtdb_matches_IN_strategy(
 ):
     # may need to batch this if lineages is too big
     # retries?
-    mtch = names.FLD_GENOME_ATTRIBS_MATCHES
+    mtch = names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS
     aql = f"""
         FOR d IN @@{_FLD_COL_NAME}
             FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
@@ -417,7 +419,7 @@ async def _mark_gtdb_matches_IN_strategy(
         _FLD_COL_ID: collection_id,
         _FLD_COL_LV: load_ver,
         "lineages": list(lineages),
-        "internal_match_id": internal_match_id,
+        "internal_match_id": _MATCH_ID_PREFIX + internal_match_id,
     }
     await _mark_gtdb_matches_complete(storage, aql, bind_vars, match_id)
 
@@ -452,7 +454,7 @@ async def _mark_gtdb_matches_STARTS_WITH_strategy(
     # later
     # could also probably DRY up this and the above method
     # retries?
-    mtch = names.FLD_GENOME_ATTRIBS_MATCHES
+    mtch = names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS
     lin = names.FLD_GENOME_ATTRIBS_GTDB_LINEAGE
     aql = f"""
         FOR d IN @@{_FLD_COL_NAME}
@@ -478,7 +480,7 @@ async def _mark_gtdb_matches_STARTS_WITH_strategy(
         f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
         _FLD_COL_ID: collection_id,
         _FLD_COL_LV: load_ver,
-        "internal_match_id": internal_match_id,
+        "internal_match_id": _MATCH_ID_PREFIX + internal_match_id,
     }
     for i, lin in enumerate(lineages):
         bind_vars[f"linbottom{i}"] = lin
@@ -514,13 +516,13 @@ async def process_match_documents(
         f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
         _FLD_COL_ID: collection.id,
         _FLD_COL_LV: load_ver,
-        "internal_match_id": internal_match_id,
+        "internal_match_id": _MATCH_ID_PREFIX + internal_match_id,
     }
     aql = f"""
     FOR d IN @@{_FLD_COL_NAME}
         FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
         FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
-        FILTER @internal_match_id IN d.{names.FLD_GENOME_ATTRIBS_MATCHES}
+        FILTER @internal_match_id IN d.{names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS}
         """
     if fields:
         aql += """
@@ -547,10 +549,10 @@ async def delete_match(storage: ArangoStorage, internal_match_id: str):
     storage - the storage system
     internal_match_id - the match to delete.
     """
-    m = names.FLD_GENOME_ATTRIBS_MATCHES
+    m = names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS
     bind_vars = {
         f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
-        "internal_match_id": internal_match_id,
+        "internal_match_id": _MATCH_ID_PREFIX + internal_match_id,
     }
     aql = f"""
         FOR d IN @@{_FLD_COL_NAME}
@@ -576,7 +578,7 @@ async def mark_selections(storage: ArangoStorage, internal_selection_id: str):
 
     # a bit too tricky to DRY this up with gtdb lineage matches above, although they're similar
     # retries?
-    selfld = names.FLD_GENOME_ATTRIBS_SELECTIONS
+    selfld = names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS
     aql = f"""
         FOR d IN @@{_FLD_COL_NAME}
             FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
@@ -594,7 +596,7 @@ async def mark_selections(storage: ArangoStorage, internal_selection_id: str):
         _FLD_COL_ID: coll.id,
         _FLD_COL_LV: load_ver,
         "genome_ids": sel.selection_ids,
-        "internal_match_id": internal_selection_id,
+        "internal_match_id": _SELECTION_ID_PREFIX + internal_selection_id,
     }
     matched = set()
     cur = await storage.aql().execute(aql, bind_vars=bind_vars)
