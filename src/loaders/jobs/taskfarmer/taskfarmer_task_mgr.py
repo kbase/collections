@@ -19,6 +19,8 @@ REQUIRED_TASK_INFO_KEYS = ['job_id', 'job_submit_time']
 TASKFARMER_JOB_DIR = 'task_farmer_jobs'
 # file containing the information of each task
 TASK_INFO_FILE = 'task_info.jsonl'
+# specific string present in the Slurm log file which indicates that the job has timed out
+TIMEOUT_STR = 'DUE TO TIME LIMIT'
 
 
 class TaskError(Exception):
@@ -36,8 +38,9 @@ class JobStatus(Enum):
     PENDING = 'PENDING'
     RUNNING = 'RUNNING'
     COMPLETED = 'COMPLETED'
-    FAILED = 'FAILED'
+    FAILED = 'FAILED/CANCELLED'  # in many situations, we cannot identify whether a job has failed or cancelled
     CANCELLED = 'CANCELLED'
+    TIMEOUT = 'TIMEOUT'
 
     def __str__(self):
         return self.value.lower()
@@ -49,6 +52,33 @@ class TFTaskManager:
 
     The task manager is responsible for managing the tasks of TaskFarmer jobs.
     """
+
+    @staticmethod
+    def _read_last_n_line(file_path, n=5):
+        """
+        Read the last n lines from a file and return them as a list of strings.
+        """
+
+        if not os.path.exists(file_path):
+            return []
+
+        with open(file_path, 'r') as file:
+            file.seek(0, os.SEEK_END)
+            position = file.tell()
+
+            last_lines = []
+            while len(last_lines) < n and position >= 0:
+                position -= 1
+                file.seek(position, os.SEEK_SET)
+                character = file.read(1)
+                if character == '\n':
+                    line = file.readline().strip()
+                    last_lines.insert(0, line)
+                elif position == 0:  # reached the beginning of the file
+                    line = file.readline().strip()
+                    last_lines.insert(0, line)
+
+        return last_lines
 
     def _get_task_info_file(self):
         """
@@ -82,11 +112,25 @@ class TFTaskManager:
 
         return df
 
+    def _check_time_out(self, job_id):
+        """
+        Check if the job has timed out
+        """
+
+        slurm_log = os.path.join(self.job_dir, f'slurm-{job_id}.out')
+        slurm_last_lines = self._read_last_n_line(slurm_log)
+
+        return TIMEOUT_STR in ''.join(slurm_last_lines)
+
     def _get_job_status_from_nersc(self, job_id):
         """
         Get the job status from NERSC using squeue command.
 
         A 'done.tasks.txt.tfin' file is created in the job directory when the job is finished successfully.
+
+        When job is timed out, time out message will be written to the job slurm log file (last line).
+        time out message looks like:
+        slurmstepd: error: *** STEP 6075199.0 ON nid004241 CANCELLED AT 2023-03-15T16:33:05 DUE TO TIME LIMIT ***
 
         When job is queued, squeue command will return code 0 and out put will be like:
         JOBID PARTITION     NAME     USER ST       TIME  NODES NODELIST(REASON)
@@ -115,13 +159,14 @@ class TFTaskManager:
             slurm_load_jobs error: Invalid job id specified
 
         Matrix of job status:
-        Done file  Exit Code   Job listed    Job Status Code  Returned Status
-        Y          Any         N/A           N/A              COMPLETED
-        N          0           Y             PD               PENDING
-        N          0           Y             R                RUNNING
-        N          -1          N/A           N/A              FAILED (If a job is cancelled, it will be treated as failed.)
-        N          0           N             N/A              FAILED (If a job is cancelled, it will be treated as failed.)
-        N          0           Y             CG               CANCELLED
+        Done file  Time out string Exit Code   Job listed    Job Status Code  Returned Status
+        Y           N              Any         N/A           N/A              COMPLETED
+        N           N              0           Y             PD               PENDING
+        N           N              0           Y             R                RUNNING
+        N           N              -1          N/A           N/A              FAILED/CANCELLED (If a job is cancelled, it will be treated as failed.)
+        N           N              0           N             N/A              FAILED/CANCELLED (If a job is cancelled, it will be treated as failed.)
+        N           N              0           Y             CG               CANCELLED
+        N           Y              Any         N/A           N/A              TIMEOUT
         """
 
         # Once all tasks are completed, NERSC generates this file.
@@ -135,8 +180,8 @@ class TFTaskManager:
             ['squeue', '-j', str(job_id)], self.job_dir, log_file_prefix='squeue', check_return_code=False)
 
         if exit_code != 0:
-            # job finished without creating the done file indicating the job is failed
-            return JobStatus.FAILED
+            # job finished without creating the done file indicating the job is failed (cancelled) or timed out
+            return JobStatus.TIMEOUT if self._check_time_out(job_id) else JobStatus.FAILED
 
         with open(std_out_file, "r") as std_out, open(std_err_file, "r") as std_err:
             squeue_out = std_out.read().strip()
@@ -152,7 +197,7 @@ class TFTaskManager:
                 else:
                     raise ValueError(f"Unrecognized job status: {squeue_out}")
             else:
-                return JobStatus.FAILED
+                return JobStatus.TIMEOUT if self._check_time_out(job_id) else JobStatus.FAILED
 
     def _append_task_info(self, task_info):
         """
@@ -180,7 +225,7 @@ class TFTaskManager:
 
         job_status, retry = self._get_job_status_from_nersc(job_id), 0
 
-        if job_status in [JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED]:
+        if job_status not in [JobStatus.RUNNING, JobStatus.PENDING]:
             return True
 
         while job_status in [JobStatus.RUNNING, JobStatus.PENDING] and retry < 3:
@@ -241,7 +286,7 @@ class TFTaskManager:
             raise PreconditionError(
                 f'There is a previous run of the same tool and load version with a different source data directory.')
 
-        if latest_task_status in [JobStatus.FAILED, JobStatus.CANCELLED]:
+        if latest_task_status in [JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.TIMEOUT]:
             print(f'The tool and load version have been run before, '
                   f'and the most recent status is {str(latest_task_status)}.'
                   f'Resuming progress from the previous run.')
