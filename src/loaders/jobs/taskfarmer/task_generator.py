@@ -87,15 +87,20 @@ def _pull_image(image_str, job_dir):
                              f"Standard error: {std_err.read()}")
 
 
-def _write_to_file(file_path, content, mode="x"):
+def _write_to_file(file_path, content, mode="x", ignore_existing=False):
     """
     Writes the specified content to the specified file.
+
+    If the file already exists, an exception is raised unless ignore_existing is set to True.
     """
     try:
         with open(file_path, mode) as f:
             f.write(content)
     except FileExistsError:
-        print(f"File {file_path} already exists.")
+        if ignore_existing:
+            print(f"File {file_path} already exists.")
+        else:
+            raise FileExistsError(f"File {file_path} already exists.")
 
 
 def _fetch_image(registry, image_name, job_dir, tag='latest', force_pull=True):
@@ -152,7 +157,7 @@ cd {job_dir}
 shifter --image=$image $command'''
 
     wrapper_file = os.path.join(job_dir, tf_common.WRAPPER_FILE)
-    _write_to_file(wrapper_file, shifter_wrapper)
+    _write_to_file(wrapper_file, shifter_wrapper, ignore_existing=True)
 
     os.chmod(wrapper_file, 0o777)
 
@@ -165,7 +170,7 @@ def _create_genome_id_file(genome_ids, genome_id_file):
     """
 
     content = "genome_id\n" + "\n".join(genome_ids)
-    _write_to_file(genome_id_file, content)
+    _write_to_file(genome_id_file, content, ignore_existing=True)
 
 
 def _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper_file, job_dir, root_dir,
@@ -202,7 +207,7 @@ def _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper
         task_list += f'''--entrypoint\n'''
 
     task_list_file = os.path.join(job_dir, tf_common.TASK_FILE)
-    _write_to_file(task_list_file, task_list)
+    _write_to_file(task_list_file, task_list, ignore_existing=True)
 
     return task_list_file, len(genome_ids_chunks)
 
@@ -246,7 +251,7 @@ export THREADS={NODE_THREADS}
 runcommands.sh {task_list_file}'''
 
     batch_script_file = os.path.join(job_dir, tf_common.BATCH_SCRIPT)
-    _write_to_file(batch_script_file, batch_script)
+    _write_to_file(batch_script_file, batch_script, ignore_existing=True)
 
     return batch_script_file
 
