@@ -96,11 +96,11 @@ def _write_to_file(file_path, content, mode="x", ignore_existing=False):
     try:
         with open(file_path, mode) as f:
             f.write(content)
-    except FileExistsError:
+    except FileExistsError as e:
         if ignore_existing:
             print(f"File {file_path} already exists.")
         else:
-            raise FileExistsError(f"File {file_path} already exists.")
+            raise ValueError(f"File {file_path} already exists.") from e
 
 
 def _fetch_image(registry, image_name, job_dir, tag='latest', force_pull=True):
