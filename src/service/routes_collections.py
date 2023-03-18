@@ -229,6 +229,9 @@ class SelectionInput(BaseModel):
 
 
 class Selection(SelectionInput):
+    selection_id: str = Field(
+        description="The ID of the selection."
+    )
     collection_id: str = Field(
         example="GTDB",
         description="The ID of the collection for the selection.",
@@ -424,10 +427,11 @@ async def get_selection(
     verbose: bool = _QUERY_SELECTION_VERBOSE,
 ) -> Selection:
     appstate = app_state.get_app_state(r)
-    internal_sel = await selection_processing.get_internal_selection(
+    active_sel, internal_sel = await selection_processing.get_selection(
         appstate, KBASE_COLLECTIONS_SELECTION, verbose=verbose
     )
     return Selection(
+        selection_id = active_sel.active_selection_id,
         selection_ids=internal_sel.selection_ids,
         unmatched_ids=internal_sel.unmatched_ids,
         collection_id=internal_sel.collection_id,

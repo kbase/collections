@@ -103,3 +103,7 @@ FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS = "_mtchsel"
 # Used for marking matches when returning data to the user and they select match marking vs.
 # filtering on a match.
 FLD_GENOME_ATTRIBS_MATCHED = "__match__"
+
+# Used for marking selections when returning data to the user and they select selection marking vs.
+# filtering on a selectin.
+FLD_GENOME_ATTRIBS_SELECTED = "__sel__"
