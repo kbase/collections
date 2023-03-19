@@ -269,7 +269,7 @@ async def get_or_create_data_product_match(
     match: models.InternalMatch,
     data_product: str,
     match_process: Callable[[str, PickleableDependencies, list[Any]], None],
-) -> models.DataProductMatchProcess:
+) -> models.DataProductProcess:
     """
     Get a match process data structure for a data product match.
 
@@ -287,10 +287,11 @@ async def get_or_create_data_product_match(
         the match heartbeat is too old.
     """
     now = deps.get_epoch_ms()
-    dp_match, exists = await deps.arangostorage.create_or_get_data_product_match(
-        models.DataProductMatchProcess(
+    dp_match, exists = await deps.arangostorage.create_or_get_data_product_process(
+        models.DataProductProcess(
             data_product=data_product,
-            internal_match_id=match.internal_match_id,
+            type=models.ProcessType.MATCH,
+            internal_id=match.internal_match_id,
             created=now,
             state=models.ProcessState.PROCESSING,
             state_updated=now,
@@ -300,7 +301,7 @@ async def get_or_create_data_product_match(
         _start_process(match.match_id, match_process, deps.get_pickleable_dependencies())
     elif processing.requires_restart(deps.get_epoch_ms(), dp_match):
         logging.getLogger(__name__).warn(
-            f"Restarting match process for match {dp_match.internal_match_id} "
+            f"Restarting match process for match {match.internal_match_id} "
             + f"data product {data_product}"
         )
         _start_process(match.match_id, match_process, deps.get_pickleable_dependencies())

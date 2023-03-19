@@ -85,7 +85,8 @@ async def _delete_match(
         await dp.delete_match(storage, delmatch.internal_match_id)
         _logger().info(
             f"Removing match document for {minfo} data product {dpinfo.product}")
-        await storage.remove_data_product_match(delmatch.internal_match_id, dpinfo.product)
+        await storage.remove_data_product_process(
+            delmatch.internal_match_id, dpinfo.product, models.ProcessType.MATCH)
     _logger().info(f"Removing match document for {minfo}")
     await storage.remove_deleted_match(delmatch.internal_match_id, delmatch.last_access)
     

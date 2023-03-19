@@ -99,11 +99,11 @@ async def _delete_match_standard_path(return_match: models.InternalMatch):
     storage.get_collection_version_by_num.assert_awaited_once_with("my_collection", 3)
     data_product1.delete_match.assert_awaited_once_with(storage, "internal_ID")
     data_product2.delete_match.assert_awaited_once_with(storage, "internal_ID")
-    storage.remove_data_product_match.assert_has_awaits([
-        call("internal_ID", "prodone"),
-        call("internal_ID", "prodtwo"),
+    storage.remove_data_product_process.assert_has_awaits([
+        call("internal_ID", "prodone", models.ProcessType.MATCH),
+        call("internal_ID", "prodtwo", models.ProcessType.MATCH),
     ])
-    assert storage.remove_data_product_match.await_count == 2
+    assert storage.remove_data_product_process.await_count == 2
     storage.remove_deleted_match.assert_awaited_once_with("internal_ID", 90000)
 
 
@@ -130,11 +130,11 @@ async def test_delete_match_delete_active_match():
     storage.get_collection_version_by_num.assert_awaited_once_with("my_collection", 3)
     data_product1.delete_match.assert_awaited_once_with(storage, "internal_ID")
     data_product2.delete_match.assert_awaited_once_with(storage, "internal_ID")
-    storage.remove_data_product_match.assert_has_awaits([
-        call("internal_ID", "prodone"),
-        call("internal_ID", "prodtwo"),
+    storage.remove_data_product_process.assert_has_awaits([
+        call("internal_ID", "prodone", models.ProcessType.MATCH),
+        call("internal_ID", "prodtwo", models.ProcessType.MATCH),
     ])
-    assert storage.remove_data_product_match.await_count == 2
+    assert storage.remove_data_product_process.await_count == 2
     storage.remove_deleted_match.assert_awaited_once_with("internal_ID", 90000)
 
 
@@ -155,7 +155,7 @@ async def test_delete_match_delete_active_match_fail():
     storage.get_match_full.assert_awaited_once_with("foo", exception=False)
     storage.remove_match.assert_awaited_once_with("foo", 90000)
     storage.get_collection_version_by_num.assert_not_awaited()
-    storage.remove_data_product_match.assert_not_awaited()
+    storage.remove_data_product_process.assert_not_awaited()
     storage.remove_deleted_match.assert_not_awaited()
 
 
@@ -179,4 +179,4 @@ async def test_delete_match_delete_deleted_match_fail():
     storage.remove_match.assert_not_awaited()
     storage.remove_deleted_match.assert_awaited_once_with("internal_ID", 90000)
     storage.get_collection_version_by_num.assert_not_awaited()
-    storage.remove_data_product_match.assert_not_awaited()
+    storage.remove_data_product_process.assert_not_awaited()

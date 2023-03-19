@@ -54,6 +54,8 @@ FIELD_PROCESS_HEARTBEAT = "heartbeat"
 FIELD_PROCESS_STATE = "state"
 FIELD_PROCESS_STATE_UPDATED = "state_updated"
 FIELD_LAST_ACCESS = "last_access"
+# data product process exclusive fields
+FIELD_PROCESS_TYPE = "type"
 
 # Model metadata for use elsewhere
 FIELD_COLLECTION_ID_EXAMPLE = "GTDB"
@@ -420,10 +422,20 @@ class DeletedMatch(InternalMatch):
     )
 
 
-class DataProductMatchProcess(ProcessAttributes):
+class ProcessType(str, Enum):
+    """ The type of a process. """
+
+    MATCH = "match"
+    """ A matching process. """
+
+    SELECTION = "selection"
+    """ A seletion process. """
+
+
+class DataProductProcess(ProcessAttributes):
     """
-    Defines the state of processing a match for a data product that was not part of the primary
-    match process.
+    Defines the state of processing for a data product that was not part of the primary
+    match or selection process.
 
     For example, a gtdb_lineage match will match against the genome_attributes data product
     as part of the primary match since the data being matched against is in that data product.
@@ -434,16 +446,20 @@ class DataProductMatchProcess(ProcessAttributes):
 
     data_product: str = DATA_PRODUCT_ID_FIELD
 
+    type: ProcessType = Field(
+        example=ProcessType.SELECTION.value,
+        description="The type of the process."
+    )
+
     # last access / user perms are tracked in the primary match document. When that document
     # is deleted in the DB, this one should be as well (after deleting any data associated with
     # the match).
     
-    internal_match_id: str = Field(
-        # bit of a long field name but probably not too many matches at one time
+    internal_id: str = Field(
         example="e22f2d7d-7246-4636-a91b-13f29bc32d3d",
-        description="An internal ID for the match that is unique per use. This allows for "
-            + "deleting data for a match without the risk that a new match with the same "
-            + "md5 ID is created and tries to read data in the process of deletion. "
+        description="An internal ID for the match or selection that is unique per use. "
+            + "This allows for deleting data without the risk that new data with the same "
+            + "ID is created and tries to read data in the process of deletion. "
             + "Expected to be a v4 UUID.",
     )
 

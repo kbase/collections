@@ -27,13 +27,19 @@ from src.common.storage.collection_and_field_names import (
     COLL_SRV_VERSIONS,
     COLL_SRV_MATCHES,
     COLL_SRV_MATCHES_DELETED,
-    COLL_SRV_MATCHES_DATA_PRODUCTS,
+    COLL_SRV_DATA_PRODUCT_PROCESSES,
     COLL_SRV_INTERNAL_SELECTIONS,
     COLL_SRV_ACTIVE_SELECTIONS,
 )
 from src.service import models
 from src.service import errors
 from src.service.data_products.common_models import DBCollection
+
+
+_ERRMAP = {
+    models.ProcessType.MATCH: errors.NoSuchMatchError,
+    models.ProcessType.SELECTION: errors.NoSuchSelectionError,
+}
 
 
 # service collection names that aren't shared with data loaders.
@@ -56,7 +62,7 @@ _COLLECTIONS = [
     COLL_SRV_VERSIONS,
     COLL_SRV_MATCHES,
     COLL_SRV_MATCHES_DELETED,
-    COLL_SRV_MATCHES_DATA_PRODUCTS,
+    COLL_SRV_DATA_PRODUCT_PROCESSES,
     COLL_SRV_INTERNAL_SELECTIONS,
     COLL_SRV_ACTIVE_SELECTIONS,
 ]
@@ -757,23 +763,29 @@ class ArangoStorage:
         finally:
             await cur.close(ignore_missing=True)
 
-    def _data_product_match_key(self, internal_match_id: str, data_product: str) -> str:
-        return f"{data_product}_{internal_match_id}"
+    def _data_product_process_key(
+        self,
+        internal_id: str,
+        data_product: str,
+        type_: models.ProcessType
+    ) -> str:
+        return f"{data_product}_{type_}_{internal_id}"
 
-    async def create_or_get_data_product_match(self, dp_match: models.DataProductMatchProcess
-    ) -> tuple[models.DataProductMatchProcess, bool]:
+    async def create_or_get_data_product_process(self, dp_match: models.DataProductProcess
+    ) -> tuple[models.DataProductProcess, bool]:
         """
-        Save the data product match process to the database if it doesn't already exist, or
-        get the current match if it does.
+        Save the data product process to the database if it doesn't already exist, or
+        get the current process if it does.
 
-        Returns a tuple of the match as it currently exists in the database and a boolean
+        Returns a tuple of the process as it currently exists in the database and a boolean
         indicating whether it was created or already existed.
         """
-        key = self._data_product_match_key(dp_match.internal_match_id, dp_match.data_product)
+        key = self._data_product_process_key(
+            dp_match.internal_id, dp_match.data_product, dp_match.type)
         doc = dp_match.dict()
         doc[FLD_ARANGO_KEY] = key
         # See Note 1 at the beginning of the file
-        col = self._db.collection(COLL_SRV_MATCHES_DATA_PRODUCTS)
+        col = self._db.collection(COLL_SRV_DATA_PRODUCT_PROCESSES)
         try:
             await col.insert(doc)
             return dp_match, False
@@ -784,61 +796,71 @@ class ArangoStorage:
                     # This is highly unlikely. Not worth spending any time trying to recover
                     raise ValueError(
                         "Well, I tried. Either something is very wrong with the "
-                        + "database or I just got really unlucky with timing on a match "
-                        + "deletion. Try matching again.")
+                        + "database or I just got really unlucky with timing on a process "
+                        + "deletion. Try starting the process again.")
                 self._correct_process_doc_in_place(doc)
-                return models.DataProductMatchProcess.construct(
-                    **models.remove_non_model_fields(doc, models.DataProductMatchProcess)), True
+                doc[models.FIELD_PROCESS_TYPE] = models.ProcessType(doc[models.FIELD_PROCESS_TYPE])
+                return models.DataProductProcess.construct(
+                    **models.remove_non_model_fields(doc, models.DataProductProcess)), True
             raise e
 
-    async def send_data_product_match_heartbeat(
+    async def send_data_product_heartbeat(
         self,
-        internal_match_id: str,
+        internal_id: str,
         data_product: str,
+        type_: models.ProcessType,
         heartbeat_timestamp: int):
         """
-        Send a heartbeat to a data prodduct match, updating the heartbeat timestamp.
+        Send a heartbeat to a data product process, updating the heartbeat timestamp.
 
-        internal_match_id - the ID of the data product match to update
+        internal_id - the ID of the data product process to update
         data_product - the data product performing the match
+        type - the type of the data product process.
         heartbeat_timestamp - the timestamp of the heartbeat in epoch milliseconts.
         """
-        key = self._data_product_match_key(internal_match_id, data_product)
+        key = self._data_product_process_key(internal_id, data_product, type_)
         await self._send_heartbeat(
-            COLL_SRV_MATCHES_DATA_PRODUCTS, key, heartbeat_timestamp, errors.NoSuchMatchError)
+            COLL_SRV_DATA_PRODUCT_PROCESSES, key, heartbeat_timestamp, _ERRMAP[type_])
 
-    async def update_data_product_match_state(
+    async def update_data_product_process_state(
         self,
-        internal_match_id: str,
+        internal_id: str,
         data_product: str,
+        type_: models.ProcessType,
         match_state: models.ProcessState,
         update_time: int,
     ) -> None:
         """
-        Update the state of a data product match process.
+        Update the state of a data product process.
 
-        internal_match_id - the ID of the data product match to update
-        data_product - the data product performing the match
-        match_state - the state of the match to set
-        update_time - the time at which the match state was updated in epoch milliseconds
+        internal__id - the ID of the data product process to update
+        data_product - the data product performing the process
+        type - the type of the data product process.
+        match_state - the state to set
+        update_time - the time at which the state was updated in epoch milliseconds
         """
         await self._update_state(
-            self._data_product_match_key(internal_match_id, data_product),
+            self._data_product_process_key(internal_id, data_product, type_),
             match_state,
             update_time,
-            COLL_SRV_MATCHES_DATA_PRODUCTS,
-            errors.NoSuchMatchError
+            COLL_SRV_DATA_PRODUCT_PROCESSES,
+            _ERRMAP[type_],
         )
 
-    async def remove_data_product_match(self, internal_match_id: str, data_product: str):
+    async def remove_data_product_process(
+        self,
+        internal_id: str,
+        data_product: str,
+        type_: models.ProcessType):
         """
-        Remove a data product match document.
+        Remove a data product process document.
 
-        internal_match_id - the internal match ID for the match.
+        internal_id - the internal ID for the process.
         data_product - the data product ID.
+        type - the type of the data product process.
         """
-        key = self._data_product_match_key(internal_match_id, data_product)
-        col = self._db.collection(COLL_SRV_MATCHES_DATA_PRODUCTS)
+        key = self._data_product_process_key(internal_id, data_product, type_)
+        col = self._db.collection(COLL_SRV_DATA_PRODUCT_PROCESSES)
         await col.delete(key, ignore_missing=True, silent=True)
 
     async def import_bulk_ignore_collisions(self, arango_collection: str, documents: dict[str, Any]
