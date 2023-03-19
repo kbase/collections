@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import create_autospec, call
 
 from src.service.storage_arango import ArangoStorage
-from src.service import match_deletion
+from src.service import deletion
 from src.service import models
 
 # TODO TEST more tests. Right now just _delete_match tests because it's hard to test manually
@@ -92,7 +92,7 @@ async def _delete_match_standard_path(return_match: models.InternalMatch):
     storage.get_match_full.return_value = return_match
     storage.get_collection_version_by_num.return_value = COLLECTION
 
-    await match_deletion._delete_match(storage, dps, DELETED)
+    await deletion._delete_match(storage, dps, DELETED)
 
     storage.get_match_full.assert_awaited_once_with("foo", exception=False)
     storage.remove_match.assert_not_awaited()
@@ -123,7 +123,7 @@ async def test_delete_match_delete_active_match():
     storage.remove_match.return_value = True
     storage.get_collection_version_by_num.return_value = COLLECTION
 
-    await match_deletion._delete_match(storage, dps, DELETED)
+    await deletion._delete_match(storage, dps, DELETED)
 
     storage.get_match_full.assert_awaited_once_with("foo", exception=False)
     storage.remove_match.assert_awaited_once_with("foo", 90000)
@@ -150,7 +150,7 @@ async def test_delete_match_delete_active_match_fail():
     storage.get_match_full.return_value = MATCH
     storage.remove_match.return_value = False
 
-    await match_deletion._delete_match(storage, {}, DELETED)
+    await deletion._delete_match(storage, {}, DELETED)
 
     storage.get_match_full.assert_awaited_once_with("foo", exception=False)
     storage.remove_match.assert_awaited_once_with("foo", 90000)
@@ -173,7 +173,7 @@ async def test_delete_match_delete_deleted_match_fail():
 
     storage.get_match_full.return_value = MATCH_NEWER_LAST_ACCESS
 
-    await match_deletion._delete_match(storage, {}, DELETED)
+    await deletion._delete_match(storage, {}, DELETED)
 
     storage.get_match_full.assert_awaited_once_with("foo", exception=False)
     storage.remove_match.assert_not_awaited()

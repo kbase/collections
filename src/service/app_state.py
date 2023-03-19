@@ -12,7 +12,7 @@ from src.service.clients.workspace_client import Workspace
 from src.service.config import CollectionsServiceConfig
 from src.service.data_products.common_models import DataProductSpec
 from src.service.matchers.common_models import Matcher
-from src.service.match_deletion import MatchCleanup
+from src.service.deletion import MatchCleanup
 from src.service.kb_auth import KBaseAuth
 
 # The main point of this module is to handle all the application state in one place
