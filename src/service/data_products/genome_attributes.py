@@ -10,7 +10,7 @@ from src.service import app_state
 from src.service.app_state_data_structures import CollectionsState
 from src.service import errors
 from src.service import kb_auth
-from src.service import match_retrieval
+from src.service import processing_matches
 from src.service import models
 from src.service import selection_processing
 from src.service.data_products.common_functions import (
@@ -272,7 +272,7 @@ async def _get_internal_match_id(
 ) -> str:
     if not user:
         raise errors.UnauthorizedError("Authentication is required if a match ID is supplied")
-    match = await match_retrieval.get_match_full(
+    match = await processing_matches.get_match_full(
         appstate,
         match_id,
         user,
