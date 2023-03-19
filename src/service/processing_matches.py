@@ -1,6 +1,7 @@
 """
 Methods for retriving matches from a storage system, ensuring that the user has permissions
-to the match, the match is in the expected state, and access times are updated correctly.
+to the match, the match is in the expected state, and access times are updated correctly as well
+as starting match processes and recovering processes that are stalled when requesting a match.
 """
 
 import jsonschema
