@@ -432,7 +432,27 @@ class ProcessType(str, Enum):
     """ A seletion process. """
 
 
-class DataProductProcess(ProcessAttributes):
+class DataProductProcessIdentifier(BaseModel):
+    """
+    Uniquely identifies a data product process based on the internal ID of the parent data,
+    the data product in question, and the type of the parent data (and therefore the type
+    of the process).
+    """
+    internal_id: str = Field(
+        example="e22f2d7d-7246-4636-a91b-13f29bc32d3d",
+        description="An internal ID for the match or selection that is unique per use. "
+            + "This allows for deleting data without the risk that new data with the same "
+            + "ID is created and tries to read data in the process of deletion. "
+            + "Expected to be a v4 UUID.",
+    )
+    data_product: str = DATA_PRODUCT_ID_FIELD
+    type: ProcessType = Field(
+        example=ProcessType.SELECTION.value,
+        description="The type of the process."
+    )
+
+
+class DataProductProcess(DataProductProcessIdentifier, ProcessAttributes):
     """
     Defines the state of processing for a data product that was not part of the primary
     match or selection process.
@@ -443,25 +463,9 @@ class DataProductProcess(ProcessAttributes):
     match is complete first. This class represents the state of calculating the match for a
     non-primary data product like taxa_count.
     """
-
-    data_product: str = DATA_PRODUCT_ID_FIELD
-
-    type: ProcessType = Field(
-        example=ProcessType.SELECTION.value,
-        description="The type of the process."
-    )
-
     # last access / user perms are tracked in the primary match document. When that document
     # is deleted in the DB, this one should be as well (after deleting any data associated with
     # the match).
-    
-    internal_id: str = Field(
-        example="e22f2d7d-7246-4636-a91b-13f29bc32d3d",
-        description="An internal ID for the match or selection that is unique per use. "
-            + "This allows for deleting data without the risk that new data with the same "
-            + "ID is created and tries to read data in the process of deletion. "
-            + "Expected to be a v4 UUID.",
-    )
 
 
 class ActiveSelection(LastAccess):
