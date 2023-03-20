@@ -631,32 +631,51 @@ class ArangoStorage:
         update_time - the time at which the match state was updated in epoch milliseconds
         matches - the matches to add to the match
         """
+        await self._update_state(
+            match_id,
+            match_state,
+            update_time,
+            COLL_SRV_MATCHES,
+            errors.NoSuchMatchError,
+            data_list=matches,
+            data_list_field=models.FIELD_MATCH_MATCHES,
+        )
+
+    async def _update_state(
+        self,
+        data_id: str,
+        state: models.ProcessState,
+        update_time: int,
+        collection: str,
+        errclass,
+        data_list: list[str] = None,
+        data_list_field: str = None,
+    ):
         bind_vars = {
-            f"@{_FLD_COLLECTION}": COLL_SRV_MATCHES,
-            _FLD_MATCH_ID: match_id,
-            "match_state": match_state.value,
+            f"@{_FLD_COLLECTION}": collection,
+            "id": data_id,
+            "state": state.value,
             "update_time": update_time,
         }
         aql = f"""
             FOR d in @@{_FLD_COLLECTION}
-                FILTER d.{FLD_ARANGO_KEY} == @{_FLD_MATCH_ID}
+                FILTER d.{FLD_ARANGO_KEY} == @id
                 UPDATE d WITH {{
-                    {models.FIELD_PROCESS_STATE}: @match_state,
+                    {models.FIELD_PROCESS_STATE}: @state,
                     {models.FIELD_PROCESS_STATE_UPDATED}: @update_time,
             """
-        if matches:
+        if data_list:
             aql += f"""
-                    {models.FIELD_MATCH_MATCHES}: @matches,
+                    {data_list_field}: @items
             """
-            bind_vars["matches"] = matches
+            bind_vars["items"] = data_list
         aql += f"""
                 }} IN @@{_FLD_COLLECTION}
                 OPTIONS {{exclusive: true}}
                 LET updated = NEW
                 RETURN KEEP(updated, "{FLD_ARANGO_KEY}")
             """
-        await self._execute_aql_and_check_item_exists(
-            match_id, aql, bind_vars, errors.NoSuchMatchError)
+        await self._execute_aql_and_check_item_exists(data_id, aql, bind_vars, errclass)
 
     async def process_old_matches(
         self,
@@ -803,26 +822,13 @@ class ArangoStorage:
         match_state - the state of the match to set
         update_time - the time at which the match state was updated in epoch milliseconds
         """
-        key = self._data_product_match_key(internal_match_id, data_product)
-        bind_vars = {
-            f"@{_FLD_COLLECTION}": COLL_SRV_MATCHES_DATA_PRODUCTS,
-            "key": key,
-            "match_state": match_state.value,
-            "update_time": update_time,
-        }
-        aql = f"""
-            FOR d in @@{_FLD_COLLECTION}
-                FILTER d.{FLD_ARANGO_KEY} == @key
-                UPDATE d WITH {{
-                    {models.FIELD_PROCESS_STATE}: @match_state,
-                    {models.FIELD_PROCESS_STATE_UPDATED}: @update_time,
-                }} IN @@{_FLD_COLLECTION}
-                OPTIONS {{exclusive: true}}
-                LET updated = NEW
-                RETURN KEEP(updated, "{FLD_ARANGO_KEY}")
-            """
-        await self._execute_aql_and_check_item_exists(
-            key, aql, bind_vars, errors.NoSuchMatchError)
+        await self._update_state(
+            self._data_product_match_key(internal_match_id, data_product),
+            match_state,
+            update_time,
+            COLL_SRV_MATCHES_DATA_PRODUCTS,
+            errors.NoSuchMatchError
+        )
 
     async def remove_data_product_match(self, internal_match_id: str, data_product: str):
         """
@@ -862,6 +868,31 @@ class ArangoStorage:
         self._correct_process_doc_in_place(doc)
         return models.InternalSelection.construct(
             **models.remove_non_model_fields(doc, models.InternalSelection))
+
+    async def update_selection_state(
+        self,
+        internal_selection_id: str,
+        state: models.ProcessState,
+        update_time: int,
+        missing_selections: list[str]
+    ):
+        """
+        Update the state of the selection, optionally setting missing selection IDs.
+
+        internal_selection_id - the ID of the selection to update
+        state - the state of the selection to set
+        update_time - the time at which the selection state was updated in epoch milliseconds
+        missing_selections - the selection IDs to add to the missing attribute for the selection
+        """
+        await self._update_state(
+            internal_selection_id,
+            state,
+            update_time,
+            COLL_SRV_INTERNAL_SELECTIONS,
+            errors.NoSuchSelectionError,
+            data_list=missing_selections,
+            data_list_field=models.FIELD_SELECTION_UNMATCHED_IDS,
+        )
 
     async def save_selection_active(
         self,
