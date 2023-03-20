@@ -259,7 +259,7 @@ async def _get_data_product_match(
     # Might need refactoring later once it become more clear how data products should
     # interact.
     if genome_attributes.ID not in {dp.product for dp in coll.data_products}:
-        raise errors.InvalidMatchState(
+        raise errors.InvalidMatchStateError(
             f"Cannot perform a {ID} match when the collection does not have a "
             + f"{genome_attributes.ID} data product")
     load_ver = get_load_ver_from_collection(coll, ID)

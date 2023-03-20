@@ -128,10 +128,10 @@ async def _check_match_state(
     col = require_collection
     if col:
         if col.id != match.collection_id:
-            raise errors.InvalidMatchState(
+            raise errors.InvalidMatchStateError(
                 f"Match {match.match_id} is for collection {match.collection_id}, not {col.id}")
         if col.ver_num != match.collection_ver:
-            raise errors.InvalidMatchState(
+            raise errors.InvalidMatchStateError(
                 f"Match {match.match_id} is for collection version {match.collection_ver}, "
                 + f"while the current version is {col.ver_num}")
     # Don't restart the match if the collection is out of date
@@ -148,7 +148,7 @@ async def _check_match_state(
         mp.start(match.match_id, deps.get_pickleable_dependencies())
     # might need to separate out the still processing error from the id / ver matching
     if require_complete and match.state != models.ProcessState.COMPLETE:
-        raise errors.InvalidMatchState(f"Match {match.match_id} processing is not complete")
+        raise errors.InvalidMatchStateError(f"Match {match.match_id} processing is not complete")
 
 
 def _requires_restart(deps: CollectionsState, process: models.ProcessAttributes) -> bool:

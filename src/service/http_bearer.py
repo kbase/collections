@@ -48,11 +48,11 @@ class KBaseHTTPBearer(HTTPBase):
             raise errors.MissingTokenError("Authorization header required")
         scheme, credentials = get_authorization_scheme_param(authorization)
         if not (scheme and credentials):
-            raise errors.InvalidAuthHeader(
+            raise errors.InvalidAuthHeaderError(
                 f"Authorization header requires {_SCHEME} scheme followed by token")
         if scheme.lower() != _SCHEME.lower():
             # don't put the received scheme in the error message, might be a token
-            raise errors.InvalidAuthHeader(f"Authorization header requires {_SCHEME} scheme")
+            raise errors.InvalidAuthHeaderError(f"Authorization header requires {_SCHEME} scheme")
         try:
             return await app_state.get_app_state(request).auth.get_user(credentials)
         except kb_auth.InvalidTokenError:

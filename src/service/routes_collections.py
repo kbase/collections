@@ -70,7 +70,7 @@ def _check_matchers_and_data_products(
     for m in col.matchers:
         matcher = appstate.get_matcher(m.matcher)
         if not matcher:
-            raise errors.NoSuchMatcher(f"No such matcher: {m.matcher}")
+            raise errors.NoSuchMatcherError(f"No such matcher: {m.matcher}")
         missing_dps = set(matcher.required_data_products) - data_products
         if missing_dps:
             raise errors.IllegalParameterError(
@@ -89,7 +89,7 @@ def _get_matcher_from_collection(collection: models.SavedCollection, matcher_id:
     for m in collection.matchers:
         if m.matcher == matcher_id:
             return m
-    raise errors.NoRegisteredMatcher(matcher_id)
+    raise errors.NoRegisteredMatcherError(matcher_id)
 
 
 async def _activate_collection_version(
