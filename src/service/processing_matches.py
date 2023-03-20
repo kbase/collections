@@ -4,14 +4,19 @@ to the match, the match is in the expected state, and access times are updated c
 as starting match processes and recovering processes that are stalled when requesting a match.
 """
 
+import hashlib
+import json
 import jsonschema
 import logging
+import uuid
+
 from typing import Any
 from collections.abc import Iterable
 
 from src.service.app_state_data_structures import CollectionsState
 # kinda feel like users should be more generic, but not work the trouble
 from src.service import kb_auth
+from src.service import deletion
 from src.service import errors
 from src.service import models
 from src.service import processing
@@ -23,6 +28,87 @@ MAX_UPAS = 10000
 
 # might want to make this configurable
 _PERM_RECHECK_LIMIT = 5 * 60 * 1000  # check perms every 5 mins
+
+_UTF_8 = "utf-8"
+
+
+async def create_match(
+    appstate: CollectionsState,
+    collection_id: str,
+    matcher_id: str,
+    user: kb_auth.KBaseUser,
+    upas: list[str],
+    match_params: dict[str, Any],
+) -> models.Match:
+    coll = await appstate.arangostorage.get_collection_active(collection_id)
+    matcher_info = _get_matcher_from_collection(coll, matcher_id)
+    ws = appstate.get_workspace_client(user.token)
+    matcher = appstate.get_matcher(matcher_info.matcher)
+    match_process, upas, wsids = await _create_match_process(
+        matcher,
+        WorkspaceWrapper(ws),
+        upas,
+        match_params,
+        matcher_info.parameters,
+    )
+    perm_check = appstate.get_epoch_ms()
+    params = match_params or {}
+    int_match = models.InternalMatch(
+        match_id=_calc_match_id_md5(matcher_id, collection_id, coll.ver_num, params, upas),
+        matcher_id=matcher_id,
+        collection_id=coll.id,
+        collection_ver=coll.ver_num,
+        user_parameters=params,
+        collection_parameters=matcher_info.parameters,
+        state=models.ProcessState.PROCESSING,
+        state_updated=perm_check,
+        upas=upas,
+        matches=[],
+        internal_match_id=str(uuid.uuid4()),
+        wsids=wsids,
+        created=perm_check,
+        last_access=perm_check,
+        user_last_perm_check={user.user.id: perm_check}
+    )
+    curr_match, exists = await appstate.arangostorage.save_match(int_match)
+    # don't bother checking if the match heartbeat is old here, just do it in the access methods
+    if not exists:
+        match_process.start(curr_match.match_id, appstate.get_pickleable_dependencies())
+    return curr_match
+
+
+def _get_matcher_from_collection(collection: models.SavedCollection, matcher_id: str
+) -> models.Matcher:
+    for m in collection.matchers:
+        if m.matcher == matcher_id:
+            return m
+    raise errors.NoRegisteredMatcherError(matcher_id)
+
+
+# assumes UPAs are sorted
+def _calc_match_id_md5(
+    matcher_id: str,
+    collection_id: str,
+    collection_ver: int,
+    params: dict[str, Any],
+    upas: list[str],
+) -> str:
+    # this would be better if it just happened automatically when constructing the pydantic
+    # match object, but that doesn't seem to work well with pydantic
+    pipe = "|".encode(_UTF_8)
+    m = hashlib.md5()
+    for var in [matcher_id, collection_id, str(collection_ver)]:
+        m.update(var.encode(_UTF_8))
+        m.update(pipe)
+    # this will not sort arrays, and arrays might have positional semantics so we shouldn't do
+    # that anyway. If we have match parameters where sorting arrays is an issue we'll need
+    # to implement on a per matcher basis.
+    m.update(json.dumps(params, sort_keys=True).encode(_UTF_8))
+    m.update(pipe)
+    for u in upas:
+        m.update(u.encode(_UTF_8))
+        m.update(pipe)
+    return m.hexdigest()
 
 
 async def get_match(
@@ -137,7 +223,7 @@ async def _check_match_state(
     # Don't restart the match if the collection is out of date
     # Also only restart if the match is requested for the correct collection
     if processing.requires_restart(deps.get_epoch_ms(), match):
-        mp, _, _ = await create_match_process(
+        mp, _, _ = await _create_match_process(
             deps.get_matcher(match.matcher_id),
             ww,
             match.upas,
@@ -151,7 +237,7 @@ async def _check_match_state(
         raise errors.InvalidMatchStateError(f"Match {match.match_id} processing is not complete")
 
 
-async def create_match_process(
+async def _create_match_process(
     matcher: Matcher,
     ww: WorkspaceWrapper,
     upas: list[str],
@@ -262,3 +348,25 @@ def _upaerror(upa, upapath, upapathlen, index):
             f"Illegal UPA '{upa}' in path '{upapath}' at index {index}")
     else:
         raise errors.IllegalParameterError(f"Illegal UPA '{upa}' at index {index}")
+
+
+async def delete_match(appstate: CollectionsState, match_id: str, verbose: bool = False
+) -> models.MatchVerbose:
+    """
+    Move a match record to the deleted state, awaiting permanent deletion.
+
+    appstate - the application state.
+    match_id - the match to delete.
+    verbose - True to return the match UPAs and matches, which may be much larger than the rest
+        of the match data.
+    """
+    store = appstate.arangostorage
+    match = await store.get_match_full(match_id)
+    await deletion.move_match_to_deleted_state(store, match, appstate.get_epoch_ms())
+    match = models.MatchVerbose(
+        **models.remove_non_model_fields(match.dict(), models.MatchVerbose))
+    if not verbose:
+        # TODO PERF do this by not requesting the fields from the DB
+        match.upas = []
+        match.matches = []
+    return match

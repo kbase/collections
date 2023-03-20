@@ -126,13 +126,13 @@ _MATCH_COUNT = "match_count"
 
 class TaxaCounts(BaseModel):
     """
-    The taxa counts data set. Either `data` or `taxa_count_match_state` is returned.
+    The taxa counts data set.
     """
     data: list[TaxaCount] | None
     taxa_count_match_state: models.ProcessState | None = Field(
         example=models.ProcessState.PROCESSING,
-        description="The processing state of the match for this data product. This data product "
-            + "requires additional processing beyond the primary match."
+        description="The processing state of the match (if any) for this data product. "
+            + "This data product requires additional processing beyond the primary match."
     )
 
 
