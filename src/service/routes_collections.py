@@ -150,8 +150,8 @@ async def _save_selection(
         selection_ids=selection_ids,
         created=now,
         heartbeat=None,
-        selection_state=models.ProcessState.PROCESSING,
-        selection_state_updated=now,
+        state=models.ProcessState.PROCESSING,
+        state_updated=now,
     )
     active_sel = models.ActiveSelection(
         selection_id_hash=_hash_token(token),
@@ -282,7 +282,7 @@ class Selection(SelectionInput):
         example=7,
         description="The version of the collection for which the selection was created."
     )
-    selection_state: models.ProcessState = Field(
+    state: models.ProcessState = Field(
         example=models.ProcessState.PROCESSING.value,
         description="The state of the selection process."
     )
@@ -385,8 +385,8 @@ async def match(
         collection_ver=coll.ver_num,
         user_parameters=params,
         collection_parameters=matcher_info.parameters,
-        match_state=models.ProcessState.PROCESSING,
-        match_state_updated=perm_check,
+        state=models.ProcessState.PROCESSING,
+        state_updated=perm_check,
         upas=upas,
         matches=[],
         internal_match_id=str(uuid.uuid4()),
@@ -480,7 +480,7 @@ async def get_selection(
         selection_ids=internal_sel.selection_ids,
         collection_id=internal_sel.collection_id,
         collection_ver=internal_sel.collection_ver,
-        selection_state=internal_sel.selection_state,
+        state=internal_sel.state,
     )
 
 

@@ -136,8 +136,8 @@ async def _check_match_state(
                 + f"while the current version is {col.ver_num}")
     # Don't restart the match if the collection is out of date
     # Also only restart if the match is requested for the correct collection
-    if _requires_restart(deps, match, match.match_state):
-        mp = await create_match_process(
+    if _requires_restart(deps, match):
+        mp, _, _ = await create_match_process(
             deps.get_matcher(match.matcher_id),
             ww,
             match.upas,
@@ -147,16 +147,12 @@ async def _check_match_state(
         logging.getLogger(__name__).warn(f"Restarting match process for match {match.match_id}")
         mp.start(match.match_id, deps.get_pickleable_dependencies())
     # might need to separate out the still processing error from the id / ver matching
-    if require_complete and match.match_state != models.ProcessState.COMPLETE:
+    if require_complete and match.state != models.ProcessState.COMPLETE:
         raise errors.InvalidMatchState(f"Match {match.match_id} processing is not complete")
 
 
-def _requires_restart(
-    deps: CollectionsState,
-    match: models.InternalMatch | models.DataProductMatchProcess,
-    match_state: models.ProcessState,
-) -> bool:
-    if match_state == models.ProcessState.PROCESSING:
+def _requires_restart(deps: CollectionsState, process: models.ProcessAttributes) -> bool:
+    if process.state == models.ProcessState.PROCESSING:
         # "failed" indicates the failure is not necessarily recoverable
         # E.g. an admin should take a look
         # We may need to add another state for recoverable errors like loss of contact w/ arango...
@@ -164,10 +160,10 @@ def _requires_restart(
         # Better to put retries in the matching code or arango storage wrapper
         maxdiff = processing.HEARTBEAT_RESTART_THRESHOLD_MS
         now = deps.get_epoch_ms()
-        if match.heartbeat is None:
-            if now - match.created > maxdiff:
+        if process.heartbeat is None:
+            if now - process.created > maxdiff:
                 return True
-        elif now - match.heartbeat > maxdiff:
+        elif now - process.heartbeat > maxdiff:
             return True
     return False
 
@@ -178,7 +174,7 @@ async def create_match_process(
     upas: list[str],
     user_parameters: dict[str, Any],
     collection_parameters: dict[str, Any],
-) -> processing.CollectionProcess:
+) -> tuple[processing.CollectionProcess, list[str], set[int]]:
     """
     Create a match process given inputs to the match. The process can be started immediately or
     at a later time (once match information has been saved to a database, for example.)
@@ -191,6 +187,11 @@ async def create_match_process(
     upas - the UPAs of the workspce objects to include in the match.
     collection_parameters - the parameters for the match provided by the collection data
         (as opposed to user provided parameters.)
+
+    Returns a tuple containing
+        1. The match process
+        2. The list of UPAs after expanding sets and removing duplicates,
+        3. The set of workspace IDs from the root UPAs in the list of UPAs.
     """
     # All matchers will need to check permissions and deletion state for the workspace objects,
     # so we get the metadata which is the cheapest way to do that. Most matchers will need
@@ -308,13 +309,13 @@ async def get_or_create_data_product_match(
             data_product=data_product,
             internal_match_id=match.internal_match_id,
             created=now,
-            data_product_match_state=models.ProcessState.PROCESSING,
-            data_product_match_state_updated=now,
+            state=models.ProcessState.PROCESSING,
+            state_updated=now,
         )
     )
     if not exists:
         _start_process(match.match_id, match_process, deps.get_pickleable_dependencies())
-    elif _requires_restart(deps, dp_match, dp_match.data_product_match_state):
+    elif _requires_restart(deps, dp_match):
         logging.getLogger(__name__).warn(
             f"Restarting match process for match {dp_match.internal_match_id} "
             + f"data product {data_product}"

@@ -126,13 +126,13 @@ _MATCH_COUNT = "match_count"
 
 class TaxaCounts(BaseModel):
     """
-    The taxa counts data set. Either `data` or `match_state` is returned.
+    The taxa counts data set. Either `data` or `taxa_count_match_state` is returned.
     """
     data: list[TaxaCount] | None
     taxa_count_match_state: models.ProcessState | None = Field(
         example=models.ProcessState.PROCESSING,
         description="The processing state of the match for this data product. This data product "
-            + "requires additional processing beyone the primary match."
+            + "requires additional processing beyond the primary match."
     )
 
 
@@ -218,8 +218,8 @@ async def get_taxa_counts(
         dp_match, load_ver = await _get_data_product_match(
             appstate, collection_id, match_id, user
         )
-        if dp_match.data_product_match_state != models.ProcessState.COMPLETE:
-            return TaxaCounts(taxa_count_match_state=dp_match.data_product_match_state)
+        if dp_match.state != models.ProcessState.COMPLETE:
+            return TaxaCounts(taxa_count_match_state=dp_match.state)
     else:
         load_ver = await get_load_version(store, collection_id, ID, load_ver_override, user)
     ranks = await get_ranks_from_db(store, collection_id, load_ver, bool(load_ver_override))
@@ -242,7 +242,7 @@ async def get_taxa_counts(
         # something more sophisticated.
     return TaxaCounts(
         data=q,
-        taxa_count_match_state=dp_match.data_product_match_state if dp_match else None
+        taxa_count_match_state=dp_match.state if dp_match else None
     )
 
 

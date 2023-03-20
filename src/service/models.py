@@ -41,20 +41,18 @@ FIELD_DATA_PRODUCTS = "data_products"
 FIELD_DATA_PRODUCTS_PRODUCT = "product"
 FIELD_MATCHERS = "matchers"
 FIELD_MATCHERS_MATCHER = "matcher"
-FIELD_LAST_ACCESS = "last_access"  # applies to both selections and matches
 FIELD_MATCH_INTERNAL_MATCH_ID = "internal_match_id"
-FIELD_MATCH_HEARTBEAT = "heartbeat"
 FIELD_MATCH_USER_PERMS = "user_last_perm_check"
-FIELD_MATCH_STATE = "match_state"
-FIELD_MATCH_STATE_UPDATED = "match_state_updated"
-FIELD_DATA_PRODUCT_MATCH_STATE = "data_product_match_state"
-FIELD_DATA_PRODUCT_MATCH_STATE_UPDATED = "data_product_match_state_updated"
 FIELD_MATCH_MATCHES = "matches"
-FIELD_SELECTION_STATE = "selection_state"
 FIELD_DATE_CREATE = "date_create"
 FIELD_USER_CREATE = "user_create"
 FIELD_DATE_ACTIVE = "date_active"
 FIELD_USER_ACTIVE = "user_active"
+# These 4 fields apply to both selections and matches
+FIELD_PROCESS_HEARTBEAT = "heartbeat"
+FIELD_PROCESS_STATE = "state"
+FIELD_PROCESS_STATE_UPDATED = "state_updated"
+FIELD_LAST_ACCESS = "last_access"
 
 # Model metadata for use elsewhere
 FIELD_COLLECTION_ID_EXAMPLE = "GTDB"
@@ -257,7 +255,45 @@ class ProcessState(str, Enum):
     FAILED = "failed"
 
 
-class Match(BaseModel):
+class ProcessStateField(BaseModel):  # for lack of a better name
+    state: ProcessState = Field(
+        example=ProcessState.PROCESSING.value,
+        description="The state of the process associated with this data."
+    )
+
+
+class ProcessAttributes(ProcessStateField):
+    created: int = Field(
+        example=1674243789864,
+        description="Milliseconds since the Unix epoch at the point the data and "
+            + "corresponding process was created."
+    )
+    heartbeat: int | None = Field(
+        example=1674243789866,
+        description="Milliseconds since the Unix epoch at the last time the process sent "
+            + "a heartbeat. Used to determine when the process needs to be restarted."
+    )
+    # Note this means that processes should be idempotent - running the same process twice,
+    # even if one of the processes was interrupted, should produce the same result when at
+    # least one process completes
+    # TODO DOCS document the above.
+
+    state_updated: int = Field(
+        example=1674243789867,
+        description="Milliseconds since the Unix epoch at the point the process state was last "
+            + "updated."
+    )
+
+
+class LastAccess(BaseModel):
+    last_access: int = Field(
+        example=1674243789865,
+        description="Milliseconds since the Unix epoch at the point this data was last accessed. "
+            + "Used for determining when to delete the data."
+    )
+
+
+class Match(ProcessStateField):
     """
     A match between KBase workspace service objects and data in a collection.
     """
@@ -292,10 +328,6 @@ class Match(BaseModel):
         example=FIELD_MATCHER_PARAMETERS_EXAMPLE,
         description=FIELD_MATCHER_PARAMETERS_DESCRIPTION,
     )
-    match_state: ProcessState = Field(
-        example=ProcessState.PROCESSING.value,
-        description="The state of the matching process."
-    )
 
 
 class MatchVerbose(Match):
@@ -323,10 +355,12 @@ class MatchVerbose(Match):
        # Maybe this field should be internal only?
 
 
-class InternalMatch(MatchVerbose):
+class InternalMatch(MatchVerbose, ProcessAttributes, LastAccess):
     """
     Holds match fields for internal server use.
     """
+    # We keep the created time internal since matches are not user specific. One user could
+    # "create" a match but have it be really old. Avoid the confusion, keep it internal
     internal_match_id: str = Field(
         # bit of a long field name but probably not too many matches at one time
         example="e22f2d7d-7246-4636-a91b-13f29bc32d3d",
@@ -338,32 +372,6 @@ class InternalMatch(MatchVerbose):
     wsids: set[int] = Field(
         examples={78, 10067},
         description="The set of workspace IDs from the UPAs."
-    )
-    # We keep the created time internal since matches are not user specific. One user could
-    # "create" a match but have it be really old. Avoid the confusion, keep it internal
-    created: int = Field(
-        example=1674243789864,
-        description="Milliseconds since the Unix epoch at the point the match was created."
-    )
-    last_access: int = Field(
-        example=1674243789865,
-        description="Milliseconds since the Unix epoch at the point the match was last accessed. "
-            + "Used for determining when to delete the match."
-    )
-    heartbeat: int | None = Field(
-        example=1674243789866,
-        description="Milliseconds since the Unix epoch at the last time the match process sent "
-            + "a heartbeat. Used to determine when the match process needs to be restarted."
-    )
-    # Note this means that match processes should be idempotent - running the same process twice,
-    # even if one of the processes was interrupted, should produce the same result when at
-    # least one process completes
-    # TODO DOCS document the above.
-
-    match_state_updated: int = Field(
-        example=1674243789867,
-        description="Milliseconds since the Unix epoch at the point the match state was last "
-            + "updated."
     )
     user_last_perm_check: dict[str, int] = Field(
         example={"user1": 1674243789451},
@@ -381,7 +389,7 @@ class DeletedMatch(InternalMatch):
     )
 
 
-class DataProductMatchProcess(BaseModel):
+class DataProductMatchProcess(ProcessAttributes):
     """
     Defines the state of processing a match for a data product that was not part of the primary
     match process.
@@ -394,34 +402,11 @@ class DataProductMatchProcess(BaseModel):
     """
 
     data_product: str = DATA_PRODUCT_ID_FIELD
-    created: int = Field(
-        example=1674243789864,
-        description="Milliseconds since the Unix epoch at the point the data product match "
-            + "process was created."
-    )
-    heartbeat: int | None = Field(
-        example=1674243789866,
-        description="Milliseconds since the Unix epoch at the last time the data product match "
-            + "process sent a heartbeat. Used to determine when the match process needs to be "
-            + "restarted."
-    )
-    # Note this means that match processes should be idempotent - running the same process twice,
-    # even if one of the processes was interrupted, should produce the same result when at
-    # least one process completes.
-    # TODO DOCS document the above
 
     # last access / user perms are tracked in the primary match document. When that document
     # is deleted in the DB, this one should be as well (after deleting any data associated with
     # the match).
-    data_product_match_state_updated: int = Field(
-        example=1674243789866,
-        description="Milliseconds since the Unix epoch at the point the data product match "
-            + "state was last updated."
-    )
-    data_product_match_state: ProcessState = Field(
-        example=ProcessState.PROCESSING.value,
-        description="The state of the data product matching process."
-    )
+    
     internal_match_id: str = Field(
         # bit of a long field name but probably not too many matches at one time
         example="e22f2d7d-7246-4636-a91b-13f29bc32d3d",
@@ -432,7 +417,7 @@ class DataProductMatchProcess(BaseModel):
     )
 
 
-class ActiveSelection(BaseModel):
+class ActiveSelection(LastAccess):
     """
     A selection that is currently active. Primarily maps an external selection ID (which,
     since selections do not require auth, is effectively a session token) to an internal
@@ -454,14 +439,9 @@ class ActiveSelection(BaseModel):
             + "active again while the data is being deleted. "
             + "Expected to be a v4 UUID.",
     )
-    last_access: int = Field(
-        example=1674243789865,
-        description="Milliseconds since the Unix epoch at the point the selection was last "
-            + "accessed. Used for determining when to delete the selection."
-    )
 
 
-class InternalSelection(BaseModel):
+class InternalSelection(ProcessAttributes):
     """
     Internal details about a selection, including the state of the process to apply the selection
     to the database. While an internal selection is referenced by an active selection, it should
@@ -492,32 +472,6 @@ class InternalSelection(BaseModel):
         example=["GB_GCA_000006155.2", "GB_GCA_000007385.1"],
         description="The IDs of the selected items. What these IDs are will depend on the " +
             "collection and data product the selection is against."
-    )
-    # TODO MODELS try to create a shared model between matches and selection for common job
-    #             state like heartbeat, state, created, etc
-    created: int = Field(
-        example=1674243789864,
-        description="Milliseconds since the Unix epoch at the point the selection was created."
-    )
-    heartbeat: int | None = Field(
-        example=1674243789866,
-        description="Milliseconds since the Unix epoch at the last time the selection process "
-            + "sent a heartbeat. Used to determine when the selection process needs to be "
-            + "restarted."
-    )
-    # Note this means that selection processes should be idempotent - running the same process
-    # twice, # even if one of the processes was interrupted, should produce the same result when at
-    # least one process completes
-    # TODO DOCS document the above.
-
-    selection_state: ProcessState = Field(
-        example=ProcessState.PROCESSING.value,
-        description="The state of the selection process."
-    )
-    selection_state_updated: int = Field(
-        example=1674243789867,
-        description="Milliseconds since the Unix epoch at the point the selection state was last "
-            + "updated."
     )
 
 
