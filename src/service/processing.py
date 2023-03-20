@@ -5,7 +5,6 @@ both performing the initial match and calculating secondary data products.
 
 import asyncio
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.interval import IntervalTrigger
 import logging
 import multiprocessing
 
@@ -113,10 +112,8 @@ class Heartbeat:
         """
         if self._job_id:
             raise ValueError("Heartbeat is already running")
-        job = self._schd.add_job(
-            func=self._heartbeat,
-            trigger=IntervalTrigger(seconds=self._interval_sec)
-        )
+        self._schd.add_job(self._heartbeat)  # run immediately
+        job = self._schd.add_job(self._heartbeat, "interval", seconds=self._interval_sec)
         self._job_id = job.id
         self._schd.start()
 
