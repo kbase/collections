@@ -2,15 +2,17 @@
 The genome_attribs data product, which provides geneome attributes for a collection.
 """
 
-from fastapi import APIRouter, Request, Depends, Query
+from fastapi import APIRouter, Request, Depends, Query, Header
 from pydantic import BaseModel, Field, Extra
 from src.common.gtdb_lineage import GTDBLineage, GTDBRank
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
+from src.service.app_state_data_structures import CollectionsState
 from src.service import errors
 from src.service import kb_auth
 from src.service import match_retrieval
 from src.service import models
+from src.service import selection_processing
 from src.service.data_products.common_functions import (
     get_load_version,
     get_load_ver_from_collection,
@@ -25,7 +27,6 @@ from src.service.http_bearer import KBaseHTTPBearer
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
 from src.service.timestamp import now_epoch_millis
-from src.service.workspace_wrapper import WorkspaceWrapper
 from typing import Any, Callable
 
 # Implementation note - we know FLD_GENOME_ATTRIBS_KBASE_GENOME_ID is unique per collection id /
@@ -159,7 +160,9 @@ _FLD_LIMIT = "limit"
     description="Get genome attributes for each genome in the collection, which may differ from "
         + "collection to collection.\n\n "
         + "Authentication is not required unless submitting a match ID or overriding the load "
-        + " version; in the latter case service administration permissions are required.")
+        + "version; in the latter case service administration permissions are required.\n\n"
+        + "When creating selections from genome attributes, use the "
+        + f"`{names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID}` field values as input." )
 async def get_genome_attributes(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
@@ -199,13 +202,27 @@ async def get_genome_attributes(
         default = None,
         description="A match ID to set the view to the match rather than "
             + "the entire collection. Authentication is required. Note that if a match ID is "
-            + "set, any load version override is ignored."),
             # matches are against a specific load version, so...
+            + "set, any load version override is ignored. "
+            + "If a selection filter and a match filter are provided, they are ANDed together."
+    ),  # TODO FEATURE support a choice of AND or OR
     match_mark: bool = Query(
         default=False,
         description="Whether to mark matched rows rather than filter based on the match ID. "
             + "Matched rows will be indicated by a true value in the special field "
             + f"`{names.FLD_GENOME_ATTRIBS_MATCHED}`. Has no effect if 'count' is true."
+    ),
+    KBASE_COLLECTIONS_SELECTION: str | None = Header(
+        default=None,
+        description="A selection token to set the view to the selection rather than the entire "
+            + "collection. If a selection token is set, any load version override is ignored. "
+            + "If a selection filter and a match filter are provided, they are ANDed together."
+    ),
+    selection_mark: bool = Query(
+        default=False,
+        description="Whether to mark selected rows rather than filter based on the selection ID. "
+            + "Selected rows will be indicated by a true value in the special field "
+            + f"`{names.FLD_GENOME_ATTRIBS_SELECTED}`. Has no effect if 'count' is true."
     ),
     load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
@@ -213,26 +230,23 @@ async def get_genome_attributes(
     # sorting only works here since we expect the largest collection to be ~300K records and
     # we have a max limit of 1000, which means sorting is O(n log2 1000).
     # Otherwise we need indexes for every sort
-    store = app_state.get_app_state(r).arangostorage
-    internal_match_id = None
-    if match_id:
-        if not user:
-            raise errors.UnauthorizedError("Authentication is required if a match ID is supplied")
+    appstate = app_state.get_app_state(r)
+    store = appstate.arangostorage
+    internal_match_id, internal_selection_id = None, None
+    if match_id or KBASE_COLLECTIONS_SELECTION:
         coll = await store.get_collection_active(collection_id)
         load_ver = get_load_ver_from_collection(coll, ID)
-        ws = app_state.get_app_state(r).get_workspace_client(user.token)
-        match = await match_retrieval.get_match_full(
-            app_state.get_app_state(r),
-            match_id,
-            user,
-            require_complete=True,
-            require_collection=coll
-        )
-        internal_match_id = match.internal_match_id
     else:
         load_ver = await get_load_version(store, collection_id, ID, load_ver_override, user)
+    if match_id:
+        internal_match_id = await _get_internal_match_id(appstate, user, coll, match_id)
+    if KBASE_COLLECTIONS_SELECTION:
+        _, internal_sel = await selection_processing.get_selection(
+            appstate, KBASE_COLLECTIONS_SELECTION, require_complete=True, require_collection=coll)
+        internal_selection_id = internal_sel.internal_selection_id
     if count:
-        return await _count(store, collection_id, load_ver, internal_match_id)
+        return await _count(
+            store, collection_id, load_ver, internal_match_id, internal_selection_id)
     else:
         return await _query(
             store,
@@ -245,7 +259,27 @@ async def get_genome_attributes(
             output_table,
             internal_match_id,
             match_mark,
+            internal_selection_id,
+            selection_mark,
         ) 
+
+
+async def _get_internal_match_id(
+    appstate: CollectionsState,
+    user: kb_auth.KBaseUser,
+    coll: models.SavedCollection,
+    match_id: str
+) -> str:
+    if not user:
+        raise errors.UnauthorizedError("Authentication is required if a match ID is supplied")
+    match = await match_retrieval.get_match_full(
+        appstate,
+        match_id,
+        user,
+        require_complete=True,
+        require_collection=coll
+    )
+    return match.internal_match_id
 
 
 async def _query(
@@ -260,7 +294,10 @@ async def _query(
     output_table: bool,
     internal_match_id: str | None,
     match_mark: bool,
+    internal_selection_id: str | None,
+    selection_mark: bool,
 ):
+    # this method is too long but it seems pretty easy to read through... meh
     bind_vars = {
         f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
         _FLD_COL_ID: collection_id,
@@ -280,13 +317,18 @@ async def _query(
         aql += f"""
             FILTER @internal_match_id IN d.{names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS}
         """
+    # this will AND the match and selection. To OR, just OR the two filters instead of having
+    # separate statements.
+    if internal_selection_id and not selection_mark:
+        bind_vars["internal_selection_id"] = _SELECTION_ID_PREFIX + internal_selection_id
+        aql += f"""
+            FILTER @internal_selection_id IN d.{names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS}
+        """
     aql += f"""
         SORT d.@{_FLD_SORT} @{_FLD_SORT_DIR}
         LIMIT @{_FLD_SKIP}, @{_FLD_LIMIT}
         RETURN d
     """
-    # could get the doc count, but that'll be slower since all docs have to be counted vs. just
-    # getting LIMIT docs. YAGNI for now
     cur = await store.aql().execute(aql, bind_vars=bind_vars)
     # Sort everything since we can't necessarily rely on arango, the client, or the loader
     # to have the same insertion order for the dicts
@@ -294,10 +336,14 @@ async def _query(
     # and we order by that
     data = []
     d = None
+    fldsel = names.FLD_GENOME_ATTRIBS_SELECTED
     try:
         async for d in cur:
             if internal_match_id:
                 d[names.FLD_GENOME_ATTRIBS_MATCHED] = _MATCH_ID_PREFIX + internal_match_id in d[
+                    names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS]
+            if internal_selection_id:
+                d[fldsel] = _SELECTION_ID_PREFIX + internal_selection_id in d[
                     names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS]
             if output_table:
                 data.append([d[k] for k in sorted(_remove_keys(d))])
@@ -321,7 +367,8 @@ async def _count(
     store: ArangoStorage,
     collection_id: str,
     load_ver: str,
-    internal_match_id: str | None
+    internal_match_id: str | None,
+    internal_selection_id: str | None,
 ):
     # for now this method doesn't do much. One we have some filtering implemented
     # it'll need to take that into account.
@@ -340,6 +387,11 @@ async def _count(
         bind_vars["internal_match_id"] = _MATCH_ID_PREFIX + internal_match_id
         aql += f"""
             FILTER @internal_match_id IN d.{names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS}
+        """
+    if internal_selection_id:
+        bind_vars["internal_selection_id"] = _SELECTION_ID_PREFIX + internal_selection_id
+        aql += f"""
+            FILTER @internal_selection_id IN d.{names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS}
         """
     aql += f"""
         COLLECT WITH COUNT INTO length
