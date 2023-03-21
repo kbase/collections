@@ -2,7 +2,7 @@
 The genome_attribs data product, which provides geneome attributes for a collection.
 """
 
-from fastapi import APIRouter, Request, Depends, Query, Header
+from fastapi import APIRouter, Request, Depends, Query
 from pydantic import BaseModel, Field, Extra
 from src.common.gtdb_lineage import GTDBLineage, GTDBRank
 import src.common.storage.collection_and_field_names as names
@@ -51,14 +51,14 @@ class GenomeAttribsSpec(DataProductSpec):
         """
         await delete_match(storage, internal_match_id)
 
-    async def apply_selection(self, storage: ArangoStorage, internal_selection_id: str):
+    async def apply_selection(self, storage: ArangoStorage, selection_id: str):
         """
         Mark selections in genome attribute data.
 
         storage - the storage system.
-        internal_selection_id - the selection to apply.
+        selection_id - the selection to apply.
         """
-        await mark_selections(storage, internal_selection_id)
+        await mark_selections(storage, selection_id)
 
 
 GENOME_ATTRIBS_SPEC = GenomeAttribsSpec(
@@ -212,10 +212,10 @@ async def get_genome_attributes(
             + "Matched rows will be indicated by a true value in the special field "
             + f"`{names.FLD_GENOME_ATTRIBS_MATCHED}`. Has no effect if 'count' is true."
     ),
-    KBASE_COLLECTIONS_SELECTION: str | None = Header(
+    selection_id: str | None = Query(
         default=None,
-        description="A selection token to set the view to the selection rather than the entire "
-            + "collection. If a selection token is set, any load version override is ignored. "
+        description="A selection ID to set the view to the selection rather than the entire "
+            + "collection. If a selection ID is set, any load version override is ignored. "
             + "If a selection filter and a match filter are provided, they are ANDed together."
     ),
     selection_mark: bool = Query(
@@ -240,9 +240,9 @@ async def get_genome_attributes(
         load_ver = await get_load_version(store, collection_id, ID, load_ver_override, user)
     if match_id:
         internal_match_id = await _get_internal_match_id(appstate, user, coll, match_id)
-    if KBASE_COLLECTIONS_SELECTION:
-        _, internal_sel = await processing_selections.get_selection(
-            appstate, KBASE_COLLECTIONS_SELECTION, require_complete=True, require_collection=coll)
+    if selection_id:
+        internal_sel = await processing_selections.get_selection_full(
+            appstate, selection_id, require_complete=True, require_collection=coll)
         internal_selection_id = internal_sel.internal_selection_id
     if count:
         return await _count(
@@ -618,12 +618,12 @@ async def delete_match(storage: ArangoStorage, internal_match_id: str):
     await cur.close(ignore_missing=True)
 
 
-async def mark_selections(storage: ArangoStorage, internal_selection_id: str):
+async def mark_selections(storage: ArangoStorage, selection_id: str):
     """
     Mark genome attribute entries that are present in the selection and complete the selection
     process.
     """
-    sel = await storage.get_selection_internal(internal_selection_id)
+    sel = await storage.get_selection_full(selection_id)
     # use version number to avoid race conditions with activating collections
     coll = await storage.get_collection_version_by_num(sel.collection_id, sel.collection_ver)
     load_ver = {dp.product: dp.version for dp in coll.data_products}[ID]
@@ -637,7 +637,7 @@ async def mark_selections(storage: ArangoStorage, internal_selection_id: str):
             FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
             FILTER d.{names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID} IN @genome_ids
             UPDATE d WITH {{
-                {selfld}: APPEND(d.{selfld}, [@internal_match_id], true)
+                {selfld}: APPEND(d.{selfld}, [@internal_selection_id], true)
             }} IN @@{_FLD_COL_NAME}
             OPTIONS {{exclusive: true}}
             LET updated = NEW
@@ -648,7 +648,7 @@ async def mark_selections(storage: ArangoStorage, internal_selection_id: str):
         _FLD_COL_ID: coll.id,
         _FLD_COL_LV: load_ver,
         "genome_ids": sel.selection_ids,
-        "internal_match_id": _SELECTION_ID_PREFIX + internal_selection_id,
+        "internal_selection_id": _SELECTION_ID_PREFIX + sel.internal_selection_id,
     }
     matched = set()
     cur = await storage.aql().execute(aql, bind_vars=bind_vars)
@@ -659,4 +659,4 @@ async def mark_selections(storage: ArangoStorage, internal_selection_id: str):
         await cur.close(ignore_missing=True)
     missed = sorted(set(sel.selection_ids) - matched)
     state = models.ProcessState.FAILED if missed else models.ProcessState.COMPLETE
-    await storage.update_selection_state(internal_selection_id, state, now_epoch_millis(), missed)
+    await storage.update_selection_state(selection_id, state, now_epoch_millis(), missed)

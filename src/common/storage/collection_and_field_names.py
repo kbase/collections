@@ -61,11 +61,8 @@ COLL_SRV_MATCHES_DELETED = COLL_SRV_MATCHES + "_deleted"
 COLL_SRV_DATA_PRODUCT_PROCESSES = _SRV_PREFIX + "data_prod_proc"
 """ A collection holding the status of calculating secondary data products for matches. """
 
-COLL_SRV_ACTIVE_SELECTIONS = _SRV_PREFIX + "selections_active"
-""" A collection holding active selections. """
-
-COLL_SRV_INTERNAL_SELECTIONS = _SRV_PREFIX + "selections_internal"
-""" A collection holding the internal state of selections. """
+COLL_SRV_SELECTIONS = _SRV_PREFIX + "selections"
+""" A collection holding selections for Collections. """
 
 ## Data product collections
 

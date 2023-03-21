@@ -4,7 +4,7 @@ Routes for general collections endpoints, as opposed to endpoint for a particula
 
 import jsonschema
 
-from fastapi import APIRouter, Request, Depends, Path, Query, Header
+from fastapi import APIRouter, Request, Depends, Path, Query
 from typing import Any
 from pydantic import BaseModel, Field
 from src.common.git_commit import GIT_COMMIT
@@ -17,7 +17,6 @@ from src.service import kb_auth
 from src.service import models
 from src.service import processing_matches
 from src.service import processing_selections
-from src.service import tokens
 from src.service.clients.workspace_client import Workspace
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.matchers.common_models import Matcher
@@ -135,10 +134,6 @@ _QUERY_SELECTION_VERBOSE = Query(
         + "the selection ID list will be empty."
 )
 
-_HEADER_KBASE_COLLECTIONS_SELECTION = Header(
-    description="The selection ID / token returned when creating a selection."
-)
-
 
 class Root(BaseModel):
     service_name: str = Field(example=SERVICE_NAME)
@@ -184,35 +179,6 @@ class SelectionInput(BaseModel):
     selection_ids: list[str] = Field(
         example=models.FIELD_SELECTION_EXAMPLE,
         description=models.FIELD_SELECTION_IDS_DESCRIPTION
-    )
-
-
-class Selection(SelectionInput):
-    selection_id: str = Field(
-        description="The ID of the selection."
-    )
-    collection_id: str = Field(
-        example="GTDB",
-        description="The ID of the collection for the selection.",
-    )
-    collection_ver: int = Field(
-        example=7,
-        description="The version of the collection for which the selection was created."
-    )
-    state: models.ProcessState = Field(
-        example=models.ProcessState.PROCESSING.value,
-        description="The state of the selection process."
-    )
-    unmatched_ids: list[str] | None = Field(
-        example=models.FIELD_SELECTION_EXAMPLE,
-        description=models.FIELD_SELECTION_UNMATCHED_DESCRIPTION,
-    )
-
-
-class SelectionToken(BaseModel):
-    """Contains a token that allows access to a selection. Keep the token secret."""
-    selection_token: str = Field(
-        description="An opaque, secret string that can be used to access selections."
     )
 
 
@@ -297,21 +263,18 @@ async def match(
 
 @ROUTER_COLLECTIONS.post(
     "/collections/{collection_id}/selections",
-    response_model=SelectionToken,
+    response_model=models.Selection,
     summary="Create a data selection",
-    description="Create a data selection, returning a selection token that can be used to "
-        + "access the selection. Keep the token secret and safe to avoid rampaging wizards."
+    description="Create a data selection."
 )
 async def create_selection(
     r: Request,
     selection: SelectionInput,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
-) -> SelectionToken:
+) -> models.Selection:
     appstate = app_state.get_app_state(r)
-    coll = await appstate.arangostorage.get_collection_active(collection_id)
-    token = tokens.create_token(prefix="coll-selection-")
-    await processing_selections.save_selection(appstate, coll, token, selection.selection_ids)
-    return SelectionToken(selection_token=token)
+    return await processing_selections.save_selection(
+        appstate, collection_id, selection.selection_ids)
 
 
 @ROUTER_MATCHES.get(
@@ -337,69 +300,22 @@ async def get_match(
     user: kb_auth.KBaseUser = Depends(_AUTH),
 ) -> models.MatchVerbose:
     return await processing_matches.get_match(
-        app_state.get_app_state(r),
-        match_id,
-        user,
-        verbose=verbose
-    )
+        app_state.get_app_state(r), match_id, user, verbose=verbose)
 
 
 @ROUTER_SELECTIONS.get(
-    "/selections/",
-    response_model=Selection,
+    "/selections/{selection_id}",
+    response_model=models.SelectionVerbose,
     summary="Get a selection",
     description="Get the status and contents of a selection."
 )
 async def get_selection(
     r: Request,
-    # When I use an alias="" argument in the Header so I can use a sane name for the variable
-    # the server thinks the header is missing
-    KBASE_COLLECTIONS_SELECTION: str = _HEADER_KBASE_COLLECTIONS_SELECTION,
+    selection_id: str = Path(description="The ID of the selection"),
     verbose: bool = _QUERY_SELECTION_VERBOSE,
-) -> Selection:
-    appstate = app_state.get_app_state(r)
-    active_sel, internal_sel = await processing_selections.get_selection(
-        appstate, KBASE_COLLECTIONS_SELECTION, verbose=verbose
-    )
-    return Selection(
-        selection_id = active_sel.active_selection_id,
-        selection_ids=internal_sel.selection_ids,
-        unmatched_ids=internal_sel.unmatched_ids,
-        collection_id=internal_sel.collection_id,
-        collection_ver=internal_sel.collection_ver,
-        state=internal_sel.state,
-    )
-
-
-@ROUTER_SELECTIONS.put(
-    "/selections/",
-    summary="Update a selection",
-    description="Change a selection's selected data."
-)
-async def update_selection(
-    r: Request,
-    selection: SelectionInput,
-    # When I use an alias="" argument in the Header so I can use a sane name for the variable
-    # the server thinks the header is missing
-    KBASE_COLLECTIONS_SELECTION: str = _HEADER_KBASE_COLLECTIONS_SELECTION,
-):
-    appstate = app_state.get_app_state(r)
-    token = KBASE_COLLECTIONS_SELECTION
-    active_sel = await appstate.arangostorage.get_selection_active(tokens.hash_token(token))
-    internal_sel = await appstate.arangostorage.get_selection_internal(
-        active_sel.internal_selection_id)
-    coll = await appstate.arangostorage.get_collection_active(internal_sel.collection_id)
-    if coll.ver_num != internal_sel.collection_ver:
-        raise errors.InvalidSelectionStateError(
-            f"The requested selection is for {coll.id} collection version "
-            + f"{internal_sel.collection_ver}, while the current version is {coll.ver_num}")
-    await processing_selections.save_selection(
-        appstate,
-        coll,
-        token,
-        selection.selection_ids,
-        active_selection_id=active_sel.active_selection_id,
-        overwrite=True,
+) -> models.SelectionVerbose:
+    return await processing_selections.get_selection(
+        app_state.get_app_state(r), selection_id, verbose=verbose
     )
 
 

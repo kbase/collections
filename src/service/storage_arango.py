@@ -28,8 +28,7 @@ from src.common.storage.collection_and_field_names import (
     COLL_SRV_MATCHES,
     COLL_SRV_MATCHES_DELETED,
     COLL_SRV_DATA_PRODUCT_PROCESSES,
-    COLL_SRV_INTERNAL_SELECTIONS,
-    COLL_SRV_ACTIVE_SELECTIONS,
+    COLL_SRV_SELECTIONS,
 )
 from src.service import models
 from src.service import errors
@@ -63,8 +62,7 @@ _COLLECTIONS = [
     COLL_SRV_MATCHES,
     COLL_SRV_MATCHES_DELETED,
     COLL_SRV_DATA_PRODUCT_PROCESSES,
-    COLL_SRV_INTERNAL_SELECTIONS,
-    COLL_SRV_ACTIVE_SELECTIONS,
+    COLL_SRV_SELECTIONS,
 ]
 _BUILTIN = "builtin"
 
@@ -512,7 +510,6 @@ class ArangoStorage:
         collection: str,
         last_access: int,
         errclass,
-        errstr: str | None = None
     ) -> None:
         aql = f"""
             FOR d in @@{_FLD_COLLECTION}
@@ -521,16 +518,14 @@ class ArangoStorage:
                     {models.FIELD_LAST_ACCESS}: @{_FLD_CHECK_TIME}
                 }} IN @@{_FLD_COLLECTION}
                 OPTIONS {{exclusive: true}}
-                LET updated = NEW
-                RETURN KEEP(updated, "{FLD_ARANGO_KEY}")
+                RETURN NEW
             """
         bind_vars = {
             f"@{_FLD_COLLECTION}": collection,
             "item_id": item_id,
             _FLD_CHECK_TIME: last_access,
         }
-        await self._execute_aql_and_check_item_exists(
-            aql, bind_vars, errstr or item_id, errclass)
+        return await self._execute_aql_and_check_item_exists(aql, bind_vars, item_id, errclass)
 
     async def send_match_heartbeat(self, match_id: str, heartbeat_timestamp: int):
         """
@@ -584,13 +579,13 @@ class ArangoStorage:
         doc[models.FIELD_PROCESS_STATE] = models.ProcessState(doc[models.FIELD_PROCESS_STATE])
         return doc
 
-    async def _get_match(self, coll: str, match_id: str, exception: bool = True):
+    async def _get_doc(self, coll: str, doc_id: str, errclass, exception: bool = True):
         col = self._db.collection(coll)
-        doc = await col.get(match_id)
+        doc = await col.get(doc_id)
         if doc is None:
             if not exception:
                 return None
-            raise errors.NoSuchMatchError(match_id)
+            raise errclass(doc_id)
         self._correct_process_doc_in_place(doc)
         return doc
 
@@ -604,7 +599,7 @@ class ArangoStorage:
         """
         # could potentially speed things up a bit and reduce bandwidth by using AQL and
         # KEEP(). Don't bother for now.
-        doc = await self._get_match(COLL_SRV_MATCHES, match_id)
+        doc = await self._get_doc(COLL_SRV_MATCHES, match_id, errors.NoSuchMatchError)
         match = models.MatchVerbose.construct(
             **models.remove_non_model_fields(doc, models.MatchVerbose))
         if not verbose:
@@ -623,7 +618,7 @@ class ArangoStorage:
         match_id - the ID of the match.
         exception - True to throw an exception if the match is missing, False to return None.
         """
-        doc = await self._get_match(COLL_SRV_MATCHES, match_id, exception)
+        doc = await self._get_doc(COLL_SRV_MATCHES, match_id, errors.NoSuchMatchError, exception)
         return None if not doc else self._to_internal_match(doc)
 
     async def get_match_by_internal_id(self, internal_match_id: str) -> models.InternalMatch:
@@ -748,7 +743,8 @@ class ArangoStorage:
         """
         Get a match in the deleted state from the database given its internal match ID.
         """
-        doc = await self._get_match(COLL_SRV_MATCHES_DELETED, internal_match_id)
+        doc = await self._get_doc(
+            COLL_SRV_MATCHES_DELETED, internal_match_id, errors.NoSuchMatchError)
         return self._to_deleted_match(doc)
 
     async def remove_deleted_match(self, internal_match_id: str, last_access: int) -> bool:
@@ -879,41 +875,78 @@ class ArangoStorage:
         col = self._db.collection(arango_collection)
         await col.import_bulk(documents, on_duplicate="ignore")
 
-    async def save_selection_internal(self, selection: models.InternalSelection):
-        """
-        Save an internal selection to the database.
-        """
-        await self._insert_model(
-            selection, selection.internal_selection_id, COLL_SRV_INTERNAL_SELECTIONS)
+    def _to_selection(self, doc: dict[str, Any]) -> models.Selection:
+        return models.Selection.construct(
+                **models.remove_non_model_fields(doc, models.Selection)
+        )
 
-    async def get_selection_internal(self, internal_selection_id: str) -> models.InternalSelection:
-        """ Get an internal selection. """
-        col = self._db.collection(COLL_SRV_INTERNAL_SELECTIONS)
-        doc = await col.get(internal_selection_id)
-        if doc is None:
-            raise errors.NoSuchSelectionError(
-                f"There is no internal selection {internal_selection_id}")
-        self._correct_process_doc_in_place(doc)
+    def _to_internal_selection(self, doc: dict[str, Any]) -> models.InternalSelection:
         return models.InternalSelection.construct(
-            **models.remove_non_model_fields(doc, models.InternalSelection))
+                **models.remove_non_model_fields(doc, models.InternalSelection)
+        )
 
-    async def send_selection_heartbeat(self, internal_selection_id: str, heartbeat_timestamp: int):
+    async def save_selection(self, selection: models.InternalSelection
+    ) -> tuple[models.Selection, bool]:
+        """
+        Save a collection selection. If the selection already exists (based on the selection ID),
+        that selection is updated with last access data from the incoming selection and
+        the updated selection is returned.
+
+        Returns a tuple of the selection and boolean indicating whether the selection already
+        existed (true) or was created anew (false)
+        """
+        doc = jsonable_encoder(selection)
+        doc[FLD_ARANGO_KEY] = selection.selection_id
+        # See Note 1 at the beginning of the file
+        col = self._db.collection(COLL_SRV_SELECTIONS)
+        try:
+            await col.insert(doc)
+            return self._to_selection(doc), False
+        except DocumentInsertError as e:
+            if e.error_code == _ARANGO_ERR_UNIQUE_CONSTRAINT:
+                try:
+                    doc = await self.update_selection_last_access(
+                        selection.selection_id, selection.last_access)
+                    return self._to_selection(doc), True
+                except errors.NoSuchSelectionError as e:
+                    # This is highly unlikely. Not worth spending any time trying to recover
+                    raise ValueError(
+                        "Well, I tried. Either something is very wrong with the "
+                        + "database or I just got really unlucky with timing on a selection "
+                        + "deletion. Try matching again."
+                    ) from e
+            else:
+                raise e
+
+    async def get_selection_full(self, selection_id: str, exception: bool = True
+    ) -> models.InternalSelection:
+        """
+        Get the full selection associated with the selection id.
+
+        selection_id - the ID of the selection.
+        exception - True to throw an exception if the match is missing, False to return None.
+        """
+        doc = await self._get_doc(
+            COLL_SRV_SELECTIONS, selection_id, errors.NoSuchSelectionError, exception=exception)
+        return None if not doc else self._to_internal_selection(doc)
+
+    async def send_selection_heartbeat(self, selection_id: str, heartbeat_timestamp: int):
         """
         Send a heartbeat to a selection, updating the heartbeat timestamp.
 
-        internal_selection-id - the ID of the selection to modify.
+        selection-id - the ID of the selection to modify.
         heartbeat_timestamp - the timestamp of the heartbeat in epoch milliseconts.
         """
         await self._send_heartbeat(
-            COLL_SRV_INTERNAL_SELECTIONS,
-            internal_selection_id,
+            COLL_SRV_SELECTIONS,
+            selection_id,
             heartbeat_timestamp,
             errors.NoSuchSelectionError
         )
 
     async def update_selection_state(
         self,
-        internal_selection_id: str,
+        selection_id: str,
         state: models.ProcessState,
         update_time: int,
         missing_selections: list[str] = None,
@@ -921,66 +954,34 @@ class ArangoStorage:
         """
         Update the state of the selection, optionally setting missing selection IDs.
 
-        internal_selection_id - the ID of the selection to update
+        selection_id - the ID of the selection to update
         state - the state of the selection to set
         update_time - the time at which the selection state was updated in epoch milliseconds
         missing_selections - the selection IDs to add to the missing attribute for the selection
         """
         await self._update_state(
-            internal_selection_id,
+            selection_id,
             state,
             update_time,
-            COLL_SRV_INTERNAL_SELECTIONS,
+            COLL_SRV_SELECTIONS,
             errors.NoSuchSelectionError,
             data_list=missing_selections,
             data_list_field=models.FIELD_SELECTION_UNMATCHED_IDS,
         )
 
-    async def save_selection_active(
-        self,
-        selection: models.ActiveSelection,
-        overwrite: bool = False
-    ):
-        """
-        Save an active selection to the database.
-
-        selection - the selection to save
-        overwrite - if True, overwrite any existing selection with the same ID.
-        """
-        # might want to return the old one so the active internal ID can be logged?
-        await self._insert_model(
-            selection, selection.selection_id_hash, COLL_SRV_ACTIVE_SELECTIONS, overwrite=True)
-
-    async def get_selection_active(self, selection_id: str) -> models.ActiveSelection:
-        """
-        Get an active selection given a selection_id. Note that selection IDs are session tokens,
-        and so are omitted from error messages.
-        """
-        # tried to DRY this up with get internal selection but got too messy
-        col = self._db.collection(COLL_SRV_ACTIVE_SELECTIONS)
-        doc = await col.get(selection_id)
-        if doc is None:
-            raise errors.NoSuchSelectionError(
-                f"There is no selection by the given selection ID.")
-        return models.ActiveSelection.construct(
-            **models.remove_non_model_fields(doc, models.ActiveSelection))
-
-
-    async def update_selection_active_last_access(self, selection_id_hash, last_access):
+    async def update_selection_last_access(self, selection_id, last_access):
         """
         Update the last time the active selection was accessed.
         Throws an error if the selection doesn't exist.
 
-        selection_id_hash - the hashed ID / token for the selection.
+        selection_id - the ID for the selection.
         last_access - the time at which the selection was accessed in epoch milliseconds.
         """
-        await self._update_last_access(
-            selection_id_hash,
-            COLL_SRV_ACTIVE_SELECTIONS,
+        return await self._update_last_access(
+            selection_id,
+            COLL_SRV_SELECTIONS,
             last_access,
             errors.NoSuchSelectionError,
-            # selection IDs are tokens, don't stick them in exception messages, dummy
-            errstr="No selection found for the provided selection ID"
         )
 
     async def _insert_model(
