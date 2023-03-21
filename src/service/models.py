@@ -11,7 +11,7 @@ may still pass. In this case, a translation from the older data is required.
 """
 
 from enum import Enum
-from pydantic import BaseModel, Field, validator, HttpUrl
+from pydantic import BaseModel, Field, validator, HttpUrl, root_validator
 from typing import Any, Optional
 
 from src.service.arg_checkers import contains_control_characters
@@ -91,16 +91,19 @@ FIELD_SELECTION_UNMATCHED_DESCRIPTION = (
 )
 
 
-DATA_PRODUCT_ID_FIELD = Field(
-    min_length = 1,
-    max_length = 20,
-    regex = "^[a-z_]+$",
-    example="taxa_count",
-    description="The ID of the data product"
-)
-
-
 # this seems stupid...
+DATA_PRODUCT_ID_FIELD_PROPS = {
+    "min_length": 1,
+    "max_length": 20,
+    "regex": "^[a-z_]+$",
+    "example": "taxa_count",
+    "description": "The ID of the data product",
+}
+
+
+DATA_PRODUCT_ID_FIELD = Field(**DATA_PRODUCT_ID_FIELD_PROPS)
+
+
 MATCHER_ID_PROPS = {
     "min_length": 1,
     "max_length": 20,
@@ -173,6 +176,14 @@ class Collection(BaseModel):
     matchers: list[Matcher] = Field(
         description="The matchers associated with the collection"
     )
+    default_select: str | None = Field(  # might need to make this a list in future...? not sure
+        **DATA_PRODUCT_ID_FIELD_PROPS | {
+        "description":
+            "The ID of the data product to which non-data product specific selections "
+            + "should be applied. If present, the data product must be listed in the data "
+            + "products list. If absent, most selections will fail."
+        }
+    )
 
     @validator("name", "ver_src", pre=True)
     def _strip_and_fail_on_control_characters(cls, v):
@@ -208,6 +219,17 @@ class Collection(BaseModel):
                 raise ValueError(f"duplicate {field}: {accessor(it)}")
             seen.add(accessor(it))
         return items
+
+    @root_validator
+    def _check_default_selection(cls, values):
+        select = values.get("default_select")
+        if select:
+            dps = {dp.product for dp in values[FIELD_DATA_PRODUCTS]}
+            if select not in dps:
+                raise ValueError(f"The default selection data product {select} "
+                    + "is not in the set of specified data products"
+                )
+        return values
 
 # No need to worry about field validation here since the service is assigning the values
 # Re the dates, since Arango doesn't have a special format for dates like mongo, we might as
@@ -484,6 +506,12 @@ class InternalSelection(ProcessAttributes):
     unmatched_ids: list[str] | None = Field(
         example=FIELD_SELECTION_EXAMPLE,
         description=FIELD_SELECTION_UNMATCHED_DESCRIPTION
+    )
+    data_product: str = Field(
+        **DATA_PRODUCT_ID_FIELD_PROPS | {
+        "description":
+            "The ID of the data product to which the selection should be applied."
+        }
     )
 
 
