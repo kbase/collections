@@ -36,8 +36,8 @@ from src.service.data_products.common_models import DBCollection
 
 
 _ERRMAP = {
-    models.ProcessType.MATCH: errors.NoSuchMatchError,
-    models.ProcessType.SELECTION: errors.NoSuchSelectionError,
+    models.SubsetType.MATCH: errors.NoSuchMatchError,
+    models.SubsetType.SELECTION: errors.NoSuchSelectionError,
 }
 
 
@@ -814,7 +814,7 @@ class ArangoStorage:
                         + "database or I just got really unlucky with timing on a process "
                         + "deletion. Try starting the process again.")
                 self._correct_process_doc_in_place(doc)
-                doc[models.FIELD_PROCESS_TYPE] = models.ProcessType(doc[models.FIELD_PROCESS_TYPE])
+                doc[models.FIELD_PROCESS_TYPE] = models.SubsetType(doc[models.FIELD_PROCESS_TYPE])
                 return models.DataProductProcess.construct(
                     **models.remove_non_model_fields(doc, models.DataProductProcess)), True
             raise e

@@ -427,14 +427,14 @@ class DeletedMatch(InternalMatch):
     )
 
 
-class ProcessType(str, Enum):
-    """ The type of a process. """
+class SubsetType(str, Enum):
+    """ The type of a data subset. """
 
     MATCH = "match"
-    """ A matching process. """
+    """ A subset based on a data match. """
 
     SELECTION = "selection"
-    """ A seletion process. """
+    """ A subset based on a user selection. """
 
 
 class DataProductProcessIdentifier(BaseModel):
@@ -451,8 +451,8 @@ class DataProductProcessIdentifier(BaseModel):
             + "Expected to be a v4 UUID.",
     )
     data_product: str = DATA_PRODUCT_ID_FIELD
-    type: ProcessType = Field(
-        example=ProcessType.SELECTION.value,
+    type: SubsetType = Field(
+        example=SubsetType.SELECTION.value,
         description="The type of the process."
     )
 
