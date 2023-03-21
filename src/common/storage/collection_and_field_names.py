@@ -102,3 +102,7 @@ FLD_GENOME_ATTRIBS_MATCHES = "_matches"
 # Used for marking matches when returning data to the user and they select match marking vs.
 # filtering on a match.
 FLD_GENOME_ATTRIBS_MATCHED = "__match__"
+
+# Used for marking selections in the Arango collection; contains a list of internal selection IDs.
+# Underscore to separate from "real" attribs
+FLD_GENOME_ATTRIBS_SELECTIONS = "_selections"
