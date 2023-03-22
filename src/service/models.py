@@ -44,6 +44,7 @@ FIELD_MATCHERS_MATCHER = "matcher"
 FIELD_MATCH_INTERNAL_MATCH_ID = "internal_match_id"
 FIELD_MATCH_USER_PERMS = "user_last_perm_check"
 FIELD_MATCH_MATCHES = "matches"
+FIELD_SELECTION_INTERNAL_SELECTION_ID = "internal_selection_id"
 FIELD_SELECTION_UNMATCHED_IDS = "unmatched_ids"
 FIELD_DATE_CREATE = "date_create"
 FIELD_USER_CREATE = "user_create"
@@ -453,7 +454,7 @@ class DataProductProcessIdentifier(BaseModel):
     data_product: str = DATA_PRODUCT_ID_FIELD
     type: SubsetType = Field(
         example=SubsetType.SELECTION.value,
-        description="The type of the process."
+        description="The type of data the process is acting on."
     )
 
 

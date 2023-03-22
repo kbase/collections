@@ -564,11 +564,14 @@ class ArangoStorage:
         #             descending from errors.CollectionsError. Java would be Class<CollectionError>
         errclass,
     ) -> dict[str, Any]:
-        cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
+        cur = await self._db.aql.execute(aql, bind_vars=bind_vars, count=True)
         # having a count > 1 is impossible since keys are unique
         try:
             if cur.empty():
                 raise errclass(errstr)
+            if cur.count() > 1:
+                # this should never happen, but just in case
+                raise ValueError("Excpected only one result")
             doc = await cur.next()
         finally:
             await cur.close(ignore_missing=True)
@@ -622,21 +625,30 @@ class ArangoStorage:
         return None if not doc else self._to_internal_match(doc)
 
     async def get_match_by_internal_id(self, internal_match_id: str) -> models.InternalMatch:
-        """ Get an internal match by its internal ID. """
+        """ Get a match by its internal ID. """
+        doc = await self._get_subset_by_internal_id(
+            COLL_SRV_MATCHES,
+            internal_match_id,
+            models.FIELD_MATCH_INTERNAL_MATCH_ID,
+            errors.NoSuchMatchError,
+        )
+        return self._to_internal_match(doc)
+
+    async def _get_subset_by_internal_id(
+        self, coll: str, internal_id: str, field: str, errclass
+    ) -> dict[str, Any]:
         aql = f"""
             FOR d in @@{_FLD_COLLECTION}
-                FILTER d.{models.FIELD_MATCH_INTERNAL_MATCH_ID} == @{_FLD_MATCH_ID}
+                FILTER d.{field} == @internal_id
                 RETURN d
             """
         bind_vars = {
-            f"@{_FLD_COLLECTION}": COLL_SRV_MATCHES,
-            _FLD_MATCH_ID: internal_match_id,
+            f"@{_FLD_COLLECTION}": coll,
+            "internal_id": internal_id,
         }
         doc = await self._execute_aql_and_check_item_exists(
-            aql, bind_vars, internal_match_id, errors.NoSuchMatchError)
-        self._correct_process_doc_in_place(doc)
-        return models.InternalMatch.construct(
-            **models.remove_non_model_fields(doc, models.InternalMatch))
+            aql, bind_vars, internal_id, errclass)
+        return self._correct_process_doc_in_place(doc)
 
     async def update_match_state(
         self,
@@ -929,6 +941,17 @@ class ArangoStorage:
         doc = await self._get_doc(
             COLL_SRV_SELECTIONS, selection_id, errors.NoSuchSelectionError, exception=exception)
         return None if not doc else self._to_internal_selection(doc)
+
+    async def get_selection_by_internal_id(self, internal_selection_id: str
+    ) -> models.InternalSelection:
+        """ Get a selection by its internal ID. """
+        doc = await self._get_subset_by_internal_id(
+            COLL_SRV_SELECTIONS,
+            internal_selection_id,
+            models.FIELD_SELECTION_INTERNAL_SELECTION_ID,
+            errors.NoSuchSelectionError,
+        )
+        return self._to_internal_selection(doc)
 
     async def send_selection_heartbeat(self, selection_id: str, heartbeat_timestamp: int):
         """
