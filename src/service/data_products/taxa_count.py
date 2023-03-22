@@ -232,7 +232,7 @@ async def get_taxa_counts(
             collection_id,
             load_ver,
             rank,
-            dp_match.internal_match_id
+            dp_match.internal_id
         )
         name, count = names.FLD_TAXA_COUNT_NAME, names.FLD_TAXA_COUNT_COUNT
         mqd = {d[name]: d[count] for d in matchq}
@@ -326,7 +326,8 @@ async def _process_match(match_id: str, deps: PickleableDependencies, args: list
         arangoclient, storage = await deps.get_storage()
         match = await storage.get_match_full(match_id)
         async def heartbeat(millis: int):
-            await storage.send_data_product_match_heartbeat(match.internal_match_id, ID, millis)
+            await storage.send_data_product_heartbeat(
+                match.internal_match_id, ID, models.ProcessType.MATCH, millis)
         hb = processing.Heartbeat(heartbeat, processing.HEARTBEAT_INTERVAL_SEC)
         hb.start()
         
@@ -359,15 +360,15 @@ async def _process_match(match_id: str, deps: PickleableDependencies, args: list
         # Ignore collisions so that if two match processes get kicked off at once the result
         # is the same and neither fails.
         await storage.import_bulk_ignore_collisions(names.COLL_TAXA_COUNT, docs)
-        await storage.update_data_product_match_state(
-            match.internal_match_id, ID, models.ProcessState.COMPLETE, deps.get_epoch_ms()
+        await _update_match_state(
+            storage, match.internal_match_id, models.ProcessState.COMPLETE, deps.get_epoch_ms()
         )
     except Exception as e:
         logging.getLogger(__name__).exception(
             f"Matching process data product {ID} for match {match_id} failed")
         if match:
-            await storage.update_data_product_match_state(
-                match.internal_match_id, ID, models.ProcessState.FAILED, deps.get_epoch_ms()
+            await _update_match_state(
+               storage, match.internal_match_id, models.ProcessState.FAILED, deps.get_epoch_ms()
             )
             # otherwise not much to do, something went very wrong
     finally:
@@ -375,6 +376,17 @@ async def _process_match(match_id: str, deps: PickleableDependencies, args: list
             hb.stop()
         if arangoclient:
             await arangoclient.close()
+
+
+async def _update_match_state(
+    storage: ArangoStorage,
+    internal_match_id: str,
+    state: models.ProcessState,
+    epoch_ms: int
+):
+    await storage.update_data_product_process_state(
+        internal_match_id, ID, models.ProcessType.MATCH, state, epoch_ms
+    )
 
 
 async def delete_match(storage: ArangoStorage, internal_match_id: str):
