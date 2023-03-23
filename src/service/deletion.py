@@ -83,7 +83,7 @@ async def _delete_match(
         dpid = models.DataProductProcessIdentifier(
             internal_id=delmatch.internal_match_id,
             data_product=dpinfo.product,
-            type=models.ProcessType.MATCH
+            type=models.SubsetType.MATCH
         )
         _logger().info(
             f"Removing match data for match {minfo} data product {dpinfo.product}")

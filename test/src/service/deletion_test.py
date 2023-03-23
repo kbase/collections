@@ -89,10 +89,10 @@ async def _delete_match_standard_path(return_match: models.InternalMatch):
     data_product2 = create_autospec(DataProductSpecForAutoSpeccing, spec_set=True, instance=True)
     dps = {"prodone": data_product1, "prodtwo": data_product2}
     dpid1 = models.DataProductProcessIdentifier(
-        internal_id="internal_ID", data_product="prodone", type=models.ProcessType.MATCH
+        internal_id="internal_ID", data_product="prodone", type=models.SubsetType.MATCH
     )
     dpid2 = models.DataProductProcessIdentifier(
-        internal_id="internal_ID", data_product="prodtwo", type=models.ProcessType.MATCH
+        internal_id="internal_ID", data_product="prodtwo", type=models.SubsetType.MATCH
     )
 
     storage.get_match_full.return_value = return_match
@@ -122,10 +122,10 @@ async def test_delete_match_delete_active_match():
     data_product2 = create_autospec(DataProductSpecForAutoSpeccing, spec_set=True, instance=True)
     dps = {"prodone": data_product1, "prodtwo": data_product2}
     dpid1 = models.DataProductProcessIdentifier(
-        internal_id="internal_ID", data_product="prodone", type=models.ProcessType.MATCH
+        internal_id="internal_ID", data_product="prodone", type=models.SubsetType.MATCH
     )
     dpid2 = models.DataProductProcessIdentifier(
-        internal_id="internal_ID", data_product="prodtwo", type=models.ProcessType.MATCH
+        internal_id="internal_ID", data_product="prodtwo", type=models.SubsetType.MATCH
     )
 
     storage.get_match_full.return_value = MATCH

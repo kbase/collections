@@ -271,7 +271,7 @@ async def _get_data_product_match(
         require_collection=coll
     )
     dpid = models.DataProductProcessIdentifier(
-        internal_id=match.internal_match_id, data_product=ID, type=models.ProcessType.MATCH
+        internal_id=match.internal_match_id, data_product=ID, type=models.SubsetType.MATCH
     )
     dp_match = await processing.get_or_create_data_product_process(appstate, dpid, _process_match)
     return dp_match, load_ver
@@ -327,7 +327,7 @@ async def _process_match(internal_match_id: str, deps: PickleableDependencies, a
         arangoclient, storage = await deps.get_storage()
         match = await storage.get_match_by_internal_id(internal_match_id)
         dpid = models.DataProductProcessIdentifier(
-            internal_id=match.internal_match_id, data_product=ID, type=models.ProcessType.MATCH)
+            internal_id=match.internal_match_id, data_product=ID, type=models.SubsetType.MATCH)
         async def heartbeat(millis: int):
             await storage.send_data_product_heartbeat(dpid, millis)
         hb = processing.Heartbeat(heartbeat, processing.HEARTBEAT_INTERVAL_SEC)
