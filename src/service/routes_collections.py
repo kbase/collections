@@ -21,7 +21,7 @@ from src.service import kb_auth
 from src.service import match_deletion
 from src.service import processing_matches
 from src.service import models
-from src.service import selection_processing
+from src.service import processing_selections
 from src.service import tokens
 from src.service.clients.workspace_client import Workspace
 from src.service.http_bearer import KBaseHTTPBearer
@@ -379,7 +379,7 @@ async def create_selection(
     appstate = app_state.get_app_state(r)
     coll = await appstate.arangostorage.get_collection_active(collection_id)
     token = tokens.create_token(prefix="coll-selection-")
-    await selection_processing.save_selection(appstate, coll, token, selection.selection_ids)
+    await processing_selections.save_selection(appstate, coll, token, selection.selection_ids)
     return SelectionToken(selection_token=token)
 
 
@@ -427,7 +427,7 @@ async def get_selection(
     verbose: bool = _QUERY_SELECTION_VERBOSE,
 ) -> Selection:
     appstate = app_state.get_app_state(r)
-    active_sel, internal_sel = await selection_processing.get_selection(
+    active_sel, internal_sel = await processing_selections.get_selection(
         appstate, KBASE_COLLECTIONS_SELECTION, verbose=verbose
     )
     return Selection(
@@ -462,7 +462,7 @@ async def update_selection(
         raise errors.InvalidSelectionStateError(
             f"The requested selection is for {coll.id} collection version "
             + f"{internal_sel.collection_ver}, while the current version is {coll.ver_num}")
-    await selection_processing.save_selection(
+    await processing_selections.save_selection(
         appstate,
         coll,
         token,

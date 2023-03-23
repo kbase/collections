@@ -12,7 +12,7 @@ from src.service import errors
 from src.service import kb_auth
 from src.service import processing_matches
 from src.service import models
-from src.service import selection_processing
+from src.service import processing_selections
 from src.service.data_products.common_functions import (
     get_load_version,
     get_load_ver_from_collection,
@@ -241,7 +241,7 @@ async def get_genome_attributes(
     if match_id:
         internal_match_id = await _get_internal_match_id(appstate, user, coll, match_id)
     if KBASE_COLLECTIONS_SELECTION:
-        _, internal_sel = await selection_processing.get_selection(
+        _, internal_sel = await processing_selections.get_selection(
             appstate, KBASE_COLLECTIONS_SELECTION, require_complete=True, require_collection=coll)
         internal_selection_id = internal_sel.internal_selection_id
     if count:
