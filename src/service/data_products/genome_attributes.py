@@ -201,28 +201,30 @@ async def get_genome_attributes(
     match_id: str | None = Query(
         default = None,
         description="A match ID to set the view to the match rather than "
-            + "the entire collection. Authentication is required. Note that if a match ID is "
+            + "the entire collection. Authentication is required. If a match ID is "
             # matches are against a specific load version, so...
             + "set, any load version override is ignored. "
-            + "If a selection filter and a match filter are provided, they are ANDed together."
+            + "If a selection filter and a match filter are provided, they are ANDed together. "
+            + "Has no effect on a `count` if `match_mark` is true."
     ),  # TODO FEATURE support a choice of AND or OR
     match_mark: bool = Query(
         default=False,
         description="Whether to mark matched rows rather than filter based on the match ID. "
             + "Matched rows will be indicated by a true value in the special field "
-            + f"`{names.FLD_GENOME_ATTRIBS_MATCHED}`. Has no effect if 'count' is true."
+            + f"`{names.FLD_GENOME_ATTRIBS_MATCHED}`."
     ),
     selection_id: str | None = Query(
         default=None,
         description="A selection ID to set the view to the selection rather than the entire "
             + "collection. If a selection ID is set, any load version override is ignored. "
-            + "If a selection filter and a match filter are provided, they are ANDed together."
+            + "If a selection filter and a match filter are provided, they are ANDed together. "
+            + "Has no effect on a `count` if `selection_mark` is true."
     ),
     selection_mark: bool = Query(
         default=False,
         description="Whether to mark selected rows rather than filter based on the selection ID. "
             + "Selected rows will be indicated by a true value in the special field "
-            + f"`{names.FLD_GENOME_ATTRIBS_SELECTED}`. Has no effect if 'count' is true."
+            + f"`{names.FLD_GENOME_ATTRIBS_SELECTED}`."
     ),
     load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
@@ -246,7 +248,12 @@ async def get_genome_attributes(
         internal_selection_id = internal_sel.internal_selection_id
     if count:
         return await _count(
-            store, collection_id, load_ver, internal_match_id, internal_selection_id)
+            store,
+            collection_id,
+            load_ver,
+            internal_match_id if not match_mark else None,
+            internal_selection_id if not selection_mark else None,
+        )
     else:
         return await _query(
             store,
