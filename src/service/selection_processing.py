@@ -156,7 +156,7 @@ def _check_selection_state(
     require_complete: bool,
     require_collection: models.SavedCollection,
 ):
-    # Code is similar to code in match_retrieval.py, but trying to DRY it up was a mess
+    # Code is similar to code in processing_matches.py, but trying to DRY it up was a mess
     # We DEF don't want to put the selection token in the error
     col = require_collection
     if col:

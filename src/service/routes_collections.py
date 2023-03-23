@@ -19,7 +19,7 @@ from src.service import data_product_specs
 from src.service import errors
 from src.service import kb_auth
 from src.service import match_deletion
-from src.service import match_retrieval
+from src.service import processing_matches
 from src.service import models
 from src.service import selection_processing
 from src.service import tokens
@@ -314,7 +314,7 @@ async def get_collection_matchers(r: Request, collection_id: str = PATH_VALIDATO
     "/collections/{collection_id}/matchers/{matcher_id}",
     response_model=models.Match,
     description="Match KBase workspace data against a collection.\n\n"
-        + f"At most {match_retrieval.MAX_UPAS} objects may be submitted. "
+        + f"At most {processing_matches.MAX_UPAS} objects may be submitted. "
         + "If sets are sumbitted, the set is expanded from the list of references in the set "
         + "returned by the workspace, ignoring any context for the references."
 )
@@ -331,7 +331,7 @@ async def match(
     appstate = app_state.get_app_state(r)
     ws = appstate.get_workspace_client(user.token)
     matcher = appstate.get_matcher(matcher_info.matcher)
-    match_process, upas, wsids = await match_retrieval.create_match_process(
+    match_process, upas, wsids = await processing_matches.create_match_process(
         matcher,
         WorkspaceWrapper(ws),
         match_params.upas,
@@ -405,7 +405,7 @@ async def get_match(
     verbose: bool = _QUERY_MATCH_VERBOSE,
     user: kb_auth.KBaseUser = Depends(_AUTH),
 ) -> models.MatchVerbose:
-    return await match_retrieval.get_match(
+    return await processing_matches.get_match(
         app_state.get_app_state(r),
         match_id,
         user,

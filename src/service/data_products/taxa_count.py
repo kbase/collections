@@ -13,7 +13,7 @@ from src.service import app_state
 from src.service.app_state_data_structures import PickleableDependencies, CollectionsState
 from src.service import errors
 from src.service import kb_auth
-from src.service import match_retrieval
+from src.service import processing_matches
 from src.service import models
 from src.service import processing
 from src.service.clients.workspace_client import Workspace
@@ -263,7 +263,7 @@ async def _get_data_product_match(
             f"Cannot perform a {ID} match when the collection does not have a "
             + f"{genome_attributes.ID} data product")
     load_ver = get_load_ver_from_collection(coll, ID)
-    match = await match_retrieval.get_match_full(
+    match = await processing_matches.get_match_full(
         appstate,
         match_id,
         user,
