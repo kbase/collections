@@ -270,7 +270,7 @@ async def _get_data_product_match(
         require_complete=True,
         require_collection=coll
     )
-    dp_match = await match_retrieval.get_or_create_data_product_process(
+    dp_match = await processing.get_or_create_data_product_process(
         appstate, match.internal_match_id, ID, models.ProcessType.MATCH, _process_match
     )
     return dp_match, load_ver
