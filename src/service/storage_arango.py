@@ -182,6 +182,8 @@ class ArangoStorage:
         matchcol = db.collection(COLL_SRV_MATCHES)
         # find matches ready to be moved to the deleted state
         await matchcol.add_persistent_index([models.FIELD_LAST_ACCESS])
+        # find matches by internal match ID
+        await matchcol.add_persistent_index([models.FIELD_MATCH_INTERNAL_MATCH_ID])
         for col_list in dps.values():
             for col in col_list:
                 dbcol = db.collection(col.name)
@@ -528,7 +530,7 @@ class ArangoStorage:
             _FLD_CHECK_TIME: last_access,
         }
         await self._execute_aql_and_check_item_exists(
-            item_id, aql, bind_vars, errclass, errstr)
+            aql, bind_vars, errstr or item_id, errclass)
 
     async def send_match_heartbeat(self, match_id: str, heartbeat_timestamp: int):
         """
@@ -556,25 +558,27 @@ class ArangoStorage:
             "key": key,
             "heartbeat": heartbeat_timestamp,
         }
-        await self._execute_aql_and_check_item_exists(key, aql, bind_vars, errclass)
+        await self._execute_aql_and_check_item_exists(aql, bind_vars, key, errclass)
 
     async def _execute_aql_and_check_item_exists(
         self,
-        item_id: str,
         aql: str,
         bind_vars: dict[str, Any],
+        errstr: str,
         # TODO TYPING how do you type this? It's a class, but not an *instance* of a class,
         #             descending from errors.CollectionsError. Java would be Class<CollectionError>
         errclass,
-        errstr: str = None,
-    ) -> None:
+    ) -> dict[str, Any]:
         cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
         # having a count > 1 is impossible since keys are unique
         try:
             if cur.empty():
-                raise errclass(errstr or item_id)
+                raise errclass(errstr)
+            doc = await cur.next()
         finally:
             await cur.close(ignore_missing=True)
+        return doc
+
 
     def _correct_process_doc_in_place(self, doc: dict[str, Any]):
         doc[models.FIELD_PROCESS_STATE] = models.ProcessState(doc[models.FIELD_PROCESS_STATE])
@@ -621,6 +625,23 @@ class ArangoStorage:
         """
         doc = await self._get_match(COLL_SRV_MATCHES, match_id, exception)
         return None if not doc else self._to_internal_match(doc)
+
+    async def get_match_by_internal_id(self, internal_match_id: str) -> models.InternalMatch:
+        """ Get an internal match by its internal ID. """
+        aql = f"""
+            FOR d in @@{_FLD_COLLECTION}
+                FILTER d.{models.FIELD_MATCH_INTERNAL_MATCH_ID} == @{_FLD_MATCH_ID}
+                RETURN d
+            """
+        bind_vars = {
+            f"@{_FLD_COLLECTION}": COLL_SRV_MATCHES,
+            _FLD_MATCH_ID: internal_match_id,
+        }
+        doc = await self._execute_aql_and_check_item_exists(
+            aql, bind_vars, internal_match_id, errors.NoSuchMatchError)
+        self._correct_process_doc_in_place(doc)
+        return models.InternalMatch.construct(
+            **models.remove_non_model_fields(doc, models.InternalMatch))
 
     async def update_match_state(
         self,
@@ -681,7 +702,7 @@ class ArangoStorage:
                 LET updated = NEW
                 RETURN KEEP(updated, "{FLD_ARANGO_KEY}")
             """
-        await self._execute_aql_and_check_item_exists(data_id, aql, bind_vars, errclass)
+        await self._execute_aql_and_check_item_exists(aql, bind_vars, data_id, errclass)
 
     async def process_old_matches(
         self,
@@ -769,7 +790,7 @@ class ArangoStorage:
         data_product: str,
         type_: models.ProcessType
     ) -> str:
-        return f"{data_product}_{type_}_{internal_id}"
+        return f"{data_product}_{type_.value}_{internal_id}"
 
     async def create_or_get_data_product_process(self, dp_match: models.DataProductProcess
     ) -> tuple[models.DataProductProcess, bool]:
@@ -827,7 +848,7 @@ class ArangoStorage:
         internal_id: str,
         data_product: str,
         type_: models.ProcessType,
-        match_state: models.ProcessState,
+        state: models.ProcessState,
         update_time: int,
     ) -> None:
         """
@@ -836,12 +857,12 @@ class ArangoStorage:
         internal__id - the ID of the data product process to update
         data_product - the data product performing the process
         type - the type of the data product process.
-        match_state - the state to set
+        state - the state to set
         update_time - the time at which the state was updated in epoch milliseconds
         """
         await self._update_state(
             self._data_product_process_key(internal_id, data_product, type_),
-            match_state,
+            state,
             update_time,
             COLL_SRV_DATA_PRODUCT_PROCESSES,
             _ERRMAP[type_],

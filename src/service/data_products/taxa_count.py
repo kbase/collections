@@ -270,8 +270,8 @@ async def _get_data_product_match(
         require_complete=True,
         require_collection=coll
     )
-    dp_match = await match_retrieval.get_or_create_data_product_match(
-        appstate, match, ID, _process_match
+    dp_match = await match_retrieval.get_or_create_data_product_process(
+        appstate, match.internal_match_id, ID, models.ProcessType.MATCH, _process_match
     )
     return dp_match, load_ver
 
@@ -315,7 +315,7 @@ async def _query(
     return ret
 
 
-async def _process_match(match_id: str, deps: PickleableDependencies, args: list):
+async def _process_match(internal_match_id: str, deps: PickleableDependencies, args: list):
     # TODO DOCS document that match processes should run the process regardless of the state
     #      of the match. It is up to the code starting the process to ensure it is correct to
     #      start the match process. As such, the match processes should be idempotent.
@@ -324,7 +324,7 @@ async def _process_match(match_id: str, deps: PickleableDependencies, args: list
     match = None
     try:
         arangoclient, storage = await deps.get_storage()
-        match = await storage.get_match_full(match_id)
+        match = await storage.get_match_by_internal_id(internal_match_id)
         async def heartbeat(millis: int):
             await storage.send_data_product_heartbeat(
                 match.internal_match_id, ID, models.ProcessType.MATCH, millis)
