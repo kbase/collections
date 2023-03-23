@@ -135,15 +135,13 @@ class Heartbeat:
 
 async def get_or_create_data_product_process(
     deps: CollectionsState,
-    internal_id: str,
-    data_product: str,
-    type_: models.ProcessType,
+    dpid: models.DataProductProcessIdentifier,
     process_callable: Callable[[str, PickleableDependencies, list[Any]], None],
 ) -> models.DataProductProcess:
     """
     Get a process data structure for a data product process.
 
-    Creates and starts the process the process does not already exist.
+    Creates and starts the process if the process does not already exist.
 
     If the process exists but hasn't had a heartbeat in the required time frame, starts another
     instance of the process.
@@ -151,31 +149,29 @@ async def get_or_create_data_product_process(
     In either case, the list of arguments to the process is empty.
 
     deps - the collections service state.
-    internal_id - the internal ID of the parent process for the data product.
-    data_product - the data product for the process.
-    type_ - the type of the process
+    dpid - the identifier for the process to create.
     process_callable - the callable to run if there is no process information in the database or
         the heartbeat is too old.
     """
     now = deps.get_epoch_ms()
     dp_proc, exists = await deps.arangostorage.create_or_get_data_product_process(
         models.DataProductProcess(
-            data_product=data_product,
-            type=type_,
-            internal_id=internal_id,
+            data_product=dpid.data_product,
+            type=dpid.type,
+            internal_id=dpid.internal_id,
             created=now,
             state=models.ProcessState.PROCESSING,
             state_updated=now,
         )
     )
     if not exists:
-        _start_process(internal_id, process_callable, deps.get_pickleable_dependencies())
+        _start_process(dpid.internal_id, process_callable, deps.get_pickleable_dependencies())
     elif requires_restart(deps.get_epoch_ms(), dp_proc):
         logging.getLogger(__name__).warn(
-            f"Restarting {type_.value} process for internal ID {internal_id} "
-            + f"data product {data_product}"
+            f"Restarting {dpid.type.value} process for internal ID {dpid.internal_id} "
+            + f"data product {dpid.data_product}"
         )
-        _start_process(internal_id, process_callable, deps.get_pickleable_dependencies())
+        _start_process(dpid.internal_id, process_callable, deps.get_pickleable_dependencies())
     return dp_proc
 
 

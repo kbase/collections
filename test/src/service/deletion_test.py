@@ -88,6 +88,12 @@ async def _delete_match_standard_path(return_match: models.InternalMatch):
     data_product1 = create_autospec(DataProductSpecForAutoSpeccing, spec_set=True, instance=True)
     data_product2 = create_autospec(DataProductSpecForAutoSpeccing, spec_set=True, instance=True)
     dps = {"prodone": data_product1, "prodtwo": data_product2}
+    dpid1 = models.DataProductProcessIdentifier(
+        internal_id="internal_ID", data_product="prodone", type=models.ProcessType.MATCH
+    )
+    dpid2 = models.DataProductProcessIdentifier(
+        internal_id="internal_ID", data_product="prodtwo", type=models.ProcessType.MATCH
+    )
 
     storage.get_match_full.return_value = return_match
     storage.get_collection_version_by_num.return_value = COLLECTION
@@ -99,10 +105,7 @@ async def _delete_match_standard_path(return_match: models.InternalMatch):
     storage.get_collection_version_by_num.assert_awaited_once_with("my_collection", 3)
     data_product1.delete_match.assert_awaited_once_with(storage, "internal_ID")
     data_product2.delete_match.assert_awaited_once_with(storage, "internal_ID")
-    storage.remove_data_product_process.assert_has_awaits([
-        call("internal_ID", "prodone", models.ProcessType.MATCH),
-        call("internal_ID", "prodtwo", models.ProcessType.MATCH),
-    ])
+    storage.remove_data_product_process.assert_has_awaits([call(dpid1), call(dpid2)])
     assert storage.remove_data_product_process.await_count == 2
     storage.remove_deleted_match.assert_awaited_once_with("internal_ID", 90000)
 
@@ -118,6 +121,12 @@ async def test_delete_match_delete_active_match():
     data_product1 = create_autospec(DataProductSpecForAutoSpeccing, spec_set=True, instance=True)
     data_product2 = create_autospec(DataProductSpecForAutoSpeccing, spec_set=True, instance=True)
     dps = {"prodone": data_product1, "prodtwo": data_product2}
+    dpid1 = models.DataProductProcessIdentifier(
+        internal_id="internal_ID", data_product="prodone", type=models.ProcessType.MATCH
+    )
+    dpid2 = models.DataProductProcessIdentifier(
+        internal_id="internal_ID", data_product="prodtwo", type=models.ProcessType.MATCH
+    )
 
     storage.get_match_full.return_value = MATCH
     storage.remove_match.return_value = True
@@ -130,10 +139,7 @@ async def test_delete_match_delete_active_match():
     storage.get_collection_version_by_num.assert_awaited_once_with("my_collection", 3)
     data_product1.delete_match.assert_awaited_once_with(storage, "internal_ID")
     data_product2.delete_match.assert_awaited_once_with(storage, "internal_ID")
-    storage.remove_data_product_process.assert_has_awaits([
-        call("internal_ID", "prodone", models.ProcessType.MATCH),
-        call("internal_ID", "prodtwo", models.ProcessType.MATCH),
-    ])
+    storage.remove_data_product_process.assert_has_awaits([call(dpid1), call(dpid2)])
     assert storage.remove_data_product_process.await_count == 2
     storage.remove_deleted_match.assert_awaited_once_with("internal_ID", 90000)
 

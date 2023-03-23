@@ -784,13 +784,8 @@ class ArangoStorage:
         finally:
             await cur.close(ignore_missing=True)
 
-    def _data_product_process_key(
-        self,
-        internal_id: str,
-        data_product: str,
-        type_: models.ProcessType
-    ) -> str:
-        return f"{data_product}_{type_.value}_{internal_id}"
+    def _data_product_process_key(self, dpid: models.DataProductProcessIdentifier) -> str:
+        return f"{dpid.data_product}_{dpid.type.value}_{dpid.internal_id}"
 
     async def create_or_get_data_product_process(self, dp_match: models.DataProductProcess
     ) -> tuple[models.DataProductProcess, bool]:
@@ -801,8 +796,11 @@ class ArangoStorage:
         Returns a tuple of the process as it currently exists in the database and a boolean
         indicating whether it was created or already existed.
         """
-        key = self._data_product_process_key(
-            dp_match.internal_id, dp_match.data_product, dp_match.type)
+        key = self._data_product_process_key(models.DataProductProcessIdentifier(
+            internal_id=dp_match.internal_id,
+            data_product=dp_match.data_product,
+            type=dp_match.type
+        ))
         doc = dp_match.dict()
         doc[FLD_ARANGO_KEY] = key
         # See Note 1 at the beginning of the file
@@ -827,60 +825,47 @@ class ArangoStorage:
 
     async def send_data_product_heartbeat(
         self,
-        internal_id: str,
-        data_product: str,
-        type_: models.ProcessType,
-        heartbeat_timestamp: int):
+        dpid: models.DataProductProcessIdentifier,
+        heartbeat_timestamp: int
+    ):
         """
         Send a heartbeat to a data product process, updating the heartbeat timestamp.
 
-        internal_id - the ID of the data product process to update
-        data_product - the data product performing the match
-        type - the type of the data product process.
+        dpid - the data process ID.
         heartbeat_timestamp - the timestamp of the heartbeat in epoch milliseconts.
         """
-        key = self._data_product_process_key(internal_id, data_product, type_)
+        key = self._data_product_process_key(dpid)
         await self._send_heartbeat(
-            COLL_SRV_DATA_PRODUCT_PROCESSES, key, heartbeat_timestamp, _ERRMAP[type_])
+            COLL_SRV_DATA_PRODUCT_PROCESSES, key, heartbeat_timestamp, _ERRMAP[dpid.type])
 
     async def update_data_product_process_state(
         self,
-        internal_id: str,
-        data_product: str,
-        type_: models.ProcessType,
+        dpid: models.DataProductProcessIdentifier,
         state: models.ProcessState,
         update_time: int,
-    ) -> None:
+    ):
         """
         Update the state of a data product process.
 
-        internal__id - the ID of the data product process to update
-        data_product - the data product performing the process
-        type - the type of the data product process.
+        dpid - the data process ID.
         state - the state to set
         update_time - the time at which the state was updated in epoch milliseconds
         """
         await self._update_state(
-            self._data_product_process_key(internal_id, data_product, type_),
+            self._data_product_process_key(dpid),
             state,
             update_time,
             COLL_SRV_DATA_PRODUCT_PROCESSES,
-            _ERRMAP[type_],
+            _ERRMAP[dpid.type],
         )
 
-    async def remove_data_product_process(
-        self,
-        internal_id: str,
-        data_product: str,
-        type_: models.ProcessType):
+    async def remove_data_product_process(self, dpid: models.DataProductProcessIdentifier):
         """
         Remove a data product process document.
 
-        internal_id - the internal ID for the process.
-        data_product - the data product ID.
-        type - the type of the data product process.
+        dpid - the data process ID.
         """
-        key = self._data_product_process_key(internal_id, data_product, type_)
+        key = self._data_product_process_key(dpid)
         col = self._db.collection(COLL_SRV_DATA_PRODUCT_PROCESSES)
         await col.delete(key, ignore_missing=True, silent=True)
 
