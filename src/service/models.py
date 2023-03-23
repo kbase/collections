@@ -233,6 +233,7 @@ class Collection(BaseModel):
                 )
         return values
 
+
 # No need to worry about field validation here since the service is assigning the values
 # Re the dates, since Arango doesn't have a special format for dates like mongo, we might as
 # well store them as human readable strings. ISO8601 means they'll sort in correct order if
@@ -472,49 +473,25 @@ class DataProductProcess(DataProductProcessIdentifier, ProcessAttributes):
     # the match).
 
 
-class ActiveSelection(LastAccess):
+class Selection(CollectionSpec, ProcessStateField):
     """
-    A selection that is currently active. Primarily maps an external selection ID (which,
-    since selections do not require auth, is effectively a session token) to an internal
-    selection ID.
+    A user selected set of data in a collection.
     """
-    selection_id_hash: str = Field(
-        description="The external ID of the selection, presumably a session token, hashed for "
-            + "database storage."
-    )
-    active_selection_id: str = Field(
-        example="e22f2d7d-7246-4636-a91b-13f29bc32d3d",
-        description="An ID used to refer to this active selection that is loggable, as it is "
-            + "not a session token and not visisble outside the service."
-    )
-    internal_selection_id: str = Field(
-        example="e22f2d7d-7246-4636-a91b-13f29bc32d3d",
-        description="An internal ID for the selection that is unique per use. This allows for "
-            + "deleting data for a selection without the risk that the selection will become "
-            + "active again while the data is being deleted. "
-            + "Expected to be a v4 UUID.",
+
+    selection_id: str = Field(
+        description="The ID of the selection; a unique but opaque string."
+        # In practice, this ID is the MD5 of
+        # * the collection ID and version
+        # * the selection data, sorted
     )
 
 
-class InternalSelection(CollectionSpec, ProcessAttributes):
+class SelectionVerbose(Selection):
     """
-    Internal details about a selection, including the state of the process to apply the selection
-    to the database. While an internal selection is referenced by an active selection, it should
-    not be deleted.
+    A selection including the selection data, e.g. the data IDs and which, if any, were unable
+    to be matched to the data in the selection.
     """
-    # Implication is that whenever a user creates or updates a selection a new process is kicked
-    # off to mark the database with the selection IDs. Same with matches though, as long as at
-    # least one of the match parameters is different.
-    # May need to protect the server a little bit if we can't do that at the reverse proxy. Maybe
-    # look up existing matches by the MD5 of the selection and just use that selection instead
-    # of kicking off a job
-    internal_selection_id: str = Field(
-        example="e22f2d7d-7246-4636-a91b-13f29bc32d3d",
-        description="An internal ID for the selection that is unique per use. This allows for "
-            + "deleting data for a selection without the risk that the selection will become "
-            + "active again while the data is being deleted. "
-            + "Expected to be a v4 UUID.",
-    )
+
     selection_ids: list[str] = Field(
         example=FIELD_SELECTION_EXAMPLE,
         description=FIELD_SELECTION_IDS_DESCRIPTION
@@ -523,11 +500,35 @@ class InternalSelection(CollectionSpec, ProcessAttributes):
         example=FIELD_SELECTION_EXAMPLE,
         description=FIELD_SELECTION_UNMATCHED_DESCRIPTION
     )
+
+
+class InternalSelection(SelectionVerbose, ProcessAttributes, LastAccess):
+    """
+    Internal details for the selection.
+    """
+    # We keep the created time internal since selections are not user specific. One user could
+    # "create" a selection but have it be really old. Avoid the confusion, keep it internal
+
+    internal_selection_id: str = Field(
+        example="e22f2d7d-7246-4636-a91b-13f29bc32d3d",
+        description="An internal ID for the selection that is unique per use. This allows for "
+            + "deleting data for a selection without the risk that the selection will become "
+            + "active again while the data is being deleted. "
+            + "Expected to be a v4 UUID.",
+    )
     data_product: str = Field(
         **DATA_PRODUCT_ID_FIELD_PROPS | {
         "description":
             "The ID of the data product to which the selection should be applied."
         }
+    )
+
+
+class DeletedSelection(InternalSelection):
+    """ A selection in the deleted state, waiting for permanent deletion. """
+    deleted: int = Field(
+        example=1674243789870,
+        description="Milliseconds since the Unix epoch at the point the selection was deleted."
     )
 
 
