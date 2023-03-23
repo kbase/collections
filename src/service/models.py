@@ -326,7 +326,19 @@ class LastAccess(BaseModel):
     )
 
 
-class Match(ProcessStateField):
+class CollectionSpec(BaseModel):
+    """ Specifies the name and numerical version of a collection. """
+    collection_id: str = Field(
+        example=FIELD_COLLECTION_ID_EXAMPLE,
+        description="The ID of the collection."
+    )
+    collection_ver: int = Field(
+        example=7,
+        description="The version of the collection."
+    )
+
+
+class Match(CollectionSpec, ProcessStateField):
     """
     A match between KBase workspace service objects and data in a collection.
     """
@@ -341,14 +353,6 @@ class Match(ProcessStateField):
     matcher_id: str = Field(
         example="gtdb_lineage",
         description="The ID of the matcher performing the match."
-    )
-    collection_id: str = Field(
-        example=FIELD_COLLECTION_ID_EXAMPLE,
-        description="The ID of the collection for the match."
-    )
-    collection_ver: int = Field(
-        example=7,
-        description="The version of the collection for which the match was created."
     )
     user_parameters: dict[str, Any] = Field(
         example=FIELD_USER_PARAMETERS_EXAMPLE,
@@ -492,7 +496,7 @@ class ActiveSelection(LastAccess):
     )
 
 
-class InternalSelection(ProcessAttributes):
+class InternalSelection(CollectionSpec, ProcessAttributes):
     """
     Internal details about a selection, including the state of the process to apply the selection
     to the database. While an internal selection is referenced by an active selection, it should
@@ -510,14 +514,6 @@ class InternalSelection(ProcessAttributes):
             + "deleting data for a selection without the risk that the selection will become "
             + "active again while the data is being deleted. "
             + "Expected to be a v4 UUID.",
-    )
-    collection_id: str = Field(
-        example=FIELD_COLLECTION_ID_EXAMPLE,
-        description="The ID of the collection for the selection."
-    )
-    collection_ver: int = Field(
-        example=7,
-        description="The version of the collection for which the selection was created."
     )
     selection_ids: list[str] = Field(
         example=FIELD_SELECTION_EXAMPLE,
