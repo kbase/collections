@@ -18,7 +18,7 @@ from src.service import app_state_data_structures
 from src.service import data_product_specs
 from src.service import errors
 from src.service import kb_auth
-from src.service import match_deletion
+from src.service import deletion
 from src.service import processing_matches
 from src.service import models
 from src.service import processing_selections
@@ -632,7 +632,7 @@ async def delete_match(
     appstate = app_state.get_app_state(r)
     store = appstate.arangostorage
     match = await store.get_match_full(match_id)
-    await match_deletion.move_match_to_deleted_state(store, match, appstate.get_epoch_ms())
+    await deletion.move_match_to_deleted_state(store, match, appstate.get_epoch_ms())
     match = models.MatchVerbose(
         **models.remove_non_model_fields(match.dict(), models.MatchVerbose))
     if not verbose:
