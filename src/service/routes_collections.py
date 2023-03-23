@@ -2,11 +2,7 @@
 Routes for general collections endpoints, as opposed to endpoint for a particular data product.
 """
 
-import hashlib
-import json
 import jsonschema
-import time
-import uuid
 
 from fastapi import APIRouter, Request, Depends, Path, Query, Header
 from typing import Any
@@ -18,9 +14,8 @@ from src.service import app_state_data_structures
 from src.service import data_product_specs
 from src.service import errors
 from src.service import kb_auth
-from src.service import deletion
-from src.service import processing_matches
 from src.service import models
+from src.service import processing_matches
 from src.service import processing_selections
 from src.service import tokens
 from src.service.clients.workspace_client import Workspace
@@ -41,8 +36,6 @@ ROUTER_MATCHES = APIRouter(tags=["Matches"])
 ROUTER_SELECTIONS = APIRouter(tags=["Selections"])
 ROUTER_COLLECTIONS_ADMIN = APIRouter(tags=["Collection Administration"])
 ROUTER_MATCH_ADMIN = APIRouter(tags=["Match Administration"], prefix="/matchadmin")
-
-UTF_8 = "utf-8"
 
 _AUTH = KBaseHTTPBearer()
 
@@ -83,14 +76,6 @@ def _check_matchers_and_data_products(
                     f"Failed to validate parameters for matcher {matcher.id}: {e}")
 
 
-def _get_matcher_from_collection(collection: models.SavedCollection, matcher_id: str
-) -> models.Matcher:
-    for m in collection.matchers:
-        if m.matcher == matcher_id:
-            return m
-    raise errors.NoRegisteredMatcherError(matcher_id)
-
-
 async def _activate_collection_version(
     user: kb_auth.KBaseUser, store: ArangoStorage, col: models.SavedCollection
 ) -> models.ActiveCollection:
@@ -102,32 +87,6 @@ async def _activate_collection_version(
     ac = models.ActiveCollection.construct(**doc)
     await store.save_collection_active(ac)
     return ac
-
-
-# assumes UPAs are sorted
-def _calc_match_id_md5(
-    matcher_id: str,
-    collection_id: str,
-    collection_ver: int,
-    params: dict[str, Any],
-    upas: list[str],
-) -> str:
-    # this would be better if it just happened automatically when constructing the pydantic
-    # match object, but that doesn't seem to work well with pydantic
-    pipe = "|".encode(UTF_8)
-    m = hashlib.md5()
-    for var in [matcher_id, collection_id, str(collection_ver)]:
-        m.update(var.encode(UTF_8))
-        m.update(pipe)
-    # this will not sort arrays, and arrays might have positional semantics so we shouldn't do
-    # that anyway. If we have match parameters where sorting arrays is an issue we'll need
-    # to implement on a per matcher basis.
-    m.update(json.dumps(params, sort_keys=True).encode(UTF_8))
-    m.update(pipe)
-    for u in upas:
-        m.update(u.encode(UTF_8))
-        m.update(pipe)
-    return m.hexdigest()
 
 
 _PATH_VER_TAG = Path(
@@ -319,49 +278,21 @@ async def get_collection_matchers(r: Request, collection_id: str = PATH_VALIDATO
         + "returned by the workspace, ignoring any context for the references."
 )
 async def match(
-    # could add a collection version endpoint so admins could try matches on non-active colls
+    # could add a collection version param so admins could try matches on non-active colls
     r: Request,
     match_params: MatchParameters,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     matcher_id: str = Path(**models.MATCHER_ID_PROPS),  # is there a cleaner way to do this?
     user: kb_auth.KBaseUser=Depends(_AUTH),
 ) -> models.Match:
-    coll = await get_collection(r, collection_id)
-    matcher_info = _get_matcher_from_collection(coll, matcher_id)
     appstate = app_state.get_app_state(r)
-    ws = appstate.get_workspace_client(user.token)
-    matcher = appstate.get_matcher(matcher_info.matcher)
-    match_process, upas, wsids = await processing_matches.create_match_process(
-        matcher,
-        WorkspaceWrapper(ws),
+    return await processing_matches.create_match(
+        appstate,
+        collection_id,
+        matcher_id,
+        user,
         match_params.upas,
-        match_params.parameters,
-        matcher_info.parameters,
-    )
-    perm_check = appstate.get_epoch_ms()
-    params = match_params.parameters or {}
-    int_match = models.InternalMatch(
-        match_id=_calc_match_id_md5(matcher_id, collection_id, coll.ver_num, params, upas),
-        matcher_id=matcher_id,
-        collection_id=coll.id,
-        collection_ver=coll.ver_num,
-        user_parameters=params,
-        collection_parameters=matcher_info.parameters,
-        state=models.ProcessState.PROCESSING,
-        state_updated=perm_check,
-        upas=upas,
-        matches=[],
-        internal_match_id=str(uuid.uuid4()),
-        wsids=wsids,
-        created=perm_check,
-        last_access=perm_check,
-        user_last_perm_check={user.user.id: perm_check}
-    )
-    curr_match, exists = await appstate.arangostorage.save_match(int_match)
-    # don't bother checking if the match heartbeat is old here, just do it in the access methods
-    if not exists:
-        match_process.start(curr_match.match_id, appstate.get_pickleable_dependencies())
-    return curr_match
+        match_params.parameters)
 
 
 @ROUTER_COLLECTIONS.post(
@@ -630,13 +561,4 @@ async def delete_match(
 ) -> models.MatchVerbose:
     _ensure_admin(user, "Only collections service admins can delete matches")
     appstate = app_state.get_app_state(r)
-    store = appstate.arangostorage
-    match = await store.get_match_full(match_id)
-    await deletion.move_match_to_deleted_state(store, match, appstate.get_epoch_ms())
-    match = models.MatchVerbose(
-        **models.remove_non_model_fields(match.dict(), models.MatchVerbose))
-    if not verbose:
-        # TODO PERF do this by not requesting the fields from the DB
-        match.upas = []
-        match.matches = []
-    return match
+    return await processing_matches.delete_match(appstate, match_id, verbose)
