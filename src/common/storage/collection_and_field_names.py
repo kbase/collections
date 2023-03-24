@@ -26,7 +26,7 @@ FLD_LOAD_VERSION = "load_ver"
 FLD_MATCH_ID = "match_id"
 """ The name of the key that has a match ID as its value. """
 
-FLD_INTERNAL_MATCH_ID = "internal_match_id"
+FLD_INTERNAL_ID = "internal_id"
 """ The name of the key that has an internal match ID as its value. """
 
 # Collections

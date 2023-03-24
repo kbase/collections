@@ -134,6 +134,7 @@ async def get_or_create_data_product_process(
     deps: CollectionsState,
     dpid: models.DataProductProcessIdentifier,
     process_callable: Callable[[str, PickleableDependencies, list[Any]], None],
+    args: list[Any] = None,
 ) -> models.DataProductProcess:
     """
     Get a process data structure for a data product process.
@@ -143,13 +144,14 @@ async def get_or_create_data_product_process(
     If the process exists but hasn't had a heartbeat in the required time frame, starts another
     instance of the process.
 
-    In either case, the list of arguments to the process is empty.
-
     deps - the collections service state.
     dpid - the identifier for the process to create.
     process_callable - the callable to run if there is no process information in the database or
-        the heartbeat is too old.
+        the heartbeat is too old. The arguments are the internal ID of the match or selection,
+        a dependencies instance, and the arguments to be provided to the callable.
+    args - the argument list to provide to process_callable in the third parameter.
     """
+    args = args or []
     now = deps.get_epoch_ms()
     dp_proc, exists = await deps.arangostorage.create_or_get_data_product_process(
         models.DataProductProcess(
@@ -162,13 +164,15 @@ async def get_or_create_data_product_process(
         )
     )
     if not exists:
-        _start_process(dpid.internal_id, process_callable, deps.get_pickleable_dependencies())
+        _start_process(
+            dpid.internal_id, process_callable, deps.get_pickleable_dependencies(), args)
     elif requires_restart(deps.get_epoch_ms(), dp_proc):
         logging.getLogger(__name__).warn(
             f"Restarting {dpid.type.value} process for internal ID {dpid.internal_id} "
             + f"data product {dpid.data_product}"
         )
-        _start_process(dpid.internal_id, process_callable, deps.get_pickleable_dependencies())
+        _start_process(
+            dpid.internal_id, process_callable, deps.get_pickleable_dependencies(), args)
     return dp_proc
 
 
@@ -176,5 +180,6 @@ def _start_process(
     internal_id: str,
     process_callable: Callable[[str, PickleableDependencies, list[Any]], None],
     deps: PickleableDependencies,
+    args: list[Any],
 ) -> None:
-    CollectionProcess(process=process_callable, args=[]).start(internal_id, deps)
+    CollectionProcess(process=process_callable, args=args).start(internal_id, deps)

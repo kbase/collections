@@ -550,20 +550,22 @@ async def _mark_gtdb_matches_STARTS_WITH_strategy(
     await _mark_gtdb_matches_complete(storage, aql, bind_vars, match_id)
 
 
-async def process_match_documents(
+async def process_subset_documents(
     storage: ArangoStorage,
     collection: models.SavedCollection,
-    internal_match_id: str,
+    internal_id: str,
+    type_: models.SubsetType,
     acceptor: Callable[[dict[str, Any]], None],
     fields: list[str] | None = None,
 ) -> None:
     """
-    Iterate through the documents for a match, passing them to an acceptor fuction for processing.
+    Iterate through the documents for a subset, passing them to an acceptor fuction for processing.
 
     storage - the storage system containing the data.
-    collection_id - the ID of the collection the match is against.
-    load_version - the load version of the data in the match.
-    internal_match_id = the internal match ID to use to find matched documents.
+    collection_id - the ID of the collection the subset is against.
+    load_version - the load version of the data in the subset.
+    internal_id - the internal subset ID to use to find subset documents.
+    type - the type of the subset.
     acceptor - the function that will accept the documents.
     fields - which fields are required from the database documents. Fewer fields means less
         bandwidth consumed.
@@ -571,17 +573,18 @@ async def process_match_documents(
     load_ver = {d.product: d.version for d in collection.data_products}.get(ID)
     if not load_ver:
         raise ValueError(f"The collection does not have a {ID} data product")
+    prefix = _MATCH_ID_PREFIX if type_ == models.SubsetType.MATCH else _SELECTION_ID_PREFIX
     bind_vars = {
         f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
         _FLD_COL_ID: collection.id,
         _FLD_COL_LV: load_ver,
-        "internal_match_id": _MATCH_ID_PREFIX + internal_match_id,
+        "internal_id": prefix + internal_id,
     }
     aql = f"""
     FOR d IN @@{_FLD_COL_NAME}
         FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
         FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
-        FILTER @internal_match_id IN d.{names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS}
+        FILTER @internal_id IN d.{names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS}
         """
     if fields:
         aql += """
