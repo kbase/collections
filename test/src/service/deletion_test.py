@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import create_autospec, call
 
 from src.service.storage_arango import ArangoStorage
-from src.service import match_deletion
+from src.service import deletion
 from src.service import models
 
 # TODO TEST more tests. Right now just _delete_match tests because it's hard to test manually
@@ -14,8 +14,8 @@ MATCH = models.InternalMatch(
     collection_ver=3,
     user_parameters={},
     collection_parameters={},
-    match_state=models.ProcessState.COMPLETE,
-    match_state_updated=80000,
+    state=models.ProcessState.COMPLETE,
+    state_updated=80000,
     upas=[],
     matches=[],
     internal_match_id="internal_ID",
@@ -88,22 +88,25 @@ async def _delete_match_standard_path(return_match: models.InternalMatch):
     data_product1 = create_autospec(DataProductSpecForAutoSpeccing, spec_set=True, instance=True)
     data_product2 = create_autospec(DataProductSpecForAutoSpeccing, spec_set=True, instance=True)
     dps = {"prodone": data_product1, "prodtwo": data_product2}
+    dpid1 = models.DataProductProcessIdentifier(
+        internal_id="internal_ID", data_product="prodone", type=models.SubsetType.MATCH
+    )
+    dpid2 = models.DataProductProcessIdentifier(
+        internal_id="internal_ID", data_product="prodtwo", type=models.SubsetType.MATCH
+    )
 
     storage.get_match_full.return_value = return_match
     storage.get_collection_version_by_num.return_value = COLLECTION
 
-    await match_deletion._delete_match(storage, dps, DELETED)
+    await deletion._delete_match(storage, dps, DELETED)
 
     storage.get_match_full.assert_awaited_once_with("foo", exception=False)
     storage.remove_match.assert_not_awaited()
     storage.get_collection_version_by_num.assert_awaited_once_with("my_collection", 3)
     data_product1.delete_match.assert_awaited_once_with(storage, "internal_ID")
     data_product2.delete_match.assert_awaited_once_with(storage, "internal_ID")
-    storage.remove_data_product_match.assert_has_awaits([
-        call("internal_ID", "prodone"),
-        call("internal_ID", "prodtwo"),
-    ])
-    assert storage.remove_data_product_match.await_count == 2
+    storage.remove_data_product_process.assert_has_awaits([call(dpid1), call(dpid2)])
+    assert storage.remove_data_product_process.await_count == 2
     storage.remove_deleted_match.assert_awaited_once_with("internal_ID", 90000)
 
 
@@ -118,23 +121,26 @@ async def test_delete_match_delete_active_match():
     data_product1 = create_autospec(DataProductSpecForAutoSpeccing, spec_set=True, instance=True)
     data_product2 = create_autospec(DataProductSpecForAutoSpeccing, spec_set=True, instance=True)
     dps = {"prodone": data_product1, "prodtwo": data_product2}
+    dpid1 = models.DataProductProcessIdentifier(
+        internal_id="internal_ID", data_product="prodone", type=models.SubsetType.MATCH
+    )
+    dpid2 = models.DataProductProcessIdentifier(
+        internal_id="internal_ID", data_product="prodtwo", type=models.SubsetType.MATCH
+    )
 
     storage.get_match_full.return_value = MATCH
     storage.remove_match.return_value = True
     storage.get_collection_version_by_num.return_value = COLLECTION
 
-    await match_deletion._delete_match(storage, dps, DELETED)
+    await deletion._delete_match(storage, dps, DELETED)
 
     storage.get_match_full.assert_awaited_once_with("foo", exception=False)
     storage.remove_match.assert_awaited_once_with("foo", 90000)
     storage.get_collection_version_by_num.assert_awaited_once_with("my_collection", 3)
     data_product1.delete_match.assert_awaited_once_with(storage, "internal_ID")
     data_product2.delete_match.assert_awaited_once_with(storage, "internal_ID")
-    storage.remove_data_product_match.assert_has_awaits([
-        call("internal_ID", "prodone"),
-        call("internal_ID", "prodtwo"),
-    ])
-    assert storage.remove_data_product_match.await_count == 2
+    storage.remove_data_product_process.assert_has_awaits([call(dpid1), call(dpid2)])
+    assert storage.remove_data_product_process.await_count == 2
     storage.remove_deleted_match.assert_awaited_once_with("internal_ID", 90000)
 
 
@@ -150,12 +156,12 @@ async def test_delete_match_delete_active_match_fail():
     storage.get_match_full.return_value = MATCH
     storage.remove_match.return_value = False
 
-    await match_deletion._delete_match(storage, {}, DELETED)
+    await deletion._delete_match(storage, {}, DELETED)
 
     storage.get_match_full.assert_awaited_once_with("foo", exception=False)
     storage.remove_match.assert_awaited_once_with("foo", 90000)
     storage.get_collection_version_by_num.assert_not_awaited()
-    storage.remove_data_product_match.assert_not_awaited()
+    storage.remove_data_product_process.assert_not_awaited()
     storage.remove_deleted_match.assert_not_awaited()
 
 
@@ -173,10 +179,10 @@ async def test_delete_match_delete_deleted_match_fail():
 
     storage.get_match_full.return_value = MATCH_NEWER_LAST_ACCESS
 
-    await match_deletion._delete_match(storage, {}, DELETED)
+    await deletion._delete_match(storage, {}, DELETED)
 
     storage.get_match_full.assert_awaited_once_with("foo", exception=False)
     storage.remove_match.assert_not_awaited()
     storage.remove_deleted_match.assert_awaited_once_with("internal_ID", 90000)
     storage.get_collection_version_by_num.assert_not_awaited()
-    storage.remove_data_product_match.assert_not_awaited()
+    storage.remove_data_product_process.assert_not_awaited()

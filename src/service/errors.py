@@ -138,7 +138,7 @@ class MissingTokenError(AuthenticationError):
         super().__init__(ErrorType.NO_TOKEN, message)
 
 
-class InvalidAuthHeader(AuthenticationError):
+class InvalidAuthHeaderError(AuthenticationError):
     """
     An error thrown when an authorization header is invalid.
     """
@@ -183,8 +183,7 @@ class IllegalParameterError(CollectionError):
         super().__init__(ErrorType.ILLEGAL_PARAMETER, message)
 
 
-# TODO CODE some errors are suffixed with error, some arent. Standardize
-class NoRegisteredDataProduct(CollectionError):
+class NoRegisteredDataProductError(CollectionError):
     """
     An error thrown when a requested data product is not registered with the collection.
     """
@@ -193,7 +192,7 @@ class NoRegisteredDataProduct(CollectionError):
         super().__init__(ErrorType.NO_REGISTERED_DATA_PRODUCT, message)
 
 
-class NoSuchDataProduct(CollectionError):
+class NoSuchDataProductError(CollectionError):
     """
     An error thrown when a requested data product does not exist.
     """
@@ -202,7 +201,7 @@ class NoSuchDataProduct(CollectionError):
         super().__init__(ErrorType.NO_SUCH_DATA_PRODUCT, message)
 
 
-class NoRegisteredMatcher(CollectionError):
+class NoRegisteredMatcherError(CollectionError):
     """
     An error thrown when a requested matcher is not registered with a collection.
     """
@@ -211,7 +210,7 @@ class NoRegisteredMatcher(CollectionError):
         super().__init__(ErrorType.NO_REGISTERED_MATCHER, message)
 
 
-class NoSuchMatcher(CollectionError):
+class NoSuchMatcherError(CollectionError):
     """
     An error thrown when a requested matcher does not exist.
     """
@@ -220,7 +219,7 @@ class NoSuchMatcher(CollectionError):
         super().__init__(ErrorType.NO_SUCH_MATCHER, message)
 
 
-class InvalidMatchState(CollectionError):
+class InvalidMatchStateError(CollectionError):
     """
     An error thrown when the state of a match is invalid.
     """
@@ -258,7 +257,7 @@ class LineageVersionError(CollectionError):
         super().__init__(ErrorType.LINEAGE_VERSION_ERROR, message)
 
 
-class NoDataException(CollectionError):
+class NoDataExceptionError(CollectionError):
     """
     An error thrown when expected data does not exist.
     """
@@ -267,7 +266,7 @@ class NoDataException(CollectionError):
         super().__init__(error_type, message)
 
 
-class NoDataFoundError(NoDataException):
+class NoDataFoundError(NoDataExceptionError):
     """
     An generic error thrown when requested data does not exist. 
     """
@@ -276,7 +275,7 @@ class NoDataFoundError(NoDataException):
         super().__init__(ErrorType.NO_DATA_FOUND, message)
 
 
-class NoSuchCollectionError(NoDataException):
+class NoSuchCollectionError(NoDataExceptionError):
     """
     An error thrown when a collection does not exist.
     """
@@ -285,7 +284,7 @@ class NoSuchCollectionError(NoDataException):
         super().__init__(ErrorType.NO_SUCH_COLLECTION, message)
 
 
-class NoSuchCollectionVersionError(NoDataException):
+class NoSuchCollectionVersionError(NoDataExceptionError):
     """
     An error thrown when a collection version does not exist.
     """
@@ -294,7 +293,7 @@ class NoSuchCollectionVersionError(NoDataException):
         super().__init__(ErrorType.NO_SUCH_COLLECTION_VERSION, message)
 
 
-class NoSuchMatchError(NoDataException):
+class NoSuchMatchError(NoDataExceptionError):
     """
     An error thrown when a match does not exist.
     """
@@ -303,7 +302,7 @@ class NoSuchMatchError(NoDataException):
         super().__init__(ErrorType.NO_SUCH_MATCH, message)
 
 
-class NoSuchSelectionError(NoDataException):
+class NoSuchSelectionError(NoDataExceptionError):
     """
     An error thrown when a selection does not exist.
     """

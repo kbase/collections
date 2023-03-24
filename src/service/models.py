@@ -11,7 +11,7 @@ may still pass. In this case, a translation from the older data is required.
 """
 
 from enum import Enum
-from pydantic import BaseModel, Field, validator, HttpUrl
+from pydantic import BaseModel, Field, validator, HttpUrl, root_validator
 from typing import Any, Optional
 
 from src.service.arg_checkers import contains_control_characters
@@ -41,20 +41,22 @@ FIELD_DATA_PRODUCTS = "data_products"
 FIELD_DATA_PRODUCTS_PRODUCT = "product"
 FIELD_MATCHERS = "matchers"
 FIELD_MATCHERS_MATCHER = "matcher"
-FIELD_LAST_ACCESS = "last_access"  # applies to both selections and matches
 FIELD_MATCH_INTERNAL_MATCH_ID = "internal_match_id"
-FIELD_MATCH_HEARTBEAT = "heartbeat"
 FIELD_MATCH_USER_PERMS = "user_last_perm_check"
-FIELD_MATCH_STATE = "match_state"
-FIELD_MATCH_STATE_UPDATED = "match_state_updated"
-FIELD_DATA_PRODUCT_MATCH_STATE = "data_product_match_state"
-FIELD_DATA_PRODUCT_MATCH_STATE_UPDATED = "data_product_match_state_updated"
 FIELD_MATCH_MATCHES = "matches"
-FIELD_SELECTION_STATE = "selection_state"
+FIELD_SELECTION_INTERNAL_SELECTION_ID = "internal_selection_id"
+FIELD_SELECTION_UNMATCHED_IDS = "unmatched_ids"
 FIELD_DATE_CREATE = "date_create"
 FIELD_USER_CREATE = "user_create"
 FIELD_DATE_ACTIVE = "date_active"
 FIELD_USER_ACTIVE = "user_active"
+# These 4 fields apply to both selections and matches
+FIELD_PROCESS_HEARTBEAT = "heartbeat"
+FIELD_PROCESS_STATE = "state"
+FIELD_PROCESS_STATE_UPDATED = "state_updated"
+FIELD_LAST_ACCESS = "last_access"
+# data product process exclusive fields
+FIELD_PROCESS_TYPE = "type"
 
 # Model metadata for use elsewhere
 FIELD_COLLECTION_ID_EXAMPLE = "GTDB"
@@ -82,18 +84,29 @@ FIELD_USER_PARAMETERS_DESCRIPTION = "The user parameters for the match."
 FIELD_MATCHER_PARAMETERS_EXAMPLE = {'gtdb_version': '207.0'}
 FIELD_MATCHER_PARAMETERS_DESCRIPTION = ("Any collection (as opposed to user provided) parameters "
     + "for the matcher. What these are will depend on the matcher in question")
-
-
-DATA_PRODUCT_ID_FIELD = Field(
-    min_length = 1,
-    max_length = 20,
-    regex = "^[a-z_]+$",
-    example="taxa_count",
-    description="The ID of the data product"
+FIELD_SELECTION_EXAMPLE = ["GB_GCA_000006155.2", "GB_GCA_000007385.1"]
+FIELD_SELECTION_IDS_DESCRIPTION = (
+    "The IDs of the selected items. What these IDs are will depend on the " +
+    "collection and data product the selection is against."
+)
+FIELD_SELECTION_UNMATCHED_DESCRIPTION = (
+    "IDs of the selected items that were not found in the data."
 )
 
 
 # this seems stupid...
+DATA_PRODUCT_ID_FIELD_PROPS = {
+    "min_length": 1,
+    "max_length": 20,
+    "regex": "^[a-z_]+$",
+    "example": "taxa_count",
+    "description": "The ID of the data product",
+}
+
+
+DATA_PRODUCT_ID_FIELD = Field(**DATA_PRODUCT_ID_FIELD_PROPS)
+
+
 MATCHER_ID_PROPS = {
     "min_length": 1,
     "max_length": 20,
@@ -166,6 +179,14 @@ class Collection(BaseModel):
     matchers: list[Matcher] = Field(
         description="The matchers associated with the collection"
     )
+    default_select: str | None = Field(  # might need to make this a list in future...? not sure
+        **DATA_PRODUCT_ID_FIELD_PROPS | {
+        "description":
+            "The ID of the data product to which non-data product specific selections "
+            + "should be applied. If present, the data product must be listed in the data "
+            + "products list. If absent, most selections will fail."
+        }
+    )
 
     @validator("name", "ver_src", pre=True)
     def _strip_and_fail_on_control_characters(cls, v):
@@ -201,6 +222,18 @@ class Collection(BaseModel):
                 raise ValueError(f"duplicate {field}: {accessor(it)}")
             seen.add(accessor(it))
         return items
+
+    @root_validator
+    def _check_default_selection(cls, values):
+        select = values.get("default_select")
+        if select:
+            dps = {dp.product for dp in values[FIELD_DATA_PRODUCTS]}
+            if select not in dps:
+                raise ValueError(f"The default selection data product {select} "
+                    + "is not in the set of specified data products"
+                )
+        return values
+
 
 # No need to worry about field validation here since the service is assigning the values
 # Re the dates, since Arango doesn't have a special format for dates like mongo, we might as
@@ -257,7 +290,57 @@ class ProcessState(str, Enum):
     FAILED = "failed"
 
 
-class Match(BaseModel):
+class ProcessStateField(BaseModel):  # for lack of a better name
+    state: ProcessState = Field(
+        example=ProcessState.PROCESSING.value,
+        description="The state of the process associated with this data."
+    )
+
+
+class ProcessAttributes(ProcessStateField):
+    created: int = Field(
+        example=1674243789864,
+        description="Milliseconds since the Unix epoch at the point the data and "
+            + "corresponding process was created."
+    )
+    heartbeat: int | None = Field(
+        example=1674243789866,
+        description="Milliseconds since the Unix epoch at the last time the process sent "
+            + "a heartbeat. Used to determine when the process needs to be restarted."
+    )
+    # Note this means that processes should be idempotent - running the same process twice,
+    # even if one of the processes was interrupted, should produce the same result when at
+    # least one process completes
+    # TODO DOCS document the above.
+
+    state_updated: int = Field(
+        example=1674243789867,
+        description="Milliseconds since the Unix epoch at the point the process state was last "
+            + "updated."
+    )
+
+
+class LastAccess(BaseModel):
+    last_access: int = Field(
+        example=1674243789865,
+        description="Milliseconds since the Unix epoch at the point this data was last accessed. "
+            + "Used for determining when to delete the data."
+    )
+
+
+class CollectionSpec(BaseModel):
+    """ Specifies the name and numerical version of a collection. """
+    collection_id: str = Field(
+        example=FIELD_COLLECTION_ID_EXAMPLE,
+        description="The ID of the collection."
+    )
+    collection_ver: int = Field(
+        example=7,
+        description="The version of the collection."
+    )
+
+
+class Match(CollectionSpec, ProcessStateField):
     """
     A match between KBase workspace service objects and data in a collection.
     """
@@ -273,14 +356,6 @@ class Match(BaseModel):
         example="gtdb_lineage",
         description="The ID of the matcher performing the match."
     )
-    collection_id: str = Field(
-        example=FIELD_COLLECTION_ID_EXAMPLE,
-        description="The ID of the collection for the match."
-    )
-    collection_ver: int = Field(
-        example=7,
-        description="The version of the collection for which the match was created."
-    )
     user_parameters: dict[str, Any] = Field(
         example=FIELD_USER_PARAMETERS_EXAMPLE,
         description=FIELD_USER_PARAMETERS_DESCRIPTION,
@@ -291,10 +366,6 @@ class Match(BaseModel):
     collection_parameters: dict[str, Any] = Field(
         example=FIELD_MATCHER_PARAMETERS_EXAMPLE,
         description=FIELD_MATCHER_PARAMETERS_DESCRIPTION,
-    )
-    match_state: ProcessState = Field(
-        example=ProcessState.PROCESSING.value,
-        description="The state of the matching process."
     )
 
 
@@ -323,10 +394,12 @@ class MatchVerbose(Match):
        # Maybe this field should be internal only?
 
 
-class InternalMatch(MatchVerbose):
+class InternalMatch(MatchVerbose, ProcessAttributes, LastAccess):
     """
     Holds match fields for internal server use.
     """
+    # We keep the created time internal since matches are not user specific. One user could
+    # "create" a match but have it be really old. Avoid the confusion, keep it internal
     internal_match_id: str = Field(
         # bit of a long field name but probably not too many matches at one time
         example="e22f2d7d-7246-4636-a91b-13f29bc32d3d",
@@ -338,32 +411,6 @@ class InternalMatch(MatchVerbose):
     wsids: set[int] = Field(
         examples={78, 10067},
         description="The set of workspace IDs from the UPAs."
-    )
-    # We keep the created time internal since matches are not user specific. One user could
-    # "create" a match but have it be really old. Avoid the confusion, keep it internal
-    created: int = Field(
-        example=1674243789864,
-        description="Milliseconds since the Unix epoch at the point the match was created."
-    )
-    last_access: int = Field(
-        example=1674243789865,
-        description="Milliseconds since the Unix epoch at the point the match was last accessed. "
-            + "Used for determining when to delete the match."
-    )
-    heartbeat: int | None = Field(
-        example=1674243789866,
-        description="Milliseconds since the Unix epoch at the last time the match process sent "
-            + "a heartbeat. Used to determine when the match process needs to be restarted."
-    )
-    # Note this means that match processes should be idempotent - running the same process twice,
-    # even if one of the processes was interrupted, should produce the same result when at
-    # least one process completes
-    # TODO DOCS document the above.
-
-    match_state_updated: int = Field(
-        example=1674243789867,
-        description="Milliseconds since the Unix epoch at the point the match state was last "
-            + "updated."
     )
     user_last_perm_check: dict[str, int] = Field(
         example={"user1": 1674243789451},
@@ -381,10 +428,40 @@ class DeletedMatch(InternalMatch):
     )
 
 
-class DataProductMatchProcess(BaseModel):
+class SubsetType(str, Enum):
+    """ The type of a data subset. """
+
+    MATCH = "match"
+    """ A subset based on a data match. """
+
+    SELECTION = "selection"
+    """ A subset based on a user selection. """
+
+
+class DataProductProcessIdentifier(BaseModel):
     """
-    Defines the state of processing a match for a data product that was not part of the primary
-    match process.
+    Uniquely identifies a data product process based on the internal ID of the parent data,
+    the data product in question, and the type of the parent data (and therefore the type
+    of the process).
+    """
+    internal_id: str = Field(
+        example="e22f2d7d-7246-4636-a91b-13f29bc32d3d",
+        description="An internal ID for the match or selection that is unique per use. "
+            + "This allows for deleting data without the risk that new data with the same "
+            + "ID is created and tries to read data in the process of deletion. "
+            + "Expected to be a v4 UUID.",
+    )
+    data_product: str = DATA_PRODUCT_ID_FIELD
+    type: SubsetType = Field(
+        example=SubsetType.SELECTION.value,
+        description="The type of data the process is acting on."
+    )
+
+
+class DataProductProcess(DataProductProcessIdentifier, ProcessAttributes):
+    """
+    Defines the state of processing for a data product that was not part of the primary
+    match or selection process.
 
     For example, a gtdb_lineage match will match against the genome_attributes data product
     as part of the primary match since the data being matched against is in that data product.
@@ -392,132 +469,67 @@ class DataProductMatchProcess(BaseModel):
     match is complete first. This class represents the state of calculating the match for a
     non-primary data product like taxa_count.
     """
-
-    data_product: str = DATA_PRODUCT_ID_FIELD
-    created: int = Field(
-        example=1674243789864,
-        description="Milliseconds since the Unix epoch at the point the data product match "
-            + "process was created."
-    )
-    heartbeat: int | None = Field(
-        example=1674243789866,
-        description="Milliseconds since the Unix epoch at the last time the data product match "
-            + "process sent a heartbeat. Used to determine when the match process needs to be "
-            + "restarted."
-    )
-    # Note this means that match processes should be idempotent - running the same process twice,
-    # even if one of the processes was interrupted, should produce the same result when at
-    # least one process completes.
-    # TODO DOCS document the above
-
     # last access / user perms are tracked in the primary match document. When that document
     # is deleted in the DB, this one should be as well (after deleting any data associated with
     # the match).
-    data_product_match_state_updated: int = Field(
-        example=1674243789866,
-        description="Milliseconds since the Unix epoch at the point the data product match "
-            + "state was last updated."
-    )
-    data_product_match_state: ProcessState = Field(
-        example=ProcessState.PROCESSING.value,
-        description="The state of the data product matching process."
-    )
-    internal_match_id: str = Field(
-        # bit of a long field name but probably not too many matches at one time
-        example="e22f2d7d-7246-4636-a91b-13f29bc32d3d",
-        description="An internal ID for the match that is unique per use. This allows for "
-            + "deleting data for a match without the risk that a new match with the same "
-            + "md5 ID is created and tries to read data in the process of deletion. "
-            + "Expected to be a v4 UUID.",
+
+
+class Selection(CollectionSpec, ProcessStateField):
+    """
+    A user selected set of data in a collection.
+    """
+
+    selection_id: str = Field(
+        description="The ID of the selection; a unique but opaque string."
+        # In practice, this ID is the MD5 of
+        # * the collection ID and version
+        # * the selection data, sorted
     )
 
 
-class ActiveSelection(BaseModel):
+class SelectionVerbose(Selection):
     """
-    A selection that is currently active. Primarily maps an external selection ID (which,
-    since selections do not require auth, is effectively a session token) to an internal
-    selection ID.
+    A selection including the selection data, e.g. the data IDs and which, if any, were unable
+    to be matched to the data in the selection.
     """
-    selection_id_hash: str = Field(
-        description="The external ID of the selection, presumably a session token, hashed for "
-            + "database storage."
-    )
-    active_selection_id: str = Field(
-        example="e22f2d7d-7246-4636-a91b-13f29bc32d3d",
-        description="An ID used to refer to this active selection that is loggable, as it is "
-            + "not a session token and not visisble outside the service."
-    )
-    internal_selection_id: str = Field(
-        example="e22f2d7d-7246-4636-a91b-13f29bc32d3d",
-        description="An internal ID for the selection that is unique per use. This allows for "
-            + "deleting data for a selection without the risk that the selection will become "
-            + "active again while the data is being deleted. "
-            + "Expected to be a v4 UUID.",
-    )
-    last_access: int = Field(
-        example=1674243789865,
-        description="Milliseconds since the Unix epoch at the point the selection was last "
-            + "accessed. Used for determining when to delete the selection."
-    )
 
-
-class InternalSelection(BaseModel):
-    """
-    Internal details about a selection, including the state of the process to apply the selection
-    to the database. While an internal selection is referenced by an active selection, it should
-    not be deleted.
-    """
-    # Implication is that whenever a user creates or updates a selection a new process is kicked
-    # off to mark the database with the selection IDs. Same with matches though, as long as at
-    # least one of the match parameters is different.
-    # May need to protect the server a little bit if we can't do that at the reverse proxy. Maybe
-    # look up existing matches by the MD5 of the selection and just use that selection instead
-    # of kicking off a job
-    internal_selection_id: str = Field(
-        example="e22f2d7d-7246-4636-a91b-13f29bc32d3d",
-        description="An internal ID for the selection that is unique per use. This allows for "
-            + "deleting data for a selection without the risk that the selection will become "
-            + "active again while the data is being deleted. "
-            + "Expected to be a v4 UUID.",
-    )
-    collection_id: str = Field(
-        example=FIELD_COLLECTION_ID_EXAMPLE,
-        description="The ID of the collection for the selection."
-    )
-    collection_ver: int = Field(
-        example=7,
-        description="The version of the collection for which the selection was created."
-    )
     selection_ids: list[str] = Field(
-        example=["GB_GCA_000006155.2", "GB_GCA_000007385.1"],
-        description="The IDs of the selected items. What these IDs are will depend on the " +
-            "collection and data product the selection is against."
+        example=FIELD_SELECTION_EXAMPLE,
+        description=FIELD_SELECTION_IDS_DESCRIPTION
     )
-    # TODO MODELS try to create a shared model between matches and selection for common job
-    #             state like heartbeat, state, created, etc
-    created: int = Field(
-        example=1674243789864,
-        description="Milliseconds since the Unix epoch at the point the selection was created."
+    unmatched_ids: list[str] | None = Field(
+        example=FIELD_SELECTION_EXAMPLE,
+        description=FIELD_SELECTION_UNMATCHED_DESCRIPTION
     )
-    heartbeat: int | None = Field(
-        example=1674243789866,
-        description="Milliseconds since the Unix epoch at the last time the selection process "
-            + "sent a heartbeat. Used to determine when the selection process needs to be "
-            + "restarted."
-    )
-    # Note this means that selection processes should be idempotent - running the same process
-    # twice, # even if one of the processes was interrupted, should produce the same result when at
-    # least one process completes
-    # TODO DOCS document the above.
 
-    selection_state: ProcessState = Field(
-        example=ProcessState.PROCESSING.value,
-        description="The state of the selection process."
+
+class InternalSelection(SelectionVerbose, ProcessAttributes, LastAccess):
+    """
+    Internal details for the selection.
+    """
+    # We keep the created time internal since selections are not user specific. One user could
+    # "create" a selection but have it be really old. Avoid the confusion, keep it internal
+
+    internal_selection_id: str = Field(
+        example="e22f2d7d-7246-4636-a91b-13f29bc32d3d",
+        description="An internal ID for the selection that is unique per use. This allows for "
+            + "deleting data for a selection without the risk that the selection will become "
+            + "active again while the data is being deleted. "
+            + "Expected to be a v4 UUID.",
     )
-    selection_state_updated: int = Field(
-        example=1674243789867,
-        description="Milliseconds since the Unix epoch at the point the selection state was last "
-            + "updated."
+    data_product: str = Field(
+        **DATA_PRODUCT_ID_FIELD_PROPS | {
+        "description":
+            "The ID of the data product to which the selection should be applied."
+        }
+    )
+
+
+class DeletedSelection(InternalSelection):
+    """ A selection in the deleted state, waiting for permanent deletion. """
+    deleted: int = Field(
+        example=1674243789870,
+        description="Milliseconds since the Unix epoch at the point the selection was deleted."
     )
 
 

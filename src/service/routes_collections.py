@@ -2,14 +2,9 @@
 Routes for general collections endpoints, as opposed to endpoint for a particular data product.
 """
 
-import hashlib
-import json
 import jsonschema
-import secrets
-import time
-import uuid
 
-from fastapi import APIRouter, Request, Depends, Path, Query, Header
+from fastapi import APIRouter, Request, Depends, Path, Query
 from typing import Any
 from pydantic import BaseModel, Field
 from src.common.git_commit import GIT_COMMIT
@@ -19,9 +14,9 @@ from src.service import app_state_data_structures
 from src.service import data_product_specs
 from src.service import errors
 from src.service import kb_auth
-from src.service import match_deletion
-from src.service import match_retrieval
 from src.service import models
+from src.service import processing_matches
+from src.service import processing_selections
 from src.service.clients.workspace_client import Workspace
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.matchers.common_models import Matcher
@@ -39,11 +34,7 @@ ROUTER_COLLECTIONS = APIRouter(tags=["Collections"])
 ROUTER_MATCHES = APIRouter(tags=["Matches"])
 ROUTER_SELECTIONS = APIRouter(tags=["Selections"])
 ROUTER_COLLECTIONS_ADMIN = APIRouter(tags=["Collection Administration"])
-ROUTER_MATCH_ADMIN = APIRouter(tags=["Match Administration"], prefix="/matchadmin")
-
-UTF_8 = "utf-8"
-
-MAX_SELECTION_IDS = 10000
+ROUTER_MATCH_ADMIN = APIRouter(tags=["Here be Dragons"], prefix="/matchadmin")
 
 _AUTH = KBaseHTTPBearer()
 
@@ -70,7 +61,7 @@ def _check_matchers_and_data_products(
     for m in col.matchers:
         matcher = appstate.get_matcher(m.matcher)
         if not matcher:
-            raise errors.NoSuchMatcher(f"No such matcher: {m.matcher}")
+            raise errors.NoSuchMatcherError(f"No such matcher: {m.matcher}")
         missing_dps = set(matcher.required_data_products) - data_products
         if missing_dps:
             raise errors.IllegalParameterError(
@@ -84,14 +75,6 @@ def _check_matchers_and_data_products(
                     f"Failed to validate parameters for matcher {matcher.id}: {e}")
 
 
-def _get_matcher_from_collection(collection: models.SavedCollection, matcher_id: str
-) -> models.Matcher:
-    for m in collection.matchers:
-        if m.matcher == matcher_id:
-            return m
-    raise errors.NoRegisteredMatcher(matcher_id)
-
-
 async def _activate_collection_version(
     user: kb_auth.KBaseUser, store: ArangoStorage, col: models.SavedCollection
 ) -> models.ActiveCollection:
@@ -103,75 +86,6 @@ async def _activate_collection_version(
     ac = models.ActiveCollection.construct(**doc)
     await store.save_collection_active(ac)
     return ac
-
-
-# assumes UPAs are sorted
-def _calc_match_id_md5(
-    matcher_id: str,
-    collection_id: str,
-    collection_ver: int,
-    params: dict[str, Any],
-    upas: list[str],
-) -> str:
-    # this would be better if it just happened automatically when constructing the pydantic
-    # match object, but that doesn't seem to work well with pydantic
-    pipe = "|".encode(UTF_8)
-    m = hashlib.md5()
-    for var in [matcher_id, collection_id, str(collection_ver)]:
-        m.update(var.encode(UTF_8))
-        m.update(pipe)
-    # this will not sort arrays, and arrays might have positional semantics so we shouldn't do
-    # that anyway. If we have match parameters where sorting arrays is an issue we'll need
-    # to implement on a per matcher basis.
-    m.update(json.dumps(params, sort_keys=True).encode(UTF_8))
-    m.update(pipe)
-    for u in upas:
-        m.update(u.encode(UTF_8))
-        m.update(pipe)
-    return m.hexdigest()
-
-
-async def _save_selection(
-    appstate: app_state_data_structures.CollectionsState,
-    coll: models.SavedCollection,
-    token: str,
-    active_selection_id: str,
-    selection_ids: list[str],
-    overwrite: bool = False
-):
-    if len(selection_ids) > MAX_SELECTION_IDS:
-        raise errors.IllegalParameterError(f"At most {MAX_SELECTION_IDS} can be submitted")
-    internal_id = str(uuid.uuid4())
-    now = appstate.get_epoch_ms()
-    internal_sel = models.InternalSelection(
-        internal_selection_id=internal_id,
-        collection_id=coll.id,
-        collection_ver=coll.ver_num,
-        selection_ids=selection_ids,
-        created=now,
-        heartbeat=None,
-        selection_state=models.ProcessState.PROCESSING,
-        selection_state_updated=now,
-    )
-    active_sel = models.ActiveSelection(
-        selection_id_hash=_hash_token(token),
-        active_selection_id=active_selection_id,
-        internal_selection_id=internal_id,
-        last_access=now,
-    )
-    await appstate.arangostorage.save_selection_internal(internal_sel)
-    await appstate.arangostorage.save_selection_active(active_sel, overwrite=overwrite)
-    # TODO SELECTION start selection process
-    # TODO SELECTION what about IDs that don't match? Add to selection w/ failed state?
-
-
-# maybe these should go in a different module
-def _get_token():
-    return "coll-selection-" + secrets.token_urlsafe()  # 256 bits by default
-
-
-def _hash_token(token: str):
-    return hashlib.sha256(token.encode(UTF_8)).hexdigest()
 
 
 _PATH_VER_TAG = Path(
@@ -220,10 +134,6 @@ _QUERY_SELECTION_VERBOSE = Query(
         + "the selection ID list will be empty."
 )
 
-_HEADER_KBASE_COLLECTIONS_SELECTION = Header(
-    description="The selection ID / token returned when creating a selection."
-)
-
 
 class Root(BaseModel):
     service_name: str = Field(example=SERVICE_NAME)
@@ -267,31 +177,8 @@ class MatchParameters(BaseModel):
 class SelectionInput(BaseModel):
     """A selection of data in a collection. """
     selection_ids: list[str] = Field(
-        example=["GB_GCA_000006155.2", "GB_GCA_000007385.1"],
-        description="The IDs of the selected items. What these IDs are will depend on the " +
-            "collection and data product the selection is against."
-    )
-
-
-class Selection(SelectionInput):
-    collection_id: str = Field(
-        example="GTDB",
-        description="The ID of the collection for the selection.",
-    )
-    collection_ver: int = Field(
-        example=7,
-        description="The version of the collection for which the selection was created."
-    )
-    selection_state: models.ProcessState = Field(
-        example=models.ProcessState.PROCESSING.value,
-        description="The state of the selection process."
-    )
-
-
-class SelectionToken(BaseModel):
-    """Contains a token that allows access to a selection. Keep the token secret."""
-    selection_token: str = Field(
-        description="An opaque, secret string that can be used to access selections."
+        example=models.FIELD_SELECTION_EXAMPLE,
+        description=models.FIELD_SELECTION_IDS_DESCRIPTION
     )
 
 
@@ -352,73 +239,42 @@ async def get_collection_matchers(r: Request, collection_id: str = PATH_VALIDATO
     "/collections/{collection_id}/matchers/{matcher_id}",
     response_model=models.Match,
     description="Match KBase workspace data against a collection.\n\n"
-        + f"At most {match_retrieval.MAX_UPAS} objects may be submitted. "
+        + f"At most {processing_matches.MAX_UPAS} objects may be submitted. "
         + "If sets are sumbitted, the set is expanded from the list of references in the set "
         + "returned by the workspace, ignoring any context for the references."
 )
 async def match(
-    # could add a collection version endpoint so admins could try matches on non-active colls
+    # could add a collection version param so admins could try matches on non-active colls
     r: Request,
     match_params: MatchParameters,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     matcher_id: str = Path(**models.MATCHER_ID_PROPS),  # is there a cleaner way to do this?
     user: kb_auth.KBaseUser=Depends(_AUTH),
 ) -> models.Match:
-    coll = await get_collection(r, collection_id)
-    matcher_info = _get_matcher_from_collection(coll, matcher_id)
     appstate = app_state.get_app_state(r)
-    ws = appstate.get_workspace_client(user.token)
-    matcher = appstate.get_matcher(matcher_info.matcher)
-    match_process, upas, wsids = await match_retrieval.create_match_process(
-        matcher,
-        WorkspaceWrapper(ws),
+    return await processing_matches.create_match(
+        appstate,
+        collection_id,
+        matcher_id,
+        user,
         match_params.upas,
-        match_params.parameters,
-        matcher_info.parameters,
-    )
-    perm_check = appstate.get_epoch_ms()
-    params = match_params.parameters or {}
-    int_match = models.InternalMatch(
-        match_id=_calc_match_id_md5(matcher_id, collection_id, coll.ver_num, params, upas),
-        matcher_id=matcher_id,
-        collection_id=coll.id,
-        collection_ver=coll.ver_num,
-        user_parameters=params,
-        collection_parameters=matcher_info.parameters,
-        match_state=models.ProcessState.PROCESSING,
-        match_state_updated=perm_check,
-        upas=upas,
-        matches=[],
-        internal_match_id=str(uuid.uuid4()),
-        wsids=wsids,
-        created=perm_check,
-        last_access=perm_check,
-        user_last_perm_check={user.user.id: perm_check}
-    )
-    curr_match, exists = await appstate.arangostorage.save_match(int_match)
-    # don't bother checking if the match heartbeat is old here, just do it in the access methods
-    if not exists:
-        match_process.start(curr_match.match_id, appstate.get_pickleable_dependencies())
-    return curr_match
+        match_params.parameters)
 
 
 @ROUTER_COLLECTIONS.post(
     "/collections/{collection_id}/selections",
-    response_model=SelectionToken,
+    response_model=models.Selection,
     summary="Create a data selection",
-    description="Create a data selection, returning a selection token that can be used to "
-        + "access the selection. Keep the token secret and safe to avoid rampaging wizards."
+    description="Create a data selection."
 )
 async def create_selection(
     r: Request,
     selection: SelectionInput,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
-) -> SelectionToken:
+) -> models.Selection:
     appstate = app_state.get_app_state(r)
-    coll = await appstate.arangostorage.get_collection_active(collection_id)
-    token = _get_token()
-    await _save_selection(appstate, coll, token, str(uuid.uuid4()), selection.selection_ids)
-    return SelectionToken(selection_token=token)
+    return await processing_selections.save_selection(
+        appstate, collection_id, selection.selection_ids)
 
 
 @ROUTER_MATCHES.get(
@@ -443,76 +299,23 @@ async def get_match(
     verbose: bool = _QUERY_MATCH_VERBOSE,
     user: kb_auth.KBaseUser = Depends(_AUTH),
 ) -> models.MatchVerbose:
-    return await match_retrieval.get_match(
-        app_state.get_app_state(r),
-        match_id,
-        user,
-        verbose=verbose
-    )
+    return await processing_matches.get_match(
+        app_state.get_app_state(r), match_id, user, verbose=verbose)
 
 
 @ROUTER_SELECTIONS.get(
-    "/selections/",
-    response_model=Selection,
+    "/selections/{selection_id}",
+    response_model=models.SelectionVerbose,
     summary="Get a selection",
     description="Get the status and contents of a selection."
 )
 async def get_selection(
     r: Request,
-    # When I use an alias="" argument in the Header so I can use a sane name for the variable
-    # the server thinks the header is missing
-    KBASE_COLLECTIONS_SELECTION: str = _HEADER_KBASE_COLLECTIONS_SELECTION,
+    selection_id: str = Path(description="The ID of the selection"),
     verbose: bool = _QUERY_SELECTION_VERBOSE,
-) -> Selection:
-    appstate = app_state.get_app_state(r)
-    hashed_token = _hash_token(KBASE_COLLECTIONS_SELECTION)
-    active_sel = await appstate.arangostorage.get_selection_active(hashed_token)
-    # could save bandwidth by passing verbose to DB layer and not pulling IDs
-    internal_sel = await appstate.arangostorage.get_selection_internal(
-        active_sel.internal_selection_id)
-    # TODO SELECTION if the process heartbeat is dead, restart the process
-    #                put that in a new module and move most of this code there
-    await appstate.arangostorage.update_selection_active_last_access(
-        hashed_token, appstate.get_epoch_ms())
-    if not verbose:
-        internal_sel.selection_ids = []
-    return Selection(
-        selection_ids=internal_sel.selection_ids,
-        collection_id=internal_sel.collection_id,
-        collection_ver=internal_sel.collection_ver,
-        selection_state=internal_sel.selection_state,
-    )
-
-
-@ROUTER_SELECTIONS.put(
-    "/selections/",
-    summary="Update a selection",
-    description="Change a selection's selected data."
-)
-async def update_selection(
-    r: Request,
-    selection: SelectionInput,
-    # When I use an alias="" argument in the Header so I can use a sane name for the variable
-    # the server thinks the header is missing
-    KBASE_COLLECTIONS_SELECTION: str = _HEADER_KBASE_COLLECTIONS_SELECTION,
-):
-    appstate = app_state.get_app_state(r)
-    token = KBASE_COLLECTIONS_SELECTION
-    active_sel = await appstate.arangostorage.get_selection_active(_hash_token(token))
-    internal_sel = await appstate.arangostorage.get_selection_internal(
-        active_sel.internal_selection_id)
-    coll = await appstate.arangostorage.get_collection_active(internal_sel.collection_id)
-    if coll.ver_num != internal_sel.collection_ver:
-        raise errors.InvalidSelectionStateError(
-            f"The requested selection is for {coll.id} collection version "
-            + f"{internal_sel.collection_ver}, while the current version is {coll.ver_num}")
-    await _save_selection(
-        appstate,
-        coll,
-        token,
-        active_sel.active_selection_id,
-        selection.selection_ids,
-        overwrite=True,
+) -> models.SelectionVerbose:
+    return await processing_selections.get_selection(
+        app_state.get_app_state(r), selection_id, verbose=verbose
     )
 
 
@@ -674,13 +477,4 @@ async def delete_match(
 ) -> models.MatchVerbose:
     _ensure_admin(user, "Only collections service admins can delete matches")
     appstate = app_state.get_app_state(r)
-    store = appstate.arangostorage
-    match = await store.get_match_full(match_id)
-    await match_deletion.move_match_to_deleted_state(store, match, appstate.get_epoch_ms())
-    match = models.MatchVerbose(
-        **models.remove_non_model_fields(match.dict(), models.MatchVerbose))
-    if not verbose:
-        # TODO PERF do this by not requesting the fields from the DB
-        match.upas = []
-        match.matches = []
-    return match
+    return await processing_matches.delete_match(appstate, match_id, verbose)

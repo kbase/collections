@@ -80,12 +80,17 @@ async def _delete_match(
         delmatch.collection_id, delmatch.collection_ver)
     for dpinfo in col.data_products:
         dp = data_product_specs[dpinfo.product]
+        dpid = models.DataProductProcessIdentifier(
+            internal_id=delmatch.internal_match_id,
+            data_product=dpinfo.product,
+            type=models.SubsetType.MATCH
+        )
         _logger().info(
             f"Removing match data for match {minfo} data product {dpinfo.product}")
         await dp.delete_match(storage, delmatch.internal_match_id)
         _logger().info(
             f"Removing match document for {minfo} data product {dpinfo.product}")
-        await storage.remove_data_product_match(delmatch.internal_match_id, dpinfo.product)
+        await storage.remove_data_product_process(dpid)
     _logger().info(f"Removing match document for {minfo}")
     await storage.remove_deleted_match(delmatch.internal_match_id, delmatch.last_access)
     

@@ -1,21 +1,26 @@
 """
 Methods for retriving matches from a storage system, ensuring that the user has permissions
-to the match, the match is in the expected state, and access times are updated correctly.
+to the match, the match is in the expected state, and access times are updated correctly as well
+as starting match processes and recovering processes that are stalled when requesting a match.
 """
 
+import hashlib
+import json
 import jsonschema
 import logging
-from typing import Any, Callable
+import uuid
+
+from typing import Any
 from collections.abc import Iterable
 
-from src.service.app_state_data_structures import PickleableDependencies, CollectionsState
+from src.service.app_state_data_structures import CollectionsState
 # kinda feel like users should be more generic, but not work the trouble
 from src.service import kb_auth
+from src.service import deletion
 from src.service import errors
 from src.service import models
 from src.service import processing
 from src.service.matchers.common_models import Matcher
-from src.service.storage_arango import ArangoStorage
 from src.service.workspace_wrapper import WorkspaceWrapper, WORKSPACE_UPA_PATH
 
 
@@ -23,6 +28,87 @@ MAX_UPAS = 10000
 
 # might want to make this configurable
 _PERM_RECHECK_LIMIT = 5 * 60 * 1000  # check perms every 5 mins
+
+_UTF_8 = "utf-8"
+
+
+async def create_match(
+    appstate: CollectionsState,
+    collection_id: str,
+    matcher_id: str,
+    user: kb_auth.KBaseUser,
+    upas: list[str],
+    match_params: dict[str, Any],
+) -> models.Match:
+    coll = await appstate.arangostorage.get_collection_active(collection_id)
+    matcher_info = _get_matcher_from_collection(coll, matcher_id)
+    ws = appstate.get_workspace_client(user.token)
+    matcher = appstate.get_matcher(matcher_info.matcher)
+    match_process, upas, wsids = await _create_match_process(
+        matcher,
+        WorkspaceWrapper(ws),
+        upas,
+        match_params,
+        matcher_info.parameters,
+    )
+    perm_check = appstate.get_epoch_ms()
+    params = match_params or {}
+    int_match = models.InternalMatch(
+        match_id=_calc_match_id_md5(matcher_id, collection_id, coll.ver_num, params, upas),
+        matcher_id=matcher_id,
+        collection_id=coll.id,
+        collection_ver=coll.ver_num,
+        user_parameters=params,
+        collection_parameters=matcher_info.parameters,
+        state=models.ProcessState.PROCESSING,
+        state_updated=perm_check,
+        upas=upas,
+        matches=[],
+        internal_match_id=str(uuid.uuid4()),
+        wsids=wsids,
+        created=perm_check,
+        last_access=perm_check,
+        user_last_perm_check={user.user.id: perm_check}
+    )
+    curr_match, exists = await appstate.arangostorage.save_match(int_match)
+    # don't bother checking if the match heartbeat is old here, just do it in the access methods
+    if not exists:
+        match_process.start(curr_match.match_id, appstate.get_pickleable_dependencies())
+    return curr_match
+
+
+def _get_matcher_from_collection(collection: models.SavedCollection, matcher_id: str
+) -> models.Matcher:
+    for m in collection.matchers:
+        if m.matcher == matcher_id:
+            return m
+    raise errors.NoRegisteredMatcherError(matcher_id)
+
+
+# assumes UPAs are sorted
+def _calc_match_id_md5(
+    matcher_id: str,
+    collection_id: str,
+    collection_ver: int,
+    params: dict[str, Any],
+    upas: list[str],
+) -> str:
+    # this would be better if it just happened automatically when constructing the pydantic
+    # match object, but that doesn't seem to work well with pydantic
+    pipe = "|".encode(_UTF_8)
+    m = hashlib.md5()
+    for var in [matcher_id, collection_id, str(collection_ver)]:
+        m.update(var.encode(_UTF_8))
+        m.update(pipe)
+    # this will not sort arrays, and arrays might have positional semantics so we shouldn't do
+    # that anyway. If we have match parameters where sorting arrays is an issue we'll need
+    # to implement on a per matcher basis.
+    m.update(json.dumps(params, sort_keys=True).encode(_UTF_8))
+    m.update(pipe)
+    for u in upas:
+        m.update(u.encode(_UTF_8))
+        m.update(pipe)
+    return m.hexdigest()
 
 
 async def get_match(
@@ -128,16 +214,16 @@ async def _check_match_state(
     col = require_collection
     if col:
         if col.id != match.collection_id:
-            raise errors.InvalidMatchState(
+            raise errors.InvalidMatchStateError(
                 f"Match {match.match_id} is for collection {match.collection_id}, not {col.id}")
         if col.ver_num != match.collection_ver:
-            raise errors.InvalidMatchState(
+            raise errors.InvalidMatchStateError(
                 f"Match {match.match_id} is for collection version {match.collection_ver}, "
                 + f"while the current version is {col.ver_num}")
     # Don't restart the match if the collection is out of date
     # Also only restart if the match is requested for the correct collection
-    if _requires_restart(deps, match, match.match_state):
-        mp = await create_match_process(
+    if processing.requires_restart(deps.get_epoch_ms(), match):
+        mp, _, _ = await _create_match_process(
             deps.get_matcher(match.matcher_id),
             ww,
             match.upas,
@@ -147,38 +233,17 @@ async def _check_match_state(
         logging.getLogger(__name__).warn(f"Restarting match process for match {match.match_id}")
         mp.start(match.match_id, deps.get_pickleable_dependencies())
     # might need to separate out the still processing error from the id / ver matching
-    if require_complete and match.match_state != models.ProcessState.COMPLETE:
-        raise errors.InvalidMatchState(f"Match {match.match_id} processing is not complete")
+    if require_complete and match.state != models.ProcessState.COMPLETE:
+        raise errors.InvalidMatchStateError(f"Match {match.match_id} processing is not complete")
 
 
-def _requires_restart(
-    deps: CollectionsState,
-    match: models.InternalMatch | models.DataProductMatchProcess,
-    match_state: models.ProcessState,
-) -> bool:
-    if match_state == models.ProcessState.PROCESSING:
-        # "failed" indicates the failure is not necessarily recoverable
-        # E.g. an admin should take a look
-        # We may need to add another state for recoverable errors like loss of contact w/ arango...
-        # but that kind of thing could lead to a lot of jobs being kicked off over and over
-        # Better to put retries in the matching code or arango storage wrapper
-        maxdiff = processing.HEARTBEAT_RESTART_THRESHOLD_MS
-        now = deps.get_epoch_ms()
-        if match.heartbeat is None:
-            if now - match.created > maxdiff:
-                return True
-        elif now - match.heartbeat > maxdiff:
-            return True
-    return False
-
-
-async def create_match_process(
+async def _create_match_process(
     matcher: Matcher,
     ww: WorkspaceWrapper,
     upas: list[str],
     user_parameters: dict[str, Any],
     collection_parameters: dict[str, Any],
-) -> processing.CollectionProcess:
+) -> tuple[processing.CollectionProcess, list[str], set[int]]:
     """
     Create a match process given inputs to the match. The process can be started immediately or
     at a later time (once match information has been saved to a database, for example.)
@@ -191,6 +256,11 @@ async def create_match_process(
     upas - the UPAs of the workspce objects to include in the match.
     collection_parameters - the parameters for the match provided by the collection data
         (as opposed to user provided parameters.)
+
+    Returns a tuple containing
+        1. The match process
+        2. The list of UPAs after expanding sets and removing duplicates,
+        3. The set of workspace IDs from the root UPAs in the list of UPAs.
     """
     # All matchers will need to check permissions and deletion state for the workspace objects,
     # so we get the metadata which is the cheapest way to do that. Most matchers will need
@@ -280,52 +350,23 @@ def _upaerror(upa, upapath, upapathlen, index):
         raise errors.IllegalParameterError(f"Illegal UPA '{upa}' at index {index}")
 
 
-async def get_or_create_data_product_match(
-    deps: CollectionsState,
-    match: models.InternalMatch,
-    data_product: str,
-    match_process: Callable[[str, PickleableDependencies, list[Any]], None],
-) -> models.DataProductMatchProcess:
+async def delete_match(appstate: CollectionsState, match_id: str, verbose: bool = False
+) -> models.MatchVerbose:
     """
-    Get a match process data structure for a data product match.
+    Move a match record to the deleted state, awaiting permanent deletion.
 
-    Creates the match and starts the matching process if the match does not already exist.
-
-    If the match exists but hasn't had a heartbeat in the required time frame, starts another
-    instance of the processes.
-
-    In either case, the list of arguments to the match process is empty.
-
-    deps - the collections service state.
-    match - the parent match for the data product match.
-    data_product - the data product for the match.
-    match_process - the match process to run if there is no match information in the database or
-        the match heartbeat is too old.
+    appstate - the application state.
+    match_id - the match to delete.
+    verbose - True to return the match UPAs and matches, which may be much larger than the rest
+        of the match data.
     """
-    now = deps.get_epoch_ms()
-    dp_match, exists = await deps.arangostorage.create_or_get_data_product_match(
-        models.DataProductMatchProcess(
-            data_product=data_product,
-            internal_match_id=match.internal_match_id,
-            created=now,
-            data_product_match_state=models.ProcessState.PROCESSING,
-            data_product_match_state_updated=now,
-        )
-    )
-    if not exists:
-        _start_process(match.match_id, match_process, deps.get_pickleable_dependencies())
-    elif _requires_restart(deps, dp_match, dp_match.data_product_match_state):
-        logging.getLogger(__name__).warn(
-            f"Restarting match process for match {dp_match.internal_match_id} "
-            + f"data product {data_product}"
-        )
-        _start_process(match.match_id, match_process, deps.get_pickleable_dependencies())
-    return dp_match
-
-
-def _start_process(
-    match_id: str,
-    match_process: Callable[[str, PickleableDependencies, list[Any]], None],
-    deps: PickleableDependencies,
-) -> None:
-    processing.CollectionProcess(process=match_process, args=[]).start(match_id, deps)
+    store = appstate.arangostorage
+    match = await store.get_match_full(match_id)
+    await deletion.move_match_to_deleted_state(store, match, appstate.get_epoch_ms())
+    match = models.MatchVerbose(
+        **models.remove_non_model_fields(match.dict(), models.MatchVerbose))
+    if not verbose:
+        # TODO PERF do this by not requesting the fields from the DB
+        match.upas = []
+        match.matches = []
+    return match
