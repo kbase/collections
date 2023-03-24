@@ -235,7 +235,7 @@ async def get_genome_attributes(
     appstate = app_state.get_app_state(r)
     store = appstate.arangostorage
     internal_match_id, internal_selection_id = None, None
-    if match_id or KBASE_COLLECTIONS_SELECTION:
+    if match_id or selection_id:
         coll = await store.get_collection_active(collection_id)
         load_ver = get_load_ver_from_collection(coll, ID)
     else:
