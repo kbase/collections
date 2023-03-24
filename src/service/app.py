@@ -102,7 +102,7 @@ def _handle_app_exception(r: Request, exc: errors.CollectionError):
         status_code = status.HTTP_401_UNAUTHORIZED
     elif isinstance(exc, errors.UnauthorizedError | errors.DataPermissionError):
         status_code = status.HTTP_403_FORBIDDEN
-    elif isinstance(exc, errors.NoDataException):
+    elif isinstance(exc, errors.NoDataExceptionError):
         status_code = status.HTTP_404_NOT_FOUND
     else:
         status_code = status.HTTP_400_BAD_REQUEST

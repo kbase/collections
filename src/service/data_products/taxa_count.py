@@ -13,9 +13,10 @@ from src.service import app_state
 from src.service.app_state_data_structures import PickleableDependencies, CollectionsState
 from src.service import errors
 from src.service import kb_auth
-from src.service import match_retrieval
 from src.service import models
 from src.service import processing
+from src.service import processing_matches
+from src.service import processing_selections
 from src.service.clients.workspace_client import Workspace
 from src.service.data_products.common_functions import (
     get_load_version,
@@ -31,11 +32,17 @@ from src.service.http_bearer import KBaseHTTPBearer
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
 from src.service.workspace_wrapper import WorkspaceWrapper
+from typing import Any
 
 
 ID = "taxa_count"
 
 _ROUTER = APIRouter(tags=["Taxa count"], prefix=f"/{ID}")
+
+_TYPE2PREFIX = {
+    models.SubsetType.MATCH: "m_",
+    models.SubsetType.SELECTION: "s_",
+}
 
 
 class TaxaCountSpec(DataProductSpec):
@@ -64,11 +71,11 @@ TAXA_COUNT_SPEC = TaxaCountSpec(
                 [
                     names.FLD_COLLECTION_ID,
                     names.FLD_LOAD_VERSION,
-                    names.FLD_INTERNAL_MATCH_ID,
+                    names.FLD_INTERNAL_ID,
                     names.FLD_TAXA_COUNT_RANK,
                     names.FLD_TAXA_COUNT_COUNT,
                 ],
-                [names.FLD_INTERNAL_MATCH_ID]  # for deleting match data
+                [names.FLD_INTERNAL_ID]  # for deleting match / selection data
             ]
         )
     ]
@@ -89,7 +96,7 @@ def _remove_counts_keys(doc: dict):
     for k in [names.FLD_TAXA_COUNT_RANK,
               names.FLD_COLLECTION_ID,
               names.FLD_LOAD_VERSION,
-              names.FLD_INTERNAL_MATCH_ID,
+              names.FLD_INTERNAL_ID,
              ]:
         doc.pop(k, None)
     return doc
@@ -103,7 +110,7 @@ class Ranks(BaseModel):
 
 
 # Note these field names need to match those in src.common.storage.collection_and_field_names
-# except for match count
+# except for match and selection count
 class TaxaCount(BaseModel):
     name: str = Field(
         example="Marininema halotolerans",
@@ -117,23 +124,34 @@ class TaxaCount(BaseModel):
         example=24,
         description="The number of genomes in the collection in this taxa for the match"
     )
-    # TODO SELECTION selection count
+    sel_count: int | None = Field(
+        example=35,
+        description="The number of genomes in the collection in this taxa for the selection"
+    )
 
 
-# this needs to match the match_count field name in TaxaCount above
-_MATCH_COUNT = "match_count"
+# these need to match the field names in TaxaCount above
+_TYPE2FIELD = {
+    models.SubsetType.MATCH: "match_count",
+    models.SubsetType.SELECTION: "sel_count",
+}
 
 
 class TaxaCounts(BaseModel):
     """
-    The taxa counts data set. Either `data` or `match_state` is returned.
+    The taxa counts data set.
     """
-    data: list[TaxaCount] | None
     taxa_count_match_state: models.ProcessState | None = Field(
         example=models.ProcessState.PROCESSING,
-        description="The processing state of the match for this data product. This data product "
-            + "requires additional processing beyone the primary match."
+        description="The processing state of the match (if any) for this data product. "
+            + "This data product requires additional processing beyond the primary match."
     )
+    taxa_count_selection_state: models.ProcessState | None = Field(
+        example=models.ProcessState.FAILED,
+        description="The processing state of the selection (if any) for this data product. "
+            + "This data product requires additional processing beyond the primary match."
+    )
+    data: list[TaxaCount] | None
 
 
 _FLD_COL_ID = "colid"
@@ -193,8 +211,8 @@ async def get_ranks_from_db(
     "/counts/{rank}/",
     response_model=TaxaCounts,
     description="Get the taxonomy counts in descending order. At most 20 taxa are returned.\n\n "
-        + "Authentication is not required unless overriding the load version, in which case "
-        + "service administration permissions are required.")
+        + "Authentication is not required unless providing a match ID or overriding the load "
+        + "version; in the latter case service administration permissions are required.")
 async def get_taxa_counts(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
@@ -205,75 +223,110 @@ async def get_taxa_counts(
     ),
     match_id: str | None = Query(
         default = None,
-        description="A match ID to set the view to the match rather than "
-            + "the entire collection. Note that if a match ID is set, any load version override "
-            + "is ignored."),  # matches are against a specific load version, so...
+        description="A match ID to include the match count in the taxa count data. "
+            + "Authentication is required. "
+            # matches are against a specific load version, so...
+            + "Note that if a match ID is set, any load version override is ignored."),
+    selection_id: str | None = Query(
+        default = None,
+        description="A selection ID to include the selection count in the taxa count data. "
+            + "Note that if a selection ID is set, any load version override is ignored."),
     load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
 ):
     appstate = app_state.get_app_state(r)
     store = appstate.arangostorage
-    dp_match = None
-    if match_id:
-        dp_match, load_ver = await _get_data_product_match(
-            appstate, collection_id, match_id, user
-        )
-        if dp_match.data_product_match_state != models.ProcessState.COMPLETE:
-            return TaxaCounts(taxa_count_match_state=dp_match.data_product_match_state)
+    dp_match, dp_sel = None, None
+    if match_id or selection_id:
+        errclass = errors.InvalidMatchStateError if match_id else errors.InvalidSelectionStateError
+        load_ver, coll = await _get_load_ver(appstate, collection_id, errclass)
     else:
         load_ver = await get_load_version(store, collection_id, ID, load_ver_override, user)
+    if match_id:
+        dp_match = await _get_data_product_match(appstate, coll, match_id, user)
+    if selection_id:
+        dp_sel = await _get_data_product_selection(appstate, coll, selection_id)
     ranks = await get_ranks_from_db(store, collection_id, load_ver, bool(load_ver_override))
     if rank not in ranks.data:
         raise errors.IllegalParameterError(f"Invalid rank: {rank}")
     q = await _query(store, collection_id, load_ver, rank)
-    if dp_match:
+    for dp_proc in [dp_match, dp_sel]:
+        await _add_subset_data_in_place(q, store, collection_id, load_ver, rank, dp_proc)
+        # For now always sort by the std data. See if ppl want sort by match/selection data
+        # before implementing something more sophisticated.
+    return TaxaCounts(
+        taxa_count_match_state=dp_match.state if dp_match else None,
+        taxa_count_selection_state=dp_sel.state if dp_sel else None,
+        data=q,
+    )
+
+
+async def _add_subset_data_in_place(
+    q: dict[str, Any],
+    store: ArangoStorage,
+    collection_id: str,
+    load_ver: str,
+    rank: str,
+    dp_process: models.DataProductProcess,
+):
+    if dp_process and dp_process.state == models.ProcessState.COMPLETE:
         matchq = await _query(
             store,
             collection_id,
             load_ver,
             rank,
-            dp_match.internal_match_id
+            dp_process.internal_id,
+            dp_process.type,
         )
         name, count = names.FLD_TAXA_COUNT_NAME, names.FLD_TAXA_COUNT_COUNT
         mqd = {d[name]: d[count] for d in matchq}
         for d in q:
-            d[_MATCH_COUNT] = mqd.get(d[name], 0)
-        # For now always sort by the non-match data. See if ppl want sort by match data before implementing
-        # something more sophisticated.
-    return TaxaCounts(
-        data=q,
-        taxa_count_match_state=dp_match.data_product_match_state if dp_match else None
-    )
+            d[_TYPE2FIELD[dp_process.type]] = mqd.get(d[name], 0)
 
 
-async def _get_data_product_match(
-    appstate: CollectionsState,
-    collection_id: str,
-    match_id: str,
-    user: kb_auth.KBaseUser
-):
-    if not user:
-        raise errors.UnauthorizedError("Authentication is required if a match ID is supplied")
+async def _get_load_ver(appstate: CollectionsState, collection_id: str, errclass
+) -> tuple[str, models.SavedCollection]:
     coll = await appstate.arangostorage.get_collection_active(collection_id)
     # I'm kind of uncomfortable hard coding this dependency... but it's real so... I dunno.
     # Might need refactoring later once it become more clear how data products should
     # interact.
     if genome_attributes.ID not in {dp.product for dp in coll.data_products}:
-        raise errors.InvalidMatchState(
-            f"Cannot perform a {ID} match when the collection does not have a "
+        raise errclass(
+            f"Cannot perform a {ID} subset when the collection does not have a "
             + f"{genome_attributes.ID} data product")
     load_ver = get_load_ver_from_collection(coll, ID)
-    match = await match_retrieval.get_match_full(
-        appstate,
-        match_id,
-        user,
-        require_complete=True,
-        require_collection=coll
+    return load_ver, coll
+
+
+async def _get_data_product_match(
+    appstate: CollectionsState,
+    coll: models.SavedCollection,
+    match_id: str,
+    user: kb_auth.KBaseUser
+):
+    if not user:
+        raise errors.UnauthorizedError("Authentication is required if a match ID is supplied")
+    match = await processing_matches.get_match_full(
+        appstate, match_id, user, require_complete=True, require_collection=coll)
+    dpid = models.DataProductProcessIdentifier(
+        internal_id=match.internal_match_id, data_product=ID, type=models.SubsetType.MATCH
     )
-    dp_match = await match_retrieval.get_or_create_data_product_match(
-        appstate, match, ID, _process_match
+    return await processing.get_or_create_data_product_process(
+        appstate, dpid, _process_match, args=[models.SubsetType.MATCH])
+
+
+async def _get_data_product_selection(
+    appstate: CollectionsState,
+    coll: models.SavedCollection,
+    selection_id: str,
+):
+    sel = await processing_selections.get_selection_full(
+        appstate, selection_id, require_complete=True, require_collection=coll)
+    dpid = models.DataProductProcessIdentifier(
+        internal_id=sel.internal_selection_id, data_product=ID, type=models.SubsetType.SELECTION
     )
-    return dp_match, load_ver
+    return await processing.get_or_create_data_product_process(
+        appstate, dpid, _process_match, args=[models.SubsetType.SELECTION])
 
 
 async def _query(
@@ -281,14 +334,17 @@ async def _query(
     collection_id: str,
     load_ver: str,
     rank: str,
-    internal_match_id: str | None = None,
+    internal_id: str | None = None,
+    type_: models.SubsetType | None = None
 ):
+    if internal_id:
+        internal_id = _TYPE2PREFIX[type_] + internal_id
     bind_vars = {
         f"@{_FLD_COL_NAME}": names.COLL_TAXA_COUNT,
         _FLD_COL_ID: collection_id,
         _FLD_COL_LV: load_ver,
         _FLD_COL_RANK: rank,
-        "internal_match_id": internal_match_id,
+        "internal_id": internal_id,
     }
     # will probably want some sort of sort / limit options, but don't get too crazy. Wait for
     # feedback for now
@@ -296,7 +352,7 @@ async def _query(
         FOR d IN @@{_FLD_COL_NAME}
             FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
             FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
-            FILTER d.{names.FLD_INTERNAL_MATCH_ID} == @internal_match_id
+            FILTER d.{names.FLD_INTERNAL_ID} == @internal_id
             FILTER d.{names.FLD_TAXA_COUNT_RANK} == @{_FLD_COL_RANK}
             SORT d.{names.FLD_TAXA_COUNT_COUNT} DESC
             LIMIT 20
@@ -315,24 +371,32 @@ async def _query(
     return ret
 
 
-async def _process_match(match_id: str, deps: PickleableDependencies, args: list):
-    # TODO DOCS document that match processes should run the process regardless of the state
-    #      of the match. It is up to the code starting the process to ensure it is correct to
-    #      start the match process. As such, the match processes should be idempotent.
+async def _process_match(
+    internal_id: str, deps: PickleableDependencies, args: list[models.SubsetType]
+):
+    # TODO DOCS document that processes should run regardless of the state
+    #      of any other processes for the same match or selection. It is up to the code starting
+    #      the process to ensure it is correct to start. As such, the processes should be
+    #      idempotent.
+    type_ = args[0]
     hb = None
     arangoclient = None
-    match = None
+    dpid = models.DataProductProcessIdentifier(
+        internal_id=internal_id, data_product=ID, type=type_)
     try:
         arangoclient, storage = await deps.get_storage()
-        match = await storage.get_match_full(match_id)
+        if type_ == models.SubsetType.MATCH:
+            collspec = await storage.get_match_by_internal_id(internal_id)
+        else:
+            collspec = await storage.get_selection_by_internal_id(internal_id)
         async def heartbeat(millis: int):
-            await storage.send_data_product_match_heartbeat(match.internal_match_id, ID, millis)
+            await storage.send_data_product_heartbeat(dpid, millis)
         hb = processing.Heartbeat(heartbeat, processing.HEARTBEAT_INTERVAL_SEC)
         hb.start()
         
         # use version number to avoid race conditions with activating collections
         coll = await storage.get_collection_version_by_num(
-            match.collection_id, match.collection_ver
+            collspec.collection_id, collspec.collection_ver
         )
         load_ver = {dp.product: dp.version for dp in coll.data_products}[ID]
         # Right now this is hard coded to use the GTDB lineage, which is the only choice we
@@ -340,14 +404,15 @@ async def _process_match(match_id: str, deps: PickleableDependencies, args: list
         # Maybe a collection parameter, which would be available from the collection data structure
         # given the matcher ID.
         count = GTDBTaxaCount()
-        await genome_attributes.process_match_documents(
+        await genome_attributes.process_subset_documents(
             storage,
             coll,
-            match.internal_match_id,
+            internal_id,
+            type_,
             lambda doc: count.add(doc[names.FLD_GENOME_ATTRIBS_GTDB_LINEAGE]),
             fields=[names.FLD_GENOME_ATTRIBS_GTDB_LINEAGE]
         )
-        docs = [taxa_node_count_to_doc(coll.id, load_ver, tc, match.internal_match_id)
+        docs = [taxa_node_count_to_doc(coll.id, load_ver, tc, _TYPE2PREFIX[type_] + internal_id)
                 for tc in count
                 ]
         # May need to batch this?
@@ -359,17 +424,13 @@ async def _process_match(match_id: str, deps: PickleableDependencies, args: list
         # Ignore collisions so that if two match processes get kicked off at once the result
         # is the same and neither fails.
         await storage.import_bulk_ignore_collisions(names.COLL_TAXA_COUNT, docs)
-        await storage.update_data_product_match_state(
-            match.internal_match_id, ID, models.ProcessState.COMPLETE, deps.get_epoch_ms()
-        )
+        await storage.update_data_product_process_state(
+            dpid, models.ProcessState.COMPLETE, deps.get_epoch_ms())
     except Exception as e:
         logging.getLogger(__name__).exception(
-            f"Matching process data product {ID} for match {match_id} failed")
-        if match:
-            await storage.update_data_product_match_state(
-                match.internal_match_id, ID, models.ProcessState.FAILED, deps.get_epoch_ms()
-            )
-            # otherwise not much to do, something went very wrong
+            f"{type_.value} process {internal_id} for data product {ID} failed")
+        await storage.update_data_product_process_state(
+            dpid, models.ProcessState.FAILED, deps.get_epoch_ms())
     finally:
         if hb:
             hb.stop()
@@ -386,11 +447,12 @@ async def delete_match(storage: ArangoStorage, internal_match_id: str):
     """
     bind_vars = {
         f"@{_FLD_COL_NAME}": names.COLL_TAXA_COUNT,
-        "internal_match_id": internal_match_id,
+        # this will get updated when we delete selections
+        "internal_id": _TYPE2PREFIX[models.SubsetType.MATCH] + internal_match_id,
     }
     aql = f"""
         FOR d IN @@{_FLD_COL_NAME}
-            FILTER d.{names.FLD_INTERNAL_MATCH_ID} == @internal_match_id
+            FILTER d.{names.FLD_INTERNAL_ID} == @internal_id
             REMOVE d IN @@{_FLD_COL_NAME}
             OPTIONS {{exclusive: true}}
     """

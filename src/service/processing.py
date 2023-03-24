@@ -5,12 +5,13 @@ both performing the initial match and calculating secondary data products.
 
 import asyncio
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.interval import IntervalTrigger
+import logging
 import multiprocessing
 
 from pydantic import BaseModel, Field
 from typing import Callable, Any
-from src.service.app_state_data_structures import PickleableDependencies
+from src.service.app_state_data_structures import PickleableDependencies, CollectionsState
+from src.service import models
 from src.service.timestamp import now_epoch_millis
 
 
@@ -57,6 +58,35 @@ def _run_async_process(target: Callable, args: list[Any]):
     asyncio.run(target(*args))
 
 
+def requires_restart(current_time_epoch_ms: int, process: models.ProcessAttributes) -> bool:
+    f"""
+    Check if a process should be restarted.
+
+    current_time_epoch_ms - the current time in milliseconds since the epoch.
+    process - the process to check.
+
+    Returns true if:
+    * the state of the process is {models.ProcessState.PROCESSING.value} and
+    * one of the following is true
+        * the process has never sent a heartbeat and the process was created >
+          {HEARTBEAT_RESTART_THRESHOLD_MS} ms ago
+        * the heartbeat is > {HEARTBEAT_RESTART_THRESHOLD_MS} ms old
+    """
+    if process.state == models.ProcessState.PROCESSING:
+        # "failed" indicates the failure is not necessarily recoverable
+        # E.g. an admin should take a look
+        # We may need to add another state for recoverable errors like loss of contact w/ arango...
+        # but that kind of thing could lead to a lot of jobs being kicked off over and over
+        # Better to put retries in the matching code or arango storage wrapper
+        maxdiff = HEARTBEAT_RESTART_THRESHOLD_MS
+        if process.heartbeat is None:
+            if current_time_epoch_ms - process.created > maxdiff:
+                return True
+        elif current_time_epoch_ms - process.heartbeat > maxdiff:
+            return True
+    return False
+
+
 class Heartbeat:
     """
     Sends a heatbeat timestamp in epoch seconds to an async function at a specified interval,
@@ -82,10 +112,8 @@ class Heartbeat:
         """
         if self._job_id:
             raise ValueError("Heartbeat is already running")
-        job = self._schd.add_job(
-            func=self._heartbeat,
-            trigger=IntervalTrigger(seconds=self._interval_sec)
-        )
+        self._schd.add_job(self._heartbeat)  # run immediately
+        job = self._schd.add_job(self._heartbeat, "interval", seconds=self._interval_sec)
         self._job_id = job.id
         self._schd.start()
 
@@ -100,3 +128,58 @@ class Heartbeat:
             self._schd.shutdown(wait=True)
             self._schd.remove_job(self._job_id)
             self._job_id = None
+
+
+async def get_or_create_data_product_process(
+    deps: CollectionsState,
+    dpid: models.DataProductProcessIdentifier,
+    process_callable: Callable[[str, PickleableDependencies, list[Any]], None],
+    args: list[Any] = None,
+) -> models.DataProductProcess:
+    """
+    Get a process data structure for a data product process.
+
+    Creates and starts the process if the process does not already exist.
+
+    If the process exists but hasn't had a heartbeat in the required time frame, starts another
+    instance of the process.
+
+    deps - the collections service state.
+    dpid - the identifier for the process to create.
+    process_callable - the callable to run if there is no process information in the database or
+        the heartbeat is too old. The arguments are the internal ID of the match or selection,
+        a dependencies instance, and the arguments to be provided to the callable.
+    args - the argument list to provide to process_callable in the third parameter.
+    """
+    args = args or []
+    now = deps.get_epoch_ms()
+    dp_proc, exists = await deps.arangostorage.create_or_get_data_product_process(
+        models.DataProductProcess(
+            data_product=dpid.data_product,
+            type=dpid.type,
+            internal_id=dpid.internal_id,
+            created=now,
+            state=models.ProcessState.PROCESSING,
+            state_updated=now,
+        )
+    )
+    if not exists:
+        _start_process(
+            dpid.internal_id, process_callable, deps.get_pickleable_dependencies(), args)
+    elif requires_restart(deps.get_epoch_ms(), dp_proc):
+        logging.getLogger(__name__).warn(
+            f"Restarting {dpid.type.value} process for internal ID {dpid.internal_id} "
+            + f"data product {dpid.data_product}"
+        )
+        _start_process(
+            dpid.internal_id, process_callable, deps.get_pickleable_dependencies(), args)
+    return dp_proc
+
+
+def _start_process(
+    internal_id: str,
+    process_callable: Callable[[str, PickleableDependencies, list[Any]], None],
+    deps: PickleableDependencies,
+    args: list[Any],
+) -> None:
+    CollectionProcess(process=process_callable, args=args).start(internal_id, deps)

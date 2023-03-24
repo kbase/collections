@@ -51,7 +51,7 @@ class GTDBLineageMatcherUserParameters(BaseModel):
 
 async def _process_match(
     match_id: str,
-    pstorage: PickleableDependencies,
+    deps: PickleableDependencies,
     args: tuple[list[str], GTDBRank]
 ):
     lineages = args[0]
@@ -59,15 +59,17 @@ async def _process_match(
     hb = None
     arangoclient = None
     try:
-        arangoclient, storage = await pstorage.get_storage()
+        arangoclient, storage = await deps.get_storage()
         async def heartbeat(millis: int):
             await storage.send_match_heartbeat(match_id, millis)
         hb = Heartbeat(heartbeat, HEARTBEAT_INTERVAL_SEC)
         hb.start()
+        # this might need to be configurable on the matcher to allow the matcher
+        # to run against different data products
         await genome_attributes.perform_gtdb_lineage_match(match_id, storage, lineages, rank)
     except Exception as e:
         logging.getLogger(__name__).exception(f"Matching process for match {match_id} failed")
-        await storage.update_match_state(match_id, models.ProcessState.FAILED, now_epoch_millis())
+        await storage.update_match_state(match_id, models.ProcessState.FAILED, deps.get_epoch_ms())
     finally:
         if hb:
             hb.stop()

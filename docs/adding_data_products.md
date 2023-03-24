@@ -43,12 +43,17 @@ the reader is familiar with
 * Create a class inheriting from [DataProductSpec](/src/service/data_products/common_models.py)
   in your data product module, specifying your data product ID, router, and the ArangoDB
   collections and indexes your data product will use.
-  * The class must implement a method with the signature
-    ```
+  * The class must implement the following methods with the given signatures
+    ```python
     async def delete_match(self, storage: ArangoStorage, internal_match_id: str) -> None:
     ```
     * When called, this method must delete any match data associated with the given internal
       match ID.
+    ```python
+    async def apply_selection(self, storage: ArangoStorage, selection_id: str) -> None:
+    ```
+    * When called, this method must apply the given selection to the data. See the `genome_attribs`
+      data product for an example.
 * Create the endpoints / routes for your data product in the new module.
   * See the existing implementations for examples.
   * Routes must start with `/collection/{collection_id}/data_products/<data_product_id>/`
