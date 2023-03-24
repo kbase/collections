@@ -34,7 +34,7 @@ ROUTER_COLLECTIONS = APIRouter(tags=["Collections"])
 ROUTER_MATCHES = APIRouter(tags=["Matches"])
 ROUTER_SELECTIONS = APIRouter(tags=["Selections"])
 ROUTER_COLLECTIONS_ADMIN = APIRouter(tags=["Collection Administration"])
-ROUTER_MATCH_ADMIN = APIRouter(tags=["Match Administration"], prefix="/matchadmin")
+ROUTER_MATCH_ADMIN = APIRouter(tags=["Here be Dragons"], prefix="/matchadmin")
 
 _AUTH = KBaseHTTPBearer()
 

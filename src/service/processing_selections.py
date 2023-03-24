@@ -74,7 +74,7 @@ async def save_selection(
     if not coll.default_select:
         raise errors.IllegalParameterError(
             f"Collection {coll.id} version {coll.ver_num} is not configured to allow selections")
-    selection_ids = sorted(selection_ids)
+    selection_ids = sorted(set(selection_ids))  # remove duplicates
     now = appstate.get_epoch_ms()
     int_sel = models.InternalSelection(
         selection_id=_calc_selection_md5(coll, selection_ids),
