@@ -1,5 +1,5 @@
 """
-Routines to safely delete matches and clean up match data in the collections system
+Routines to safely delete matches and selections and clean up related data in the collections system
 """
 
 import logging
