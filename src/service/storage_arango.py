@@ -187,7 +187,7 @@ class ArangoStorage:
         selcol = db.collection(COLL_SRV_SELECTIONS)
         # find selections ready to be moved to the deleted state
         await selcol.add_persistent_index([models.FIELD_LAST_ACCESS])
-        # find seelections by internal selection ID
+        # find selections by internal selection ID
         await selcol.add_persistent_index([models.FIELD_SELECTION_INTERNAL_SELECTION_ID])
         for col_list in dps.values():
             for col in col_list:
@@ -1053,7 +1053,7 @@ class ArangoStorage:
     async def process_old_selections(
         self,
         selection_max_last_access_ms: int,
-        processor: Callable[[models.InternalMatch], Awaitable[None]],
+        processor: Callable[[models.InternalSelection], Awaitable[None]],
     ):
         """
         Process selections with a last access date older than the given date.
