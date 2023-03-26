@@ -7,6 +7,7 @@ import time
 from enum import Enum
 
 import pandas as pd
+from file_read_backwards import FileReadBackwards
 
 import src.loaders.jobs.taskfarmer.taskfarmer_common as tf_common
 from src.loaders.common import loader_common_names
@@ -57,26 +58,20 @@ class TFTaskManager:
     def _read_last_n_line(file_path, n=5):
         """
         Read the last n lines from a file and return them as a list of strings.
+
+        If the file does not exist, return an empty list.
         """
 
         if not os.path.exists(file_path):
             return []
 
-        with open(file_path, 'r') as file:
-            file.seek(0, os.SEEK_END)
-            position = file.tell()
+        with FileReadBackwards(file_path, encoding="utf-8") as file:
 
             last_lines = []
-            while len(last_lines) < n and position >= 0:
-                position -= 1
-                file.seek(position, os.SEEK_SET)
-                character = file.read(1)
-                if character == '\n':
-                    line = file.readline().strip()
-                    last_lines.insert(0, line)
-                elif position == 0:  # reached the beginning of the file
-                    line = file.readline().strip()
-                    last_lines.insert(0, line)
+            for line in file:
+                last_lines.append(line.rstrip())
+                if len(last_lines) == n:
+                    break
 
         return last_lines
 
