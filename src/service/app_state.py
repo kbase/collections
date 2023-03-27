@@ -64,9 +64,9 @@ async def destroy_app_state(app: FastAPI):
     """
     Destroy the application state, shutting down services and releasing resources.
     """
-    state = _get_app_state_from_app(app)
-    state._match_deletion.stop()
-    await state._colstate.destroy()
+    app.state._match_deletion.stop()
+    colstate = _get_app_state_from_app(app)
+    await colstate.destroy()
 
 
 def _get_app_state_from_app(app: FastAPI) -> CollectionsState:
