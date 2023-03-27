@@ -313,12 +313,13 @@ class TFTaskManager:
         self.tool = tool
         self.source_data_dir = source_data_dir
         self.root_dir = root_dir
+        self.restart_on_demand = restart_on_demand
 
         # job directory is named as <kbase_collection>_<load_ver>_<tool>
         self.job_dir = os.path.join(
             self.root_dir, TASKFARMER_JOB_DIR, f'{self.kbase_collection}_{self.load_ver}_{self.tool}')
 
-        self._check_preconditions(restart_on_demand)
+        self._check_preconditions(self.restart_on_demand)
 
     def submit_job(self):
         """
@@ -334,6 +335,8 @@ class TFTaskManager:
         for filename in required_files:
             if not os.path.isfile(os.path.join(self.job_dir, filename)):
                 raise ValueError(f"{filename} does not exist in {self.job_dir}")
+
+        self._check_preconditions(self.restart_on_demand)
 
         current_datetime = datetime.datetime.now()
         std_out_file, std_err_file, exit_code = tf_common.run_nersc_command(
