@@ -64,6 +64,9 @@ COLL_SRV_DATA_PRODUCT_PROCESSES = _SRV_PREFIX + "data_prod_proc"
 COLL_SRV_SELECTIONS = _SRV_PREFIX + "selections"
 """ A collection holding selections for Collections. """
 
+COLL_SRV_SELECTIONS_DELETED = COLL_SRV_SELECTIONS + "_deleted"
+""" A collection holding selections in the deleted state. """
+
 ## Data product collections
 
 ### Taxa counts
