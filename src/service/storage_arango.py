@@ -29,6 +29,7 @@ from src.common.storage.collection_and_field_names import (
     COLL_SRV_MATCHES_DELETED,
     COLL_SRV_DATA_PRODUCT_PROCESSES,
     COLL_SRV_SELECTIONS,
+    COLL_SRV_SELECTIONS_DELETED,
 )
 from src.service import models
 from src.service import errors
@@ -63,6 +64,7 @@ _COLLECTIONS = [
     COLL_SRV_MATCHES_DELETED,
     COLL_SRV_DATA_PRODUCT_PROCESSES,
     COLL_SRV_SELECTIONS,
+    COLL_SRV_SELECTIONS_DELETED,
 ]
 _BUILTIN = "builtin"
 
@@ -182,6 +184,11 @@ class ArangoStorage:
         await matchcol.add_persistent_index([models.FIELD_LAST_ACCESS])
         # find matches by internal match ID
         await matchcol.add_persistent_index([models.FIELD_MATCH_INTERNAL_MATCH_ID])
+        selcol = db.collection(COLL_SRV_SELECTIONS)
+        # find selections ready to be moved to the deleted state
+        await selcol.add_persistent_index([models.FIELD_LAST_ACCESS])
+        # find selections by internal selection ID
+        await selcol.add_persistent_index([models.FIELD_SELECTION_INTERNAL_SELECTION_ID])
         for col_list in dps.values():
             for col in col_list:
                 dbcol = db.collection(col.name)
@@ -430,13 +437,12 @@ class ArangoStorage:
 
         Returns true if the match document was removed, false otherwise.
         """
-        return await self._remove_match(match_id, last_access, COLL_SRV_MATCHES)
+        return await self._remove_subset(match_id, last_access, COLL_SRV_MATCHES)
 
-    async def _remove_match(self, match_id: str, last_access: int, coll: str) -> bool:
-        # match_id is the match ID for regular matches, internal_match_id for deleted matches
+    async def _remove_subset(self, subset_id: str, last_access: int, coll: str) -> bool:
         aql = f"""
             FOR d in @@{_FLD_COLLECTION}
-                FILTER d.{FLD_ARANGO_KEY} == @{_FLD_MATCH_ID}
+                FILTER d.{FLD_ARANGO_KEY} == @subset_id
                 FILTER d.{models.FIELD_LAST_ACCESS} == @last_access
                 REMOVE d IN @@{_FLD_COLLECTION}
                 OPTIONS {{exclusive: true}}
@@ -444,7 +450,7 @@ class ArangoStorage:
             """
         bind_vars = {
             f"@{_FLD_COLLECTION}": coll,
-            _FLD_MATCH_ID: match_id,
+            "subset_id": subset_id,
             "last_access": last_access,
         }
         cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
@@ -719,23 +725,33 @@ class ArangoStorage:
         """
         Process matches with a last access date older than the given date.
 
-        match_max_last_access_ms - process matches with a last acess date older that this in epoch
+        match_max_last_access_ms - process matches with a last access date older than this in epoch
             milliseconds.
         processor - an async callable to which each match will be provided in turn.
         """
+        await self._process_old_subsets(
+            match_max_last_access_ms, processor, COLL_SRV_MATCHES, self._to_internal_match)
+
+    async def _process_old_subsets(
+        self,
+        max_last_access_ms: int,
+        processor: Callable[[models.InternalMatch], Awaitable[None]],
+        coll: str,
+        converter: Callable[[dict[str, Any]], models.InternalMatch | models.InternalSelection],
+    ):
         aql = f"""
             FOR d IN @@{_FLD_COLLECTION}
                 FILTER d.{models.FIELD_LAST_ACCESS} < @max_last_access
                 RETURN d
             """
         bind_vars = {
-            f"@{_FLD_COLLECTION}": COLL_SRV_MATCHES,
-            "max_last_access": match_max_last_access_ms,
+            f"@{_FLD_COLLECTION}": coll,
+            "max_last_access": max_last_access_ms,
         }
         cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
         try:
             async for d in cur:
-                await processor(self._to_internal_match(self._correct_process_doc_in_place(d)))
+                await processor(converter(self._correct_process_doc_in_place(d)))
         finally:
             await cur.close(ignore_missing=True)
 
@@ -773,7 +789,7 @@ class ArangoStorage:
 
         Returns true if the match document was removed, false otherwise.
         """
-        return await self._remove_match(internal_match_id, last_access, COLL_SRV_MATCHES_DELETED)
+        return await self._remove_subset(internal_match_id, last_access, COLL_SRV_MATCHES_DELETED)
     
     async def process_deleted_matches(
         self,
@@ -784,11 +800,20 @@ class ArangoStorage:
 
         processor - an async callable to which each match will be provided in turn.
         """
-        col = self._db.collection(COLL_SRV_MATCHES_DELETED)
+        await self._process_deleted_subset(
+            processor, COLL_SRV_MATCHES_DELETED, self._to_deleted_match)
+
+    async def _process_deleted_subset(
+        self,
+        processor: Callable[[models.DeletedMatch], Awaitable[None]],
+        coll: str,
+        converter: Callable[[dict[str, Any]], models.DeletedMatch | models.DeletedSelection]
+    ):
+        col = self._db.collection(coll)
         cur = await col.all()
         try:
             async for d in cur:
-                await processor(self._to_deleted_match(self._correct_process_doc_in_place(d)))
+                await processor(converter(self._correct_process_doc_in_place(d)))
         finally:
             await cur.close(ignore_missing=True)
 
@@ -930,6 +955,24 @@ class ArangoStorage:
             else:
                 raise e
 
+    async def remove_selection(self, selection_id: str, last_access: int) -> bool:
+        """
+        Removes the selection record from the database if the last access time is as provided.
+        If the last access time does not match, it does nothing. This allows the selection to be
+        removed safely after some reasonable period after a last access without a race condition,
+        as a new access will change the access time and prevent the selection from being removed.
+
+        Does not move the selection to a deleted state or otherwise modify the database.
+        Deleting selections that have not completed running is not prevented, but is generally
+        unwise.
+
+        selection_id - the ID of the selection to remove.
+        last_access - the time the selection was accessed last.
+
+        Returns true if the selection document was removed, false otherwise.
+        """
+        return await self._remove_subset(selection_id, last_access, COLL_SRV_SELECTIONS)
+
     async def get_selection_full(self, selection_id: str, exception: bool = True
     ) -> models.InternalSelection:
         """
@@ -1006,6 +1049,80 @@ class ArangoStorage:
             last_access,
             errors.NoSuchSelectionError,
         )
+
+    async def process_old_selections(
+        self,
+        selection_max_last_access_ms: int,
+        processor: Callable[[models.InternalSelection], Awaitable[None]],
+    ):
+        """
+        Process selections with a last access date older than the given date.
+
+        selection_max_last_access_ms - process selections with a last access date older than this
+            in epoch milliseconds.
+        processor - an async callable to which each selection will be provided in turn.
+        """
+        await self._process_old_subsets(
+            selection_max_last_access_ms,
+            processor,
+            COLL_SRV_SELECTIONS,
+            self._to_internal_selection
+        )
+
+    async def add_deleted_selection(self, selection: models.DeletedSelection):
+        """
+        Adds a selection in the deleted state to the database. This will overwrite any deleted
+        selection already present with the same internal match ID. Does not alter the source
+        selection.
+        """
+        await self._insert_model(
+            selection,
+            selection.internal_selection_id,
+            COLL_SRV_SELECTIONS_DELETED,
+            overwrite=True
+        )
+
+    def _to_deleted_selection(self, doc: dict[str, Any]) -> models.DeletedSelection:
+        return models.DeletedSelection.construct(
+            **models.remove_non_model_fields(doc, models.DeletedSelection))
+
+    async def get_deleted_selection(self, internal_selection_id: str) -> models.DeletedSelection:
+        """
+        Get a selection in the deleted state from the database given its internal match ID.
+        """
+        doc = await self._get_doc(
+            COLL_SRV_SELECTIONS_DELETED, internal_selection_id, errors.NoSuchSelectionError)
+        return self._to_deleted_selection(doc)
+
+    async def remove_deleted_selection(self, internal_selection_id: str, last_access: int) -> bool:
+        """
+        Removes the deleted selection record from the database if the last access time is as
+        provided. If the last access time does not match, it does nothing. This allows the
+        deleted selection to be removed safely without causing a race condition if another
+        selection deletion thread updates the deleted selection record in between retrieving
+        the selection from the database.
+
+        Does not otherwise modify the database.
+
+        internal_selection_id - the internal ID of the selection to remove.
+        last_access - the time the selection was accessed last.
+
+        Returns true if the selection document was removed, false otherwise.
+        """
+        return await self._remove_subset(
+            internal_selection_id, last_access, COLL_SRV_SELECTIONS_DELETED)
+
+    async def process_deleted_selections(
+        self,
+        processor: Callable[[models.DeletedMatch], Awaitable[None]]
+    ):
+        """
+        Process deleted selections.
+
+        processor - an async callable to which each selection will be provided in turn.
+        """
+        await self._process_deleted_subset(
+            processor, COLL_SRV_SELECTIONS_DELETED, self._to_deleted_selection)
 
     async def _insert_model(
         self,
