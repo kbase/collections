@@ -87,18 +87,12 @@ def _pull_image(image_str, job_dir):
                              f"Standard error: {std_err.read()}")
 
 
-def _write_to_file(file_path, content, overwrite=True):
+def _write_to_file(file_path, content):
     """
-    Writes the specified content to the specified file.
-
-    If the file already exists, an exception is raised unless overwrite is set to True.
+    Writes the specified content to the specified file. File is overwritten if it already exists.
     """
-    mode = 'w' if overwrite else 'x'
-    try:
-        with open(file_path, mode) as file:
-            file.write(content)
-    except FileExistsError as e:
-        raise ValueError(f"File '{file_path}' already exists. Set 'overwrite' flag to overwrite the file.") from e
+    with open(file_path, 'w') as file:
+        file.write(content)
 
 
 def _fetch_image(registry, image_name, job_dir, tag='latest', force_pull=True):
@@ -305,8 +299,7 @@ def main():
     source_data_dir = args.source_data_dir
     root_dir = args.root_dir
 
-    task_mgr = TFTaskManager(kbase_collection, load_ver, tool, source_data_dir, root_dir=root_dir)
-    task_mgr.check_preconditions(args.force)
+    task_mgr = TFTaskManager(kbase_collection, load_ver, tool, source_data_dir, args.force, root_dir=root_dir)
 
     job_dir = task_mgr.job_dir
     _create_job_dir(job_dir, destroy_old_job_dir=args.force)

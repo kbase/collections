@@ -253,30 +253,7 @@ class TFTaskManager:
 
         return latest_task
 
-    def __init__(self, kbase_collection, load_ver, tool, source_data_dir, root_dir=loader_common_names.ROOT_DIR):
-        """
-        Initialize the task manager.
-
-        :param kbase_collection: KBase collection identifier name (e.g. GTDB).
-        :param load_ver: collection load version (e.g. r207.kbase.1).
-        :param tool: tool name (e.g. gtdb_tk, checkm2, etc.)
-        :param source_data_dir: source data directory.
-        :param root_dir: root directory of the collection project.
-                         Default is the ROOT_DIR defined in src/loaders/common/loader_common_names.py
-
-        """
-
-        self.kbase_collection = kbase_collection
-        self.load_ver = load_ver
-        self.tool = tool
-        self.source_data_dir = source_data_dir
-        self.root_dir = root_dir
-
-        # job directory is named as <kbase_collection>_<load_ver>_<tool>
-        self.job_dir = os.path.join(
-            self.root_dir, TASKFARMER_JOB_DIR, f'{self.kbase_collection}_{self.load_ver}_{self.tool}')
-
-    def check_preconditions(self, restart_on_demand):
+    def _check_preconditions(self, restart_on_demand):
         """
         Check conditions from previous runs of the same tool and load version
 
@@ -302,7 +279,7 @@ class TFTaskManager:
 
             return True
 
-        if latest_task_status in [JobStatus.FAILED, JobStatus.CANCELLED]:
+        if latest_task_status in [JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.TIMEOUT]:
             print(f'The tool and load version have been run before, '
                   f'and the most recent status is {str(latest_task_status)}.'
                   f'Resuming progress from the previous run.')
@@ -311,6 +288,33 @@ class TFTaskManager:
                 f'There is a previous run of the same tool and load version that is {str(latest_task_status)}.')
         else:
             raise ValueError(f'Unexpected job status: {latest_task_status}')
+
+    def __init__(self, kbase_collection, load_ver, tool, source_data_dir, restart_on_demand,
+                 root_dir=loader_common_names.ROOT_DIR):
+        """
+        Initialize the task manager.
+
+        :param kbase_collection: KBase collection identifier name (e.g. GTDB).
+        :param load_ver: collection load version (e.g. r207.kbase.1).
+        :param tool: tool name (e.g. gtdb_tk, checkm2, etc.)
+        :param source_data_dir: source data directory.
+        :param restart_on_demand: if True, killed any running/pending jobs and restart running the tool again.
+        :param root_dir: root directory of the collection project.
+                         Default is the ROOT_DIR defined in src/loaders/common/loader_common_names.py
+
+        """
+
+        self.kbase_collection = kbase_collection
+        self.load_ver = load_ver
+        self.tool = tool
+        self.source_data_dir = source_data_dir
+        self.root_dir = root_dir
+
+        # job directory is named as <kbase_collection>_<load_ver>_<tool>
+        self.job_dir = os.path.join(
+            self.root_dir, TASKFARMER_JOB_DIR, f'{self.kbase_collection}_{self.load_ver}_{self.tool}')
+
+        self._check_preconditions(restart_on_demand)
 
     def submit_job(self):
         """
