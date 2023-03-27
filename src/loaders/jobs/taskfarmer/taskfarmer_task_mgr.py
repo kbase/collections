@@ -213,43 +213,7 @@ class TFTaskManager:
 
         return latest_task
 
-    def _check_preconditions(self, restart_on_demand):
-        """
-        Check conditions from previous runs of the same tool and load version
-        """
 
-        latest_task = self._get_latest_task()
-
-        if not latest_task:
-            return True
-
-        latest_task_status, job_id = latest_task['job_status'], latest_task['job_id']
-
-        if restart_on_demand:
-            # cancel the previous job if it is running or pending
-            if latest_task_status in [JobStatus.RUNNING, JobStatus.PENDING]:
-                self._cancel_job(job_id)
-
-            # make sure all .tfin files from previous run are removed to avoid any issues caused by them
-            for filename in os.listdir(self.job_dir):
-                if filename.endswith(".tfin"):
-                    os.remove(os.path.join(self.job_dir, filename))
-
-            return True
-
-        if latest_task['source_data_dir'] != self.source_data_dir:
-            raise PreconditionError(
-                f'There is a previous run of the same tool and load version with a different source data directory.')
-
-        if latest_task_status in [JobStatus.FAILED, JobStatus.CANCELLED]:
-            print(f'The tool and load version have been run before, '
-                  f'and the most recent status is {str(latest_task_status)}.'
-                  f'Resuming progress from the previous run.')
-        elif latest_task_status in [JobStatus.COMPLETED, JobStatus.RUNNING, JobStatus.PENDING]:
-            raise PreconditionError(
-                f'There is a previous run of the same tool and load version that is {str(latest_task_status)}.')
-        else:
-            raise ValueError(f'Unexpected job status: {latest_task_status}')
 
     def __init__(self, kbase_collection, load_ver, tool, source_data_dir, root_dir=loader_common_names.ROOT_DIR):
         """
@@ -274,14 +238,49 @@ class TFTaskManager:
         self.job_dir = os.path.join(
             self.root_dir, TASKFARMER_JOB_DIR, f'{self.kbase_collection}_{self.load_ver}_{self.tool}')
 
-    def submit_job(self, restart_on_demand=False):
+    def check_preconditions(self, restart_on_demand):
+        """
+        Check conditions from previous runs of the same tool and load version
+
+        :param restart_on_demand: if True, killed any running/pending jobs and restart running the tool again.
+        """
+
+        latest_task = self._get_latest_task()
+
+        if not latest_task:
+            return True
+
+        latest_task_status, job_id = latest_task['job_status'], latest_task['job_id']
+
+        if restart_on_demand:
+            # cancel the previous job if it is running or pending
+            if latest_task_status in [JobStatus.RUNNING, JobStatus.PENDING]:
+                self._cancel_job(job_id)
+
+            # make sure all .tfin files from previous run are removed to avoid any issues caused by them
+            for filename in os.listdir(self.job_dir):
+                if filename.endswith(".tfin"):
+                    os.remove(os.path.join(self.job_dir, filename))
+
+            return True
+
+        if latest_task_status in [JobStatus.FAILED, JobStatus.CANCELLED]:
+            print(f'The tool and load version have been run before, '
+                  f'and the most recent status is {str(latest_task_status)}.'
+                  f'Resuming progress from the previous run.')
+        elif latest_task_status in [JobStatus.COMPLETED, JobStatus.RUNNING, JobStatus.PENDING]:
+            raise PreconditionError(
+                f'There is a previous run of the same tool and load version that is {str(latest_task_status)}.')
+        else:
+            raise ValueError(f'Unexpected job status: {latest_task_status}')
+
+    def submit_job(self):
         """
         Submit the job to slurm
 
         Follow the steps in https://docs.nersc.gov/jobs/workflow/taskfarmer/#taskfarmer and generate all the necessary
-        files for the job submission (e.g. wrapper script, task list and batch script, etc.) before calling this function.
-
-        :param restart_on_demand: if True, killed any running/pending jobs and restart running the tool again.
+        files for the job submission (e.g. wrapper script, task list and batch script, etc.) before calling this
+        function.
         """
 
         # check if all the required files exist
@@ -289,8 +288,6 @@ class TFTaskManager:
         for filename in required_files:
             if not os.path.isfile(os.path.join(self.job_dir, filename)):
                 raise ValueError(f"{filename} does not exist in {self.job_dir}")
-
-        self._check_preconditions(restart_on_demand)
 
         current_datetime = datetime.datetime.now()
         std_out_file, std_err_file, exit_code = tf_common.run_nersc_command(

@@ -87,7 +87,7 @@ def _pull_image(image_str, job_dir):
                              f"Standard error: {std_err.read()}")
 
 
-def _write_to_file(file_path, content, overwrite=False):
+def _write_to_file(file_path, content, overwrite=True):
     """
     Writes the specified content to the specified file.
 
@@ -97,8 +97,8 @@ def _write_to_file(file_path, content, overwrite=False):
     try:
         with open(file_path, mode) as file:
             file.write(content)
-    except FileExistsError:
-        print(f"File '{file_path}' already exists. Set '--force' flag to True to overwrite the file.")
+    except FileExistsError as e:
+        raise ValueError(f"File '{file_path}' already exists. Set 'overwrite' flag to overwrite the file.") from e
 
 
 def _fetch_image(registry, image_name, job_dir, tag='latest', force_pull=True):
@@ -132,7 +132,7 @@ def _fetch_image(registry, image_name, job_dir, tag='latest', force_pull=True):
     return image_str
 
 
-def _create_shifter_wrapper(job_dir, image_str, overwrite=False):
+def _create_shifter_wrapper(job_dir, image_str):
     """
     Creates the Shifter wrapper script.
     """
@@ -155,24 +155,24 @@ cd {job_dir}
 shifter --image=$image $command'''
 
     wrapper_file = os.path.join(job_dir, tf_common.WRAPPER_FILE)
-    _write_to_file(wrapper_file, shifter_wrapper, overwrite=overwrite)
+    _write_to_file(wrapper_file, shifter_wrapper)
 
     os.chmod(wrapper_file, 0o777)
 
     return wrapper_file
 
 
-def _create_genome_id_file(genome_ids, genome_id_file, overwrite=False):
+def _create_genome_id_file(genome_ids, genome_id_file):
     """
     Create a tab-separated values (TSV) file with a list of genome IDs.
     """
 
     content = "genome_id\n" + "\n".join(genome_ids)
-    _write_to_file(genome_id_file, content, overwrite=overwrite)
+    _write_to_file(genome_id_file, content)
 
 
 def _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper_file, job_dir, root_dir,
-                      overwrite=False, threads=256, program_threads=256, source_file_ext='genomic.fna.gz'):
+                      threads=256, program_threads=256, source_file_ext='genomic.fna.gz'):
     """
     Create task list file (tasks.txt)
     """
@@ -189,7 +189,7 @@ def _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper
         task_list += wrapper_file
 
         genome_id_file = os.path.join(job_dir, f'genome_id_{idx}.tsv')
-        _create_genome_id_file(genome_ids_chunk, genome_id_file, overwrite=overwrite)
+        _create_genome_id_file(genome_ids_chunk, genome_id_file)
 
         env_vars = {'TOOLS': tool, 'LOAD_VER': load_ver, 'SOURCE_DATA_DIR': source_data_dir,
                     'KBASE_COLLECTION': kbase_collection, 'ROOT_DIR': root_dir,
@@ -205,7 +205,7 @@ def _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper
         task_list += f'''--entrypoint\n'''
 
     task_list_file = os.path.join(job_dir, tf_common.TASK_FILE)
-    _write_to_file(task_list_file, task_list, overwrite=overwrite)
+    _write_to_file(task_list_file, task_list)
 
     return task_list_file, len(genome_ids_chunks)
 
@@ -227,7 +227,7 @@ def _cal_node_num(tool, n_jobs):
     return num_nodes
 
 
-def _create_batch_script(job_dir, task_list_file, n_jobs, tool, overwrite=False):
+def _create_batch_script(job_dir, task_list_file, n_jobs, tool):
     """
     Create the batch script (submit_taskfarmer.sl) for job submission
     """
@@ -249,7 +249,7 @@ export THREADS={NODE_THREADS}
 runcommands.sh {task_list_file}'''
 
     batch_script_file = os.path.join(job_dir, tf_common.BATCH_SCRIPT)
-    _write_to_file(batch_script_file, batch_script, overwrite=overwrite)
+    _write_to_file(batch_script_file, batch_script)
 
     return batch_script_file
 
@@ -306,20 +306,21 @@ def main():
     root_dir = args.root_dir
 
     task_mgr = TFTaskManager(kbase_collection, load_ver, tool, source_data_dir, root_dir=root_dir)
+    task_mgr.check_preconditions(args.force)
 
     job_dir = task_mgr.job_dir
     _create_job_dir(job_dir, destroy_old_job_dir=args.force)
 
     image_str = _fetch_image(REGISTRY, tool, job_dir, tag=args.image_tag, force_pull=not args.use_cached_image)
-    wrapper_file = _create_shifter_wrapper(job_dir, image_str, overwrite=args.force)
+    wrapper_file = _create_shifter_wrapper(job_dir, image_str)
     task_list_file, n_jobs = _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper_file, job_dir,
-                                               root_dir, overwrite=args.force)
+                                               root_dir)
 
-    batch_script = _create_batch_script(job_dir, task_list_file, n_jobs, tool, overwrite=args.force)
+    batch_script = _create_batch_script(job_dir, task_list_file, n_jobs, tool)
 
     if args.submit_job:
         try:
-            task_mgr.submit_job(restart_on_demand=args.force)
+            task_mgr.submit_job()
         except PreconditionError as e:
             raise ValueError(f'Error submitting job:\n{e}\n'
                              f'Please use the --force flag to overwrite the previous run.') from e
