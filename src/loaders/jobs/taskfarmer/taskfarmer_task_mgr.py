@@ -279,6 +279,10 @@ class TFTaskManager:
 
             return True
 
+        if latest_task['source_data_dir'] != self.source_data_dir:
+            raise PreconditionError(
+                f'There is a previous run of the same tool and load version with a different source data directory.')
+
         if latest_task_status in [JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.TIMEOUT]:
             print(f'The tool and load version have been run before, '
                   f'and the most recent status is {str(latest_task_status)}.'
