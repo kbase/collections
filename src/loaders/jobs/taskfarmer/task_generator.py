@@ -299,7 +299,11 @@ def main():
     source_data_dir = args.source_data_dir
     root_dir = args.root_dir
 
-    task_mgr = TFTaskManager(kbase_collection, load_ver, tool, source_data_dir, args.force, root_dir=root_dir)
+    try:
+        task_mgr = TFTaskManager(kbase_collection, load_ver, tool, source_data_dir, args.force, root_dir=root_dir)
+    except PreconditionError as e:
+        raise ValueError(f'Error submitting job:\n{e}\n'
+                         f'Please use the --force flag to overwrite the previous run.') from e
 
     job_dir = task_mgr.job_dir
     _create_job_dir(job_dir, destroy_old_job_dir=args.force)
@@ -312,11 +316,7 @@ def main():
     batch_script = _create_batch_script(job_dir, task_list_file, n_jobs, tool)
 
     if args.submit_job:
-        try:
-            task_mgr.submit_job()
-        except PreconditionError as e:
-            raise ValueError(f'Error submitting job:\n{e}\n'
-                             f'Please use the --force flag to overwrite the previous run.') from e
+        task_mgr.submit_job()
     else:
         print(f'Please go to Job Directory: {job_dir} and submit the batch script: {batch_script} to the scheduler.')
 
