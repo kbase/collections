@@ -256,6 +256,8 @@ class TFTaskManager:
     def _check_preconditions(self, restart_on_demand):
         """
         Check conditions from previous runs of the same tool and load version
+
+        :param restart_on_demand: if True, killed any running/pending jobs and restart running the tool again.
         """
 
         latest_task = self._get_latest_task()
@@ -291,7 +293,8 @@ class TFTaskManager:
         else:
             raise ValueError(f'Unexpected job status: {latest_task_status}')
 
-    def __init__(self, kbase_collection, load_ver, tool, source_data_dir, root_dir=loader_common_names.ROOT_DIR):
+    def __init__(self, kbase_collection, load_ver, tool, source_data_dir, restart_on_demand,
+                 root_dir=loader_common_names.ROOT_DIR):
         """
         Initialize the task manager.
 
@@ -299,6 +302,7 @@ class TFTaskManager:
         :param load_ver: collection load version (e.g. r207.kbase.1).
         :param tool: tool name (e.g. gtdb_tk, checkm2, etc.)
         :param source_data_dir: source data directory.
+        :param restart_on_demand: if True, killed any running/pending jobs and restart running the tool again.
         :param root_dir: root directory of the collection project.
                          Default is the ROOT_DIR defined in src/loaders/common/loader_common_names.py
 
@@ -309,19 +313,21 @@ class TFTaskManager:
         self.tool = tool
         self.source_data_dir = source_data_dir
         self.root_dir = root_dir
+        self.restart_on_demand = restart_on_demand
 
         # job directory is named as <kbase_collection>_<load_ver>_<tool>
         self.job_dir = os.path.join(
             self.root_dir, TASKFARMER_JOB_DIR, f'{self.kbase_collection}_{self.load_ver}_{self.tool}')
 
-    def submit_job(self, restart_on_demand=False):
+        self._check_preconditions(self.restart_on_demand)
+
+    def submit_job(self):
         """
         Submit the job to slurm
 
         Follow the steps in https://docs.nersc.gov/jobs/workflow/taskfarmer/#taskfarmer and generate all the necessary
-        files for the job submission (e.g. wrapper script, task list and batch script, etc.) before calling this function.
-
-        :param restart_on_demand: if True, killed any running/pending jobs and restart running the tool again.
+        files for the job submission (e.g. wrapper script, task list and batch script, etc.) before calling this
+        function.
         """
 
         # check if all the required files exist
@@ -330,7 +336,7 @@ class TFTaskManager:
             if not os.path.isfile(os.path.join(self.job_dir, filename)):
                 raise ValueError(f"{filename} does not exist in {self.job_dir}")
 
-        self._check_preconditions(restart_on_demand)
+        self._check_preconditions(self.restart_on_demand)
 
         current_datetime = datetime.datetime.now()
         std_out_file, std_err_file, exit_code = tf_common.run_nersc_command(
