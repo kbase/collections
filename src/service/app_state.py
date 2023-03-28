@@ -12,7 +12,7 @@ from src.service.clients.workspace_client import Workspace
 from src.service.config import CollectionsServiceConfig
 from src.service.data_products.common_models import DataProductSpec
 from src.service.matchers.common_models import Matcher
-from src.service.deletion import MatchCleanup
+from src.service.deletion import SubsetCleanup
 from src.service.kb_auth import KBaseAuth
 
 # The main point of this module is to handle all the application state in one place
@@ -41,11 +41,11 @@ async def build_app(
     cli, storage = await build_storage(cfg, data_products)
     try:
         app.state._colstate = CollectionsState(auth, cli, storage, data_products, matchers, cfg)
-        app.state._match_deletion = MatchCleanup(
+        app.state._match_deletion = SubsetCleanup(
             app.state._colstate.get_pickleable_dependencies(),
             interval_sec=1 * 24 * 60 * 60,
             jitter_sec=60 * 60,
-            match_age_ms=7 * 24 * 60 * 60 * 1000
+            subset_age_ms=7 * 24 * 60 * 60 * 1000
             )
         app.state._match_deletion.start()
     except Exception as e:
@@ -64,8 +64,8 @@ async def destroy_app_state(app: FastAPI):
     """
     Destroy the application state, shutting down services and releasing resources.
     """
+    colstate = _get_app_state_from_app(app)  # first to check state was set up
     app.state._match_deletion.stop()
-    colstate = _get_app_state_from_app(app)
     await colstate.destroy()
 
 

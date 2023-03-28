@@ -51,6 +51,15 @@ class GenomeAttribsSpec(DataProductSpec):
         """
         await delete_match(storage, internal_match_id)
 
+    async def delete_selection(self, storage: ArangoStorage, internal_selection_id: str):
+        """
+        Delete genome attribute selection data.
+
+        storage - the storage system
+        internal_selection_id - the selection to delete.
+        """
+        await delete_selection(storage, internal_selection_id)
+
     async def apply_selection(self, storage: ArangoStorage, selection_id: str):
         """
         Mark selections in genome attribute data.
@@ -611,16 +620,30 @@ async def delete_match(storage: ArangoStorage, internal_match_id: str):
     storage - the storage system
     internal_match_id - the match to delete.
     """
+    await _delete_subset(storage, _MATCH_ID_PREFIX + internal_match_id)
+
+
+async def delete_selection(storage: ArangoStorage, internal_selection_id: str):
+    """
+    Delete genome attribues selection data.
+
+    storage - the storage system
+    internal_selection_id - the selection to delete.
+    """
+    await _delete_subset(storage, _SELECTION_ID_PREFIX + internal_selection_id)
+
+
+async def _delete_subset(storage: ArangoStorage, subset_id: str):
     m = names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS
     bind_vars = {
         f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
-        "internal_match_id": _MATCH_ID_PREFIX + internal_match_id,
+        "internal_id": subset_id,
     }
     aql = f"""
         FOR d IN @@{_FLD_COL_NAME}
-            FILTER @internal_match_id IN d.{m}
+            FILTER @internal_id IN d.{m}
             UPDATE d WITH {{
-                {m}: REMOVE_VALUE(d.{m}, @internal_match_id)
+                {m}: REMOVE_VALUE(d.{m}, @internal_id)
             }} IN @@{_FLD_COL_NAME}
             OPTIONS {{exclusive: true}}
         """
