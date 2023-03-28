@@ -34,7 +34,7 @@ ROUTER_COLLECTIONS = APIRouter(tags=["Collections"])
 ROUTER_MATCHES = APIRouter(tags=["Matches"])
 ROUTER_SELECTIONS = APIRouter(tags=["Selections"])
 ROUTER_COLLECTIONS_ADMIN = APIRouter(tags=["Collection Administration"])
-ROUTER_MATCH_ADMIN = APIRouter(tags=["Here be Dragons"], prefix="/matchadmin")
+ROUTER_DANGER = APIRouter(tags=["Here be Dragons"])
 
 _AUTH = KBaseHTTPBearer()
 
@@ -106,6 +106,10 @@ _PATH_VER_NUM = Path(
 )
 
 _PATH_MATCH_ID = Path(description="The ID of the match")
+
+
+_PATH_SELECTION_ID = Path(description="The ID of the selection")
+
 
 _QUERY_MAX_VER = Query(
     default=None,
@@ -311,7 +315,7 @@ async def get_match(
 )
 async def get_selection(
     r: Request,
-    selection_id: str = Path(description="The ID of the selection"),
+    selection_id: str = _PATH_SELECTION_ID,
     verbose: bool = _QUERY_SELECTION_VERBOSE,
 ) -> models.SelectionVerbose:
     return await processing_selections.get_selection(
@@ -455,12 +459,12 @@ async def get_collection_versions(
     return CollectionVersions(counter=counter, data=versions)
 
 
-# TODO ROUTES add a admin route to get a match without updating its timestamps etc.
+# TODO ROUTES add a admin route to get matches without updating timestamps etc.
 #             for now just use the ArangoDB UI or API.
 
 
-@ROUTER_MATCH_ADMIN.delete(
-    "/{match_id}/",
+@ROUTER_DANGER.delete(
+    "/matchadmin/{match_id}/",
     response_model=models.MatchVerbose,
     summary="!!! Danger !!! Delete a match",
     description="Delete a match, regardless of state. **BE SURE YOU KNOW WHAT YOU'RE DOING**. "
@@ -478,3 +482,24 @@ async def delete_match(
     _ensure_admin(user, "Only collections service admins can delete matches")
     appstate = app_state.get_app_state(r)
     return await processing_matches.delete_match(appstate, match_id, verbose)
+
+
+@ROUTER_DANGER.delete(
+    "/selectionadmin/{selection_id}/",
+    response_model=models.SelectionVerbose,
+    summary="!!! Danger !!! Delete a selection",
+    description="Delete a selection, regardless of state. **BE SURE YOU KNOW WHAT YOU'RE DOING**. "
+        + "Deleting a selection when selection processes are running can leave the database in an "
+        + "inconsistent state and cause user errors or corrupted results. Even if processes are "
+        + "not running, a recent request by a user can result in an error or corrupted results "
+        + "if a selection deletion occurs at the same time.",
+)
+async def delete_selection(
+    r: Request,
+    selection_id: str = _PATH_SELECTION_ID,
+    verbose: bool = _QUERY_SELECTION_VERBOSE,
+    user: kb_auth.KBaseUser = Depends(_AUTH),
+) -> models.SelectionVerbose:
+    _ensure_admin(user, "Only collections service admins can delete selections")
+    appstate = app_state.get_app_state(r)
+    return await processing_selections.delete_selection(appstate, selection_id, verbose)

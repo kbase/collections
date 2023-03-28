@@ -10,6 +10,7 @@ from typing import Any
 
 from src.service.app_state_data_structures import CollectionsState, PickleableDependencies
 from src.service import data_product_specs
+from src.service import deletion
 from src.service import errors
 from src.service import models
 from src.service import processing
@@ -196,3 +197,25 @@ def _check_selection_state(
     if require_complete and internal_sel.state != models.ProcessState.COMPLETE:
         raise errors.InvalidSelectionStateError(
             f"Selection {internal_sel.selection_id} processing is not complete")
+
+
+async def delete_selection(appstate: CollectionsState, selection_id: str, verbose: bool = False
+) -> models.SelectionVerbose:
+    """
+    Move a selection record to the deleted state, awaiting permanent deletion.
+
+    appstate - the application state.
+    selection_id - the selection to delete.
+    verbose - True to return the selection IDs and unmatched IDs, which may be much larger than
+        the rest of the selection data.
+    """
+    store = appstate.arangostorage
+    sel = await store.get_selection_full(selection_id)
+    await deletion.move_selection_to_deleted_state(store, sel, appstate.get_epoch_ms())
+    sel = models.SelectionVerbose(
+        **models.remove_non_model_fields(sel.dict(), models.SelectionVerbose))
+    if not verbose:
+        # TODO PERF do this by not requesting the fields from the DB
+        sel.selection_ids = []
+        sel.unmatched_ids = None if sel.unmatched_ids is None else []
+    return sel
