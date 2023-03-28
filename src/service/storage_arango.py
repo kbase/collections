@@ -17,7 +17,7 @@ from aioarango.database import StandardDatabase
 from aioarango.exceptions import CollectionCreateError, DocumentInsertError
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
-from typing import Any, Callable, Awaitable
+from typing import Any, Callable, Awaitable, Self
 from src.common.hash import md5_string
 from src.common.storage.collection_and_field_names import (
     FLD_ARANGO_KEY,
@@ -158,7 +158,7 @@ class ArangoStorage:
         db: StandardDatabase,
         data_products: dict[str, list[DBCollection]] = None,
         create_collections_on_startup: bool = False
-    ):
+    ) -> Self:
         """
         Create the ArangoDB wrapper.
 
@@ -569,19 +569,22 @@ class ArangoStorage:
         # TODO TYPING how do you type this? It's a class, but not an *instance* of a class,
         #             descending from errors.CollectionsError. Java would be Class<CollectionError>
         errclass,
-    ) -> dict[str, Any]:
+        exception: bool = True,
+    ) -> dict[str, Any] | None:
         cur = await self._db.aql.execute(aql, bind_vars=bind_vars, count=True)
         # having a count > 1 is impossible since keys are unique
         try:
             if cur.empty():
-                raise errclass(errstr)
+                if exception:
+                    raise errclass(errstr)
+                else:
+                    return None
             if cur.count() > 1:
                 # this should never happen, but just in case
                 raise ValueError("Excpected only one result")
-            doc = await cur.next()
+            return await cur.next()
         finally:
             await cur.close(ignore_missing=True)
-        return doc
 
 
     def _correct_process_doc_in_place(self, doc: dict[str, Any]):
@@ -630,19 +633,26 @@ class ArangoStorage:
         doc = await self._get_doc(COLL_SRV_MATCHES, match_id, errors.NoSuchMatchError, exception)
         return None if not doc else self._to_internal_match(doc)
 
-    async def get_match_by_internal_id(self, internal_match_id: str) -> models.InternalMatch:
-        """ Get a match by its internal ID. """
+    async def get_match_by_internal_id(self, internal_match_id: str, exception: bool = True
+    ) -> models.InternalMatch | None:
+        """
+        Get a match by its internal ID.
+
+        internal_match_id - the internal ID of the match.
+        exception - throw an exception if the match doesn't exist.
+        """
         doc = await self._get_subset_by_internal_id(
             COLL_SRV_MATCHES,
             internal_match_id,
             models.FIELD_MATCH_INTERNAL_MATCH_ID,
             errors.NoSuchMatchError,
+            exception=exception,
         )
-        return self._to_internal_match(doc)
+        return self._to_internal_match(doc) if doc else None
 
     async def _get_subset_by_internal_id(
-        self, coll: str, internal_id: str, field: str, errclass
-    ) -> dict[str, Any]:
+        self, coll: str, internal_id: str, field: str, errclass, exception: bool = True,
+    ) -> dict[str, Any] | None:
         aql = f"""
             FOR d in @@{_FLD_COLLECTION}
                 FILTER d.{field} == @internal_id
@@ -653,8 +663,8 @@ class ArangoStorage:
             "internal_id": internal_id,
         }
         doc = await self._execute_aql_and_check_item_exists(
-            aql, bind_vars, internal_id, errclass)
-        return self._correct_process_doc_in_place(doc)
+            aql, bind_vars, internal_id, errclass, exception=exception)
+        return self._correct_process_doc_in_place(doc) if doc else None
 
     async def update_match_state(
         self,
@@ -985,16 +995,22 @@ class ArangoStorage:
             COLL_SRV_SELECTIONS, selection_id, errors.NoSuchSelectionError, exception=exception)
         return None if not doc else self._to_internal_selection(doc)
 
-    async def get_selection_by_internal_id(self, internal_selection_id: str
-    ) -> models.InternalSelection:
-        """ Get a selection by its internal ID. """
+    async def get_selection_by_internal_id(self, internal_selection_id: str, exception: bool = True
+    ) -> models.InternalSelection | None:
+        """
+        Get a selection by its internal ID.
+
+        internal_selection_id - the internal ID of the selection.
+        exception - throw an exception if the selection doesn't exist
+        """
         doc = await self._get_subset_by_internal_id(
             COLL_SRV_SELECTIONS,
             internal_selection_id,
             models.FIELD_SELECTION_INTERNAL_SELECTION_ID,
             errors.NoSuchSelectionError,
+            exception=exception,
         )
-        return self._to_internal_selection(doc)
+        return self._to_internal_selection(doc) if doc else None
 
     async def send_selection_heartbeat(self, selection_id: str, heartbeat_timestamp: int):
         """

@@ -56,6 +56,15 @@ class TaxaCountSpec(DataProductSpec):
         """
         await delete_match(storage, internal_match_id)
 
+    async def delete_selection(self, storage: ArangoStorage, internal_selection_id: str):
+        """
+        Delete taxa count selection data.
+
+        storage - the storage system
+        internal_selection_id - the selection to delete.
+        """
+        await delete_selection(storage, internal_selection_id)
+
 
 TAXA_COUNT_SPEC = TaxaCountSpec(
     data_product=ID,
@@ -445,10 +454,23 @@ async def delete_match(storage: ArangoStorage, internal_match_id: str):
     storage - the storage system
     internal_match_id - the match to delete.
     """
+    await _delete_subset(storage, internal_match_id, models.SubsetType.MATCH)
+
+
+async def delete_selection(storage: ArangoStorage, internal_selection_id: str):
+    """
+    Delete taxa count selection data.
+
+    storage - the storage system
+    internal_selection_id - the selection to delete.
+    """
+    await _delete_subset(storage, internal_selection_id, models.SubsetType.SELECTION)
+
+
+async def _delete_subset(storage: ArangoStorage, internal_id: str, type_: models.SubsetType):
     bind_vars = {
         f"@{_FLD_COL_NAME}": names.COLL_TAXA_COUNT,
-        # this will get updated when we delete selections
-        "internal_id": _TYPE2PREFIX[models.SubsetType.MATCH] + internal_match_id,
+        "internal_id": _TYPE2PREFIX[type_] + internal_id,
     }
     aql = f"""
         FOR d IN @@{_FLD_COL_NAME}

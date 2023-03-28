@@ -50,6 +50,11 @@ the reader is familiar with
     * When called, this method must delete any match data associated with the given internal
       match ID.
     ```python
+    async def delete_selection(self, storage: ArangoStorage, internal_selection_id: str) -> None:
+    ```
+    * When called, this method must delete any selection data associated with the given internal
+      selection ID.
+    ```python
     async def apply_selection(self, storage: ArangoStorage, selection_id: str) -> None:
     ```
     * When called, this method must apply the given selection to the data. See the `genome_attribs`
