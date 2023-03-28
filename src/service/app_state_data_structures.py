@@ -35,14 +35,6 @@ class PickleableDependencies:
         """
         return await build_storage(self._cfg, self._dps)
 
-    async def get_workspace(self, token):
-        """
-        Get the workspace client.
-
-        token - the user's token.
-        """
-        return Workspace(cfg.workspace_url, token=token)
-    
     def get_epoch_ms(self) -> int:
         """
         Get the Unix epoch time in milliseconds.
