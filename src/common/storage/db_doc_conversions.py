@@ -24,7 +24,7 @@ def taxa_node_count_to_doc(
     """
     full_rank = taxa_count.rank.value
     id_str = f"{internal_id}_" if internal_id else ""
-    doc = {
+    return {
         names.FLD_ARANGO_KEY: md5_string(
             f"{kbase_collection}_{load_version}_{id_str}_{full_rank}_{taxa_count.name}"
         ),
@@ -35,4 +35,25 @@ def taxa_node_count_to_doc(
         names.FLD_TAXA_COUNT_COUNT: taxa_count.count,
         names.FLD_INTERNAL_ID: internal_id,
     }
-    return doc
+
+
+def data_product_export_types_to_doc(
+    kbase_collection: str, data_product: str, load_version: str, types: list[str]
+) -> dict[str, str | list[str]]:
+    """
+    Create a document for a set of export types available for a data product.
+
+    kbase_collection - the name of the KBase collection with which the data is associated
+    data_product - the ID of the data product, e.g. `genome_attribs`
+    load_version - the load version of the data set
+    types - the list of workspace types that are exportable from the data product, e.g.
+        `KBaseGenomes.Genome`, `KBaseGenomeAnnotations.Assembly`
+    """
+    return {
+        names.FLD_ARANGO_KEY: md5_string(f"{kbase_collection}_{data_product}_{load_version}"),
+        names.FLD_COLLECTION_ID: kbase_collection,
+        names.FLD_DATA_PRODUCT: data_product,
+        names.FLD_LOAD_VERSION: load_version,
+        names.FLD_TYPES: types,
+    }
+

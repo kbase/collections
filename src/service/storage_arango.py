@@ -19,18 +19,7 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from typing import Any, Callable, Awaitable, Self
 from src.common.hash import md5_string
-from src.common.storage.collection_and_field_names import (
-    FLD_ARANGO_KEY,
-    FLD_ARANGO_ID,
-    COLL_SRV_ACTIVE,
-    COLL_SRV_COUNTERS,
-    COLL_SRV_VERSIONS,
-    COLL_SRV_MATCHES,
-    COLL_SRV_MATCHES_DELETED,
-    COLL_SRV_DATA_PRODUCT_PROCESSES,
-    COLL_SRV_SELECTIONS,
-    COLL_SRV_SELECTIONS_DELETED,
-)
+from src.common.storage import collection_and_field_names as names
 from src.service import models
 from src.service import errors
 from src.service.data_products.common_models import DBCollection
@@ -52,19 +41,20 @@ _FLD_COUNTER = "counter"
 _FLD_VER_NUM = "ver_num"
 _FLD_LIMIT = "limit"
 
-_ARANGO_SPECIAL_KEYS = [FLD_ARANGO_KEY, FLD_ARANGO_ID, "_rev"]
+_ARANGO_SPECIAL_KEYS = [names.FLD_ARANGO_KEY, names.FLD_ARANGO_ID, "_rev"]
 ARANGO_ERR_NAME_EXISTS = 1207
 _ARANGO_ERR_UNIQUE_CONSTRAINT = 1210
 
 _COLLECTIONS = [
-    COLL_SRV_ACTIVE,
-    COLL_SRV_COUNTERS,
-    COLL_SRV_VERSIONS,
-    COLL_SRV_MATCHES,
-    COLL_SRV_MATCHES_DELETED,
-    COLL_SRV_DATA_PRODUCT_PROCESSES,
-    COLL_SRV_SELECTIONS,
-    COLL_SRV_SELECTIONS_DELETED,
+    names.COLL_SRV_ACTIVE,
+    names.COLL_SRV_COUNTERS,
+    names.COLL_SRV_VERSIONS,
+    names.COLL_SRV_MATCHES,
+    names.COLL_SRV_MATCHES_DELETED,
+    names.COLL_SRV_DATA_PRODUCT_PROCESSES,
+    names.COLL_SRV_SELECTIONS,
+    names.COLL_SRV_SELECTIONS_DELETED,
+    names.COLL_EXPORT_TYPES,
 ]
 _BUILTIN = "builtin"
 
@@ -177,18 +167,22 @@ class ArangoStorage:
                 await _create_collection(db, colname)
             else:
                 await _check_collection_exists(db, colname)
-        vercol = db.collection(COLL_SRV_VERSIONS)
+        vercol = db.collection(names.COLL_SRV_VERSIONS)
         await vercol.add_persistent_index([models.FIELD_COLLECTION_ID, models.FIELD_VER_NUM])
-        matchcol = db.collection(COLL_SRV_MATCHES)
+        matchcol = db.collection(names.COLL_SRV_MATCHES)
         # find matches ready to be moved to the deleted state
         await matchcol.add_persistent_index([models.FIELD_LAST_ACCESS])
         # find matches by internal match ID
         await matchcol.add_persistent_index([models.FIELD_MATCH_INTERNAL_MATCH_ID])
-        selcol = db.collection(COLL_SRV_SELECTIONS)
+        selcol = db.collection(names.COLL_SRV_SELECTIONS)
         # find selections ready to be moved to the deleted state
         await selcol.add_persistent_index([models.FIELD_LAST_ACCESS])
         # find selections by internal selection ID
         await selcol.add_persistent_index([models.FIELD_SELECTION_INTERNAL_SELECTION_ID])
+        typescol = db.collection(names.COLL_EXPORT_TYPES)
+        await typescol.add_persistent_index(
+            [names.FLD_COLLECTION_ID, names.FLD_DATA_PRODUCT, names.FLD_LOAD_VERSION]
+        )
         for col_list in dps.values():
             for col in col_list:
                 dbcol = db.collection(col.name)
@@ -209,11 +203,11 @@ class ArangoStorage:
         """ Get the next available version number for a collection. """
         bind_vars = {
             _FLD_COLLECTION_ID: collection_id,
-            f"@{_FLD_COLLECTION}": COLL_SRV_COUNTERS
+            f"@{_FLD_COLLECTION}": names.COLL_SRV_COUNTERS
         }
         aql = f"""
-            UPSERT {{{FLD_ARANGO_KEY}: @{_FLD_COLLECTION_ID}}}
-                INSERT {{{FLD_ARANGO_KEY}: @{_FLD_COLLECTION_ID}, {_FLD_COUNTER}: 1}}
+            UPSERT {{{names.FLD_ARANGO_KEY}: @{_FLD_COLLECTION_ID}}}
+                INSERT {{{names.FLD_ARANGO_KEY}: @{_FLD_COLLECTION_ID}, {_FLD_COUNTER}: 1}}
                 UPDATE {{{_FLD_COUNTER}: OLD.{_FLD_COUNTER} + 1}}
                 IN @@{_FLD_COLLECTION}
                 OPTIONS {{exclusive: true}}
@@ -228,7 +222,7 @@ class ArangoStorage:
 
     async def get_current_version(self, collection_id: str) -> int:
         """ Get the current version counter value for a collection. """
-        col = self._db.collection(COLL_SRV_COUNTERS)
+        col = self._db.collection(names.COLL_SRV_COUNTERS)
         countdoc = await col.get(collection_id)
         if not countdoc:
             raise errors.NoSuchCollectionError(f"There is no collection {collection_id}")
@@ -242,8 +236,8 @@ class ArangoStorage:
         """
         doc = collection.dict()
         # ver_tag is pretty unconstrained so MD5 to get rid of any weird characters
-        doc[FLD_ARANGO_KEY] = _version_key(collection.id, collection.ver_tag)
-        col = self._db.collection(COLL_SRV_VERSIONS)
+        doc[names.FLD_ARANGO_KEY] = _version_key(collection.id, collection.ver_tag)
+        col = self._db.collection(names.COLL_SRV_VERSIONS)
         try:
             await col.insert(doc)
         except DocumentInsertError as e:
@@ -260,7 +254,7 @@ class ArangoStorage:
         The caller is expected to retrive a collection from a `get_collection_version_by_*`
         method, update it to an active collection, and save it here.
         """
-        await self._insert_model(collection, collection.id, COLL_SRV_ACTIVE, overwrite=True)
+        await self._insert_model(collection, collection.id, names.COLL_SRV_ACTIVE, overwrite=True)
 
     async def get_collection_ids(self, all_=False):
         """
@@ -269,12 +263,12 @@ class ArangoStorage:
         all_ - get the IDs for inactive collections as well.
         """
         bind_vars = {
-            f"@{_FLD_COLLECTION}": COLL_SRV_COUNTERS if all_ else COLL_SRV_ACTIVE
+            f"@{_FLD_COLLECTION}": names.COLL_SRV_COUNTERS if all_ else names.COLL_SRV_ACTIVE
         }
         aql = f"""
             FOR d in @@{_FLD_COLLECTION}
-                SORT d.{FLD_ARANGO_KEY} ASC
-                RETURN d.{FLD_ARANGO_KEY}
+                SORT d.{names.FLD_ARANGO_KEY} ASC
+                RETURN d.{names.FLD_ARANGO_KEY}
             """
         cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
         try:
@@ -287,10 +281,10 @@ class ArangoStorage:
         # Cross bridge etc.
         aql = f"""
             FOR d in @@{_FLD_COLLECTION}
-                SORT d.{FLD_ARANGO_KEY} ASC
+                SORT d.{names.FLD_ARANGO_KEY} ASC
                 RETURN d
             """
-        cur = await self._db.aql.execute(aql, bind_vars={f"@{_FLD_COLLECTION}": COLL_SRV_ACTIVE})
+        cur = await self._db.aql.execute(aql, bind_vars={f"@{_FLD_COLLECTION}": names.COLL_SRV_ACTIVE})
         try:
             return [_doc_to_active_coll(d) async for d in cur]
         finally:
@@ -298,7 +292,7 @@ class ArangoStorage:
 
     async def get_collection_active(self, collection_id: str) -> models.ActiveCollection:
         """ Get an active collection. """
-        col = self._db.collection(COLL_SRV_ACTIVE)
+        col = self._db.collection(names.COLL_SRV_ACTIVE)
         doc = await col.get(collection_id)
         if doc is None:
             raise errors.NoSuchCollectionError(
@@ -307,13 +301,13 @@ class ArangoStorage:
 
     async def has_collection_version_by_tag(self, collection_id: str, ver_tag: str) -> bool:
         """ Check if a collection version exists. """
-        col = self._db.collection(COLL_SRV_VERSIONS)
+        col = self._db.collection(names.COLL_SRV_VERSIONS)
         return await col.has(_version_key(collection_id, ver_tag))
 
     async def get_collection_version_by_tag(self, collection_id: str, ver_tag: str
     ) -> models.SavedCollection:
         """ Get a collection version by its version tag. """
-        col = self._db.collection(COLL_SRV_VERSIONS)
+        col = self._db.collection(names.COLL_SRV_VERSIONS)
         doc = await col.get(_version_key(collection_id, ver_tag))
         if doc is None:
             raise errors.NoSuchCollectionVersionError(
@@ -326,7 +320,7 @@ class ArangoStorage:
     async def get_collection_version_by_num(self, collection_id: str, ver_num: int
     ) -> models.SavedCollection:
         """ Get a collection version by its version number. """
-        col = self._db.collection(COLL_SRV_VERSIONS)
+        col = self._db.collection(names.COLL_SRV_VERSIONS)
         cur = await col.find({
             models.FIELD_COLLECTION_ID: collection_id,
             models.FIELD_VER_NUM: ver_num
@@ -361,7 +355,7 @@ class ArangoStorage:
         if not max_ver or max_ver < 1:
             max_ver = None
         bind_vars = {
-            f"@{_FLD_COLLECTION}": COLL_SRV_VERSIONS,
+            f"@{_FLD_COLLECTION}": names.COLL_SRV_VERSIONS,
             _FLD_COLLECTION_ID: collection_id,
             _FLD_LIMIT: limit
         }
@@ -398,9 +392,9 @@ class ArangoStorage:
         if len(match.user_last_perm_check) != 1:
             raise ValueError(f"There must be exactly one user in {models.FIELD_MATCH_USER_PERMS}")
         doc = jsonable_encoder(match)
-        doc[FLD_ARANGO_KEY] = match.match_id
+        doc[names.FLD_ARANGO_KEY] = match.match_id
         # See Note 1 at the beginning of the file
-        col = self._db.collection(COLL_SRV_MATCHES)
+        col = self._db.collection(names.COLL_SRV_MATCHES)
         try:
             await col.insert(doc)
             return models.Match.construct(
@@ -437,16 +431,16 @@ class ArangoStorage:
 
         Returns true if the match document was removed, false otherwise.
         """
-        return await self._remove_subset(match_id, last_access, COLL_SRV_MATCHES)
+        return await self._remove_subset(match_id, last_access, names.COLL_SRV_MATCHES)
 
     async def _remove_subset(self, subset_id: str, last_access: int, coll: str) -> bool:
         aql = f"""
             FOR d in @@{_FLD_COLLECTION}
-                FILTER d.{FLD_ARANGO_KEY} == @subset_id
+                FILTER d.{names.FLD_ARANGO_KEY} == @subset_id
                 FILTER d.{models.FIELD_LAST_ACCESS} == @last_access
                 REMOVE d IN @@{_FLD_COLLECTION}
                 OPTIONS {{exclusive: true}}
-                RETURN KEEP(d, "{FLD_ARANGO_KEY}")
+                RETURN KEEP(d, "{names.FLD_ARANGO_KEY}")
             """
         bind_vars = {
             f"@{_FLD_COLLECTION}": coll,
@@ -473,7 +467,7 @@ class ArangoStorage:
         """
         aql = f"""
             FOR d in @@{_FLD_COLLECTION}
-                FILTER d.{FLD_ARANGO_KEY} == @{_FLD_MATCH_ID}
+                FILTER d.{names.FLD_ARANGO_KEY} == @{_FLD_MATCH_ID}
                 UPDATE d WITH {{
                     {models.FIELD_LAST_ACCESS}: @{_FLD_CHECK_TIME},
                     {models.FIELD_MATCH_USER_PERMS}: {{@USERNAME: @{_FLD_CHECK_TIME}}}
@@ -483,7 +477,7 @@ class ArangoStorage:
                 RETURN KEEP(updated, @KEEP_LIST)
             """
         bind_vars = {
-            f"@{_FLD_COLLECTION}": COLL_SRV_MATCHES,
+            f"@{_FLD_COLLECTION}": names.COLL_SRV_MATCHES,
             _FLD_MATCH_ID: match_id,
             "USERNAME": username,
             _FLD_CHECK_TIME: check_time,
@@ -508,7 +502,7 @@ class ArangoStorage:
         last_access - the time at which the match was accessed in epoch milliseconds.
         """
         await self._update_last_access(
-            match_id, COLL_SRV_MATCHES, last_access, errors.NoSuchMatchError)
+            match_id, names.COLL_SRV_MATCHES, last_access, errors.NoSuchMatchError)
 
     async def _update_last_access(
         self,
@@ -519,7 +513,7 @@ class ArangoStorage:
     ) -> None:
         aql = f"""
             FOR d in @@{_FLD_COLLECTION}
-                FILTER d.{FLD_ARANGO_KEY} == @item_id
+                FILTER d.{names.FLD_ARANGO_KEY} == @item_id
                 UPDATE d WITH {{
                     {models.FIELD_LAST_ACCESS}: @{_FLD_CHECK_TIME}
                 }} IN @@{_FLD_COLLECTION}
@@ -541,18 +535,18 @@ class ArangoStorage:
         heartbeat_timestamp - the timestamp of the heartbeat in epoch milliseconts.
         """
         await self._send_heartbeat(
-            COLL_SRV_MATCHES, match_id, heartbeat_timestamp, errors.NoSuchMatchError)
+            names.COLL_SRV_MATCHES, match_id, heartbeat_timestamp, errors.NoSuchMatchError)
 
     async def _send_heartbeat(self, collection: str, key: str, heartbeat_timestamp: int, errclass):
         aql = f"""
             FOR d in @@{_FLD_COLLECTION}
-                FILTER d.{FLD_ARANGO_KEY} == @key
+                FILTER d.{names.FLD_ARANGO_KEY} == @key
                 UPDATE d WITH {{
                     {models.FIELD_PROCESS_HEARTBEAT}: @heartbeat
                 }} IN @@{_FLD_COLLECTION}
                 OPTIONS {{exclusive: true}}
                 LET updated = NEW
-                RETURN KEEP(updated, "{FLD_ARANGO_KEY}")
+                RETURN KEEP(updated, "{names.FLD_ARANGO_KEY}")
             """
         bind_vars = {
             f"@{_FLD_COLLECTION}": collection,
@@ -581,7 +575,7 @@ class ArangoStorage:
                     return None
             if cur.count() > 1:
                 # this should never happen, but just in case
-                raise ValueError("Excpected only one result")
+                raise ValueError("Expected only one result")
             return await cur.next()
         finally:
             await cur.close(ignore_missing=True)
@@ -611,7 +605,7 @@ class ArangoStorage:
         """
         # could potentially speed things up a bit and reduce bandwidth by using AQL and
         # KEEP(). Don't bother for now.
-        doc = await self._get_doc(COLL_SRV_MATCHES, match_id, errors.NoSuchMatchError)
+        doc = await self._get_doc(names.COLL_SRV_MATCHES, match_id, errors.NoSuchMatchError)
         match = models.MatchVerbose.construct(
             **models.remove_non_model_fields(doc, models.MatchVerbose))
         if not verbose:
@@ -630,7 +624,8 @@ class ArangoStorage:
         match_id - the ID of the match.
         exception - True to throw an exception if the match is missing, False to return None.
         """
-        doc = await self._get_doc(COLL_SRV_MATCHES, match_id, errors.NoSuchMatchError, exception)
+        doc = await self._get_doc(
+            names.COLL_SRV_MATCHES, match_id, errors.NoSuchMatchError, exception)
         return None if not doc else self._to_internal_match(doc)
 
     async def get_match_by_internal_id(self, internal_match_id: str, exception: bool = True
@@ -642,7 +637,7 @@ class ArangoStorage:
         exception - throw an exception if the match doesn't exist.
         """
         doc = await self._get_subset_by_internal_id(
-            COLL_SRV_MATCHES,
+            names.COLL_SRV_MATCHES,
             internal_match_id,
             models.FIELD_MATCH_INTERNAL_MATCH_ID,
             errors.NoSuchMatchError,
@@ -685,7 +680,7 @@ class ArangoStorage:
             match_id,
             match_state,
             update_time,
-            COLL_SRV_MATCHES,
+            names.COLL_SRV_MATCHES,
             errors.NoSuchMatchError,
             data_list=matches,
             data_list_field=models.FIELD_MATCH_MATCHES,
@@ -709,7 +704,7 @@ class ArangoStorage:
         }
         aql = f"""
             FOR d in @@{_FLD_COLLECTION}
-                FILTER d.{FLD_ARANGO_KEY} == @id
+                FILTER d.{names.FLD_ARANGO_KEY} == @id
                 UPDATE d WITH {{
                     {models.FIELD_PROCESS_STATE}: @state,
                     {models.FIELD_PROCESS_STATE_UPDATED}: @update_time,
@@ -723,7 +718,7 @@ class ArangoStorage:
                 }} IN @@{_FLD_COLLECTION}
                 OPTIONS {{exclusive: true}}
                 LET updated = NEW
-                RETURN KEEP(updated, "{FLD_ARANGO_KEY}")
+                RETURN KEEP(updated, "{names.FLD_ARANGO_KEY}")
             """
         await self._execute_aql_and_check_item_exists(aql, bind_vars, data_id, errclass)
 
@@ -740,7 +735,7 @@ class ArangoStorage:
         processor - an async callable to which each match will be provided in turn.
         """
         await self._process_old_subsets(
-            match_max_last_access_ms, processor, COLL_SRV_MATCHES, self._to_internal_match)
+            match_max_last_access_ms, processor, names.COLL_SRV_MATCHES, self._to_internal_match)
 
     async def _process_old_subsets(
         self,
@@ -771,7 +766,7 @@ class ArangoStorage:
         already present with the same internal match ID. Does not alter the source match.
         """
         await self._insert_model(
-            match, match.internal_match_id, COLL_SRV_MATCHES_DELETED, overwrite=True)
+            match, match.internal_match_id, names.COLL_SRV_MATCHES_DELETED, overwrite=True)
 
     def _to_deleted_match(self, doc: dict[str, Any]) -> models.DeletedMatch:
         return models.DeletedMatch.construct(
@@ -782,7 +777,7 @@ class ArangoStorage:
         Get a match in the deleted state from the database given its internal match ID.
         """
         doc = await self._get_doc(
-            COLL_SRV_MATCHES_DELETED, internal_match_id, errors.NoSuchMatchError)
+            names.COLL_SRV_MATCHES_DELETED, internal_match_id, errors.NoSuchMatchError)
         return self._to_deleted_match(doc)
 
     async def remove_deleted_match(self, internal_match_id: str, last_access: int) -> bool:
@@ -799,7 +794,8 @@ class ArangoStorage:
 
         Returns true if the match document was removed, false otherwise.
         """
-        return await self._remove_subset(internal_match_id, last_access, COLL_SRV_MATCHES_DELETED)
+        return await self._remove_subset(
+            internal_match_id, last_access, names.COLL_SRV_MATCHES_DELETED)
     
     async def process_deleted_matches(
         self,
@@ -811,7 +807,7 @@ class ArangoStorage:
         processor - an async callable to which each match will be provided in turn.
         """
         await self._process_deleted_subset(
-            processor, COLL_SRV_MATCHES_DELETED, self._to_deleted_match)
+            processor, names.COLL_SRV_MATCHES_DELETED, self._to_deleted_match)
 
     async def _process_deleted_subset(
         self,
@@ -845,15 +841,15 @@ class ArangoStorage:
             type=dp_match.type
         ))
         doc = dp_match.dict()
-        doc[FLD_ARANGO_KEY] = key
+        doc[names.FLD_ARANGO_KEY] = key
         # See Note 1 at the beginning of the file
-        col = self._db.collection(COLL_SRV_DATA_PRODUCT_PROCESSES)
+        col = self._db.collection(names.COLL_SRV_DATA_PRODUCT_PROCESSES)
         try:
             await col.insert(doc)
             return dp_match, False
         except DocumentInsertError as e:
             if e.error_code == _ARANGO_ERR_UNIQUE_CONSTRAINT:
-                doc = await col.get({FLD_ARANGO_KEY: key})
+                doc = await col.get({names.FLD_ARANGO_KEY: key})
                 if not doc:
                     # This is highly unlikely. Not worth spending any time trying to recover
                     raise ValueError(
@@ -879,7 +875,7 @@ class ArangoStorage:
         """
         key = self._data_product_process_key(dpid)
         await self._send_heartbeat(
-            COLL_SRV_DATA_PRODUCT_PROCESSES, key, heartbeat_timestamp, _ERRMAP[dpid.type])
+            names.COLL_SRV_DATA_PRODUCT_PROCESSES, key, heartbeat_timestamp, _ERRMAP[dpid.type])
 
     async def update_data_product_process_state(
         self,
@@ -898,7 +894,7 @@ class ArangoStorage:
             self._data_product_process_key(dpid),
             state,
             update_time,
-            COLL_SRV_DATA_PRODUCT_PROCESSES,
+            names.COLL_SRV_DATA_PRODUCT_PROCESSES,
             _ERRMAP[dpid.type],
         )
 
@@ -909,7 +905,7 @@ class ArangoStorage:
         dpid - the data process ID.
         """
         key = self._data_product_process_key(dpid)
-        col = self._db.collection(COLL_SRV_DATA_PRODUCT_PROCESSES)
+        col = self._db.collection(names.COLL_SRV_DATA_PRODUCT_PROCESSES)
         await col.delete(key, ignore_missing=True, silent=True)
 
     async def import_bulk_ignore_collisions(self, arango_collection: str, documents: dict[str, Any]
@@ -943,9 +939,9 @@ class ArangoStorage:
         existed (true) or was created anew (false)
         """
         doc = jsonable_encoder(selection)
-        doc[FLD_ARANGO_KEY] = selection.selection_id
+        doc[names.FLD_ARANGO_KEY] = selection.selection_id
         # See Note 1 at the beginning of the file
-        col = self._db.collection(COLL_SRV_SELECTIONS)
+        col = self._db.collection(names.COLL_SRV_SELECTIONS)
         try:
             await col.insert(doc)
             return self._to_selection(doc), False
@@ -981,7 +977,7 @@ class ArangoStorage:
 
         Returns true if the selection document was removed, false otherwise.
         """
-        return await self._remove_subset(selection_id, last_access, COLL_SRV_SELECTIONS)
+        return await self._remove_subset(selection_id, last_access, names.COLL_SRV_SELECTIONS)
 
     async def get_selection_full(self, selection_id: str, exception: bool = True
     ) -> models.InternalSelection:
@@ -992,7 +988,11 @@ class ArangoStorage:
         exception - True to throw an exception if the match is missing, False to return None.
         """
         doc = await self._get_doc(
-            COLL_SRV_SELECTIONS, selection_id, errors.NoSuchSelectionError, exception=exception)
+            names.COLL_SRV_SELECTIONS,
+            selection_id,
+            errors.NoSuchSelectionError,
+            exception=exception
+        )
         return None if not doc else self._to_internal_selection(doc)
 
     async def get_selection_by_internal_id(self, internal_selection_id: str, exception: bool = True
@@ -1004,7 +1004,7 @@ class ArangoStorage:
         exception - throw an exception if the selection doesn't exist
         """
         doc = await self._get_subset_by_internal_id(
-            COLL_SRV_SELECTIONS,
+            names.COLL_SRV_SELECTIONS,
             internal_selection_id,
             models.FIELD_SELECTION_INTERNAL_SELECTION_ID,
             errors.NoSuchSelectionError,
@@ -1020,7 +1020,7 @@ class ArangoStorage:
         heartbeat_timestamp - the timestamp of the heartbeat in epoch milliseconts.
         """
         await self._send_heartbeat(
-            COLL_SRV_SELECTIONS,
+            names.COLL_SRV_SELECTIONS,
             selection_id,
             heartbeat_timestamp,
             errors.NoSuchSelectionError
@@ -1045,7 +1045,7 @@ class ArangoStorage:
             selection_id,
             state,
             update_time,
-            COLL_SRV_SELECTIONS,
+            names.COLL_SRV_SELECTIONS,
             errors.NoSuchSelectionError,
             data_list=missing_selections,
             data_list_field=models.FIELD_SELECTION_UNMATCHED_IDS,
@@ -1061,7 +1061,7 @@ class ArangoStorage:
         """
         return await self._update_last_access(
             selection_id,
-            COLL_SRV_SELECTIONS,
+            names.COLL_SRV_SELECTIONS,
             last_access,
             errors.NoSuchSelectionError,
         )
@@ -1081,7 +1081,7 @@ class ArangoStorage:
         await self._process_old_subsets(
             selection_max_last_access_ms,
             processor,
-            COLL_SRV_SELECTIONS,
+            names.COLL_SRV_SELECTIONS,
             self._to_internal_selection
         )
 
@@ -1094,7 +1094,7 @@ class ArangoStorage:
         await self._insert_model(
             selection,
             selection.internal_selection_id,
-            COLL_SRV_SELECTIONS_DELETED,
+            names.COLL_SRV_SELECTIONS_DELETED,
             overwrite=True
         )
 
@@ -1107,7 +1107,7 @@ class ArangoStorage:
         Get a selection in the deleted state from the database given its internal match ID.
         """
         doc = await self._get_doc(
-            COLL_SRV_SELECTIONS_DELETED, internal_selection_id, errors.NoSuchSelectionError)
+            names.COLL_SRV_SELECTIONS_DELETED, internal_selection_id, errors.NoSuchSelectionError)
         return self._to_deleted_selection(doc)
 
     async def remove_deleted_selection(self, internal_selection_id: str, last_access: int) -> bool:
@@ -1126,7 +1126,7 @@ class ArangoStorage:
         Returns true if the selection document was removed, false otherwise.
         """
         return await self._remove_subset(
-            internal_selection_id, last_access, COLL_SRV_SELECTIONS_DELETED)
+            internal_selection_id, last_access, names.COLL_SRV_SELECTIONS_DELETED)
 
     async def process_deleted_selections(
         self,
@@ -1138,7 +1138,7 @@ class ArangoStorage:
         processor - an async callable to which each selection will be provided in turn.
         """
         await self._process_deleted_subset(
-            processor, COLL_SRV_SELECTIONS_DELETED, self._to_deleted_selection)
+            processor, names.COLL_SRV_SELECTIONS_DELETED, self._to_deleted_selection)
 
     async def _insert_model(
         self,
@@ -1148,6 +1148,35 @@ class ArangoStorage:
         overwrite: bool = False
     ):
         doc = jsonable_encoder(model)
-        doc[FLD_ARANGO_KEY] = key
+        doc[names.FLD_ARANGO_KEY] = key
         col = self._db.collection(collection)
         await col.insert(doc, overwrite=overwrite, silent=True)
+
+
+    async def get_export_types(self, collection_id: str, data_product: str, load_ver: str
+    ) -> list[str]:
+        """
+        Get the types available for export as sets to the Workspace.
+
+        collection_id - the ID of the collection to check for export types.
+        data_product - the data product to check for export types.
+        load_ver - the load version of the data to check for export types.
+
+        Returns an empty list if no type information could be found
+        """
+        aql = f"""
+            FOR d IN @@{_FLD_COLLECTION}
+                FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COLLECTION_ID}
+                FILTER d.{names.FLD_LOAD_VERSION} == @load_ver
+                FILTER d.{names.FLD_DATA_PRODUCT} == @data_product
+                RETURN d
+            """
+        bind_vars = {
+            f"@{_FLD_COLLECTION}": names.COLL_EXPORT_TYPES,
+            _FLD_COLLECTION_ID: collection_id,
+            "load_ver": load_ver,
+            "data_product": data_product
+        }
+        doc = await self._execute_aql_and_check_item_exists(
+            aql, bind_vars, None, None, exception=False)
+        return doc[names.FLD_TYPES] if doc else []
