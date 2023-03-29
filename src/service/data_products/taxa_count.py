@@ -17,7 +17,6 @@ from src.service import models
 from src.service import processing
 from src.service import processing_matches
 from src.service import processing_selections
-from src.service.clients.workspace_client import Workspace
 from src.service.data_products.common_functions import (
     get_load_version,
     get_load_ver_from_collection,
@@ -31,7 +30,6 @@ from src.service.data_products import genome_attributes
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
-from src.service.workspace_wrapper import WorkspaceWrapper
 from typing import Any
 
 
