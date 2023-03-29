@@ -5,8 +5,7 @@ collections service.
 
 from typing import Any, Iterable
 from src.service import errors
-from src.service.clients.workspace_client import Workspace
-from src.service.clients.baseclient import ServerError
+from src.service.sdk_async_client import SDKAsyncClient, ServerError
 
 WORKSPACE_UPA_PATH = "__workspace_upa_path__"
 "Field added to workspace metadata containing the path to the object."
@@ -15,18 +14,20 @@ WORKSPACE_UPA_PATH = "__workspace_upa_path__"
 class WorkspaceWrapper:
     """ A wrapper for a workspace client for the collections service. """
 
-    def __init__(self, workspace: Workspace):
+    def __init__(self, sdk_cli: SDKAsyncClient, token: str = None):
         """
         Create the wrapper.
 
-        workspace - a workspace instance, initialized with appropriate credientials.
+        sdk_cli - an SDK client instance.
+        token - a user's KBase token, if any.
         """
-        self._ws = workspace
+        self._cli = sdk_cli
+        self._token = token
 
     def _get_type(self, obj_info) -> str:
         return obj_info[2].split('-')[0]
 
-    def get_object_metadata(
+    async def get_object_metadata(
         self,
         upas: list[str],
         allowed_types: Iterable[str] | None = None,
@@ -51,13 +52,17 @@ class WorkspaceWrapper:
         # string is not reasonable
         allowed_types = set(allowed_types) if allowed_types else {}
         allowed_set_types = set(allowed_set_types) if allowed_set_types else {}
-        std_objs, set_objs = self._get_object_info(upas, allowed_types, allowed_set_types)
+        std_objs, set_objs = await self._get_object_info(
+            upas, allowed_types, allowed_set_types)
         std_objs2 = []
         if set_objs:
             paths = [meta[WORKSPACE_UPA_PATH] for meta in set_objs]
-            res = self._ws.get_objects2(
-                {"objects": [{'ref': p} for p in paths], "no_data": 1, 'ignoreErrors': 1}
-            )['data']
+            res = await self._cli.call(
+                "Workspace.get_objects2", 
+                [{"objects": [{'ref': p} for p in paths], "no_data": 1, 'ignoreErrors': 1}],
+                token=self._token,
+            )
+            res = res['data']
             set_upas = set()
             for path, o in zip(paths, res):
                 if not o:
@@ -72,20 +77,20 @@ class WorkspaceWrapper:
                 raise errors.IllegalParameterError(
                         f"There are more than 10000 objects in the combined object sets"
                     )
-            std_objs2, _ = self._get_object_info(set_upas, allowed_types, set())
+            std_objs2, _ = await self._get_object_info(set_upas, allowed_types, set())
         return std_objs + std_objs2
 
-    def _get_object_info(self, upas, allowed_types, allowed_set_types):
+    async def _get_object_info(self, upas, allowed_types, allowed_set_types):
         refs = [{"ref": u} for u in upas]
         # just throw any ws errors here. Could add retries... later
         # Without doing string inspection of the error message it's impossible to tell if
         # the error is due to user error (e.g. malformed input) or something else (e.g. ws 
         # lost connection to mongo). As such just throw and it'll wind up as a 500
-        res = self._ws.get_object_info3({
-            "objects": refs,
-            "ignoreErrors": 1,
-            "includeMetadata": 1,
-        })
+        res = await self._cli.call(
+            "Workspace.get_object_info3",
+            [{ "objects": refs, "ignoreErrors": 1, "includeMetadata": 1}],
+            token=self._token,
+        )
         set_objs = []
         std_objs = []
         for info, path, upa in zip(res['infos'], res['paths'], upas):
@@ -105,9 +110,9 @@ class WorkspaceWrapper:
                 std_objs.append(info[10])
         return std_objs, set_objs
 
-    def check_workspace_permissions(self, workspace_ids: set[int]) -> None:
+    async def check_workspace_permissions(self, workspace_ids: set[int]) -> None:
         """
-        Check that the credentials in the workspace client have access to the provided workspaces.
+        Check that the user has access to the provided workspaces.
         If not, an error will be thrown.
         """
         # A mass get_workspace_info method with reasonable error codes here would help a lot
@@ -115,7 +120,9 @@ class WorkspaceWrapper:
         # get re thrown. The comments on the get_lineages function are relevant here as well
         for wsi in workspace_ids:
             try:
-                self._ws.get_workspace_info({"id": wsi})
+                await self._cli.call(
+                    "Workspace.get_workspace_info", [{"id": wsi}], token=self._token
+                )
             except ServerError as e:
                 if any(x in e.message for x in ["may not read workspace", "No workspace with id"]):
                     raise errors.DataPermissionError(

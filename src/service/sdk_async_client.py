@@ -31,6 +31,8 @@ class SDKAsyncClient:
 
         url - the url of the server.
         """
+        # Only create 1 session per process:
+        # https://docs.aiohttp.org/en/stable/client_quickstart.html#make-a-request
         self._session = aiohttp.ClientSession()
         self._url = url
 

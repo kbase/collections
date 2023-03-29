@@ -17,13 +17,11 @@ from src.service import kb_auth
 from src.service import models
 from src.service import processing_matches
 from src.service import processing_selections
-from src.service.clients.workspace_client import Workspace
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.matchers.common_models import Matcher
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID, err_on_control_chars
 from src.service.storage_arango import ArangoStorage
 from src.service.timestamp import timestamp
-from src.service.workspace_wrapper import WorkspaceWrapper
 
 # TODO CODE it's about time to start splitting this file up
 

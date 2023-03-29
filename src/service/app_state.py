@@ -5,15 +5,17 @@ All functions assume that the application state has been appropriately initializ
 calling the build_app() method
 """
 
+import asyncio
+
 from fastapi import FastAPI, Request
 from src.service._app_state_build_storage import build_storage
 from src.service.app_state_data_structures import CollectionsState
-from src.service.clients.workspace_client import Workspace
 from src.service.config import CollectionsServiceConfig
-from src.service.data_products.common_models import DataProductSpec
-from src.service.matchers.common_models import Matcher
 from src.service.deletion import SubsetCleanup
+from src.service.data_products.common_models import DataProductSpec
 from src.service.kb_auth import KBaseAuth
+from src.service.matchers.common_models import Matcher
+from src.service.sdk_async_client import SDKAsyncClient
 
 # The main point of this module is to handle all the application state in one place
 # to keep it consistent and allow for refactoring without breaking other code
@@ -34,13 +36,16 @@ async def build_app(
     matchers - the matchers installed in the system
     """
     auth = await KBaseAuth.create(cfg.auth_url, cfg.auth_full_admin_roles)
+    sdk_client = SDKAsyncClient(cfg.workspace_url)
     # pickling problems with the full spec, see
     # https://github.com/cloudpipe/cloudpickle/issues/408
     data_products = {dp.data_product: dp.db_collections for dp in data_products}
-    await _check_workspace_url(cfg)
+    await _check_workspace_url(sdk_client)
     cli, storage = await build_storage(cfg, data_products)
     try:
-        app.state._colstate = CollectionsState(auth, cli, storage, data_products, matchers, cfg)
+        app.state._colstate = CollectionsState(
+            auth, sdk_client, cli, storage, data_products, matchers, cfg
+        )
         app.state._match_deletion = SubsetCleanup(
             app.state._colstate.get_pickleable_dependencies(),
             interval_sec=1 * 24 * 60 * 60,
@@ -67,6 +72,8 @@ async def destroy_app_state(app: FastAPI):
     colstate = _get_app_state_from_app(app)  # first to check state was set up
     app.state._match_deletion.stop()
     await colstate.destroy()
+    # https://docs.aiohttp.org/en/stable/client_advanced.html#graceful-shutdown
+    await asyncio.sleep(0.250)
 
 
 def _get_app_state_from_app(app: FastAPI) -> CollectionsState:
@@ -75,10 +82,10 @@ def _get_app_state_from_app(app: FastAPI) -> CollectionsState:
     return app.state._colstate
 
 
-async def _check_workspace_url(cfg: CollectionsServiceConfig) -> str:
+async def _check_workspace_url(sdk_cli: SDKAsyncClient) -> str:
     try:
-        ws = Workspace(cfg.workspace_url)
+        ver = await sdk_cli.call("Workspace.ver")
         # could check the version later if we add dependencies on newer versions
-        print("Workspace version: " + ws.ver())
+        print("Workspace version: " + ver)
     except Exception as e:
         raise ValueError(f"Could not connect to workspace at {cfg.workspace_url}: {str(e)}") from e
