@@ -88,7 +88,7 @@ def list_objects(wsid, conf, batch_size, filter_objects_name_by=None):
         [idx + 1, idx + batch_size] for idx in range(0, maxObjectID, batch_size)
     ]
     objs = [
-        conf.ws.list_objects(_list_objects_params(min_id, max_id))
+        conf.ws.list_objects(_list_objects_params(wsid, min_id, max_id))
         for min_id, max_id in batch_input
     ]
     res_objs = list(itertools.chain.from_iterable(objs))
