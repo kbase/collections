@@ -42,8 +42,8 @@ TOOLS_AVAILABLE = ['gtdb_tk']  # TODO: fix checkm2 container bug
 
 # estimated execution time (in minutes) for each tool to process a chunk of data
 TASK_META = {'checkm2': {'chunk_size': 5000, 'exe_time': 60},
-             'gtdb_tk': {'chunk_size': 1000, 'exe_time': 90}}
-NODE_TIME_LIMIT = 10  # hours
+             'gtdb_tk': {'chunk_size': 1000, 'exe_time': 65}}
+NODE_TIME_LIMIT = 5  # hours  # TODO: automatically calculate this based on tool execution time and NODE_THREADS
 MAX_NODE_NUM = 100  # maximum number of nodes to use
 # The THREADS variable controls the number of parallel tasks per node
 # TODO: make this configurable based on tool used
