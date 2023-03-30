@@ -23,11 +23,14 @@ FLD_COLLECTION_ID = "coll"
 FLD_LOAD_VERSION = "load_ver"
 """ The name of the key that has a load version as its value. """
 
-FLD_MATCH_ID = "match_id"
-""" The name of the key that has a match ID as its value. """
+FLD_DATA_PRODUCT = "data_product"
+""" The name of the key that has a data product ID as its value. """
 
 FLD_INTERNAL_ID = "internal_id"
 """ The name of the key that has an internal match ID as its value. """
+
+FLD_TYPES = "types"
+""" The name of the key that has a list of workspace types as its value. """
 
 # Collections
 
@@ -66,6 +69,11 @@ COLL_SRV_SELECTIONS = _SRV_PREFIX + "selections"
 
 COLL_SRV_SELECTIONS_DELETED = COLL_SRV_SELECTIONS + "_deleted"
 """ A collection holding selections in the deleted state. """
+
+## Non-data product specific collection shared between loaders and service
+
+# Types available for export from specific data products
+COLL_EXPORT_TYPES = COLLECTION_PREFIX + "export_types"
 
 ## Data product collections
 
