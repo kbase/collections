@@ -51,7 +51,7 @@ def _make_output_dir(root_dir, source_data_dir, source):
 
 
 def _make_job_dir(project_dir):
-    username = subprocess.check_output("id -un", shell=True)
+    username = subprocess.check_output("id -un", shell=True).decode().strip()
     job_dir = os.path.join(project_dir, username)
     return job_dir
 
