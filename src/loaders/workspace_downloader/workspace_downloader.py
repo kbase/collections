@@ -131,7 +131,7 @@ def main():
 
     # Required flag argument
     required.add_argument(
-        "--worksapce_id",
+        "--workspace_id",
         required=True,
         type=int,
         help="Workspace addressed by the permanent ID",
@@ -177,7 +177,7 @@ def main():
     args = parser.parse_args()
 
     (
-        worksapce_id,
+        workspace_id,
         project_dir,
         root_dir,
         output_dir,
@@ -187,7 +187,7 @@ def main():
         overwrite,
         batch_size,
     ) = (
-        args.worksapce_id,
+        args.workspace_id,
         args.project_dir,
         args.root_dir,
         args.output_dir,
@@ -218,7 +218,7 @@ def main():
         visited.add(upa)
 
     for obj_info in list_objects(
-        worksapce_id, conf, batch_size, FILTER_OBJECTS_NAME_BY
+        workspace_id, conf, batch_size, FILTER_OBJECTS_NAME_BY
     ):
         upa = "{6}/{0}/{4}".format(*obj_info)
         if upa in visited and not overwrite:
