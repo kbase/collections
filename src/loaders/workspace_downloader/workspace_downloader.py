@@ -83,7 +83,7 @@ def list_objects(wsid, conf, batch_size, filter_objects_name_by=None):
     list objects
     """
 
-    maxObjectID = conf.ws.get_workspace_info({"id": wsid})
+    maxObjectID = conf.ws.get_workspace_info({"id": wsid})[4]
     batch_input = [
         [idx + 1, idx + batch_size] for idx in range(0, maxObjectID, batch_size)
     ]
