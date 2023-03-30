@@ -177,11 +177,21 @@ class MatchParameters(BaseModel):
 
 
 class SelectionInput(BaseModel):
-    """A selection of data in a collection. """
+    """ A selection of data in a collection. """
     selection_ids: list[str] = Field(
         example=models.FIELD_SELECTION_EXAMPLE,
         description=models.FIELD_SELECTION_IDS_DESCRIPTION
     )
+
+
+class SelectionTypes(BaseModel):
+    """ The set of types available for export to a workspace in a collection. """
+    types: list[str] = Field(
+        example=["KBaseGenomes.Genome", "KBaseGenomeAnnotations.Assembly"],
+        description="The types of data available for export for this selection."
+    )
+# For now assume there's just one list per collection, and not different lists per data product
+# or something like that.
 
 
 class CollectionVersions(BaseModel):
@@ -319,6 +329,21 @@ async def get_selection(
     return await processing_selections.get_selection(
         app_state.get_app_state(r), selection_id, verbose=verbose
     )
+
+
+@ROUTER_SELECTIONS.get(
+    "/selections/{selection_id}/types",
+    response_model=SelectionTypes,
+    summary="Get exportable types for a selection",
+    description="Get the types that are available for export to a workspace for this selection."
+)
+async def get_selection(
+    r: Request,
+    selection_id: str = _PATH_SELECTION_ID,
+) -> SelectionTypes:
+    types = await processing_selections.get_exportable_types(
+        app_state.get_app_state(r), selection_id)
+    return SelectionTypes(types=types)
 
 
 @ROUTER_COLLECTIONS_ADMIN.put(
