@@ -46,9 +46,8 @@ TASK_META = {'checkm2': {'chunk_size': 5000, 'exe_time': 60},
 NODE_TIME_LIMIT = 10  # hours
 MAX_NODE_NUM = 100  # maximum number of nodes to use
 # The THREADS variable controls the number of parallel tasks per node
-# we want to set it to 1 (execute tasks one by one) because batch parallelization is handled by the
-# compute_genome_attribs.py script
-NODE_THREADS = 1
+# TODO: make this configurable based on tool used
+NODE_THREADS = 4
 
 REGISTRY = 'tiangu01'  # public Docker Hub registry to pull images from
 
@@ -166,9 +165,14 @@ def _create_genome_id_file(genome_ids, genome_id_file):
 
 
 def _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper_file, job_dir, root_dir,
-                      threads=256, program_threads=256, source_file_ext='genomic.fna.gz'):
+                      threads=32, program_threads=32, source_file_ext='genomic.fna.gz'):
     """
     Create task list file (tasks.txt)
+
+    threads: the total number of threads to use per node
+    program_threads: number of threads to use per task
+    parallelization is done by taskfarmer. threads and program_threads should be set to the same value.
+    TODO: make this configurable based on tool used
     """
     genome_ids = [path for path in os.listdir(source_data_dir) if
                   os.path.isdir(os.path.join(source_data_dir, path))]
