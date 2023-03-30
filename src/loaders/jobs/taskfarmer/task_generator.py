@@ -46,7 +46,7 @@ TASK_META = {'checkm2': {'chunk_size': 5000, 'exe_time': 60},
 NODE_TIME_LIMIT = 5  # hours  # TODO: automatically calculate this based on tool execution time and NODE_THREADS
 MAX_NODE_NUM = 100  # maximum number of nodes to use
 # The THREADS variable controls the number of parallel tasks per node
-# TODO: make this configurable based on tool used
+# TODO: make this configurable based on tool used. At present, we have set the value to 4 for optimal performance with GTDB-Tk.
 NODE_THREADS = 4
 
 REGISTRY = 'tiangu01'  # public Docker Hub registry to pull images from
@@ -171,8 +171,13 @@ def _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper
 
     threads: the total number of threads to use per node
     program_threads: number of threads to use per task
-    parallelization is done by taskfarmer. threads and program_threads should be set to the same value.
-    TODO: make this configurable based on tool used
+    For instance, if "threads" is set to 128 and "program_threads" to 32, then each task will run 4 batches in parallel.
+
+    We have chosen to use "taskfarmer" for parallelization, which means that "threads" and "program_threads" should
+    have the same value. This ensures that parallelization only happens between tasks, and not within them.
+
+    TODO: make threads/program_threads configurable based on tool used. However, for the time being, we have set
+    these parameters to 32 and , since this value has produced the highest throughput in our experiments.
     """
     genome_ids = [path for path in os.listdir(source_data_dir) if
                   os.path.isdir(os.path.join(source_data_dir, path))]
