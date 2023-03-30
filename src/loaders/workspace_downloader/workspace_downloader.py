@@ -51,12 +51,7 @@ def _make_output_dir(root_dir, source_data_dir, source):
 
 
 def _make_job_dir(project_dir):
-    username = (
-        subprocess.check_output("id", shell=True)
-        .decode()
-        .split(" ")[0]
-        .split("(")[-1][:-1]
-    )
+    username = subprocess.check_output("id -un", shell=True)
     job_dir = os.path.join(project_dir, username)
     return job_dir
 
@@ -183,7 +178,7 @@ def main():
 
     (
         worksapce_id,
-        project_dir, 
+        project_dir,
         root_dir,
         output_dir,
         job_dir,
