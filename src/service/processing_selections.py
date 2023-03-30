@@ -199,6 +199,25 @@ def _check_selection_state(
             f"Selection {internal_sel.selection_id} processing is not complete")
 
 
+async def get_exportable_types(appstate: CollectionsState, selection_id: str) -> list[str]:
+    """
+    Get the Workspace types for the data that is exportable in a selection.
+
+    appstate - the application state
+    selection_id - the selection of interest
+    """
+    # We don't know the collection ID yet so we can't require a collection. Don't bother
+    # with requiring complete either.
+    sel = await get_selection_full(appstate, selection_id)
+    storage = appstate.arangostorage
+    # If we do want to check the collection version, we need to pull the active collection
+    coll = await storage.get_collection_version_by_num(sel.collection_id, sel.collection_ver)
+    # sel.data_product is checked against the collection when creating the selection so it must
+    # be present
+    load_ver = {dp.product: dp.version for dp in coll.data_products}[sel.data_product]
+    return await storage.get_export_types(coll.id, sel.data_product, load_ver)
+
+
 async def delete_selection(appstate: CollectionsState, selection_id: str, verbose: bool = False
 ) -> models.SelectionVerbose:
     """
