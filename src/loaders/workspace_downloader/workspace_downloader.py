@@ -50,14 +50,14 @@ def _make_output_dir(root_dir, source_data_dir, source):
     return work_dir
 
 
-def _make_job_dir(root_dir):
+def _make_job_dir(project_dir):
     username = (
         subprocess.check_output("id", shell=True)
         .decode()
         .split(" ")[0]
         .split("(")[-1][:-1]
     )
-    job_dir = os.path.join(root_dir, username)
+    job_dir = os.path.join(project_dir, username)
     return job_dir
 
 
@@ -114,7 +114,7 @@ def process_input(conf):
         conf.asu.get_assembly_as_fasta({"ref": upa, "filename": upa})
 
         dstd = os.path.join(conf.pth, upa)
-        os.makedirs(dstd)
+        os.makedirs(dstd, exist_ok=True)
 
         dst = os.path.join(dstd, f"{upa}.fa")
         # hark link source dir to destination .fa file only
@@ -140,6 +140,11 @@ def main():
         required=True,
         type=int,
         help="Workspace addressed by the permanent ID",
+    )
+    required.add_argument(
+        "--project_dir",
+        type=str,
+        help="Path points to Collections repository",
     )
 
     # Optional argument
@@ -178,6 +183,7 @@ def main():
 
     (
         worksapce_id,
+        project_dir, 
         root_dir,
         output_dir,
         job_dir,
@@ -185,9 +191,9 @@ def main():
         threads,
         overwrite,
         batch_size,
-        output_dir,
     ) = (
         args.worksapce_id,
+        args.project_dir,
         args.root_dir,
         args.output_dir,
         args.job_dir,
@@ -195,7 +201,6 @@ def main():
         args.threads,
         args.overwrite,
         args.batch_size,
-        args.output_dir,
     )
 
     if source not in SOURCE:
@@ -204,7 +209,7 @@ def main():
     output_dir = output_dir or _make_output_dir(
         root_dir, loader_common_names.SOURCE_DATA_DIR, source
     )
-    job_dir = job_dir or _make_job_dir(root_dir)
+    job_dir = job_dir or _make_job_dir(project_dir)
 
     if not threads:
         threads = max(int(cpu_count() * min(SYSTEM_UTILIZATION, 1)), 1)
