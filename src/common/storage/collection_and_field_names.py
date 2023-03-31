@@ -32,7 +32,7 @@ FLD_INTERNAL_ID = "internal_id"
 FLD_TYPES = "types"
 """ The name of the key that has a list of workspace types as its value. """
 
-FLD_TYPE_MAP = "_types"
+FLD_UPA_MAP = "_upas"
 """
 The name of the key that has a mapping of workspace type to workspce UPA for workspace
 data associated with the document.
