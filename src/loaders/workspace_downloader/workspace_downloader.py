@@ -2,6 +2,7 @@ import argparse
 import itertools
 import json
 import os
+import shutil
 import subprocess
 import time
 from multiprocessing import Pool, Queue, cpu_count
@@ -113,8 +114,8 @@ def process_input(conf):
         os.makedirs(dstd, exist_ok=True)
 
         dst = os.path.join(dstd, f"{upa}.fa")
-        # hark link source dir to destination .fa file only
-        os.link(cfn, dst)
+        # copy downloaded .fa file to output_dir. Hard link might cause invalid cross-device link problem
+        shutil.copy(cfn, dst)
 
         metafile = os.path.join(dstd, f"{upa}.meta")
         json.dump(_process_object_info(obj_info), open(metafile, "w"), indent=2)
