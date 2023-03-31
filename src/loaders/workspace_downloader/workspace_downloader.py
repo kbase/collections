@@ -14,18 +14,14 @@ from src.loaders.common import loader_common_names
 from src.loaders.common import loader_helper
 
 ## Setup
-# Please start podman in shell prior to running the script and then hit return
-# podman system service -t 0 &
+# Please source start_workspace_downloader.sh prior to running this script
 
-
-# Fraction amount of system cores can be utilized
-# (i.e. 0.5 - program will use 50% of total processors,
-#       0.1 - program will use 10% of total processors)
-SYSTEM_UTILIZATION = 0.5
 SOURCE = "WS"  # supported source of data
-WS_DOMAIN = "https://ci.kbase.us/services/ws"
-FILTER_OBJECTS_NAME_BY = "KBaseGenomeAnnotations.Assembly"
-TOKEN_PATH = "~/.kbase_ci"
+WS_DOMAIN = "https://ci.kbase.us/services/ws"  # workspace link
+FILTER_OBJECTS_NAME_BY = (
+    "KBaseGenomeAnnotations.Assembly"  # filtering applied to list objects
+)
+TOKEN_PATH = "~/.kbase_ci"  # token path
 
 
 class Service:
@@ -101,7 +97,7 @@ def _process_object_info(obj_info):
 
 def list_objects(wsid, conf, batch_size, filter_objects_name_by=None):
     """
-    list objects
+    List all objects information given a workspace ID
     """
 
     maxObjectID = conf.ws.get_workspace_info({"id": wsid})[4]
@@ -127,16 +123,19 @@ def process_input(conf):
             print("Stopping")
             break
         cfn = os.path.join(conf.job_dir, "workdir/tmp", upa)
+        # upa file is downloaded to cfn
         conf.asu.get_assembly_as_fasta({"ref": upa.replace("_", "/"), "filename": upa})
 
+        # each upa in output_dir as a seperate directory
         dstd = os.path.join(conf.pth, upa)
         os.makedirs(dstd, exist_ok=True)
 
         dst = os.path.join(dstd, f"{upa}.fa")
-        # copy downloaded .fa file to output_dir. Hard link might cause invalid cross-device link problem
+        # copy downloaded upa file to output_dir. Hard link might cause invalid cross-device link problem
         shutil.copy(cfn, dst)
 
         metafile = os.path.join(dstd, f"{upa}.meta")
+        # save meta file with relevant object_info
         json.dump(_process_object_info(obj_info), open(metafile, "w"), indent=2)
 
         print("Completed %s" % (upa))
@@ -234,8 +233,6 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(job_dir, exist_ok=True)
 
-    print(f"Start downloading genome files from workspace with {workers} workers")
-
     service = Service(uid, job_dir)
     service.start()
 
@@ -263,7 +260,8 @@ def main():
     conf.pools.close()
     conf.pools.join()
     conf.cb.stop()
-    service.stop()
+    # uncomment code below if needs to shut down podman service after every single run
+    # service.stop()
 
 
 if __name__ == "__main__":
