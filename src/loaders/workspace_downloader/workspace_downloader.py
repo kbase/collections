@@ -12,6 +12,7 @@ from utils.AssemblyUtilClient import AssemblyUtil
 from utils.workspaceClient import Workspace
 
 from src.loaders.common import loader_common_names
+from src.loaders.common import loader_helper
 
 # Fraction amount of system cores can be utilized
 # (i.e. 0.5 - program will use 50% of total processors,
@@ -20,6 +21,32 @@ SYSTEM_UTILIZATION = 0.5
 SOURCE = "WS"  # supported source of data
 WS_DOMAIN = "https://ci.kbase.us/services/ws"
 FILTER_OBJECTS_NAME_BY = "KBaseGenomeAnnotations.Assembly"
+TOKEN_PATH = "~/.kbase_ci"
+
+
+class Service:
+    def __init__(self, uid, job_dir):
+        self.id = uid
+        self.job_dir = job_dir
+
+    def start(self):
+        # Start the podman service
+        loader_helper.start_podman()
+
+        # Set the DOCKER_HOST
+        os.environ["DOCKER_HOST"] = loader_common_names.DOCKER_HOST.format(self.id)
+
+        # Provide your token path or default token path ~/.kbase_ci or ~/.kbase_prod will be used
+        os.environ["KB_AUTH_TOKEN"] = loader_helper.store_token(TOKEN_PATH)
+
+        # Set the base url if not using prod
+        os.environ["KB_BASE_URL"] = loader_common_names.KB_BASE_URL
+
+        # Set the JOB_DIR
+        os.environ["JOB_DIR"] = self.job_dir
+
+    def stop(self):
+        loader_helper.stop_podman()
 
 
 class Conf:
@@ -32,7 +59,6 @@ class Conf:
         self.ws = Workspace(WS_DOMAIN, token=token)
         self.asu = AssemblyUtil(self.cb.callback_url, token=token)
         self.queue = Queue()
-        self.workdir = self.cb.conf.workdir
         self.pth = output_dir
         self.job_dir = job_dir
         self.pools = Pool(workers, process_input, [self])
@@ -46,10 +72,8 @@ def _make_output_dir(root_dir, source_data_dir, source):
     raise ValueError(f"Unexpected source: {source}")
 
 
-def _make_job_dir(project_dir):
-    username = subprocess.check_output("id -un", shell=True).decode().strip()
-    job_dir = os.path.join(project_dir, username)
-    return job_dir
+def _make_job_dir(project_dir, username):
+    return os.path.join(project_dir, username)
 
 
 def _list_objects_params(wsid, min_id, max_id):
@@ -197,10 +221,13 @@ def main():
     if source not in SOURCE:
         raise ValueError(f"Unexpected source. Currently supported sources: {SOURCE}")
 
+    uid = loader_helper.get_id()
+    username = loader_helper.get_username()
+
+    job_dir = job_dir or _make_job_dir(project_dir, username)
     output_dir = output_dir or _make_output_dir(
         root_dir, loader_common_names.SOURCE_DATA_DIR, source
     )
-    job_dir = job_dir or _make_job_dir(project_dir)
 
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(job_dir, exist_ok=True)
@@ -209,6 +236,9 @@ def main():
         threads = max(int(cpu_count() * min(SYSTEM_UTILIZATION, 1)), 1)
     threads = max(1, threads)
     print(f"Start downloading genome files from workspace with {threads} threads")
+
+    service = Service(uid, job_dir)
+    service.start()
 
     conf = Conf(job_dir, output_dir, threads)
 
@@ -234,6 +264,7 @@ def main():
     conf.pools.close()
     conf.pools.join()
     conf.cb.stop()
+    service.stop()
 
 
 if __name__ == "__main__":
