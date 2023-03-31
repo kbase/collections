@@ -36,6 +36,15 @@ optional arguments:
   --use_cached_image    Use an existing image without pulling
   --submit_job          Submit job to slurm
   --force               Force overwrite of existing job directory
+  
+Note: Based on our experiment with GTDB-Tk, we have determined that the optimal chunk size is 1000 genomes.
+With 4 batches running in parallel, each using 32 cores, it takes around 50 minutes to process a single chunk.
+To reflect this, we have set the "threads" and "program_threads" parameters in "_create_task_list" to 32, 
+indicating that each batch will use 32 cores. We have also set the execution time for GTDB-Tk to 65 minutes, 
+with some additional buffer time. To allow for a sufficient number of batches to be run within a given time limit, 
+we have set the "NODE_TIME_LIMIT" to 5 hours. With these settings, we expect to be able to process up to 16 batches, 
+or 16,000 genomes, per node within the 5-hour time limit. We plan to make these parameters configurable based on 
+the specific tool being used.
 '''
 
 TOOLS_AVAILABLE = ['gtdb_tk']  # TODO: fix checkm2 container bug
