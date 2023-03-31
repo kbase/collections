@@ -1,7 +1,7 @@
 import re
 from collections import defaultdict
 import subprocess
-
+from threading import Timer
 import jsonlines
 
 import src.common.storage.collection_and_field_names as names
@@ -92,7 +92,14 @@ def get_id():
 
 def start_podman():
     """Start podman service with unlimited session time"""
-    return subprocess.check_output("podman system service -t 0 &", shell=True)
+    
+    def exit():
+        print("Start Podman Service!!")
+    
+    t = Timer(2, exit)
+    t.start()
+    subprocess.check_output("podman system service -t 0 &", shell=True)
+    t.cancel()
 
 
 def stop_podman():
