@@ -26,7 +26,7 @@ optional arguments:
 
                         
 e.g.
-PYTHONPATH=. python src/loaders/workspace_downloader/workspace_downloader.py --workspace_id 39795 --project_dir /global/homes/s/sijiex/collection
+PYTHONPATH=. python src/loaders/workspace_downloader/workspace_downloader.py --workspace_id 39795 --project_dir /global/homes/s/sijiex/collections
 
 NOTE:
 NERSC file structure for WS:
@@ -120,7 +120,7 @@ def _make_job_dir(project_dir, username):
 
 
 def _list_objects_params(wsid, min_id, max_id):
-    """Helper function that creats params needed for list_object function"""
+    """Helper function that creats params needed for list_objects function"""
     params = {"ids": [wsid], "minObjectID": min_id, "maxObjectID": max_id}
     return params
 
@@ -166,7 +166,7 @@ def list_objects(wsid, conf, batch_size, filter_objects_name_by=None):
 
 def process_input(conf):
     """
-    Download .fa and .meta files from workspace and copy them to save under output_dir
+    Download .fa and .meta files from workspace and save a copy under output_dir
     """
     while True:
         upa, obj_info = conf.queue.get(block=True)
