@@ -3,9 +3,8 @@ import itertools
 import json
 import os
 import shutil
-import subprocess
 import time
-from multiprocessing import Pool, Queue, cpu_count
+from multiprocessing import Pool, Queue
 
 from JobRunner.Callback import Callback
 from utils.AssemblyUtilClient import AssemblyUtil
@@ -52,7 +51,7 @@ class Service:
 
 
 class Conf:
-    def __init__(self, job_dir, output_dir, workers=5):
+    def __init__(self, job_dir, output_dir, workers):
         self.cb = Callback()
         self.cb.start()
         time.sleep(2)
@@ -185,9 +184,10 @@ def main():
         "--source", type=str, default="WS", help="Source of data (default: WS)"
     )
     optional.add_argument(
-        "--threads",
+        "--workers",
         type=int,
-        help="Number of threads. (default: half of system cpu count)",
+        default=5,
+        help="Number of workers for multiprocessing",
     )
     optional.add_argument(
         "--overwrite", action="store_true", help="Overwrite existing files."
@@ -205,7 +205,7 @@ def main():
         output_dir,
         job_dir,
         source,
-        threads,
+        workers,
         overwrite,
         batch_size,
     ) = (
@@ -215,7 +215,7 @@ def main():
         args.output_dir,
         args.job_dir,
         args.source,
-        args.threads,
+        args.workers,
         args.overwrite,
         args.batch_size,
     )
@@ -234,15 +234,12 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(job_dir, exist_ok=True)
 
-    if not threads:
-        threads = max(int(cpu_count() * min(SYSTEM_UTILIZATION, 1)), 1)
-    threads = max(1, threads)
-    print(f"Start downloading genome files from workspace with {threads} threads")
+    print(f"Start downloading genome files from workspace with {workers} workers")
 
     service = Service(uid, job_dir)
     service.start()
 
-    conf = Conf(job_dir, output_dir, threads)
+    conf = Conf(job_dir, output_dir, workers)
 
     visited = set()
     for upa in os.listdir(output_dir):
@@ -260,7 +257,7 @@ def main():
             )
         conf.queue.put([upa, obj_info])
 
-    for i in range(threads + 1):
+    for i in range(workers + 1):
         conf.queue.put([None, None])
 
     conf.pools.close()
