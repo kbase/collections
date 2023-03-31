@@ -14,6 +14,11 @@ from utils.workspaceClient import Workspace
 from src.loaders.common import loader_common_names
 from src.loaders.common import loader_helper
 
+## Setup
+# Please start podman in shell prior to running the script and then hit return
+# podman system service -t 0 &
+
+
 # Fraction amount of system cores can be utilized
 # (i.e. 0.5 - program will use 50% of total processors,
 #       0.1 - program will use 10% of total processors)
@@ -30,9 +35,6 @@ class Service:
         self.job_dir = job_dir
 
     def start(self):
-        # Start the podman service
-        loader_helper.start_podman()
-
         # Set the DOCKER_HOST
         os.environ["DOCKER_HOST"] = loader_common_names.DOCKER_HOST.format(self.id)
 
