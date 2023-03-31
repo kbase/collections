@@ -44,7 +44,9 @@ indicating that each batch will use 32 cores. We have also set the execution tim
 with some additional buffer time. To allow for a sufficient number of batches to be run within a given time limit, 
 we have set the "NODE_TIME_LIMIT" to 5 hours. With these settings, we expect to be able to process up to 16 batches, 
 or 16,000 genomes, per node within the 5-hour time limit. We plan to make these parameters configurable based on 
-the specific tool being used.
+the specific tool being used. After conducting performance tests, we found that utilizing 32 cores per batch and 
+running 4 batches in parallel per NERSC node resulted in optimal performance, despite each node having a total of 
+256 cores.
 '''
 
 TOOLS_AVAILABLE = ['gtdb_tk']  # TODO: fix checkm2 container bug
