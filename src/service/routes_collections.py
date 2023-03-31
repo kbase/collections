@@ -4,7 +4,7 @@ Routes for general collections endpoints, as opposed to endpoint for a particula
 
 import jsonschema
 
-from fastapi import APIRouter, Request, Depends, Path, Query
+from fastapi import APIRouter, Request, Depends, Path, Query, Body
 from typing import Any
 from pydantic import BaseModel, Field
 from src.common.git_commit import GIT_COMMIT
@@ -103,10 +103,10 @@ _PATH_VER_NUM = Path(
     description=models.FIELD_VER_NUM_DESCRIPTION
 )
 
-_PATH_MATCH_ID = Path(description="The ID of the match")
+_PATH_MATCH_ID = Path(description="The ID of the match", min_length=1)
 
 
-_PATH_SELECTION_ID = Path(description="The ID of the selection")
+_PATH_SELECTION_ID = Path(description="The ID of the selection", min_length=1)
 
 
 _QUERY_MAX_VER = Query(
@@ -192,6 +192,29 @@ class SelectionTypes(BaseModel):
     )
 # For now assume there's just one list per collection, and not different lists per data product
 # or something like that.
+
+
+class SetSaveInformation(BaseModel):
+    """ Information to provide when saving a set. """
+    description: str | None = Field(
+        description="An arbitrary description of a set, no more than 800 bytes."
+    )
+
+class WorkspaceSet(BaseModel):
+    """ Information about a set in the KBase workspace service. """
+    upa: str = Field(
+        example="67/2/3",
+        description="The UPA of the set."
+    )
+    type: str = Field(
+        example="KBaseSets.AssemblySet",
+        description="The type of the set."
+    )
+
+
+class CreatedSet(BaseModel):
+    """ A set created by the selection service. """
+    set: WorkspaceSet = Field(description="The set created in the KBase workspace service")
 
 
 class CollectionVersions(BaseModel):
@@ -344,6 +367,46 @@ async def get_selection(
     types = await processing_selections.get_exportable_types(
         app_state.get_app_state(r), selection_id)
     return SelectionTypes(types=types)
+
+
+@ROUTER_SELECTIONS.post(
+    "/selections/{selection_id}/toset/{workspace_id}/obj/{object_name}/type/{ws_type}",
+    response_model=CreatedSet,
+    summary="Create a workspace set",
+    description="Create a set in the KBase workspace service from the selection."
+)
+async def create_sets(
+    r: Request,
+    setinfo: SetSaveInformation | None = Body(default=None),
+    selection_id: str = _PATH_SELECTION_ID,
+    workspace_id: int = Path(
+        example=7165,
+        description="The ID of the workspace where the set should be saved.",
+        ge=1,
+    ),
+    object_name: str = Path(
+        example="MySetObject",
+        description="The object name to use when saving the set object.",
+        # https://github.com/kbase/workspace_deluxe/blob/4c03b4364a2ccc292f60ccd629cbb5f71b25bfcc/src/us/kbase/workspace/database/ObjectIDNoWSNoVer.java
+        min_length=1,
+        max_length=255,
+        regex="^[\w\.\|_-]+$"
+    ),
+    ws_type: str = Path(
+        example="KBaseGenomeAnnotations.Assembly",
+        description="The workspace type of the data to export.",
+        min_length=1,
+        max_length=255,
+    ),
+    user: kb_auth.KBaseUser=Depends(_AUTH),
+) -> CreatedSet:
+    # TODO ERRORS assemblyset description is in autometadata, which means it can't be more than
+    #             ~850 bytes. What do?
+    desc = setinfo.description if setinfo else None
+    appstate = app_state.get_app_state(r)
+    upa, type_ = await processing_selections.save_set_to_workspace(
+        appstate, selection_id, user, workspace_id, object_name, ws_type, desc)
+    return CreatedSet(set=WorkspaceSet(upa=upa, type=type_))
 
 
 @ROUTER_COLLECTIONS_ADMIN.put(
