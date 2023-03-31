@@ -93,7 +93,7 @@ class GenomeAttribsSpec(DataProductSpec):
         upamap = defaultdict(list)
         def add_upas(doc: dict[str, Any]):
             count[0] += 1
-            types = doc.get(names.FLD_TYPE_MAP)
+            types = doc.get(names.FLD_UPA_MAP)
             if not types:
                 # maybe throw an error? Means the loader is messed up, unless there really is no
                 # external data. Maybe absent field signifies that?
@@ -107,7 +107,7 @@ class GenomeAttribsSpec(DataProductSpec):
             internal_selection_id,
             models.SubsetType.SELECTION,
             add_upas,
-            [names.FLD_TYPE_MAP])
+            [names.FLD_UPA_MAP])
         return dict(upamap), count[0]
 
 
@@ -152,7 +152,7 @@ _OPT_AUTH = KBaseHTTPBearer(optional=True)
 def _remove_keys(doc):
     doc = remove_collection_keys(remove_arango_keys(doc))
     doc.pop(names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS, None)
-    doc.pop(names.FLD_TYPE_MAP, None)
+    doc.pop(names.FLD_UPA_MAP, None)
     return doc
 
 
