@@ -14,6 +14,8 @@ from src.service import deletion
 from src.service import errors
 from src.service import models
 from src.service import processing
+from src.service import kb_auth
+from src.service.workspace_wrapper import WorkspaceWrapper, SetSpec
 
 
 MAX_SELECTION_IDS = 10000
@@ -206,6 +208,11 @@ async def get_exportable_types(appstate: CollectionsState, selection_id: str) ->
     appstate - the application state
     selection_id - the selection of interest
     """
+    return (await _get_types(appstate, selection_id))[3]
+
+
+async def _get_types(appstate: CollectionsState, selection_id: str
+) -> tuple[models.InternalSelection, models.SavedCollection, str, list[str]]:
     # We don't know the collection ID yet so we can't require a collection. Don't bother
     # with requiring complete either.
     sel = await get_selection_full(appstate, selection_id)
@@ -215,7 +222,51 @@ async def get_exportable_types(appstate: CollectionsState, selection_id: str) ->
     # sel.data_product is checked against the collection when creating the selection so it must
     # be present
     load_ver = {dp.product: dp.version for dp in coll.data_products}[sel.data_product]
-    return await storage.get_export_types(coll.id, sel.data_product, load_ver)
+    types = await storage.get_export_types(coll.id, sel.data_product, load_ver)
+    return sel, coll, load_ver, types
+
+
+async def save_set_to_workspace(
+    appstate: CollectionsState,
+    selection_id: str,
+    user: kb_auth.KBaseUser,
+    workspace_id: int,
+    object_name: str,
+    ws_type: str,
+    description: str = None
+) -> tuple[str, str]:
+    """
+    Save the contents of a selection to a workspace set.
+
+    appstate - the application state.
+    selection_id - the ID of the selection containing IDs of the data to save.
+    user - the user saving the data.
+    workspace_id - the ID of the workspace where the data will be saved.
+    object_name - the name of the object to save.
+    ws_type - the type of data to save.
+    description - the description to save with the set.
+
+    Returns the set upa and type.
+    """
+    sel, coll, _, types = await _get_types(appstate, selection_id)
+    # might want to check the collection is active here...?
+    if ws_type not in types:
+        raise errors.IllegalParameterError(
+            f"Unsupported type {ws_type} for selection {selection_id}")
+    # maybe should get DP from appstate so can be mocked
+    dp = data_product_specs.get_data_product_spec(sel.data_product)
+    upamap, count = await dp.get_upas_for_selection(  # don't do anything with count for now
+        appstate.arangostorage, coll, sel.internal_selection_id)
+    upas = upamap.get(ws_type)
+    if not upas:  # more specific error needed here?
+        raise errors.IllegalParameterError(f"No {ws_type} UPAs available for collection {coll.id} "
+            + f"v{coll.ver_num} selection {sel.selection_id}")
+    ww = WorkspaceWrapper(appstate.sdk_client, token=user.token)
+    setupas = await ww.save_sets(
+        workspace_id,
+        [SetSpec(name=object_name, upas=upas, description=description, upa_type=ws_type)]
+    )
+    return next(iter(setupas.items()))
 
 
 async def delete_selection(appstate: CollectionsState, selection_id: str, verbose: bool = False

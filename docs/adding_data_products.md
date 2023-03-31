@@ -45,20 +45,42 @@ the reader is familiar with
   collections and indexes your data product will use.
   * The class must implement the following methods with the given signatures
     ```python
-    async def delete_match(self, storage: ArangoStorage, internal_match_id: str) -> None:
+    async def delete_match(self, storage: ArangoStorage, internal_match_id: str):
     ```
     * When called, this method must delete any match data associated with the given internal
       match ID.
     ```python
-    async def delete_selection(self, storage: ArangoStorage, internal_selection_id: str) -> None:
+    async def delete_selection(self, storage: ArangoStorage, internal_selection_id: str):
     ```
     * When called, this method must delete any selection data associated with the given internal
       selection ID.
     ```python
-    async def apply_selection(self, storage: ArangoStorage, selection_id: str) -> None:
+    async def apply_selection(self, storage: ArangoStorage, selection_id: str):
     ```
     * When called, this method must apply the given selection to the data. See the `genome_attribs`
       data product for an example.
+    ```python
+        async def get_upas_for_selection(
+        self,
+        storage: ArangoStorage,
+        collection: models.SavedCollection,
+        internal_selection_id: str,
+    ) -> tuple[dict[str, list[str]], int]:
+        """
+        Get the workspace UPAs for data in this data product associated with a selection.
+
+        storage - the storage system containing the data.
+        collection - the collection containing the selection.
+        internal_selection_id - the internal selection ID to use to find selection documents.
+
+        Returns a tuple of
+            * A mapping of workspace type to the list of UPAs for that type in the selection
+            * The total number of data items processed. Under normal conditions this should
+              be equal to the number of UPAs for each type.
+        """
+    ```
+    * When called, this method iterates through all the selected data in the collection
+      and returns the UPAs mapped from types.
 * Create the endpoints / routes for your data product in the new module.
   * See the existing implementations for examples.
   * Routes must start with `/collection/{collection_id}/data_products/<data_product_id>/`

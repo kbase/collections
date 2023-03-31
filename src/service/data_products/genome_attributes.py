@@ -2,6 +2,8 @@
 The genome_attribs data product, which provides geneome attributes for a collection.
 """
 
+from collections import defaultdict
+
 from fastapi import APIRouter, Request, Depends, Query
 from pydantic import BaseModel, Field, Extra
 from src.common.gtdb_lineage import GTDBLineage, GTDBRank
@@ -69,6 +71,45 @@ class GenomeAttribsSpec(DataProductSpec):
         """
         await mark_selections(storage, selection_id)
 
+    async def get_upas_for_selection(
+        self,
+        storage: ArangoStorage,
+        collection: models.SavedCollection,
+        internal_selection_id: str,
+    ) -> tuple[dict[str, list[str]], int]:
+        """
+        Get the workspace UPAs for data in this data product associated with a selection.
+
+        storage - the storage system containing the data.
+        collection - the collection containing the selection.
+        internal_selection_id - the internal selection ID to use to find selection documents.
+
+        Returns a tuple of
+            * A mapping of workspace type to the list of UPAs for that type in the selection
+            * The total number of data items processed. Under normal conditions this should
+              be equal to the number of UPAs for each type.
+        """
+        count = [0]
+        upamap = defaultdict(list)
+        def add_upas(doc: dict[str, Any]):
+            count[0] += 1
+            types = doc.get(names.FLD_TYPE_MAP)
+            if not types:
+                # maybe throw an error? Means the loader is messed up, unless there really is no
+                # external data. Maybe absent field signifies that?
+                return
+            for type_, upa in types.items():
+                upamap[type_].append(upa)
+
+        await process_subset_documents(
+            storage,
+            collection,
+            internal_selection_id,
+            models.SubsetType.SELECTION,
+            add_upas,
+            [names.FLD_TYPE_MAP])
+        return dict(upamap), count[0]
+
 
 GENOME_ATTRIBS_SPEC = GenomeAttribsSpec(
     data_product=ID,
@@ -111,6 +152,7 @@ _OPT_AUTH = KBaseHTTPBearer(optional=True)
 def _remove_keys(doc):
     doc = remove_collection_keys(remove_arango_keys(doc))
     doc.pop(names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS, None)
+    doc.pop(names.FLD_TYPE_MAP, None)
     return doc
 
 
@@ -571,10 +613,9 @@ async def process_subset_documents(
     Iterate through the documents for a subset, passing them to an acceptor fuction for processing.
 
     storage - the storage system containing the data.
-    collection_id - the ID of the collection the subset is against.
-    load_version - the load version of the data in the subset.
+    collection - the collection containing the subset.
     internal_id - the internal subset ID to use to find subset documents.
-    type - the type of the subset.
+    type_ - the type of the subset.
     acceptor - the function that will accept the documents.
     fields - which fields are required from the database documents. Fewer fields means less
         bandwidth consumed.
