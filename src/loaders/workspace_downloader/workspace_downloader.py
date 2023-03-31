@@ -42,19 +42,13 @@ def _make_output_dir(root_dir, source_data_dir, source):
     # make working directory for a specific collection under root directory
 
     if source == "WS":
-        work_dir = os.path.join(root_dir, source_data_dir, source)
-    else:
-        raise ValueError(f"Unexpected source: {source}")
-
-    os.makedirs(work_dir, exist_ok=True)
-
-    return work_dir
+        return os.path.join(root_dir, source_data_dir, source)
+    raise ValueError(f"Unexpected source: {source}")
 
 
 def _make_job_dir(project_dir):
     username = subprocess.check_output("id -un", shell=True).decode().strip()
     job_dir = os.path.join(project_dir, username)
-    os.makedirs(job_dir, exist_ok=True)
     return job_dir
 
 
@@ -207,6 +201,9 @@ def main():
         root_dir, loader_common_names.SOURCE_DATA_DIR, source
     )
     job_dir = job_dir or _make_job_dir(project_dir)
+
+    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(job_dir, exist_ok=True)
 
     if not threads:
         threads = max(int(cpu_count() * min(SYSTEM_UTILIZATION, 1)), 1)
