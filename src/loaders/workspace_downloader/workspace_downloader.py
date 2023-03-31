@@ -53,6 +53,7 @@ def _make_output_dir(root_dir, source_data_dir, source):
 def _make_job_dir(project_dir):
     username = subprocess.check_output("id -un", shell=True).decode().strip()
     job_dir = os.path.join(project_dir, username)
+    os.makedirs(job_dir, exist_ok=True)
     return job_dir
 
 
@@ -106,7 +107,7 @@ def process_input(conf):
             print("Stopping")
             break
         cfn = os.path.join(conf.job_dir, "workdir/tmp", upa)
-        conf.asu.get_assembly_as_fasta({"ref": upa, "filename": upa})
+        conf.asu.get_assembly_as_fasta({"ref": upa.replace("_", "/"), "filename": upa})
 
         dstd = os.path.join(conf.pth, upa)
         os.makedirs(dstd, exist_ok=True)
@@ -220,7 +221,7 @@ def main():
     for obj_info in list_objects(
         workspace_id, conf, batch_size, FILTER_OBJECTS_NAME_BY
     ):
-        upa = "{6}/{0}/{4}".format(*obj_info)
+        upa = "{6}_{0}_{4}".format(*obj_info)
         if upa in visited and not overwrite:
             raise ValueError(
                 "{} is already in {}. Please add --overwrite flag to redownload".format(
