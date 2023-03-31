@@ -1,5 +1,6 @@
 import re
 from collections import defaultdict
+import subprocess
 
 import jsonlines
 
@@ -77,3 +78,30 @@ def init_genome_atrri_doc(kbase_collection, load_version, genome_id):
     }
 
     return doc
+
+
+def get_username():
+    """Get login username"""
+    return subprocess.check_output("id -un", shell=True).decode().strip()
+
+
+def get_id():
+    """Get login id"""
+    return subprocess.check_output("id -u", shell=True).decode().strip()
+
+
+def start_podman():
+    """Start podman service with unlimited session time"""
+    return subprocess.check_output("podman system service -t 0 &", shell=True)
+
+
+def stop_podman():
+    """Stop podman service"""
+    return subprocess.check_output("killall podman", shell=True)
+
+
+def store_token(path=None):
+    """Set token path"""
+    path = path or "~/.kbase_ci" or "~/.kbase_prod"
+    command = "cat {}".format(path)
+    return subprocess.check_output(command, shell=True).decode().strip()

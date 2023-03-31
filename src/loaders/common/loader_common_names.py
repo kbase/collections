@@ -28,3 +28,8 @@ COLLECTION_DATA_DIR = 'collectionsdata'  # subdirectory for collected data (e.g.
 # metadata file generated in the tool result folder with tool generated genome identifier,
 # original genome id and source genome file info
 GENOME_METADATA_FILE = 'genome_metadata.tsv'
+
+
+DOCKER_HOST="unix:/run/user/{}/podman/podman.sock"
+
+KB_BASE_URL="https://ci.kbase.us/services/"
