@@ -103,7 +103,7 @@ class Conf:
 
 
 def _make_output_dir(root_dir, source_data_dir, source):
-    # make working directory for a specific collection under root directory
+    """Helper function that makes working directory for a specific collection under root directory"""
 
     if source == "WS":
         return os.path.join(root_dir, source_data_dir, source)
@@ -111,16 +111,19 @@ def _make_output_dir(root_dir, source_data_dir, source):
 
 
 def _make_job_dir(project_dir, username):
+    """Helper function that create a job dir if not provided by the user"""
     return os.path.join(project_dir, username)
 
 
 def _list_objects_params(wsid, min_id, max_id):
+    """Helper function that creats params needed for list_object function"""
     params = {"ids": [wsid], "minObjectID": min_id, "maxObjectID": max_id}
     return params
 
 
 def _process_object_info(obj_info):
     """
+    "upa", "name", "type", and "timestamp info will be extracted from object info and save as a dict"
     {
         "upa": "790541/67/2",
         "name": <copy object name from object info>
@@ -158,6 +161,9 @@ def list_objects(wsid, conf, batch_size, filter_objects_name_by=None):
 
 
 def process_input(conf):
+    """
+    Download .fa and .meta files from workspace and copy them to save under output_dir
+    """
     while True:
         upa, obj_info = conf.queue.get(block=True)
         if not upa:
