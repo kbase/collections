@@ -48,15 +48,14 @@ import time
 from multiprocessing import Pool, Queue
 
 from JobRunner.Callback import Callback
+
 from src.clients.AssemblyUtilClient import AssemblyUtil
 from src.clients.workspaceClient import Workspace
-
-from src.loaders.common import loader_common_names
-from src.loaders.common import loader_helper
+from src.loaders.common import loader_common_names, loader_helper
 
 ## Setup
 
-# install callback module (only once)
+# install callback module (only the first time)
 # pip install git+https://github.com/kbase/JobRunner@callback_module
 
 # start podman service and then hit enter
