@@ -36,15 +36,29 @@ optional arguments:
   --use_cached_image    Use an existing image without pulling
   --submit_job          Submit job to slurm
   --force               Force overwrite of existing job directory
+  
+Note: Based on our experiment with GTDB-Tk, we have determined that the optimal chunk size is 1000 genomes.
+With 4 batches running in parallel, each using 32 cores, it takes around 50 minutes to process a single chunk.
+To reflect this, we have set the "threads" and "program_threads" parameters in "_create_task_list" to 32, 
+indicating that each batch will use 32 cores. We have also set the execution time for GTDB-Tk to 65 minutes, 
+with some additional buffer time. To allow for a sufficient number of batches to be run within a given time limit, 
+we have set the "NODE_TIME_LIMIT" to 5 hours. With these settings, we expect to be able to process up to 16 batches, 
+or 16,000 genomes, per node within the 5-hour time limit. We plan to make these parameters configurable based on 
+the specific tool being used. After conducting performance tests, we found that utilizing 32 cores per batch and 
+running 4 batches in parallel per NERSC node resulted in optimal performance, despite each node having a total of 
+256 cores.
 '''
 
 TOOLS_AVAILABLE = ['gtdb_tk']  # TODO: fix checkm2 container bug
 
 # estimated execution time (in minutes) for each tool to process a chunk of data
 TASK_META = {'checkm2': {'chunk_size': 5000, 'exe_time': 60},
-             'gtdb_tk': {'chunk_size': 1000, 'exe_time': 90}}
-NODE_TIME_LIMIT = 10  # hours
+             'gtdb_tk': {'chunk_size': 1000, 'exe_time': 65}}
+NODE_TIME_LIMIT = 5  # hours  # TODO: automatically calculate this based on tool execution time and NODE_THREADS
 MAX_NODE_NUM = 100  # maximum number of nodes to use
+# The THREADS variable controls the number of parallel tasks per node
+# TODO: make this configurable based on tool used. At present, we have set the value to 4 for optimal performance with GTDB-Tk.
+NODE_THREADS = 4
 
 REGISTRY = 'tiangu01'  # public Docker Hub registry to pull images from
 
@@ -81,6 +95,14 @@ def _pull_image(image_str, job_dir):
             raise ValueError(f"Error pulling Shifter image {image_str}.\n"
                              f"Standard output: {sp_std_out}\n"
                              f"Standard error: {std_err.read()}")
+
+
+def _write_to_file(file_path, content):
+    """
+    Writes the specified content to the specified file. File is overwritten if it already exists.
+    """
+    with open(file_path, 'w') as file:
+        file.write(content)
 
 
 def _fetch_image(registry, image_name, job_dir, tag='latest', force_pull=True):
@@ -137,8 +159,7 @@ cd {job_dir}
 shifter --image=$image $command'''
 
     wrapper_file = os.path.join(job_dir, tf_common.WRAPPER_FILE)
-    with open(wrapper_file, "w") as f:
-        f.write(shifter_wrapper)
+    _write_to_file(wrapper_file, shifter_wrapper)
 
     os.chmod(wrapper_file, 0o777)
 
@@ -149,16 +170,25 @@ def _create_genome_id_file(genome_ids, genome_id_file):
     """
     Create a tab-separated values (TSV) file with a list of genome IDs.
     """
-    with open(genome_id_file, 'w') as f:
-        f.write("genome_id\n")
-        for genome_id in genome_ids:
-            f.write(f"{genome_id}\n")
+
+    content = "genome_id\n" + "\n".join(genome_ids)
+    _write_to_file(genome_id_file, content)
 
 
 def _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper_file, job_dir, root_dir,
-                      threads=256, program_threads=256, source_file_ext='genomic.fna.gz'):
+                      threads=32, program_threads=32, source_file_ext='genomic.fna.gz'):
     """
     Create task list file (tasks.txt)
+
+    threads: the total number of threads to use per node
+    program_threads: number of threads to use per task
+    For instance, if "threads" is set to 128 and "program_threads" to 32, then each task will run 4 batches in parallel.
+
+    We have chosen to use "taskfarmer" for parallelization, which means that "threads" and "program_threads" should
+    have the same value. This ensures that parallelization only happens between tasks, and not within them.
+
+    TODO: make threads/program_threads configurable based on tool used. However, for the time being, we have set
+    these parameters to 32 and , since this value has produced the highest throughput in our experiments.
     """
     genome_ids = [path for path in os.listdir(source_data_dir) if
                   os.path.isdir(os.path.join(source_data_dir, path))]
@@ -189,8 +219,7 @@ def _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper
         task_list += f'''--entrypoint\n'''
 
     task_list_file = os.path.join(job_dir, tf_common.TASK_FILE)
-    with open(task_list_file, "w") as f:
-        f.write(task_list)
+    _write_to_file(task_list_file, task_list)
 
     return task_list_file, len(genome_ids_chunks)
 
@@ -229,13 +258,12 @@ def _create_batch_script(job_dir, task_list_file, n_jobs, tool):
 module load taskfarmer
 
 cd {job_dir}
-export THREADS=32
+export THREADS={NODE_THREADS}
 
 runcommands.sh {task_list_file}'''
 
     batch_script_file = os.path.join(job_dir, tf_common.BATCH_SCRIPT)
-    with open(batch_script_file, "w") as f:
-        f.write(batch_script)
+    _write_to_file(batch_script_file, batch_script)
 
     return batch_script_file
 
@@ -291,7 +319,11 @@ def main():
     source_data_dir = args.source_data_dir
     root_dir = args.root_dir
 
-    task_mgr = TFTaskManager(kbase_collection, load_ver, tool, source_data_dir, root_dir=root_dir)
+    try:
+        task_mgr = TFTaskManager(kbase_collection, load_ver, tool, source_data_dir, args.force, root_dir=root_dir)
+    except PreconditionError as e:
+        raise ValueError(f'Error submitting job:\n{e}\n'
+                         f'Please use the --force flag to overwrite the previous run.') from e
 
     job_dir = task_mgr.job_dir
     _create_job_dir(job_dir, destroy_old_job_dir=args.force)
@@ -305,7 +337,7 @@ def main():
 
     if args.submit_job:
         try:
-            task_mgr.submit_job(restart_on_demand=args.force)
+            task_mgr.submit_job()
         except PreconditionError as e:
             raise ValueError(f'Error submitting job:\n{e}\n'
                              f'Please use the --force flag to overwrite the previous run.') from e

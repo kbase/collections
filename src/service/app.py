@@ -27,7 +27,7 @@ from src.service.routes_collections import (
     ROUTER_MATCHES,
     ROUTER_SELECTIONS,
     ROUTER_COLLECTIONS_ADMIN,
-    ROUTER_MATCH_ADMIN,
+    ROUTER_DANGER,
     SERVICE_NAME
 )
 from src.service.timestamp import timestamp
@@ -80,7 +80,7 @@ def create_app(noop=False):
                      key=lambda dp: str(dp.router.tags[0])):
         app.include_router(dp.router, prefix="/collections/{collection_id}/data_products")
     app.include_router(ROUTER_COLLECTIONS_ADMIN)
-    app.include_router(ROUTER_MATCH_ADMIN)
+    app.include_router(ROUTER_DANGER)
 
     async def build_app_wrapper():
         await app_state.build_app(

@@ -6,10 +6,10 @@ import aioarango
 
 from src.service._app_state_build_storage import build_storage
 from src.service.config import CollectionsServiceConfig
-from src.service.clients.workspace_client import Workspace
 from src.service.data_products.common_models import DBCollection
 from src.service.kb_auth import KBaseAuth
 from src.service.matchers.common_models import Matcher
+from src.service.sdk_async_client import SDKAsyncClient
 from src.service.storage_arango import ArangoStorage
 from src.service.timestamp import now_epoch_millis
 
@@ -26,6 +26,7 @@ class PickleableDependencies:
         data_products: dict[str, list[DBCollection]]
     ):
         self._cfg = cfg
+        # TODO CODE do we need to pickle this anymore? Just get from the registry
         self._dps = data_products
     
     async def get_storage(self) -> tuple[aioarango.ArangoClient, ArangoStorage]:
@@ -35,14 +36,6 @@ class PickleableDependencies:
         """
         return await build_storage(self._cfg, self._dps)
 
-    async def get_workspace(self, token):
-        """
-        Get the workspace client.
-
-        token - the user's token.
-        """
-        return Workspace(cfg.workspace_url, token=token)
-    
     def get_epoch_ms(self) -> int:
         """
         Get the Unix epoch time in milliseconds.
@@ -61,11 +54,13 @@ class CollectionsState:
 
     auth - a KBaseAuth client.
     arangostorage - an ArangoStorage wrapper.
+    sdk_client - a client for communicating with KBase SDK services.
     """
 
     def __init__(
         self,
         auth: KBaseAuth,
+        sdk_client: SDKAsyncClient,
         arangoclient: aioarango.ArangoClient,
         arangostorage: ArangoStorage,
         data_products: dict[str, list[DBCollection]],
@@ -78,6 +73,7 @@ class CollectionsState:
         """
         self.auth = auth
         self._client = arangoclient
+        self.sdk_client = sdk_client
         self.arangostorage = arangostorage
         self._data_products = data_products
         self._matchers = {m.id: m for m in matchers}
@@ -88,14 +84,7 @@ class CollectionsState:
         Destroy any resources held by this class. After this the class should be discarded.
         """
         await self._client.close()
-
-    def get_workspace_client(self, token) -> Workspace:
-        """
-        Get a client for the KBase Workspace.
-
-        token - the user's token.
-        """
-        return Workspace(self._cfg.workspace_url, token=token)
+        await self.sdk_client.close()
 
     def get_pickleable_dependencies(self) -> PickleableDependencies:
         """

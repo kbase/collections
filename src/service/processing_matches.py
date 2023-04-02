@@ -42,11 +42,11 @@ async def create_match(
 ) -> models.Match:
     coll = await appstate.arangostorage.get_collection_active(collection_id)
     matcher_info = _get_matcher_from_collection(coll, matcher_id)
-    ws = appstate.get_workspace_client(user.token)
+    ww = WorkspaceWrapper(appstate.sdk_client, token=user.token)
     matcher = appstate.get_matcher(matcher_info.matcher)
     match_process, upas, wsids = await _create_match_process(
         matcher,
-        WorkspaceWrapper(ws),
+        ww,
         upas,
         match_params,
         matcher_info.parameters,
@@ -176,7 +176,7 @@ async def _get_match(
     require_collection: models.SavedCollection,
 ):
     storage = deps.arangostorage
-    ww = WorkspaceWrapper(deps.get_workspace_client(user.token))
+    ww = WorkspaceWrapper(deps.sdk_client, user.token)
     # could save bandwidth if we added option to not return upas and match IDs if not verbose
     match = await storage.get_match_full(match_id)
     last_perm_check = match.user_last_perm_check.get(user.user.id)
@@ -188,7 +188,7 @@ async def _get_match(
         # if the objects in a match being deleted after the fact is a problem.
         # For now just do it the fast way.
         # TODO MATCHERS document the above
-        ww.check_workspace_permissions(set(match.wsids))  # do this before checking match state
+        await ww.check_workspace_permissions(set(match.wsids))  # do before checking match state
         await _check_match_state(match, require_complete, require_collection, deps, ww)
         await storage.update_match_permissions_check(match_id, user.user.id, now)
     else:
@@ -280,7 +280,7 @@ async def _create_match_process(
                 f"Failed to validate user parameters for matcher {matcher.id}: {e}")
     if len(upas) > MAX_UPAS:
         raise errors.IllegalParameterError(f"No more than {MAX_UPAS} UPAs are allowed per match")
-    meta = ww.get_object_metadata(
+    meta = await ww.get_object_metadata(
         upas,
         allowed_types=matcher.types,
         allowed_set_types=matcher.set_types
