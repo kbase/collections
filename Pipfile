@@ -18,7 +18,7 @@ ftputil = "==5.0.4"
 beautifulsoup4 = "==4.11.2"
 jsonschema = "==4.17.3"
 apscheduler = "==3.10.0"
-file-read-backwards = "==2.0.0"
+file-read-backwards = "==3.0.0"
 aiodns = "==3.0.0"
 
 [dev-packages]
