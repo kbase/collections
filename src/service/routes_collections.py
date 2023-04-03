@@ -390,7 +390,7 @@ async def create_sets(
         # https://github.com/kbase/workspace_deluxe/blob/4c03b4364a2ccc292f60ccd629cbb5f71b25bfcc/src/us/kbase/workspace/database/ObjectIDNoWSNoVer.java
         min_length=1,
         max_length=255,
-        regex="^[\w\.\|_-]+$"
+        regex=r"^[\w\.\|_-]+$"
     ),
     ws_type: str = Path(
         example="KBaseGenomeAnnotations.Assembly",
