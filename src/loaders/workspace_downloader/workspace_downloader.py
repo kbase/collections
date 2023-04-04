@@ -169,10 +169,11 @@ def process_input(conf):
     Download .fa and .meta files from workspace and save a copy under output_dir
     """
     while True:
-        upa, obj_info = conf.queue.get(block=True)
-        if not upa:
+        task = conf.queue.get(block=True)
+        if not task:
             print("Stopping")
             break
+        upa, obj_info = task
         cfn = os.path.join(conf.job_dir, "workdir/tmp", upa)
         # upa file is downloaded to cfn
         conf.asu.get_assembly_as_fasta({"ref": upa.replace("_", "/"), "filename": upa})
@@ -187,7 +188,8 @@ def process_input(conf):
 
         metafile = os.path.join(dstd, f"{upa}.meta")
         # save meta file with relevant object_info
-        json.dump(_process_object_info(obj_info), open(metafile, "w"), indent=2)
+        with open(metafile, "w", encoding="utf8") as json_file:
+            json.dump(_process_object_info(obj_info), json_file, indent=2)
 
         print("Completed %s" % (upa))
 
@@ -306,7 +308,7 @@ def main():
         conf.queue.put([upa, obj_info])
 
     for i in range(workers + 1):
-        conf.queue.put([None, None])
+        conf.queue.put(None)
 
     conf.pools.close()
     conf.pools.join()
