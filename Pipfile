@@ -4,8 +4,8 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-fastapi = "==0.92.0"
-uvicorn = {version = "==0.20.0", extras = ["standard"]}
+fastapi = "==0.95.0"
+uvicorn = {version = "==0.21.1", extras = ["standard"]}
 jsonlines = "==3.1.0"
 cacheout = "==0.14.1"
 aiohttp = "==3.8.4"
@@ -15,19 +15,19 @@ jinja-cli = "==1.2.2"
 pandas = "==1.5.3"
 aioarango = "==1.0.0"
 ftputil = "==5.0.4"
-beautifulsoup4 = "==4.11.2"
+beautifulsoup4 = "==4.12.0"
 jsonschema = "==4.17.3"
-apscheduler = "==3.10.0"
-file-read-backwards = "==2.0.0"
+apscheduler = "==3.10.1"
+file-read-backwards = "==3.0.0"
 aiodns = "==3.0.0"
 
 [dev-packages]
-pytest = "==7.2.1"
+pytest = "==7.2.2"
 python-dateutil = "==2.8.2"
-coverage = "==7.2.1"
+coverage = "==7.2.2"
 pytest-cov = "==4.0.0"
-ipython = "==8.11.0"
-pytest-asyncio = "==0.20.3"
+ipython = "==8.12.0"
+pytest-asyncio = "==0.21.0"
 
 [requires]
 python_version = "3.11"

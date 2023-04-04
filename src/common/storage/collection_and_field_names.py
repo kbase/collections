@@ -121,3 +121,10 @@ FLD_GENOME_ATTRIBS_MATCHED = "__match__"
 # Used for marking selections when returning data to the user and they select selection marking vs.
 # filtering on a selectin.
 FLD_GENOME_ATTRIBS_SELECTED = "__sel__"
+
+### microTrait
+
+_MICROTRAIT_PREFIX = "microtrait_"
+
+# Stores data about the microtrait columns in the heatmap
+COLL_MICROTRAIT_COLUMNS = COLLECTION_PREFIX + _MICROTRAIT_PREFIX  + "columns"

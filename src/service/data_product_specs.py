@@ -19,6 +19,7 @@ from src.service.data_products.common_models import DataProductSpec
 _SPECS = {
     "src.service.data_products.taxa_count": "TAXA_COUNT_SPEC",
     "src.service.data_products.genome_attributes": "GENOME_ATTRIBS_SPEC",
+    "src.service.data_products.microtrait": "MICROTRAIT_SPEC",
 }
 
 _IMPORT_CACHE = {}  # load at app startup to prevent import loops

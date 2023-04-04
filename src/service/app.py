@@ -77,7 +77,7 @@ def create_app(noop=False):
     app.include_router(ROUTER_MATCHES)
     app.include_router(ROUTER_SELECTIONS)
     for dp in sorted(data_product_specs.get_data_products(),
-                     key=lambda dp: str(dp.router.tags[0])):
+                     key=lambda dp: str(dp.router.tags[0]).lower()):
         app.include_router(dp.router, prefix="/collections/{collection_id}/data_products")
     app.include_router(ROUTER_COLLECTIONS_ADMIN)
     app.include_router(ROUTER_DANGER)
