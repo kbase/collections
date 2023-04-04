@@ -4,7 +4,7 @@ Routes for general collections endpoints, as opposed to endpoint for a particula
 
 import jsonschema
 
-from fastapi import APIRouter, Request, Depends, Path, Query
+from fastapi import APIRouter, Request, Depends, Path, Query, Body
 from typing import Any
 from pydantic import BaseModel, Field
 from src.common.git_commit import GIT_COMMIT
@@ -17,13 +17,11 @@ from src.service import kb_auth
 from src.service import models
 from src.service import processing_matches
 from src.service import processing_selections
-from src.service.clients.workspace_client import Workspace
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.matchers.common_models import Matcher
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID, err_on_control_chars
 from src.service.storage_arango import ArangoStorage
 from src.service.timestamp import timestamp
-from src.service.workspace_wrapper import WorkspaceWrapper
 
 # TODO CODE it's about time to start splitting this file up
 
@@ -34,7 +32,7 @@ ROUTER_COLLECTIONS = APIRouter(tags=["Collections"])
 ROUTER_MATCHES = APIRouter(tags=["Matches"])
 ROUTER_SELECTIONS = APIRouter(tags=["Selections"])
 ROUTER_COLLECTIONS_ADMIN = APIRouter(tags=["Collection Administration"])
-ROUTER_MATCH_ADMIN = APIRouter(tags=["Here be Dragons"], prefix="/matchadmin")
+ROUTER_DANGER = APIRouter(tags=["Here be Dragons"])
 
 _AUTH = KBaseHTTPBearer()
 
@@ -105,7 +103,11 @@ _PATH_VER_NUM = Path(
     description=models.FIELD_VER_NUM_DESCRIPTION
 )
 
-_PATH_MATCH_ID = Path(description="The ID of the match")
+_PATH_MATCH_ID = Path(description="The ID of the match", min_length=1)
+
+
+_PATH_SELECTION_ID = Path(description="The ID of the selection", min_length=1)
+
 
 _QUERY_MAX_VER = Query(
     default=None,
@@ -175,11 +177,44 @@ class MatchParameters(BaseModel):
 
 
 class SelectionInput(BaseModel):
-    """A selection of data in a collection. """
+    """ A selection of data in a collection. """
     selection_ids: list[str] = Field(
         example=models.FIELD_SELECTION_EXAMPLE,
         description=models.FIELD_SELECTION_IDS_DESCRIPTION
     )
+
+
+class SelectionTypes(BaseModel):
+    """ The set of types available for export to a workspace in a collection. """
+    types: list[str] = Field(
+        example=["KBaseGenomes.Genome", "KBaseGenomeAnnotations.Assembly"],
+        description="The types of data available for export for this selection."
+    )
+# For now assume there's just one list per collection, and not different lists per data product
+# or something like that.
+
+
+class SetSaveInformation(BaseModel):
+    """ Information to provide when saving a set. """
+    description: str | None = Field(
+        description="An arbitrary description of a set, no more than 800 bytes."
+    )
+
+class WorkspaceSet(BaseModel):
+    """ Information about a set in the KBase workspace service. """
+    upa: str = Field(
+        example="67/2/3",
+        description="The UPA of the set."
+    )
+    type: str = Field(
+        example="KBaseSets.AssemblySet",
+        description="The type of the set."
+    )
+
+
+class CreatedSet(BaseModel):
+    """ A set created by the selection service. """
+    set: WorkspaceSet = Field(description="The set created in the KBase workspace service")
 
 
 class CollectionVersions(BaseModel):
@@ -311,12 +346,67 @@ async def get_match(
 )
 async def get_selection(
     r: Request,
-    selection_id: str = Path(description="The ID of the selection"),
+    selection_id: str = _PATH_SELECTION_ID,
     verbose: bool = _QUERY_SELECTION_VERBOSE,
 ) -> models.SelectionVerbose:
     return await processing_selections.get_selection(
         app_state.get_app_state(r), selection_id, verbose=verbose
     )
+
+
+@ROUTER_SELECTIONS.get(
+    "/selections/{selection_id}/types",
+    response_model=SelectionTypes,
+    summary="Get exportable types for a selection",
+    description="Get the types that are available for export to a workspace for this selection."
+)
+async def get_selection(
+    r: Request,
+    selection_id: str = _PATH_SELECTION_ID,
+) -> SelectionTypes:
+    types = await processing_selections.get_exportable_types(
+        app_state.get_app_state(r), selection_id)
+    return SelectionTypes(types=types)
+
+
+@ROUTER_SELECTIONS.post(
+    "/selections/{selection_id}/toset/{workspace_id}/obj/{object_name}/type/{ws_type}",
+    response_model=CreatedSet,
+    summary="Create a workspace set",
+    description="Create a set in the KBase workspace service from the selection."
+)
+async def create_sets(
+    r: Request,
+    setinfo: SetSaveInformation | None = Body(default=None),
+    selection_id: str = _PATH_SELECTION_ID,
+    workspace_id: int = Path(
+        example=7165,
+        description="The ID of the workspace where the set should be saved.",
+        ge=1,
+    ),
+    object_name: str = Path(
+        example="MySetObject",
+        description="The object name to use when saving the set object.",
+        # https://github.com/kbase/workspace_deluxe/blob/4c03b4364a2ccc292f60ccd629cbb5f71b25bfcc/src/us/kbase/workspace/database/ObjectIDNoWSNoVer.java
+        min_length=1,
+        max_length=255,
+        regex=r"^[\w\.\|_-]+$"
+    ),
+    ws_type: str = Path(
+        example="KBaseGenomeAnnotations.Assembly",
+        description="The workspace type of the data to export.",
+        min_length=1,
+        max_length=255,
+    ),
+    user: kb_auth.KBaseUser=Depends(_AUTH),
+) -> CreatedSet:
+    # TODO ERRORS assemblyset description is in autometadata, which means it can't be more than
+    #             ~850 bytes. What do?
+    desc = setinfo.description if setinfo else None
+    appstate = app_state.get_app_state(r)
+    upa, type_ = await processing_selections.save_set_to_workspace(
+        appstate, selection_id, user, workspace_id, object_name, ws_type, desc)
+    return CreatedSet(set=WorkspaceSet(upa=upa, type=type_))
 
 
 @ROUTER_COLLECTIONS_ADMIN.put(
@@ -455,12 +545,12 @@ async def get_collection_versions(
     return CollectionVersions(counter=counter, data=versions)
 
 
-# TODO ROUTES add a admin route to get a match without updating its timestamps etc.
+# TODO ROUTES add a admin route to get matches without updating timestamps etc.
 #             for now just use the ArangoDB UI or API.
 
 
-@ROUTER_MATCH_ADMIN.delete(
-    "/{match_id}/",
+@ROUTER_DANGER.delete(
+    "/matchadmin/{match_id}/",
     response_model=models.MatchVerbose,
     summary="!!! Danger !!! Delete a match",
     description="Delete a match, regardless of state. **BE SURE YOU KNOW WHAT YOU'RE DOING**. "
@@ -478,3 +568,24 @@ async def delete_match(
     _ensure_admin(user, "Only collections service admins can delete matches")
     appstate = app_state.get_app_state(r)
     return await processing_matches.delete_match(appstate, match_id, verbose)
+
+
+@ROUTER_DANGER.delete(
+    "/selectionadmin/{selection_id}/",
+    response_model=models.SelectionVerbose,
+    summary="!!! Danger !!! Delete a selection",
+    description="Delete a selection, regardless of state. **BE SURE YOU KNOW WHAT YOU'RE DOING**. "
+        + "Deleting a selection when selection processes are running can leave the database in an "
+        + "inconsistent state and cause user errors or corrupted results. Even if processes are "
+        + "not running, a recent request by a user can result in an error or corrupted results "
+        + "if a selection deletion occurs at the same time.",
+)
+async def delete_selection(
+    r: Request,
+    selection_id: str = _PATH_SELECTION_ID,
+    verbose: bool = _QUERY_SELECTION_VERBOSE,
+    user: kb_auth.KBaseUser = Depends(_AUTH),
+) -> models.SelectionVerbose:
+    _ensure_admin(user, "Only collections service admins can delete selections")
+    appstate = app_state.get_app_state(r)
+    return await processing_selections.delete_selection(appstate, selection_id, verbose)

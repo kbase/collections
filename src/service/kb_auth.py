@@ -10,7 +10,7 @@ from cacheout.lru import LRUCache
 from enum import IntEnum
 import logging
 import time
-from typing import List, Sequence, NamedTuple
+from typing import List, Sequence, NamedTuple, Self
 
 from src.service.arg_checkers import not_falsy as _not_falsy
 from src.service.user import UserID
@@ -66,7 +66,7 @@ class KBaseAuth:
         full_admin_roles: List[str] = None,
         cache_max_size: int=10000,
         cache_expiration: int=300
-    ):
+    ) -> Self:
         '''
         Create the client.
         :param auth_url: The root url of the authentication service.
