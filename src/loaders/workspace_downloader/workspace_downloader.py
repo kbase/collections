@@ -233,9 +233,6 @@ def main():
         help="Job directoy of source link",
     )
     optional.add_argument(
-        "--source", type=str, default="WS", help="Source of data (default: WS)"
-    )
-    optional.add_argument(
         "--workers",
         type=int,
         default=5,
@@ -256,7 +253,6 @@ def main():
         root_dir,
         output_dir,
         job_dir,
-        source,
         workers,
         overwrite,
         batch_size,
@@ -266,21 +262,17 @@ def main():
         args.root_dir,
         args.output_dir,
         args.job_dir,
-        args.source,
         args.workers,
         args.overwrite,
         args.batch_size,
     )
-
-    if source not in SOURCE:
-        raise ValueError(f"Unexpected source. Currently supported sources: {SOURCE}")
 
     uid = loader_helper.get_id()
     username = loader_helper.get_username()
 
     job_dir = job_dir or _make_job_dir(project_dir, username)
     output_dir = output_dir or _make_output_dir(
-        root_dir, loader_common_names.SOURCE_DATA_DIR, source
+        root_dir, loader_common_names.SOURCE_DATA_DIR, SOURCE
     )
 
     os.makedirs(output_dir, exist_ok=True)
