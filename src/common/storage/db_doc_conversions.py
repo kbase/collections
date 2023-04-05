@@ -57,3 +57,11 @@ def data_product_export_types_to_doc(
         names.FLD_TYPES: types,
     }
 
+
+def collection_load_version_key(collection_id: str, load_ver: str):
+    f"""
+    Calculate a database key based on a collection ID and load version. Useful for data for
+    which there's only once active instance for a particular collection, like taxa count
+    ranks or heatmap column information.
+    """
+    return md5_string(f"{collection_id}_{load_ver}")

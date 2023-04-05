@@ -20,6 +20,7 @@ from src.service import processing_selections
 from src.service.data_products.common_functions import (
     get_load_version,
     get_load_ver_from_collection,
+    get_collection_singleton_from_db,
 )
 from src.service.data_products.common_models import (
     DataProductSpec,
@@ -89,13 +90,6 @@ TAXA_COUNT_SPEC = TaxaCountSpec(
 )
 
 _OPT_AUTH = KBaseHTTPBearer(optional=True)
-
-
-def ranks_key(collection_id: str, load_ver: str):
-    f"""
-    Calculate the ranks database key for the {ID} data product.
-    """
-    return md5_string(f"{collection_id}_{load_ver}")
 
 
 # modifies in place
@@ -191,26 +185,8 @@ async def get_ranks_from_db(
     load_ver: str,
     load_ver_overridden: bool,
 ):
-    aql = f"""
-        FOR d IN @@{_FLD_COL_ID}
-            FILTER d.{names.FLD_ARANGO_KEY} == @{_FLD_KEY}
-            RETURN d
-    """
-    bind_vars = {
-        f"@{_FLD_COL_ID}": names.COLL_TAXA_COUNT_RANKS,
-        _FLD_KEY: ranks_key(collection_id, load_ver)
-    }
-    cur = await store.aql().execute(aql, bind_vars=bind_vars, count=True)
-    try:
-        if cur.count() < 1:
-            err = f"No data loaded for {collection_id} collection load version {load_ver}"
-            if load_ver_overridden:
-                raise errors.NoDataFoundError(err)
-            raise ValueError(err)
-        # since we're getting a doc by _key > 1 is impossible
-        doc = await cur.next()
-    finally:
-        await cur.close(ignore_missing=True)
+    doc = await get_collection_singleton_from_db(
+        store, names.COLL_TAXA_COUNT_RANKS, collection_id, load_ver, load_ver_overridden)
     return Ranks(data=doc[names.FLD_TAXA_COUNT_RANKS])
 
 
