@@ -60,29 +60,6 @@ WS_DOMAIN = "https://ci.kbase.us/services/ws"  # workspace link
 FILTER_OBJECTS_NAME_BY = (
     "KBaseGenomeAnnotations.Assembly"  # filtering applied to list objects
 )
-TOKEN_PATH = "~/.kbase_ci"  # token path
-
-
-class Service:
-    def __init__(self, uid, job_dir):
-        self.id = uid
-        self.job_dir = job_dir
-
-    def start(self):
-        # Set the DOCKER_HOST
-        os.environ["DOCKER_HOST"] = loader_common_names.DOCKER_HOST.format(self.id)
-
-        # Provide your token path or default token path ~/.kbase_ci or ~/.kbase_prod will be used
-        os.environ["KB_AUTH_TOKEN"] = loader_helper.store_token(TOKEN_PATH)
-
-        # Set the base url if not using prod
-        os.environ["KB_BASE_URL"] = loader_common_names.KB_BASE_URL
-
-        # Set the JOB_DIR
-        os.environ["JOB_DIR"] = self.job_dir
-
-    # def stop(self):
-    #     loader_helper.stop_podman()
 
 
 class Conf:
@@ -247,6 +224,12 @@ def main():
     optional.add_argument(
         "--overwrite", action="store_true", help="Overwrite existing files."
     )
+    optional.add_argument(
+        "--token_filename",
+        type=str,
+        default="kbase_prod",
+        help="filename in home directory that stores token",
+    )
 
     args = parser.parse_args()
 
@@ -258,6 +241,7 @@ def main():
         job_dir,
         workers,
         overwrite,
+        token_filename,
     ) = (
         args.workspace_id,
         args.project_dir,
@@ -266,23 +250,34 @@ def main():
         args.job_dir,
         args.workers,
         args.overwrite,
+        args.token_filename,
     )
 
     proc = _start_podman_service()
 
-    uid = loader_helper.get_id()
-    username = loader_helper.get_username()
+    uid = os.getuid()
+    username = os.getlogin()
 
     job_dir = job_dir or _make_job_dir(project_dir, username)
     output_dir = output_dir or _make_output_dir(
         root_dir, loader_common_names.SOURCE_DATA_DIR, SOURCE
     )
 
+    os.environ["DOCKER_HOST"] = loader_common_names.DOCKER_HOST.format(uid)
+
+    # Provide your token path or default token path ~/.kbase_ci or ~/.kbase_prod will be used
+    os.environ["KB_AUTH_TOKEN"] = os.environ.get(
+        "KB_AUTH_TOKEN"
+    ) or loader_helper.get_token(token_filename)
+
+    # Set the base url if not using prod
+    os.environ["KB_BASE_URL"] = loader_common_names.KB_BASE_URL
+
+    # Set the JOB_DIR
+    os.environ["JOB_DIR"] = job_dir
+
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(job_dir, exist_ok=True)
-
-    service = Service(uid, job_dir)
-    service.start()
 
     conf = Conf(job_dir, output_dir, workers)
     visited = set(os.listdir(output_dir))
