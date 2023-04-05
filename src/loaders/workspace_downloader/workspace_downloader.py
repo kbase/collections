@@ -77,6 +77,25 @@ class Conf:
         self.pools = Pool(workers, process_input, [self])
 
 
+def positive_number(value):
+    """Checks if input is positive number and returns value as an int type."""
+    if not isinstance(value, (str, int)):
+        raise argparse.ArgumentTypeError(
+            f"Input must be an integer or string type, you have specified '{value}' which is of type {type(value)}"
+        )
+
+    try:
+        int_val = int(value)
+    except ValueError:
+        raise ValueError(f"Unable to convert {value} to int")
+
+    if int_val <= 0:
+        raise argparse.ArgumentTypeError(
+            f"Input: {value} converted to int: {int_val} must be a positive number"
+        )
+    return int_val
+
+
 def _start_podman_service():
     """Helper function that will start podman if not already running"""
     try:
@@ -217,7 +236,7 @@ def main():
     )
     optional.add_argument(
         "--workers",
-        type=int,
+        type=positive_number,
         default=5,
         help="Number of workers for multiprocessing",
     )
@@ -265,10 +284,9 @@ def main():
 
     os.environ["DOCKER_HOST"] = loader_common_names.DOCKER_HOST.format(uid)
 
-    # Provide your token path or default token path ~/.kbase_ci or ~/.kbase_prod will be used
-    os.environ["KB_AUTH_TOKEN"] = os.environ.get(
-        "KB_AUTH_TOKEN"
-    ) or loader_helper.get_token(token_filename)
+    # token will be read through filename if KB_AUTH_TOKEN env is not predefined
+    if not os.environ.get("KB_AUTH_TOKEN"):
+        os.environ["KB_AUTH_TOKEN"] = loader_helper.get_token(token_filename)
 
     # Set the base url if not using prod
     os.environ["KB_BASE_URL"] = loader_common_names.KB_BASE_URL
