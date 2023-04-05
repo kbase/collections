@@ -282,10 +282,7 @@ def main():
     service.start()
 
     conf = Conf(job_dir, output_dir, workers)
-
-    visited = set()
-    for upa in os.listdir(output_dir):
-        visited.add(upa)
+    visited = set(os.listdir(output_dir))
 
     for obj_info in list_objects(
         workspace_id, conf, batch_size, FILTER_OBJECTS_NAME_BY
