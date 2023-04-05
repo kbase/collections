@@ -45,3 +45,11 @@ class Columns(BaseModel):
     categories: list[ColumnCategory] = Field(
         description="The categories in the heat map, provided in render order."
     )
+    min_value: float = Field(
+        example=2.56,
+        description="The minimum value of the heat map data in the entire data set."
+    )
+    max_value: float = Field(
+        example=42.0,
+        description="The maximum value of the heat map data in the entire data set."
+    )

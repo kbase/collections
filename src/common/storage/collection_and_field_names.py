@@ -122,9 +122,16 @@ FLD_GENOME_ATTRIBS_MATCHED = "__match__"
 # filtering on a selectin.
 FLD_GENOME_ATTRIBS_SELECTED = "__sel__"
 
+### Heatmap general fields for heat map data products (e.g. microTrait)
+
+FLD_HEATMAP_COLUMN_CATEGORIES = "categories"
+# the categories field for the column data document. The structure of the document is defined
+# in /src/service/data_products/heatmap_common_models.py
+# Maybe that should live in /src/common and we should use it in the loaders...?
+
 ### microTrait
 
-_MICROTRAIT_PREFIX = "microtrait_"
+_MICROTRAIT_COLL_PREFIX = COLLECTION_PREFIX + "microtrait_"
 
 # Stores data about the microtrait columns in the heatmap
-COLL_MICROTRAIT_COLUMNS = COLLECTION_PREFIX + _MICROTRAIT_PREFIX  + "columns"
+COLL_MICROTRAIT_COLUMNS = _MICROTRAIT_COLL_PREFIX  + "columns"

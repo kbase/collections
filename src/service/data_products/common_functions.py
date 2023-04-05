@@ -3,11 +3,13 @@ Functions common to all data products
 """
 
 import src.common.storage.collection_and_field_names as names
+from src.common.storage.db_doc_conversions import collection_load_version_key
 from src.service import errors
 from src.service import models
 from src.service import kb_auth
 from src.service.storage_arango import ArangoStorage
 
+from typing import Any
 
 
 async def get_load_version(
@@ -58,3 +60,44 @@ def remove_collection_keys(doc: dict):
     for k in [names.FLD_COLLECTION_ID, names.FLD_LOAD_VERSION]:
         doc.pop(k, None)
     return doc
+
+
+async def get_collection_singleton_from_db(
+    store: ArangoStorage,
+    collection: str,
+    collection_id: str,
+    load_ver: str,
+    no_data_error: bool,
+) -> dict[str, Any]:
+    """
+    Get a document from the database where it is expected that only one instance of that document
+    exists per collection load version.
+    
+    store - the storage system.
+    collection - the arango collection containing the document.
+    collection_id - the KBase collection containing the document.
+    load_ver - the load version of the collection.
+    no_data_error - raise a NoDataFoundError (indicating a caller error) instead of a ValueError
+        (indicating a problem with the database) if the document isn't found.
+
+    """
+    aql = f"""
+        FOR d IN @@coll
+            FILTER d.{names.FLD_ARANGO_KEY} == @key
+            RETURN d
+    """
+    bind_vars = {
+        "@coll": collection,
+        "key": collection_load_version_key(collection_id, load_ver),
+    }
+    cur = await store.aql().execute(aql, bind_vars=bind_vars, count=True)
+    try:
+        if cur.count() < 1:
+            err = f"No data loaded for {collection_id} collection load version {load_ver}"
+            if no_data_error:
+                raise errors.NoDataFoundError(err)
+            raise ValueError(err)
+        # since we're getting a doc by _key > 1 is impossible
+        return await cur.next()
+    finally:
+        await cur.close(ignore_missing=True)
