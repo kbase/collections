@@ -44,6 +44,7 @@ import itertools
 import json
 import os
 import shutil
+from subprocess import CalledProcessError, Popen, check_output
 import time
 from multiprocessing import Pool, Queue
 
@@ -53,13 +54,6 @@ from src.clients.AssemblyUtilClient import AssemblyUtil
 from src.clients.workspaceClient import Workspace
 from src.loaders.common import loader_common_names, loader_helper
 
-## Setup
-
-# install callback module (only the first time)
-# pip install git+https://github.com/kbase/JobRunner@callback_module
-
-# start podman service and then hit enter
-# podman system service -t 0 &
 
 SOURCE = "WS"  # supported source of data
 WS_DOMAIN = "https://ci.kbase.us/services/ws"  # workspace link
@@ -87,8 +81,8 @@ class Service:
         # Set the JOB_DIR
         os.environ["JOB_DIR"] = self.job_dir
 
-    def stop(self):
-        loader_helper.stop_podman()
+    # def stop(self):
+    #     loader_helper.stop_podman()
 
 
 class Conf:
@@ -104,6 +98,16 @@ class Conf:
         self.pth = output_dir
         self.job_dir = job_dir
         self.pools = Pool(workers, process_input, [self])
+
+
+def _start_podman_service():
+    """Helper function that will start podman if not already running"""
+    try:
+        check_output(["pidof", "podman"])
+    except CalledProcessError:
+        print("No running podmans servies are detected. Start one now!")
+        proc = Popen(["podman", "system", "service", "-t", "0"])
+        return proc
 
 
 def _make_output_dir(root_dir, source_data_dir, source):
@@ -264,6 +268,8 @@ def main():
         args.overwrite,
     )
 
+    proc = _start_podman_service()
+
     uid = loader_helper.get_id()
     username = loader_helper.get_username()
 
@@ -299,8 +305,8 @@ def main():
     conf.pools.close()
     conf.pools.join()
     conf.cb.stop()
-    # uncomment code below if needs to shut down podman service after every single run
-    # service.stop()
+    if proc:
+        proc.terminate()
 
 
 if __name__ == "__main__":
