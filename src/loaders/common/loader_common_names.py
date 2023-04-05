@@ -29,7 +29,9 @@ COLLECTION_DATA_DIR = 'collectionsdata'  # subdirectory for collected data (e.g.
 # original genome id and source genome file info
 GENOME_METADATA_FILE = 'genome_metadata.tsv'
 
-
+# subdirectory for all jobs per user
+JOB_DIR = "job_dir"
+# used by the podman service 
 DOCKER_HOST="unix:/run/user/{}/podman/podman.sock"
-
+# used by the callback server
 KB_BASE_URL="https://ci.kbase.us/services/"
