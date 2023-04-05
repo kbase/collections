@@ -241,21 +241,21 @@ def main():
         default="kbase_prod",
         help="filename in home directory that stores token",
     )
+    optional.add_argument(
+        "--delete_job_dir",
+        action="store_true",
+        help="delete job directory",
+    )
 
     args = parser.parse_args()
 
-    (
-        workspace_id,
-        root_dir,
-        workers,
-        overwrite,
-        token_filename,
-    ) = (
+    (workspace_id, root_dir, workers, overwrite, token_filename, delete_job_dir) = (
         args.workspace_id,
         args.root_dir,
         args.workers,
         args.overwrite,
         args.token_filename,
+        args.delete_job_dir,
     )
 
     proc = _start_podman_service()
@@ -299,8 +299,12 @@ def main():
     conf.pools.close()
     conf.pools.join()
     conf.cb.stop()
+
     if proc:
         proc.terminate()
+
+    if delete_job_dir:
+        shutil.rmtree(job_dir)
 
 
 if __name__ == "__main__":
