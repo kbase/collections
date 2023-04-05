@@ -70,7 +70,7 @@ async def get_collection_singleton_from_db(
     no_data_error: bool,
 ) -> dict[str, Any]:
     """
-    Get a document from the database where it is expected that only once instance of that document
+    Get a document from the database where it is expected that only one instance of that document
     exists per collection load version.
     
     store - the storage system.

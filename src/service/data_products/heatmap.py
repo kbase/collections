@@ -10,7 +10,8 @@ from src.service.data_products import heatmap_common_models as heatmap_models
 from src.service.data_products.common_functions import (
     get_load_version,
     get_load_ver_from_collection,
-    get_collection_singleton_from_db
+    get_collection_singleton_from_db,
+    remove_collection_keys,
 )
 from src.service.data_products.common_models import (
     DataProductSpec,
@@ -112,4 +113,4 @@ class HeatMapController:
             storage, collection_id, self._id, load_ver_override, user)
         doc = await get_collection_singleton_from_db(
             storage, self._colname_columns, collection_id, load_ver, bool(load_ver_override))
-        return heatmap_models.Columns(categories=doc[names.FLD_HEATMAP_COLUMN_CATEGORIES])
+        return heatmap_models.Columns.construct(**remove_collection_keys(doc))
