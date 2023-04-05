@@ -143,10 +143,12 @@ def _process_object_info(obj_info):
     return res_dict
 
 
-def list_objects(wsid, conf, batch_size, filter_objects_name_by=None):
+def list_objects(wsid, conf, batch_size=10000, filter_objects_name_by=None):
     """
     List all objects information given a workspace ID
     """
+    if batch_size > 10000:
+        raise ValueError("Maximum value for listing workspace objects is 10000")
 
     maxObjectID = conf.ws.get_workspace_info({"id": wsid})[4]
     batch_input = [
@@ -241,9 +243,6 @@ def main():
     optional.add_argument(
         "--overwrite", action="store_true", help="Overwrite existing files."
     )
-    optional.add_argument(
-        "--batch_size", type=int, default=10000, help="Batch size of object id"
-    )
 
     args = parser.parse_args()
 
@@ -255,7 +254,6 @@ def main():
         job_dir,
         workers,
         overwrite,
-        batch_size,
     ) = (
         args.workspace_id,
         args.project_dir,
@@ -264,7 +262,6 @@ def main():
         args.job_dir,
         args.workers,
         args.overwrite,
-        args.batch_size,
     )
 
     uid = loader_helper.get_id()
@@ -285,7 +282,7 @@ def main():
     visited = set(os.listdir(output_dir))
 
     for obj_info in list_objects(
-        workspace_id, conf, batch_size, FILTER_OBJECTS_NAME_BY
+        workspace_id, conf, filter_objects_name_by=FILTER_OBJECTS_NAME_BY
     ):
         upa = "{6}_{0}_{4}".format(*obj_info)
         if upa in visited and not overwrite:
