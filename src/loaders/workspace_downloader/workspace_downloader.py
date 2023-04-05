@@ -107,16 +107,23 @@ def _start_podman_service():
 
 
 def _make_output_dir(root_dir, source_data_dir, source):
-    """Helper function that makes working directory for a specific collection under root directory"""
+    """Helper function that makes output directory for a specific collection under root directory"""
 
     if source == "WS":
-        return os.path.join(root_dir, source_data_dir, source)
-    raise ValueError(f"Unexpected source: {source}")
+        output_dir = os.path.join(root_dir, source_data_dir, source)
+    else:
+        raise ValueError(f"Unexpected source: {source}")
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    return output_dir
 
 
-def _make_job_dir(project_dir, username):
-    """Helper function that create a job dir if not provided by the user"""
-    return os.path.join(project_dir, username)
+def _make_job_dir(root_dir, job_dir, username):
+    """Helper function that create a job_dir for a user under root directory"""
+    job_dir = os.path.join(root_dir, job_dir, username)
+    os.makedirs(job_dir, exist_ok=True)
+    return job_dir
 
 
 def _list_objects_params(wsid, min_id, max_id):
@@ -211,11 +218,6 @@ def main():
         type=int,
         help="Workspace addressed by the permanent ID",
     )
-    required.add_argument(
-        "--project_dir",
-        type=str,
-        help="Path points to Collections repository",
-    )
 
     # Optional argument
     optional.add_argument(
@@ -223,16 +225,6 @@ def main():
         type=str,
         default=loader_common_names.ROOT_DIR,
         help="Root directory.",
-    )
-    optional.add_argument(
-        "--output_dir",
-        type=str,
-        help="Output directoy to save genome objects.",
-    )
-    optional.add_argument(
-        "--job_dir",
-        type=str,
-        help="Job directoy of source link",
     )
     optional.add_argument(
         "--workers",
@@ -254,19 +246,13 @@ def main():
 
     (
         workspace_id,
-        project_dir,
         root_dir,
-        output_dir,
-        job_dir,
         workers,
         overwrite,
         token_filename,
     ) = (
         args.workspace_id,
-        args.project_dir,
         args.root_dir,
-        args.output_dir,
-        args.job_dir,
         args.workers,
         args.overwrite,
         args.token_filename,
@@ -277,10 +263,8 @@ def main():
     uid = os.getuid()
     username = os.getlogin()
 
-    job_dir = job_dir or _make_job_dir(project_dir, username)
-    output_dir = output_dir or _make_output_dir(
-        root_dir, loader_common_names.SOURCE_DATA_DIR, SOURCE
-    )
+    job_dir = _make_job_dir(root_dir, loader_common_names.JOB_DIR, username)
+    output_dir = _make_output_dir(root_dir, loader_common_names.SOURCE_DATA_DIR, SOURCE)
 
     os.environ["DOCKER_HOST"] = loader_common_names.DOCKER_HOST.format(uid)
 
@@ -293,9 +277,6 @@ def main():
 
     # Set the JOB_DIR
     os.environ["JOB_DIR"] = job_dir
-
-    os.makedirs(output_dir, exist_ok=True)
-    os.makedirs(job_dir, exist_ok=True)
 
     conf = Conf(job_dir, output_dir, workers)
     visited = set(os.listdir(output_dir))
