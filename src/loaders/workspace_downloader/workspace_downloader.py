@@ -291,6 +291,8 @@ def main():
         ]
     )
 
+    print("No need to download: ", visited)
+
     for obj_info in list_objects(
         workspace_id, conf, filter_objects_name_by=FILTER_OBJECTS_NAME_BY
     ):
