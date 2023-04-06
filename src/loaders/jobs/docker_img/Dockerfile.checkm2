@@ -1,0 +1,28 @@
+FROM continuumio/miniconda3:latest
+
+ENV CHECKM2_VER 1.0.0
+ENV CONDA_ENV checkm2-$CHECKM2_VER
+
+RUN conda config --add channels bioconda
+RUN conda config --add channels conda-forge
+
+# install CheckM2
+ENV PYTHON_VER 3.8
+RUN conda create -n $CONDA_ENV python=$PYTHON_VER checkm2
+
+RUN echo "source activate $CONDA_ENV" >> ~/.bashrc
+
+RUN mkdir -p /CheckM2_database
+RUN mkdir -p /app
+COPY ./ /app/collections
+
+ENV CHECKM2DB /CheckM2_database/uniref100.KO.1.dmnd
+ENV PYTHONPATH /app/collections
+
+WORKDIR /app
+
+ENV ENTRYPOINT_PATH /app/collections/src/loaders/jobs/docker_img/scripts/compute_genome_entrypoint.sh
+
+RUN chmod -R 777 /app/collections
+
+ENTRYPOINT $ENTRYPOINT_PATH
