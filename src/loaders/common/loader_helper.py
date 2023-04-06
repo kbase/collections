@@ -1,6 +1,6 @@
 import os
-import subprocess
 from collections import defaultdict
+from subprocess import CalledProcessError, Popen, check_output
 
 import jsonlines
 
@@ -95,3 +95,12 @@ def get_token(token_filename):
     except FileNotFoundError as e:
         print(e.errno)
     return token
+
+def start_podman_service():
+    """Helper function that will start podman if not already running"""
+    try:
+        check_output(["pidof", "podman"])
+    except CalledProcessError:
+        print("No running podmans servies are detected. Start one now!")
+        proc = Popen(["podman", "system", "service", "-t", "0"])
+        return proc

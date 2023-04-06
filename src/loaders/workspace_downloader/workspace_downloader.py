@@ -44,7 +44,6 @@ import itertools
 import json
 import os
 import shutil
-from subprocess import CalledProcessError, Popen, check_output
 import time
 from multiprocessing import Pool, Queue
 
@@ -54,11 +53,13 @@ from src.clients.AssemblyUtilClient import AssemblyUtil
 from src.clients.workspaceClient import Workspace
 from src.loaders.common import loader_common_names, loader_helper
 
-
 SOURCE = "WS"  # supported source of data
 FILTER_OBJECTS_NAME_BY = (
     "KBaseGenomeAnnotations.Assembly"  # filtering applied to list objects
 )
+
+# start podman service
+proc = loader_helper.start_podman_service()
 
 
 class Conf:
@@ -93,16 +94,6 @@ def positive_number(value):
             f"Input: {value} converted to int: {int_val} must be a positive number"
         )
     return int_val
-
-
-def _start_podman_service():
-    """Helper function that will start podman if not already running"""
-    try:
-        check_output(["pidof", "podman"])
-    except CalledProcessError:
-        print("No running podmans servies are detected. Start one now!")
-        proc = Popen(["podman", "system", "service", "-t", "0"])
-        return proc
 
 
 def _make_output_dir(root_dir, source_data_dir, source):
@@ -279,9 +270,6 @@ def main():
 
     job_dir = _make_job_dir(root_dir, loader_common_names.JOB_DIR, username)
     output_dir = _make_output_dir(root_dir, loader_common_names.SOURCE_DATA_DIR, SOURCE)
-
-    # start podman service
-    proc = _start_podman_service()
 
     # Used by the podman service
     os.environ["DOCKER_HOST"] = loader_common_names.DOCKER_HOST.format(uid)
