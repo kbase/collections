@@ -287,7 +287,13 @@ def main():
     os.environ["JOB_DIR"] = job_dir
 
     conf = Conf(job_dir, output_dir, workers, WS_DOMAIN)
-    visited = set(os.listdir(output_dir))
+    visited = set(
+        [
+            upa
+            for upa in os.listdir(output_dir)
+            if loader_helper.is_upaInfo_complete(output_dir, upa)
+        ]
+    )
 
     for obj_info in list_objects(
         workspace_id, conf, filter_objects_name_by=FILTER_OBJECTS_NAME_BY

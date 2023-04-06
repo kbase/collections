@@ -2,10 +2,13 @@ import os
 import subprocess
 from collections import defaultdict
 
+import json
 import jsonlines
+
 
 import src.common.storage.collection_and_field_names as names
 from src.common.hash import md5_string
+from src.loaders.common.loader_common_names import META_KEYS
 
 """
 This module contains helper functions used for loaders (e.g. compute_genome_attribs, gtdb_genome_attribs_loader, etc.)
@@ -86,7 +89,7 @@ def init_genome_atrri_doc(kbase_collection, load_version, genome_id):
 
 def get_token(token_filename):
     """
-    Get token if a filename is provided at home dir
+    Get token if a filename is provided at home dir.
     """
     try:
         home_dir = os.path.expanduser("~")
@@ -96,13 +99,35 @@ def get_token(token_filename):
         print(e.errno)
     return token
 
+
 def start_podman_service():
-    # """Helper function that will start podman if not already running"""
+    """
+    Start podman service. Used by workspace_downloader.py script.
+    """
     # try:
     #     check_output(["pidof", "podman"])
     # except CalledProcessError:
     #     print("No running podmans servies are detected. Start one now!")
 
-    #TODO find out the right way to check if a podman service is running
+    # TODO find out the right way to check if a podman service is running
     proc = subprocess.Popen(["podman", "system", "service", "-t", "0"])
     return proc
+
+
+def is_upaInfo_complete(output_dir, upa):
+    """
+    Check whether an UPA needs to be downloaded or not by loading the metadata file.
+    Make sure it has all the right keys.
+    """
+    fa_path = os.path.join(output_dir, upa + ".fa")
+    meta_path = os.path.join(output_dir, upa + ".meta")
+    if not os.path.exists(fa_path) or not os.path.exists(meta_path):
+        return False
+    try:
+        with open(meta_path, "r") as json_file:
+            data = json.load(json_file)
+    except OSError:
+        return False
+    if set(data.keys()) != set(META_KEYS):
+        return False
+    return True

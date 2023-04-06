@@ -35,3 +35,5 @@ JOB_DIR = "job_dir"
 DOCKER_HOST="unix:/run/user/{}/podman/podman.sock"
 # used by the callback server
 KB_BASE_URL="https://kbase.us/services/"
+# meta keys
+META_KEYS = ['upa', 'name', 'type', 'timestamp']
