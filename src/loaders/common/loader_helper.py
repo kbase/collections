@@ -119,8 +119,8 @@ def is_upaInfo_complete(output_dir, upa):
     Check whether an UPA needs to be downloaded or not by loading the metadata file.
     Make sure it has all the right keys.
     """
-    fa_path = os.path.join(output_dir, upa + ".fa")
-    meta_path = os.path.join(output_dir, upa + ".meta")
+    fa_path = os.path.join(output_dir, upa, upa + ".fa")
+    meta_path = os.path.join(output_dir, upa, upa + ".meta")
     if not os.path.exists(fa_path) or not os.path.exists(meta_path):
         return False
     try:
