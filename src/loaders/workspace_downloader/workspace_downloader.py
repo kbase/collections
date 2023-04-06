@@ -56,20 +56,19 @@ from src.loaders.common import loader_common_names, loader_helper
 
 
 SOURCE = "WS"  # supported source of data
-WS_DOMAIN = "https://ci.kbase.us/services/ws"  # workspace link
 FILTER_OBJECTS_NAME_BY = (
     "KBaseGenomeAnnotations.Assembly"  # filtering applied to list objects
 )
 
 
 class Conf:
-    def __init__(self, job_dir, output_dir, workers):
+    def __init__(self, job_dir, output_dir, workers, ws_domain):
         self.cb = Callback()
         self.cb.start()
         time.sleep(2)
         # os.environ['SDK_CALLBACK_URL'] = self.cb.callback_url
         token = os.environ["KB_AUTH_TOKEN"]
-        self.ws = Workspace(WS_DOMAIN, token=token)
+        self.ws = Workspace(ws_domain, token=token)
         self.asu = AssemblyUtil(self.cb.callback_url, token=token)
         self.queue = Queue()
         self.pth = output_dir
@@ -192,8 +191,8 @@ def process_input(conf):
         os.makedirs(dstd, exist_ok=True)
 
         dst = os.path.join(dstd, f"{upa}.fa")
-        # copy downloaded upa file to output_dir. Hard link might cause invalid cross-device link problem
-        shutil.copy(cfn, dst)
+        # Hard link .fa file from job_dir to output_dir in WS
+        os.link(cfn, dst)
 
         metafile = os.path.join(dstd, f"{upa}.meta")
         # save meta file with relevant object_info
@@ -239,46 +238,59 @@ def main():
         "--token_filename",
         type=str,
         default="kbase_prod",
-        help="filename in home directory that stores token",
+        help="Filename in home directory that stores token",
+    )
+    optional.add_argument(
+        "--ci",
+        action="store_true",
+        help="Use ci env. Default to prod",
     )
     optional.add_argument(
         "--delete_job_dir",
         action="store_true",
-        help="delete job directory",
+        help="Delete job directory",
     )
 
     args = parser.parse_args()
 
-    (workspace_id, root_dir, workers, overwrite, token_filename, delete_job_dir) = (
+    (workspace_id, root_dir, workers, overwrite, token_filename, ci, delete_job_dir) = (
         args.workspace_id,
         args.root_dir,
         args.workers,
         args.overwrite,
         args.token_filename,
+        args.ci,
         args.delete_job_dir,
     )
-
-    proc = _start_podman_service()
 
     uid = os.getuid()
     username = os.getlogin()
 
+    KB_BASE_URL = loader_common_names.KB_BASE_URL
+    if ci:
+        KB_BASE_URL = KB_BASE_URL[:8] + "ci." + KB_BASE_URL[8:]
+    WS_DOMAIN = os.path.join(KB_BASE_URL, "ws")  # workspace link
+
     job_dir = _make_job_dir(root_dir, loader_common_names.JOB_DIR, username)
     output_dir = _make_output_dir(root_dir, loader_common_names.SOURCE_DATA_DIR, SOURCE)
 
+    # start podman service
+    proc = _start_podman_service()
+
+    # Used by the podman service
     os.environ["DOCKER_HOST"] = loader_common_names.DOCKER_HOST.format(uid)
 
-    # token will be read through filename if KB_AUTH_TOKEN env is not predefined
+    # used by the callback server
     if not os.environ.get("KB_AUTH_TOKEN"):
         os.environ["KB_AUTH_TOKEN"] = loader_helper.get_token(token_filename)
 
-    # Set the base url if not using prod
-    os.environ["KB_BASE_URL"] = loader_common_names.KB_BASE_URL
+    # used by the callback server
+    os.environ["KB_BASE_URL"] = KB_BASE_URL
 
-    # Set the JOB_DIR
+    # used by the callback server
     os.environ["JOB_DIR"] = job_dir
 
-    conf = Conf(job_dir, output_dir, workers)
+    conf = Conf(job_dir, output_dir, workers, WS_DOMAIN)
     visited = set(os.listdir(output_dir))
 
     for obj_info in list_objects(

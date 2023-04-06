@@ -34,4 +34,4 @@ JOB_DIR = "job_dir"
 # used by the podman service 
 DOCKER_HOST="unix:/run/user/{}/podman/podman.sock"
 # used by the callback server
-KB_BASE_URL="https://ci.kbase.us/services/"
+KB_BASE_URL="https://kbase.us/services/"
