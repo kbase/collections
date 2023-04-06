@@ -58,9 +58,6 @@ FILTER_OBJECTS_NAME_BY = (
     "KBaseGenomeAnnotations.Assembly"  # filtering applied to list objects
 )
 
-# start podman service
-proc = loader_helper.start_podman_service()
-
 
 class Conf:
     def __init__(self, job_dir, output_dir, workers, ws_domain):
@@ -271,6 +268,9 @@ def main():
     job_dir = _make_job_dir(root_dir, loader_common_names.JOB_DIR, username)
     output_dir = _make_output_dir(root_dir, loader_common_names.SOURCE_DATA_DIR, SOURCE)
 
+    # start podman service
+    proc = loader_helper.start_podman_service()
+
     # Used by the podman service
     os.environ["DOCKER_HOST"] = loader_common_names.DOCKER_HOST.format(uid)
 
@@ -306,8 +306,8 @@ def main():
     conf.pools.join()
     conf.cb.stop()
 
-    if proc:
-        proc.terminate()
+    # stop podman service
+    proc.terminate()
 
     if delete_job_dir:
         shutil.rmtree(job_dir)
