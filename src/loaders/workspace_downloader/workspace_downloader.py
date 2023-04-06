@@ -97,7 +97,7 @@ def _make_output_dir(root_dir, source_data_dir, source, workspace_id):
     """Helper function that makes output directory for a specific collection under root directory"""
 
     if source == "WS":
-        output_dir = os.path.join(root_dir, source_data_dir, source, workspace_id)
+        output_dir = os.path.join(root_dir, source_data_dir, source, str(workspace_id))
     else:
         raise ValueError(f"Unexpected source: {source}")
 
