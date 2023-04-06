@@ -48,6 +48,9 @@ from src.clients.AssemblyUtilClient import AssemblyUtil
 from src.clients.workspaceClient import Workspace
 from src.loaders.common import loader_common_names, loader_helper
 
+# setup KB_AUTH_TOKEN as env or provide a token_filename in --token_filename
+# export KB_AUTH_TOKEN="your-kb-auth-token"
+
 # supported source of data
 SOURCE = "WS"
 # filtering applied to list objects
@@ -89,7 +92,7 @@ def positive_number(value):
 
 
 def _make_output_dir(root_dir, source_data_dir, source, workspace_id):
-    """Helper function that makes output directory for a specific collection under root directory"""
+    """Helper function that makes output directory for a specific collection under root directory."""
 
     if source == "WS":
         output_dir = os.path.join(root_dir, source_data_dir, source, str(workspace_id))
@@ -102,14 +105,14 @@ def _make_output_dir(root_dir, source_data_dir, source, workspace_id):
 
 
 def _make_job_dir(root_dir, job_dir, username):
-    """Helper function that create a job_dir for a user under root directory"""
+    """Helper function that create a job_dir for a user under root directory."""
     job_dir = os.path.join(root_dir, job_dir, username)
     os.makedirs(job_dir, exist_ok=True)
     return job_dir
 
 
 def _list_objects_params(wsid, min_id, max_id, type_str):
-    """Helper function that creats params needed for list_objects function"""
+    """Helper function that creats params needed for list_objects function."""
     params = {
         "ids": [wsid],
         "minObjectID": min_id,
@@ -121,7 +124,7 @@ def _list_objects_params(wsid, min_id, max_id, type_str):
 
 def _process_object_info(obj_info):
     """
-    "upa", "name", "type", and "timestamp info will be extracted from object info and save as a dict"
+    "upa", "name", "type", and "timestamp info will be extracted from object info and save as a dict."
     {
         "upa": "790541/67/2",
         "name": <copy object name from object info>
@@ -139,7 +142,7 @@ def _process_object_info(obj_info):
 
 def list_objects(wsid, conf, filter_objects_name_by, batch_size=10000):
     """
-    List all objects information given a workspace ID
+    List all objects information given a workspace ID.
     """
     if batch_size > 10000:
         raise ValueError("Maximum value for listing workspace objects is 10000")
@@ -155,16 +158,12 @@ def list_objects(wsid, conf, filter_objects_name_by, batch_size=10000):
         for min_id, max_id in batch_input
     ]
     res_objs = list(itertools.chain.from_iterable(objs))
-    # if filter_objects_name_by:
-    #     res_objs = [
-    #         obj for obj in res_objs if obj[2].startswith(filter_objects_name_by)
-    #     ]
     return res_objs
 
 
 def process_input(conf):
     """
-    Download .fa and .meta files from workspace and save a copy under output_dir
+    Download .fa and .meta files from workspace and save a copy under output_dir.
     """
     while True:
         task = conf.queue.get(block=True)
@@ -293,7 +292,7 @@ def main():
         ]
     )
 
-    print("No need to redownload: ", visited)
+    print("Skipping: ", visited)
 
     for obj_info in list_objects(workspace_id, conf, FILTER_OBJECTS_NAME_BY):
         upa = "{6}_{0}_{4}".format(*obj_info)
