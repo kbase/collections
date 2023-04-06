@@ -291,7 +291,7 @@ def main():
         ]
     )
 
-    print("No need to download: ", visited)
+    print("No need to redownload: ", visited)
 
     for obj_info in list_objects(
         workspace_id, conf, filter_objects_name_by=FILTER_OBJECTS_NAME_BY
@@ -299,6 +299,10 @@ def main():
         upa = "{6}_{0}_{4}".format(*obj_info)
         if upa in visited:
             continue
+        # remove legacy upa_dir to avoid FileExistsError in hard link
+        dirpath = os.path.join(output_dir, upa)
+        if os.path.exists(dirpath) and os.path.isdir(dirpath):
+            shutil.rmtree(dirpath)
         conf.queue.put([upa, obj_info])
 
     for i in range(workers + 1):
