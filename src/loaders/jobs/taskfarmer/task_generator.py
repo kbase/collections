@@ -49,7 +49,7 @@ running 4 batches in parallel per NERSC node resulted in optimal performance, de
 256 cores.
 '''
 
-TOOLS_AVAILABLE = ['gtdb_tk']  # TODO: fix checkm2 container bug
+TOOLS_AVAILABLE = ['gtdb_tk', 'checkm2']
 
 # estimated execution time (in minutes) for each tool to process a chunk of data
 TASK_META = {'checkm2': {'chunk_size': 5000, 'exe_time': 60},
