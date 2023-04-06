@@ -226,9 +226,6 @@ def main():
         help="Number of workers for multiprocessing",
     )
     optional.add_argument(
-        "--overwrite", action="store_true", help="Overwrite existing files."
-    )
-    optional.add_argument(
         "--token_filename",
         type=str,
         default="kbase_prod",
@@ -247,11 +244,10 @@ def main():
 
     args = parser.parse_args()
 
-    (workspace_id, root_dir, workers, overwrite, token_filename, ci, delete_job_dir) = (
+    (workspace_id, root_dir, workers, token_filename, ci, delete_job_dir) = (
         args.workspace_id,
         args.root_dir,
         args.workers,
-        args.overwrite,
         args.token_filename,
         args.ci,
         args.delete_job_dir,
@@ -299,12 +295,8 @@ def main():
         workspace_id, conf, filter_objects_name_by=FILTER_OBJECTS_NAME_BY
     ):
         upa = "{6}_{0}_{4}".format(*obj_info)
-        if upa in visited and not overwrite:
-            raise ValueError(
-                "{} is already in {}. Please add --overwrite flag to redownload".format(
-                    upa, output_dir
-                )
-            )
+        if upa in visited:
+            continue
         conf.queue.put([upa, obj_info])
 
     for i in range(workers + 1):
