@@ -48,10 +48,10 @@ from src.clients.AssemblyUtilClient import AssemblyUtil
 from src.clients.workspaceClient import Workspace
 from src.loaders.common import loader_common_names, loader_helper
 
-SOURCE = "WS"  # supported source of data
-FILTER_OBJECTS_NAME_BY = (
-    "KBaseGenomeAnnotations.Assembly"  # filtering applied to list objects
-)
+# supported source of data
+SOURCE = "WS"
+# filtering applied to list objects
+FILTER_OBJECTS_NAME_BY = "KBaseGenomeAnnotations.Assembly"
 
 
 class Conf:
@@ -108,9 +108,14 @@ def _make_job_dir(root_dir, job_dir, username):
     return job_dir
 
 
-def _list_objects_params(wsid, min_id, max_id):
+def _list_objects_params(wsid, min_id, max_id, type_str):
     """Helper function that creats params needed for list_objects function"""
-    params = {"ids": [wsid], "minObjectID": min_id, "maxObjectID": max_id}
+    params = {
+        "ids": [wsid],
+        "minObjectID": min_id,
+        "maxObjectID": max_id,
+        "type": type_str,
+    }
     return params
 
 
@@ -132,7 +137,7 @@ def _process_object_info(obj_info):
     return res_dict
 
 
-def list_objects(wsid, conf, batch_size=10000, filter_objects_name_by=None):
+def list_objects(wsid, conf, filter_objects_name_by, batch_size=10000):
     """
     List all objects information given a workspace ID
     """
@@ -144,14 +149,16 @@ def list_objects(wsid, conf, batch_size=10000, filter_objects_name_by=None):
         [idx + 1, idx + batch_size] for idx in range(0, maxObjectID, batch_size)
     ]
     objs = [
-        conf.ws.list_objects(_list_objects_params(wsid, min_id, max_id))
+        conf.ws.list_objects(
+            _list_objects_params(wsid, min_id, max_id, filter_objects_name_by)
+        )
         for min_id, max_id in batch_input
     ]
     res_objs = list(itertools.chain.from_iterable(objs))
-    if filter_objects_name_by:
-        res_objs = [
-            obj for obj in res_objs if obj[2].startswith(filter_objects_name_by)
-        ]
+    # if filter_objects_name_by:
+    #     res_objs = [
+    #         obj for obj in res_objs if obj[2].startswith(filter_objects_name_by)
+    #     ]
     return res_objs
 
 
@@ -288,9 +295,7 @@ def main():
 
     print("No need to redownload: ", visited)
 
-    for obj_info in list_objects(
-        workspace_id, conf, filter_objects_name_by=FILTER_OBJECTS_NAME_BY
-    ):
+    for obj_info in list_objects(workspace_id, conf, FILTER_OBJECTS_NAME_BY):
         upa = "{6}_{0}_{4}".format(*obj_info)
         if upa in visited:
             continue
