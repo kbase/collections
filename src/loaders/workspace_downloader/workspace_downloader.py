@@ -1,6 +1,6 @@
 """
-usage: workspace_downloader.py [-h] --workspace_id WORKSPACE_ID [--project_dir PROJECT_DIR] [--root_dir ROOT_DIR] [--output_dir OUTPUT_DIR]
-                               [--job_dir JOB_DIR] [--source SOURCE] [--workers WORKERS] [--overwrite] [--batch_size BATCH_SIZE]
+usage: workspace_downloader.py [-h] --workspace_id WORKSPACE_ID [--root_dir ROOT_DIR] [--workers WORKERS] [--token_filename TOKEN_FILENAME]
+                               [--ci] [--delete_job_dir]
 
 PROTOTYPE - Download genome files from the workspace service (WSS).
 
@@ -10,33 +10,28 @@ optional arguments:
 required named arguments:
   --workspace_id WORKSPACE_ID
                         Workspace addressed by the permanent ID
-  --project_dir PROJECT_DIR
-                        Path points to Collections repository
 
 optional arguments:
   --root_dir ROOT_DIR   Root directory.
-  --output_dir OUTPUT_DIR
-                        Output directoy to save genome objects.
-  --job_dir JOB_DIR     Job directoy of source link
-  --source SOURCE       Source of data (default: WS)
   --workers WORKERS     Number of workers for multiprocessing
-  --overwrite           Overwrite existing files.
-  --batch_size BATCH_SIZE
-                        Batch size of object id
+  --token_filename TOKEN_FILENAME
+                        Filename in home directory that stores token
+  --ci                  Use ci env. Default to prod
+  --delete_job_dir      Delete job directory
 
-                        
+            
 e.g.
-PYTHONPATH=. python src/loaders/workspace_downloader/workspace_downloader.py --workspace_id 39795 --project_dir /global/homes/s/sijiex/collections
+PYTHONPATH=. python src/loaders/workspace_downloader/workspace_downloader.py --workspace_id 39795 --ci
 
 NOTE:
 NERSC file structure for WS:
-/global/cfs/cdirs/kbase/collections/sourcedata/ -> WS -> UPA -> .fa && .meta files 
+/global/cfs/cdirs/kbase/collections/sourcedata/ -> WS -> workspace ID -> UPA -> .fa && .meta files 
 
 e.g.
-/global/cfs/cdirs/kbase/collections/sourcedata/WS -> 39795_10_1 -> 39795_10_1.fa 
-                                                                -> 39795_10_1.meta
-                                                     39795_22_1 -> 39795_22_1.fa 
-                                                                -> 39795_22_1.meta
+/global/cfs/cdirs/kbase/collections/sourcedata/WS -> 39795 -> 39795_10_1 -> 39795_10_1.fa 
+                                                                         -> 39795_10_1.meta
+                                                              39795_22_1 -> 39795_22_1.fa 
+                                                                         -> 39795_22_1.meta
                                                      
 """
 import argparse
