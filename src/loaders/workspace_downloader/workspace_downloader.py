@@ -93,11 +93,11 @@ def positive_number(value):
     return int_val
 
 
-def _make_output_dir(root_dir, source_data_dir, source):
+def _make_output_dir(root_dir, source_data_dir, source, workspace_id):
     """Helper function that makes output directory for a specific collection under root directory"""
 
     if source == "WS":
-        output_dir = os.path.join(root_dir, source_data_dir, source)
+        output_dir = os.path.join(root_dir, source_data_dir, source, workspace_id)
     else:
         raise ValueError(f"Unexpected source: {source}")
 
@@ -266,7 +266,9 @@ def main():
     WS_DOMAIN = os.path.join(KB_BASE_URL, "ws")  # workspace link
 
     job_dir = _make_job_dir(root_dir, loader_common_names.JOB_DIR, username)
-    output_dir = _make_output_dir(root_dir, loader_common_names.SOURCE_DATA_DIR, SOURCE)
+    output_dir = _make_output_dir(
+        root_dir, loader_common_names.SOURCE_DATA_DIR, SOURCE, workspace_id
+    )
 
     # start podman service
     proc = loader_helper.start_podman_service()
