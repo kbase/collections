@@ -53,3 +53,53 @@ class Columns(BaseModel):
         example=42.0,
         description="The maximum value of the heat map data in the entire data set."
     )
+
+
+class Cell(BaseModel):
+    """
+    Information about an indvidual cell in a heatmap.
+    """
+    celid: str = Field(
+        example="4",
+        description="The unique ID of the cell in the heatmap."
+    )
+    colid: str = Field(
+        example="8",
+        description="The ID of the column in which this cell is located."
+    )
+    val: float = Field(
+        example=4.2,
+        description="The value of the heatmap at this cell."
+    )
+
+
+class HeatMapRow(BaseModel):
+    """
+    A row of cells in a heatmap.
+    """
+    kbase_id: str = Field(
+        example="GB_GCA_000006155.2",
+        description="The unique ID of the subject of a heatmap row. Often a genome, MAG, etc."
+    )
+    cells: list[Cell] = Field(
+        description="The cells in the row of the heatmap in render order."
+    )
+
+
+class HeatMap(BaseModel):
+    """
+    A heatmap or a portion of a heatmap.
+    """
+    data: list[HeatMapRow] = Field(
+        description="The rows in the heatmap."
+    )
+    min_value: float | None = Field(
+        example=32.4,
+        description="The minimum cell value in the row in this heatmap "
+            + "or null if there are no rows."
+    )
+    max_value: float | None = Field(
+        example=71.8,
+        description="The maximum cell value in the row in this heatmap "
+            + "or null if there are no rows."
+    )
