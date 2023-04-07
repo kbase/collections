@@ -40,9 +40,10 @@ async def build_app(
     # pickling problems with the full spec, see
     # https://github.com/cloudpipe/cloudpickle/issues/408
     data_products = {dp.data_product: dp.db_collections for dp in data_products}
-    await _check_workspace_url(sdk_client)
-    cli, storage = await build_storage(cfg, data_products)
+    cli = None
     try:
+        cli, storage = await build_storage(cfg, data_products)
+        await _check_workspace_url(sdk_client, cfg.workspace_url)
         app.state._colstate = CollectionsState(
             auth, sdk_client, cli, storage, data_products, matchers, cfg
         )
@@ -54,7 +55,9 @@ async def build_app(
             )
         app.state._match_deletion.start()
     except Exception as e:
-        await cli.close()
+        if cli:
+            await cli.close()
+        await sdk_client.close()
         raise e
 
 
@@ -82,10 +85,10 @@ def _get_app_state_from_app(app: FastAPI) -> CollectionsState:
     return app.state._colstate
 
 
-async def _check_workspace_url(sdk_cli: SDKAsyncClient) -> str:
+async def _check_workspace_url(sdk_cli: SDKAsyncClient, ws_url: str) -> str:
     try:
         ver = await sdk_cli.call("Workspace.ver")
         # could check the version later if we add dependencies on newer versions
         print("Workspace version: " + ver)
     except Exception as e:
-        raise ValueError(f"Could not connect to workspace at {cfg.workspace_url}: {str(e)}") from e
+        raise ValueError(f"Could not connect to workspace at {ws_url}: {str(e)}") from e
