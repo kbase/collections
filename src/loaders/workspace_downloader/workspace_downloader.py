@@ -58,18 +58,35 @@ FILTER_OBJECTS_NAME_BY = "KBaseGenomeAnnotations.Assembly"
 
 
 class Conf:
-    def __init__(self, job_dir, output_dir, workers, ws_domain):
+    def __init__(self, job_dir, output_dir, workers, kb_base_url, token_filename):
+        self.setup_callback_server_envs(job_dir, kb_base_url, token_filename)
         self.cb = Callback()
         self.cb.start()
         time.sleep(2)
+
         # os.environ['SDK_CALLBACK_URL'] = self.cb.callback_url
         token = os.environ["KB_AUTH_TOKEN"]
-        self.ws = Workspace(ws_domain, token=token)
+        ws_url = os.path.join(kb_base_url, "ws")
+
+        self.ws = Workspace(ws_url, token=token)
         self.asu = AssemblyUtil(self.cb.callback_url, token=token)
         self.queue = Queue()
         self.pth = output_dir
         self.job_dir = job_dir
         self.pools = Pool(workers, process_input, [self])
+
+    def setup_callback_server_envs(self, job_dir, kb_base_url, token_filename):
+        # used by the callback server
+        if not os.environ.get("KB_AUTH_TOKEN"):
+            if not token_filename:
+                raise ValueError("Need to provide a token_filename")
+            os.environ["KB_AUTH_TOKEN"] = loader_helper.get_token(token_filename)
+
+        # used by the callback server
+        os.environ["KB_BASE_URL"] = kb_base_url
+
+        # used by the callback server
+        os.environ["JOB_DIR"] = job_dir
 
 
 def _make_output_dir(root_dir, source_data_dir, source, workspace_id):
@@ -202,6 +219,12 @@ def main():
         help="Root directory.",
     )
     optional.add_argument(
+        "--kb_base_url",
+        type=str,
+        default=loader_common_names.KB_BASE_URL,
+        help="KBase base URL, defaulting to prod",
+    )
+    optional.add_argument(
         "--workers",
         type=int,
         default=5,
@@ -210,13 +233,7 @@ def main():
     optional.add_argument(
         "--token_filename",
         type=str,
-        default="kbase_prod",
         help="Filename in home directory that stores token",
-    )
-    optional.add_argument(
-        "--ci",
-        action="store_true",
-        help="Use ci env. Default to prod",
     )
     optional.add_argument(
         "--delete_job_dir",
@@ -228,22 +245,17 @@ def main():
     if args.workers <= 0:
         parser.error("Minimum workers is 1")
 
-    (workspace_id, root_dir, workers, token_filename, ci, delete_job_dir) = (
+    (workspace_id, root_dir, kb_base_url, workers, token_filename, delete_job_dir) = (
         args.workspace_id,
         args.root_dir,
+        args.kb_base_url,
         args.workers,
         args.token_filename,
-        args.ci,
         args.delete_job_dir,
     )
 
     uid = os.getuid()
     username = os.getlogin()
-
-    KB_BASE_URL = loader_common_names.KB_BASE_URL
-    if ci:
-        KB_BASE_URL = KB_BASE_URL[:8] + "ci." + KB_BASE_URL[8:]
-    WS_DOMAIN = os.path.join(KB_BASE_URL, "ws")  # workspace link
 
     job_dir = _make_job_dir(root_dir, loader_common_names.JOB_DIR, username)
     output_dir = _make_output_dir(
@@ -253,17 +265,9 @@ def main():
     # start podman service
     proc = loader_helper.start_podman_service(uid)
 
-    # used by the callback server
-    if not os.environ.get("KB_AUTH_TOKEN"):
-        os.environ["KB_AUTH_TOKEN"] = loader_helper.get_token(token_filename)
+    # set up conf and start callback server
+    conf = Conf(job_dir, output_dir, workers, kb_base_url, token_filename)
 
-    # used by the callback server
-    os.environ["KB_BASE_URL"] = KB_BASE_URL
-
-    # used by the callback server
-    os.environ["JOB_DIR"] = job_dir
-
-    conf = Conf(job_dir, output_dir, workers, WS_DOMAIN)
     visited = set(
         [
             upa
@@ -271,7 +275,6 @@ def main():
             if loader_helper.is_upaInfo_complete(output_dir, upa)
         ]
     )
-
     print("Skipping: ", visited)
 
     for obj_info in list_objects(workspace_id, conf, FILTER_OBJECTS_NAME_BY):
