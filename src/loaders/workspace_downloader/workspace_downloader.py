@@ -72,25 +72,6 @@ class Conf:
         self.pools = Pool(workers, process_input, [self])
 
 
-def positive_number(value):
-    """Checks if input is positive number and returns value as an int type."""
-    if not isinstance(value, (str, int)):
-        raise argparse.ArgumentTypeError(
-            f"Input must be an integer or string type, you have specified '{value}' which is of type {type(value)}"
-        )
-
-    try:
-        int_val = int(value)
-    except ValueError:
-        raise ValueError(f"Unable to convert {value} to int")
-
-    if int_val <= 0:
-        raise argparse.ArgumentTypeError(
-            f"Input: {value} converted to int: {int_val} must be a positive number"
-        )
-    return int_val
-
-
 def _make_output_dir(root_dir, source_data_dir, source, workspace_id):
     """Helper function that makes output directory for a specific collection under root directory."""
 
@@ -222,9 +203,9 @@ def main():
     )
     optional.add_argument(
         "--workers",
-        type=positive_number,
+        type=int,
         default=5,
-        help="Number of workers for multiprocessing",
+        help="Number of workers for multiprocessing. Target workers >= 1",
     )
     optional.add_argument(
         "--token_filename",
@@ -244,6 +225,8 @@ def main():
     )
 
     args = parser.parse_args()
+    if args.workers <= 0:
+        parser.error("Minimum workers is 1")
 
     (workspace_id, root_dir, workers, token_filename, ci, delete_job_dir) = (
         args.workspace_id,
