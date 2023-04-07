@@ -8,7 +8,7 @@ import jsonlines
 
 import src.common.storage.collection_and_field_names as names
 from src.common.hash import md5_string
-from src.loaders.common.loader_common_names import META_KEYS
+from src.loaders.common.loader_common_names import DOCKER_HOST, META_KEYS
 
 """
 This module contains helper functions used for loaders (e.g. compute_genome_attribs, gtdb_genome_attribs_loader, etc.)
@@ -100,7 +100,7 @@ def get_token(token_filename):
     return token
 
 
-def start_podman_service():
+def start_podman_service(uid):
     """
     Start podman service. Used by workspace_downloader.py script.
     """
@@ -111,6 +111,7 @@ def start_podman_service():
 
     # TODO find out the right way to check if a podman service is running
     proc = subprocess.Popen(["podman", "system", "service", "-t", "0"])
+    os.environ["DOCKER_HOST"] = DOCKER_HOST.format(uid)
     return proc
 
 

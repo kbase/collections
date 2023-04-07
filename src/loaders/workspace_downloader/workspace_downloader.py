@@ -251,10 +251,7 @@ def main():
     )
 
     # start podman service
-    proc = loader_helper.start_podman_service()
-
-    # Used by the podman service
-    os.environ["DOCKER_HOST"] = loader_common_names.DOCKER_HOST.format(uid)
+    proc = loader_helper.start_podman_service(uid)
 
     # used by the callback server
     if not os.environ.get("KB_AUTH_TOKEN"):
