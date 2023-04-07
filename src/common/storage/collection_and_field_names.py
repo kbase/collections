@@ -23,8 +23,7 @@ FLD_COLLECTION_ID = "coll"
 FLD_LOAD_VERSION = "load_ver"
 """ The name of the key that has a load version as its value. """
 
-# TODO IMPORTANT we should consider renaming this to kbase_id to support alternate types
-FLD_KBASE_ID = "kbase_genome_id"
+FLD_KBASE_ID = "kbase_id"
 """ A special key in load data that can be used to relate data across different data products. """
 
 FLD_DATA_PRODUCT = "data_product"
