@@ -75,3 +75,11 @@ QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = Query(
     description=models.FIELD_LOAD_VERSION_DESCRIPTION + ". This will override the collection's "
         + "load version. Service administrator privileges are required."
 )
+
+QUERY_VALIDATOR_LIMIT = Query(
+    default=1000,
+    ge=1,
+    le=1000,
+    example=1000,
+    description="The maximum number of results"
+)

@@ -68,7 +68,7 @@ SELECTED_FEATURES = {'accession', 'checkm_completeness', 'checkm_contamination',
                      'ncbi_taxonomy_unfiltered', 'protein_count', 'scaffold_count', 'ssu_count', 'ssu_length',
                      'trna_aa_count', 'trna_count', 'trna_selenocysteine_count'}
 
-# Copy the value of the following column to a new column FLD_GENOME_ATTRIBS_KBASE_GENOME_ID,
+# Copy the value of the following column to a new column FLD_KBASE_ID,
 # which is the sort key for the genome attribute collection.
 KBASE_GENOME_ID_COL = 'accession'
 
@@ -110,8 +110,8 @@ def _df_to_docs(df, kbase_collection, load_version):
     Convert a DataFrame into a list of documents that will be imported into the genome attributes collection.
     """
 
-    # Create the FLD_GENOME_ATTRIBS_KBASE_GENOME_ID column by copying the KBASE_GENOME_ID_COL column
-    loader_helper.copy_column(df, KBASE_GENOME_ID_COL, names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID)
+    # Create the FLD_KBASE_ID column by copying the KBASE_GENOME_ID_COL column
+    loader_helper.copy_column(df, KBASE_GENOME_ID_COL, names.FLD_KBASE_ID)
     docs = df.apply(_row_to_doc, args=(kbase_collection, load_version), axis=1).to_list()
 
     return docs
