@@ -46,7 +46,7 @@ class HeatMapController:
         self,
         heatmap_id: str,
         api_category: str,
-        column_collection_name: str,
+        meta_collection_name: str,
         data_collection_name: str,
     ):
         """
@@ -56,12 +56,11 @@ class HeatMapController:
             heatmap data.
         api_category - the category in the API documents where the heatmap endpoints will be
             grouped.
-        column_collection_name - the name of the arango collection containing information about
-            the columns in the heatmap.
+        meta_collection_name - the name of the arango collection containing heatmap metadata.
         data_collection_name - the name of the arango collection containing the heatmap data.
         """
         self._id = heatmap_id
-        self._colname_columns = column_collection_name
+        self._colname_meta = meta_collection_name
         self._colname_data = data_collection_name
         router = self._create_router(api_category)
         self.data_product_spec = self._create_data_product_spec(router)
@@ -69,12 +68,13 @@ class HeatMapController:
     def _create_router(self, api_category: str) -> APIRouter:
         router = APIRouter(tags=[api_category], prefix=f"/{self._id}")
         router.add_api_route(
-            "/columns",
-            self.get_column_info,
+            "/meta",
+            self.get_meta_info,
             methods=["GET"],
-            response_model=heatmap_models.Columns,
-            summary=f"Get {api_category} columns",
-            description=f"Get information about the columns in the {api_category} heatmap."
+            response_model=heatmap_models.HeatMapMeta,
+            summary=f"Get {api_category} metadata",
+            description=f"Get meta information about the data in the {api_category} heatmap, "
+                + "such as column names and descriptions, value ranges, etc."
         )
         router.add_api_route(
             "/",
@@ -117,7 +117,7 @@ class HeatMapController:
             router=router,
             db_collections=[
                 DBCollection(
-                    name=self._colname_columns,
+                    name=self._colname_meta,
                     indexes=[]  # just use the doc key
                 ),
                 DBCollection(
@@ -143,20 +143,20 @@ class HeatMapController:
         # TODO HEATMAP delete selections
         print("There go the selections. Really. Not kidding at all", storage, internal_selection_id)
 
-    async def get_column_info(  # TODO NEXT generalize this to renderinfo or something
+    async def get_meta_info(
         self,
         r: Request,
         collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
         load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
         user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
-    ) -> heatmap_models.Columns:
+    ) -> heatmap_models.HeatMapMeta:
         appstate = app_state.get_app_state(r)
         storage = appstate.arangostorage
         load_ver = await get_load_version(
             storage, collection_id, self._id, load_ver_override, user)
         doc = await get_collection_singleton_from_db(
-            storage, self._colname_columns, collection_id, load_ver, bool(load_ver_override))
-        return heatmap_models.Columns.construct(**remove_collection_keys(doc))
+            storage, self._colname_meta, collection_id, load_ver, bool(load_ver_override))
+        return heatmap_models.HeatMapMeta.construct(**remove_collection_keys(doc))
 
     async def get_heatmap(
         self,

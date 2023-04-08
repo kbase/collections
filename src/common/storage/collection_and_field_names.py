@@ -138,8 +138,8 @@ FLD_HEATMAP_COLUMN_CATEGORIES = "categories"
 
 _MICROTRAIT_COLL_PREFIX = COLLECTION_PREFIX + "microtrait_"
 
-# Stores data about the microtrait columns in the heatmap
-COLL_MICROTRAIT_COLUMNS = _MICROTRAIT_COLL_PREFIX  + "columns"
+# Stores metadata about the microtrait heatmap
+COLL_MICROTRAIT_META = _MICROTRAIT_COLL_PREFIX  + "meta"
 
 # Stores the core microtrait data
 COLL_MICROTRAIT_DATA = _MICROTRAIT_COLL_PREFIX + "data"

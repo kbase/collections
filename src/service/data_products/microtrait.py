@@ -8,7 +8,7 @@ from src.service.data_products.heatmap import HeatMapController
 _MICROTRAIT_CONTROLLER = HeatMapController(
     "microtrait",
     "microTrait",
-    names.COLL_MICROTRAIT_COLUMNS,
+    names.COLL_MICROTRAIT_META,
     names.COLL_MICROTRAIT_DATA,
 )
 
