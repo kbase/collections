@@ -296,3 +296,79 @@ async def count_simple_collection_list(
         return await cur.next()
     finally:
         await cur.close(ignore_missing=True)
+
+
+async def mark_data_by_kbase_id(
+    storage: ArangoStorage,
+    collection: str,
+    subset_id: str,
+    match: bool,
+    data_product:str,
+    id_prefix: str = ""
+) -> list[str]:
+    f"""
+    Mark data entries that are present in a match or selection in a data product. Uses the
+    special {names.FLD_KBASE_ID} field to find data entries to mark.
+
+    It is strongly recommended to have a compound index on the fields
+    `{names.FLD_COLLECTION_ID}, {names.FLD_LOAD_VERSION}, {names.FLD_KBASE_ID}`.
+
+    The (possibly prefixed) internal ID from the subset is added to the
+    `{names.FLD_MATCHES_SELECTIONS}` field.
+
+    Returns a sorted list of any IDs in the match or selection that weren't found.
+
+    storage - the storage system.
+    collection - the name of the arango collection to alter.
+    subset_id - the ID of the match or selection.
+    match - True for a match, False for a selection.
+    data_product - the data product to alter. It is assumed the data product is present in
+        the collection referenced by the match or selection ID.
+    id_prefix - a prefix to apply to the match or selection internal ID when marking data records.
+    """
+    if match:
+        colspec = await storage.get_match_full(subset_id)
+        intid = colspec.internal_match_id
+        data_ids = colspec.matches
+    else:
+        colspec = await storage.get_selection_full(subset_id)
+        intid = colspec.internal_selection_id
+        data_ids = colspec.selection_ids
+
+    # use version number to avoid race conditions with activating collections
+    coll = await storage.get_collection_version_by_num(
+        colspec.collection_id, colspec.collection_ver)
+    load_ver = {dp.product: dp.version for dp in coll.data_products}[data_product]
+
+    # This should be batched up, most likely. Stupid implmentation for now, batch up later
+    # https://stackoverflow.com/a/57877288/643675 to start and wait for multiple async routines
+    selfld = names.FLD_MATCHES_SELECTIONS
+    aql = f"""
+        FOR d IN @@coll
+            FILTER d.{names.FLD_COLLECTION_ID} == @coll_id
+            FILTER d.{names.FLD_LOAD_VERSION} == @load_ver
+            FILTER d.{names.FLD_KBASE_ID} IN @kbase_ids
+            UPDATE d WITH {{
+                {selfld}: APPEND(d.{selfld}, [@internal_id], true)
+            }} IN @@coll
+            OPTIONS {{exclusive: true}}
+            LET updated = NEW
+            RETURN KEEP(updated, "{names.FLD_KBASE_ID}")
+        """
+    bind_vars = {
+        "@coll": collection,
+        "coll_id": coll.id,
+        "load_ver": load_ver,
+        "kbase_ids": data_ids,
+        "internal_id": id_prefix + intid,
+    }
+    matched = set()
+    # TODO TEST Should probably change this to storage.execute_aql(aql, bind_vars={}, count=False)
+    #           Cleaner, less internals exposed, easier to mock for tests
+    cur = await storage.aql().execute(aql, bind_vars=bind_vars)
+    try:
+        async for d in cur:
+            matched.add(d[names.FLD_KBASE_ID])
+    finally:
+        await cur.close(ignore_missing=True)
+    return sorted(set(data_ids) - matched)
