@@ -2,7 +2,7 @@
 Reusable code for creating a heatmap based data product.
 """
 
-from fastapi import APIRouter, Depends, Request, Query
+from fastapi import APIRouter, Depends, Request, Query, Path
 
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
@@ -11,6 +11,7 @@ from src.service.data_products.common_functions import (
     get_load_version,
     get_load_ver_from_collection,
     get_collection_singleton_from_db,
+    get_doc_from_collection_by_unique_id,
     remove_collection_keys,
     query_simple_collection_list,
     count_simple_collection_list,
@@ -48,6 +49,7 @@ class HeatMapController:
         api_category: str,
         meta_collection_name: str,
         data_collection_name: str,
+        cell_detail_collection_name: str,
     ):
         """
         Initialize the controller.
@@ -58,10 +60,13 @@ class HeatMapController:
             grouped.
         meta_collection_name - the name of the arango collection containing heatmap metadata.
         data_collection_name - the name of the arango collection containing the heatmap data.
+        cell_detail_collection_name - the name of the arango collection containing the detailed
+            information for the cells in the heatmap.
         """
         self._id = heatmap_id
         self._colname_meta = meta_collection_name
         self._colname_data = data_collection_name
+        self._colname_cells = cell_detail_collection_name
         router = self._create_router(api_category)
         self.data_product_spec = self._create_data_product_spec(router)
 
@@ -83,6 +88,14 @@ class HeatMapController:
             response_model=heatmap_models.HeatMap,
             summary=f"Get {api_category} heatmap data",
             description=f"Get data in the {api_category} heatmap."
+        )
+        router.add_api_route(
+            "/cell/{cell_id}",
+            self.get_cell,
+            methods=["GET"],
+            response_model=heatmap_models.CellDetail,
+            summary=f"Get a cell in a {api_category} heatmap.",
+            description=f"Get detailed information about a cell in a {api_category} heatmap."
         )
         return router
 
@@ -131,7 +144,10 @@ class HeatMapController:
                         # TODO HEATMAP will need an index for matches & selections
                     ]
                 ),
-                # TODO HEATMAP heatmap cell data collection
+                DBCollection(
+                    name=self._colname_cells,
+                    indexes=[]  # just use the doc key
+                )
             ]
         )
 
@@ -150,13 +166,31 @@ class HeatMapController:
         load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
         user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
     ) -> heatmap_models.HeatMapMeta:
-        appstate = app_state.get_app_state(r)
-        storage = appstate.arangostorage
+        storage = app_state.get_app_state(r).arangostorage
         load_ver = await get_load_version(
             storage, collection_id, self._id, load_ver_override, user)
         doc = await get_collection_singleton_from_db(
             storage, self._colname_meta, collection_id, load_ver, bool(load_ver_override))
         return heatmap_models.HeatMapMeta.construct(**remove_collection_keys(doc))
+
+    async def get_cell(
+        self,
+        r: Request,
+        collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
+        cell_id: str = Path(
+            example="4",
+            description="The ID of the cell in the heatmap."
+        ),
+        load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
+        user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
+    ) -> heatmap_models.CellDetail:
+        storage = app_state.get_app_state(r).arangostorage
+        load_ver = await get_load_version(
+            storage, collection_id, self._id, load_ver_override, user)
+        doc = await get_doc_from_collection_by_unique_id(
+            storage, self._colname_cells, collection_id, load_ver, cell_id, "cell detail", True,
+        )
+        return heatmap_models.CellDetail.construct(**remove_collection_keys(doc))
 
     async def get_heatmap(
         self,
@@ -174,8 +208,7 @@ class HeatMapController:
         load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
         user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
     ) -> heatmap_models.HeatMap:
-        appstate = app_state.get_app_state(r)
-        storage = appstate.arangostorage
+        storage = app_state.get_app_state(r).arangostorage
         load_ver = await get_load_version(
             storage, collection_id, self._id, load_ver_override, user)
         if count:
