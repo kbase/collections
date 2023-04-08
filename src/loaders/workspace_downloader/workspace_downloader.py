@@ -39,6 +39,7 @@ import itertools
 import json
 import os
 import shutil
+import stat
 import time
 from multiprocessing import Pool, Queue
 
@@ -106,6 +107,8 @@ def _make_job_dir(root_dir, job_dir, username):
     """Helper function that create a job_dir for a user under root directory."""
     job_dir = os.path.join(root_dir, job_dir, username)
     os.makedirs(job_dir, exist_ok=True)
+    # only user can cread, write, or execute
+    os.chmod(job_dir, stat.S_IRWXU)
     return job_dir
 
 
