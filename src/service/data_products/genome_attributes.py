@@ -22,6 +22,7 @@ from src.service.data_products.common_functions import (
     query_simple_collection_list,
     count_simple_collection_list,
     mark_data_by_kbase_id,
+    remove_marked_subset,
 )
 from src.service.data_products.common_models import (
     DataProductSpec,
@@ -56,7 +57,8 @@ class GenomeAttribsSpec(DataProductSpec):
         storage - the storage system
         internal_match_id - the match to delete.
         """
-        await delete_match(storage, internal_match_id)
+        await remove_marked_subset(
+            storage, names.COLL_GENOME_ATTRIBS, _MATCH_ID_PREFIX + internal_match_id)
 
     async def delete_selection(self, storage: ArangoStorage, internal_selection_id: str):
         """
@@ -65,7 +67,8 @@ class GenomeAttribsSpec(DataProductSpec):
         storage - the storage system
         internal_selection_id - the selection to delete.
         """
-        await delete_selection(storage, internal_selection_id)
+        await remove_marked_subset(
+            storage, names.COLL_GENOME_ATTRIBS, _SELECTION_ID_PREFIX + internal_selection_id)
 
     async def apply_selection(self, storage: ArangoStorage, selection_id: str):
         """
@@ -74,7 +77,16 @@ class GenomeAttribsSpec(DataProductSpec):
         storage - the storage system.
         selection_id - the selection to apply.
         """
-        await mark_selections(storage, selection_id)
+        missed = await mark_data_by_kbase_id(
+            storage,
+            names.COLL_GENOME_ATTRIBS,
+            selection_id,
+            False,
+            ID,
+            id_prefix = _SELECTION_ID_PREFIX
+        )
+        state = models.ProcessState.FAILED if missed else models.ProcessState.COMPLETE
+        await storage.update_selection_state(selection_id, state, now_epoch_millis(), missed)
 
     async def get_upas_for_selection(
         self,
@@ -610,58 +622,3 @@ async def process_subset_documents(
             acceptor(d)
     finally:
         await cur.close(ignore_missing=True)
-
-
-async def delete_match(storage: ArangoStorage, internal_match_id: str):
-    """
-    Delete genome attribues match data.
-
-    storage - the storage system
-    internal_match_id - the match to delete.
-    """
-    await _delete_subset(storage, _MATCH_ID_PREFIX + internal_match_id)
-
-
-async def delete_selection(storage: ArangoStorage, internal_selection_id: str):
-    """
-    Delete genome attribues selection data.
-
-    storage - the storage system
-    internal_selection_id - the selection to delete.
-    """
-    await _delete_subset(storage, _SELECTION_ID_PREFIX + internal_selection_id)
-
-
-async def _delete_subset(storage: ArangoStorage, subset_id: str):
-    m = names.FLD_MATCHES_SELECTIONS
-    bind_vars = {
-        f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
-        "internal_id": subset_id,
-    }
-    aql = f"""
-        FOR d IN @@{_FLD_COL_NAME}
-            FILTER @internal_id IN d.{m}
-            UPDATE d WITH {{
-                {m}: REMOVE_VALUE(d.{m}, @internal_id)
-            }} IN @@{_FLD_COL_NAME}
-            OPTIONS {{exclusive: true}}
-        """
-    cur = await storage.aql().execute(aql, bind_vars=bind_vars)
-    await cur.close(ignore_missing=True)
-
-
-async def mark_selections(storage: ArangoStorage, selection_id: str):
-    """
-    Mark genome attribute entries that are present in the selection and complete the selection
-    process.
-    """
-    missed = await mark_data_by_kbase_id(
-        storage,
-        names.COLL_GENOME_ATTRIBS,
-        selection_id,
-        False,
-        ID,
-        id_prefix = _SELECTION_ID_PREFIX
-    )
-    state = models.ProcessState.FAILED if missed else models.ProcessState.COMPLETE
-    await storage.update_selection_state(selection_id, state, now_epoch_millis(), missed)
