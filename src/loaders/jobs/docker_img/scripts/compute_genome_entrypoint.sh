@@ -1,6 +1,19 @@
 #!/bin/bash
 
-conda run -n $CONDA_ENV \
+# Check if micromamba is available
+if command -v micromamba >/dev/null 2>&1; then
+  echo "micromamba found, using micromamba"
+  conda_cmd="micromamba"
+# Check if conda is available
+elif command -v conda >/dev/null 2>&1; then
+  echo "conda found, using conda"
+  conda_cmd="conda"
+else
+  echo "Neither conda nor micromamba found. Please install either conda or micromamba."
+  exit 1
+fi
+
+$conda_cmd run -n $CONDA_ENV \
   python /app/collections/src/loaders/genome_collection/compute_genome_attribs.py \
   --tools $TOOLS \
   --load_ver $LOAD_VER \

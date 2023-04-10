@@ -1,0 +1,39 @@
+# Using an environment name other than "base" is not recommended!
+# Read https://github.com/mamba-org/micromamba-docker#multiple-environments
+# if you must use a different environment name.
+name: base
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - pyopenssl=20.0.1
+  - python=3.9.1
+  - requests=2.25.1
+  - r-devtools
+  - r-r.utils
+  - r-rcolorbrewer
+  - r-ape
+  - r-assertthat
+  - r-checkmate
+  - r-corrplot
+  - r-doparallel
+  - r-dplyr
+  - r-futile.logger
+  - r-gtools
+  - r-lazyeval
+  - r-magrittr
+  - r-pheatmap
+  - r-readr
+  - r-stringr
+  - r-tibble
+  - r-tictoc
+  - r-tidyr
+  - bioconductor-biostrings
+  - bioconductor-cordon
+  - bioconductor-complexheatmap
+  - hmmer=3.3.2
+  - prodigal=2.6.3
+  - barrnap=0.9
+  - ipython
+  - rpy2
+  - pandas
