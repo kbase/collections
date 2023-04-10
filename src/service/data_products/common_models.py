@@ -76,10 +76,18 @@ QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = Query(
         + "load version. Service administrator privileges are required."
 )
 
+
 QUERY_VALIDATOR_LIMIT = Query(
     default=1000,
     ge=1,
     le=1000,
     example=1000,
     description="The maximum number of results"
+)
+
+
+QUERY_COUNT = Query(
+    default=False,
+    description="Whether to return the number of records that match the query rather than "
+        + "the records themselves. Paging parameters are ignored."
 )
