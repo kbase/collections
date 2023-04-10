@@ -1,6 +1,10 @@
 #!/bin/bash
 
-conda run -n $CONDA_ENV \
+# Get the value of the ENV_TOOL environment variable, or set it to "conda" if not set
+env_tool="${ENV_TOOL:-conda}"
+echo "using $env_tool to manage environment"
+
+$env_tool run -n $CONDA_ENV \
   python /app/collections/src/loaders/genome_collection/compute_genome_attribs.py \
   --tools $TOOLS \
   --load_ver $LOAD_VER \
