@@ -226,9 +226,13 @@ async def get_taxa_counts(
     else:
         load_ver = await get_load_version(store, collection_id, ID, load_ver_override, user)
     if match_id:
-        dp_match = await _get_data_product_match(appstate, coll, match_id, user)
+        dp_match = await processing_matches.get_or_create_data_product_match_process(
+            appstate, coll, user, match_id, ID, _process_taxa_count_subset
+        )
     if selection_id:
-        dp_sel = await _get_data_product_selection(appstate, coll, selection_id)
+        dp_sel = await processing_selections.get_or_create_data_product_selection_process(
+            appstate, coll, selection_id, ID, _process_taxa_count_subset
+        )
     ranks = await get_ranks_from_db(store, collection_id, load_ver, bool(load_ver_override))
     if rank not in ranks.data:
         raise errors.IllegalParameterError(f"Invalid rank: {rank}")
@@ -252,7 +256,7 @@ async def _add_subset_data_in_place(
     rank: str,
     dp_process: models.DataProductProcess,
 ):
-    if dp_process and dp_process.state == models.ProcessState.COMPLETE:
+    if dp_process and dp_process.is_complete():
         matchq = await _query(
             store,
             collection_id,
@@ -279,37 +283,6 @@ async def _get_load_ver(appstate: CollectionsState, collection_id: str, errclass
             + f"{genome_attributes.ID} data product")
     load_ver = get_load_ver_from_collection(coll, ID)
     return load_ver, coll
-
-
-async def _get_data_product_match(
-    appstate: CollectionsState,
-    coll: models.SavedCollection,
-    match_id: str,
-    user: kb_auth.KBaseUser
-) -> models.DataProductProcess:
-    if not user:
-        raise errors.UnauthorizedError("Authentication is required if a match ID is supplied")
-    match = await processing_matches.get_match_full(
-        appstate, match_id, user, require_complete=True, require_collection=coll)
-    dpid = models.DataProductProcessIdentifier(
-        internal_id=match.internal_match_id, data_product=ID, type=models.SubsetType.MATCH
-    )
-    return await processing.get_or_create_data_product_process(
-        appstate, dpid, _process_match, args=[models.SubsetType.MATCH])
-
-
-async def _get_data_product_selection(
-    appstate: CollectionsState,
-    coll: models.SavedCollection,
-    selection_id: str,
-) -> models.DataProductProcess:
-    sel = await processing_selections.get_selection_full(
-        appstate, selection_id, require_complete=True, require_collection=coll)
-    dpid = models.DataProductProcessIdentifier(
-        internal_id=sel.internal_selection_id, data_product=ID, type=models.SubsetType.SELECTION
-    )
-    return await processing.get_or_create_data_product_process(
-        appstate, dpid, _process_match, args=[models.SubsetType.SELECTION])
 
 
 async def _query(
@@ -354,33 +327,13 @@ async def _query(
     return ret
 
 
-async def _process_match(
-    internal_id: str, deps: PickleableDependencies, args: list[models.SubsetType]
+async def _process_taxa_count_subset(
+    deps: PickleableDependencies,
+    storage: ArangoStorage,
+    match_or_sel: models.InternalMatch | models.InternalSelection,
+    coll: models.SavedCollection,
+    dpid: models.DataProductProcessIdentifier,
 ):
-    # TODO DOCS document that processes should run regardless of the state
-    #      of any other processes for the same match or selection. It is up to the code starting
-    #      the process to ensure it is correct to start. As such, the processes should be
-    #      idempotent.
-    type_ = args[0]
-    hb = None
-    arangoclient = None
-    dpid = models.DataProductProcessIdentifier(
-        internal_id=internal_id, data_product=ID, type=type_)
-    try:
-        arangoclient, storage = await deps.get_storage()
-        if type_ == models.SubsetType.MATCH:
-            collspec = await storage.get_match_by_internal_id(internal_id)
-        else:
-            collspec = await storage.get_selection_by_internal_id(internal_id)
-        async def heartbeat(millis: int):
-            await storage.send_data_product_heartbeat(dpid, millis)
-        hb = processing.Heartbeat(heartbeat, processing.HEARTBEAT_INTERVAL_SEC)
-        hb.start()
-        
-        # use version number to avoid race conditions with activating collections
-        coll = await storage.get_collection_version_by_num(
-            collspec.collection_id, collspec.collection_ver
-        )
         load_ver = {dp.product: dp.version for dp in coll.data_products}[ID]
         # Right now this is hard coded to use the GTDB lineage, which is the only choice we
         # have. Might need to expand in future for other count strategies.
@@ -390,14 +343,16 @@ async def _process_match(
         await genome_attributes.process_subset_documents(
             storage,
             coll,
-            internal_id,
-            type_,
+            dpid.internal_id,
+            dpid.type,
             lambda doc: count.add(doc[names.FLD_GENOME_ATTRIBS_GTDB_LINEAGE]),
             fields=[names.FLD_GENOME_ATTRIBS_GTDB_LINEAGE]
         )
-        docs = [taxa_node_count_to_doc(coll.id, load_ver, tc, _TYPE2PREFIX[type_] + internal_id)
-                for tc in count
-                ]
+        docs = [
+            taxa_node_count_to_doc(
+                coll.id, load_ver, tc, _TYPE2PREFIX[dpid.type] + dpid.internal_id
+            ) for tc in count
+        ]
         # May need to batch this?
         # The other option I considered here was adding the match counts to the records directly.
         # That is going to be way slower, since you have to update one record at a time,
@@ -409,16 +364,6 @@ async def _process_match(
         await storage.import_bulk_ignore_collisions(names.COLL_TAXA_COUNT, docs)
         await storage.update_data_product_process_state(
             dpid, models.ProcessState.COMPLETE, deps.get_epoch_ms())
-    except Exception as e:
-        logging.getLogger(__name__).exception(
-            f"{type_.value} process {internal_id} for data product {ID} failed")
-        await storage.update_data_product_process_state(
-            dpid, models.ProcessState.FAILED, deps.get_epoch_ms())
-    finally:
-        if hb:
-            hb.stop()
-        if arangoclient:
-            await arangoclient.close()
 
 
 async def delete_match(storage: ArangoStorage, internal_match_id: str):
