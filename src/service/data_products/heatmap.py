@@ -13,12 +13,14 @@ from src.service.data_products.common_functions import (
     get_collection_singleton_from_db,
     remove_collection_keys,
     query_simple_collection_list,
+    count_simple_collection_list,
 )
 from src.service.data_products.common_models import (
     DataProductSpec,
     DBCollection,
     QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
     QUERY_VALIDATOR_LIMIT,
+    QUERY_COUNT,
 )
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service import kb_auth
@@ -141,7 +143,7 @@ class HeatMapController:
         # TODO HEATMAP delete selections
         print("There go the selections. Really. Not kidding at all", storage, internal_selection_id)
 
-    async def get_column_info(
+    async def get_column_info(  # TODO NEXT generalize this to renderinfo or something
         self,
         r: Request,
         collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
@@ -160,9 +162,9 @@ class HeatMapController:
         self,
         r: Request,
         collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
-        limit: int = QUERY_VALIDATOR_LIMIT,
-        # TODO HEATMAP support count
         # TODO HEATMAP support startfrom
+        limit: int = QUERY_VALIDATOR_LIMIT,
+        count: bool = QUERY_COUNT,
         load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
         user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
     ) -> heatmap_models.HeatMap:
@@ -170,17 +172,39 @@ class HeatMapController:
         storage = appstate.arangostorage
         load_ver = await get_load_version(
             storage, collection_id, self._id, load_ver_override, user)
-        return await self._query(  # may want a sort direction arg?
-            storage,
+        if count:
+            return await self._count(storage, collection_id, load_ver, None, None)
+        else:
+            return await self._query(  # may want a sort direction arg?
+                storage,
+                collection_id,
+                load_ver,
+                limit,
+                None,
+                False,
+                None,
+                False,
+            ) 
+    
+    async def _count(
+        self,
+        store: ArangoStorage,
+        collection_id: str,
+        load_ver: str,
+        internal_match_id: str | None,
+        internal_selection_id: str | None,
+    ):
+        # for now this method doesn't do much. One we have some filtering implemented
+        # it'll need to take that into account.
+        count = await count_simple_collection_list(
+            store,
+            self._colname_data,
             collection_id,
             load_ver,
-            limit,
-            None,
-            False,
-            None,
-            False,
-        ) 
-        
+            internal_match_id=_prefix_id(_MATCH_ID_PREFIX, internal_match_id),
+            internal_selection_id=_prefix_id(_SELECTION_ID_PREFIX, internal_selection_id),
+        )
+        return heatmap_models.HeatMap(count=count)
 
     async def _query(
         # ew. too many args
@@ -197,7 +221,7 @@ class HeatMapController:
         data = []
         await query_simple_collection_list(
             store,
-            names.COLL_MICROTRAIT_DATA,
+            self._colname_data,
             lambda doc: data.append(heatmap_models.HeatMapRow.parse_obj(
                 remove_collection_keys(doc))),
             collection_id,

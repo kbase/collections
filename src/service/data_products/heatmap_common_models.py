@@ -89,8 +89,10 @@ class HeatMapRow(BaseModel):
 class HeatMap(BaseModel):
     """
     A heatmap or a portion of a heatmap.
+
+    Either data, min_value, and max_value are supplied, or count is supplied.
     """
-    data: list[HeatMapRow] = Field(
+    data: list[HeatMapRow] | None = Field(
         description="The rows in the heatmap."
     )
     min_value: float | None = Field(
@@ -102,4 +104,8 @@ class HeatMap(BaseModel):
         example=71.8,
         description="The maximum cell value in the row in this heatmap "
             + "or null if there are no rows."
+    )
+    count: int | None = Field(
+        example=42,
+        description="The total number of rows that match the query."
     )

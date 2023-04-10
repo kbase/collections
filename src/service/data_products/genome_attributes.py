@@ -27,6 +27,7 @@ from src.service.data_products.common_models import (
     DBCollection,
     QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
     QUERY_VALIDATOR_LIMIT,
+    QUERY_COUNT,
 )
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
@@ -241,11 +242,7 @@ async def get_genome_attributes(
         default=True,
         description="Whether to return the data in table form or dictionary list form"
     ),
-    count: bool = Query(
-        default = False,
-        description="Whether to return the number of records that match the query rather than "
-            + "the records themselves. Paging parameters are ignored."
-    ),
+    count: bool = QUERY_COUNT,
     match_id: str | None = Query(
         default = None,
         description="A match ID to set the view to the match rather than "
