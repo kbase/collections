@@ -61,7 +61,11 @@ class HeatMapController:
         self._id = heatmap_id
         self._colname_columns = column_collection_name
         self._colname_data = data_collection_name
-        router = APIRouter(tags=[api_category], prefix=f"/{heatmap_id}")
+        router = self._create_router(api_category)
+        self.data_product_spec = self._create_data_product_spec(router)
+
+    def _create_router(self, api_category: str) -> APIRouter:
+        router = APIRouter(tags=[api_category], prefix=f"/{self._id}")
         router.add_api_route(
             "/columns",
             self.get_column_info,
@@ -78,7 +82,9 @@ class HeatMapController:
             summary=f"Get {api_category} heatmap data",
             description=f"Get data in the {api_category} heatmap."
         )
+        return router
 
+    def _create_data_product_spec(self, router: APIRouter) -> DataProductSpec:
         outerself = self
 
         class HeatMapDataProductSpec(DataProductSpec):
@@ -104,16 +110,16 @@ class HeatMapController:
                 """
                 await outerself._delete_selection(storage, internal_selection_id)
 
-        self.data_product_spec = HeatMapDataProductSpec(
+        return HeatMapDataProductSpec(
             data_product=self._id,
             router=router,
             db_collections=[
                 DBCollection(
-                    name=column_collection_name,
+                    name=self._colname_columns,
                     indexes=[]  # just use the doc key
                 ),
                 DBCollection(
-                    name=data_collection_name,
+                    name=self._colname_data,
                     indexes=[
                         [
                             names.FLD_COLLECTION_ID,
