@@ -49,14 +49,14 @@ Underscore to separate from "real" attribs
 
 FLD_MATCHED = "__match__"
 """
-Used for marking matches when returning data to the user and they select match marking vs.
+Used for marking matches when returning data to the user and they request match marking vs.
 filtering on a match.
 """
 
 FLD_SELECTED = "__sel__"
 """
-# Used for marking selections when returning data to the user and they select selection marking vs.
-# filtering on a selection.
+Used for marking selections when returning data to the user and they request selection marking vs.
+filtering on a selection.
 """
 
 # Collections
@@ -140,3 +140,6 @@ _MICROTRAIT_COLL_PREFIX = COLLECTION_PREFIX + "microtrait_"
 
 # Stores data about the microtrait columns in the heatmap
 COLL_MICROTRAIT_COLUMNS = _MICROTRAIT_COLL_PREFIX  + "columns"
+
+# Stores the core microtrait data
+COLL_MICROTRAIT_DATA = _MICROTRAIT_COLL_PREFIX + "data"
