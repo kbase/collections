@@ -12,11 +12,13 @@ from src.service.data_products.common_functions import (
     get_load_ver_from_collection,
     get_collection_singleton_from_db,
     remove_collection_keys,
+    query_simple_collection_list,
 )
 from src.service.data_products.common_models import (
     DataProductSpec,
     DBCollection,
     QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
+    QUERY_VALIDATOR_LIMIT,
 )
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service import kb_auth
@@ -25,13 +27,26 @@ from src.service.storage_arango import ArangoStorage
 
 _OPT_AUTH = KBaseHTTPBearer(optional=True)
 
+_MATCH_ID_PREFIX = "m_"
+_SELECTION_ID_PREFIX = "s_"
+
+
+def _prefix_id(prefix: str, id_: str | None) -> str | None:
+    return prefix + id_ if id_ else None
+
 
 class HeatMapController:
     """
     A controller for creating a set of heat map endpoints.
     """
 
-    def __init__(self, heatmap_id: str, api_category: str, column_collection_name: str):
+    def __init__(
+        self,
+        heatmap_id: str,
+        api_category: str,
+        column_collection_name: str,
+        data_collection_name: str,
+    ):
         """
         Initialize the controller.
 
@@ -41,9 +56,11 @@ class HeatMapController:
             grouped.
         column_collection_name - the name of the arango collection containing information about
             the columns in the heatmap.
+        data_collection_name - the name of the arango collection containing the heatmap data.
         """
         self._id = heatmap_id
         self._colname_columns = column_collection_name
+        self._colname_data = data_collection_name
         router = APIRouter(tags=[api_category], prefix=f"/{heatmap_id}")
         router.add_api_route(
             "/columns",
@@ -52,6 +69,14 @@ class HeatMapController:
             response_model=heatmap_models.Columns,
             summary=f"Get {api_category} columns",
             description=f"Get information about the columns in the {api_category} heatmap."
+        )
+        router.add_api_route(
+            "/",
+            self.get_heatmap,
+            methods=["GET"],
+            response_model=heatmap_models.HeatMap,
+            summary=f"Get {api_category} heatmap data",
+            description=f"Get data in the {api_category} heatmap."
         )
 
         outerself = self
@@ -86,8 +111,18 @@ class HeatMapController:
                 DBCollection(
                     name=column_collection_name,
                     indexes=[]  # just use the doc key
-                )
-                # TODO HEATMAP main heatmap data collection
+                ),
+                DBCollection(
+                    name=data_collection_name,
+                    indexes=[
+                        [
+                            names.FLD_COLLECTION_ID,
+                            names.FLD_LOAD_VERSION,
+                            names.FLD_KBASE_ID
+                        ],
+                        # TODO HEATMAP will need an index for matches & selections
+                    ]
+                ),
                 # TODO HEATMAP heatmap cell data collection
             ]
         )
@@ -114,3 +149,67 @@ class HeatMapController:
         doc = await get_collection_singleton_from_db(
             storage, self._colname_columns, collection_id, load_ver, bool(load_ver_override))
         return heatmap_models.Columns.construct(**remove_collection_keys(doc))
+
+    async def get_heatmap(
+        self,
+        r: Request,
+        collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
+        limit: int = QUERY_VALIDATOR_LIMIT,
+        # TODO HEATMAP support count
+        # TODO HEATMAP support startfrom
+        load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
+        user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
+    ) -> heatmap_models.HeatMap:
+        appstate = app_state.get_app_state(r)
+        storage = appstate.arangostorage
+        load_ver = await get_load_version(
+            storage, collection_id, self._id, load_ver_override, user)
+        return await self._query(  # may want a sort direction arg?
+            storage,
+            collection_id,
+            load_ver,
+            limit,
+            None,
+            False,
+            None,
+            False,
+        ) 
+        
+
+    async def _query(
+        # ew. too many args
+        self,
+        store: ArangoStorage,
+        collection_id: str,
+        load_ver: str,
+        limit: int,
+        internal_match_id: str | None,
+        match_mark: bool,
+        internal_selection_id: str | None,
+        selection_mark: bool,
+    ) -> heatmap_models.HeatMap:
+        data = []
+        await query_simple_collection_list(
+            store,
+            names.COLL_MICROTRAIT_DATA,
+            lambda doc: data.append(heatmap_models.HeatMapRow.parse_obj(
+                remove_collection_keys(doc))),
+            collection_id,
+            load_ver,
+            names.FLD_KBASE_ID,
+            sort_descending=False,
+            skip=0,
+            limit=limit,
+            internal_match_id=_prefix_id(_MATCH_ID_PREFIX, internal_match_id),
+            match_mark=match_mark,
+            internal_selection_id=_prefix_id(_SELECTION_ID_PREFIX, internal_selection_id),
+            selection_mark=selection_mark,    
+        )
+        vals = []
+        for r in data:  # lazy lazy lazy
+            vals += [c.val for c in r.cells]
+        return heatmap_models.HeatMap(
+            data=data,
+            min_value=min(vals) if vals else None,
+            max_value=max(vals) if vals else None
+        )
