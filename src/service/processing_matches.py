@@ -43,8 +43,10 @@ async def create_match(
     coll = await appstate.arangostorage.get_collection_active(collection_id)
     matcher_info = _get_matcher_from_collection(coll, matcher_id)
     ww = WorkspaceWrapper(appstate.sdk_client, token=user.token)
+    internal_match_id = str(uuid.uuid4())
     matcher = appstate.get_matcher(matcher_info.matcher)
     match_process, upas, wsids = await _create_match_process(
+        internal_match_id,
         matcher,
         ww,
         upas,
@@ -64,7 +66,7 @@ async def create_match(
         state_updated=perm_check,
         upas=upas,
         matches=[],
-        internal_match_id=str(uuid.uuid4()),
+        internal_match_id=internal_match_id,
         wsids=wsids,
         created=perm_check,
         last_access=perm_check,
@@ -73,7 +75,7 @@ async def create_match(
     curr_match, exists = await appstate.arangostorage.save_match(int_match)
     # don't bother checking if the match heartbeat is old here, just do it in the access methods
     if not exists:
-        match_process.start(curr_match.match_id, appstate.get_pickleable_dependencies())
+        match_process.start(appstate.get_pickleable_dependencies())
     return curr_match
 
 
@@ -224,6 +226,7 @@ async def _check_match_state(
     # Also only restart if the match is requested for the correct collection
     if processing.requires_restart(deps.get_epoch_ms(), match):
         mp, _, _ = await _create_match_process(
+            match.internal_match_id,
             deps.get_matcher(match.matcher_id),
             ww,
             match.upas,
@@ -231,13 +234,14 @@ async def _check_match_state(
             match.collection_parameters
         )
         logging.getLogger(__name__).warn(f"Restarting match process for match {match.match_id}")
-        mp.start(match.match_id, deps.get_pickleable_dependencies())
+        mp.start(deps.get_pickleable_dependencies())
     # might need to separate out the still processing error from the id / ver matching
     if require_complete and match.state != models.ProcessState.COMPLETE:
         raise errors.InvalidMatchStateError(f"Match {match.match_id} processing is not complete")
 
 
 async def _create_match_process(
+    internal_match_id: str,
     matcher: Matcher,
     ww: WorkspaceWrapper,
     upas: list[str],
@@ -292,7 +296,7 @@ async def _create_match_process(
             + "this limit was violated after set expansion")
     upa2meta = {u: upa2meta[u] for u in upas}
     return matcher.generate_match_process(
-        upa2meta, user_parameters, collection_parameters
+        internal_match_id, upa2meta, user_parameters, collection_parameters
     ), upas, wsids
 
 

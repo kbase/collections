@@ -4,7 +4,9 @@ A registry of matchers available in the service.
 Matchers must inherit from the Matcher class in src.service.matchers.common_models, as well
 as implement the method:
 
-    def generate_match_process(self,
+    def generate_match_process(
+        self,
+        internal_match_id: str,
         metadata: dict[str, dict[str, Any]],
         user_parameters: dict[str, Any],
         collection_parameters: dict[str, Any],
@@ -13,6 +15,7 @@ as implement the method:
 The method checks that input metadata allows for calculating the match and throws an exception
 if that is not the case, and returns a CollectionProcess that can process the match.
 
+internal_match_id - the internal ID of the match.
 metadata - the workspace metadata of the objects to match against, mapped by its UPA.
 user_parameters - the parameters for this match supplied by the user. It it expected that the
     parameters have been validated against the matcher schema for said parameters.

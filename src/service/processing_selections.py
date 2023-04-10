@@ -24,28 +24,28 @@ _UTF_8 = "utf-8"
 
 
 async def _selection_process(
-    selection_id: str,
+    internal_selection_id: str,
     deps: PickleableDependencies,
-    args: list[Any]
+    args: list[str]
 ):
     hb = None
     arangoclient = None
+    data_product = args[0]
     try:
         arangoclient, storage = await deps.get_storage()
         async def heartbeat(millis: int):
-            await storage.send_selection_heartbeat(selection_id, millis)
+            await storage.send_selection_heartbeat(internal_selection_id, millis)
         hb = processing.Heartbeat(heartbeat, processing.HEARTBEAT_INTERVAL_SEC)
         hb.start()
-        internal_sel = await storage.get_selection_full(selection_id)
         # throws an error if the data product doesn't exist
         # may want to add a wrapper method to PickleableDependencies so this can be mocked
-        data_product = data_product_specs.get_data_product_spec(internal_sel.data_product)
-        await data_product.apply_selection(storage, internal_sel.selection_id)
+        data_product = data_product_specs.get_data_product_spec(data_product)
+        await data_product.apply_selection(storage, internal_selection_id)
     except Exception as e:
         logging.getLogger(__name__).exception(
-            f"Selection process for selection {selection_id} failed")
+            f"Selection process for selection with internal ID {internal_selection_id} failed")
         await storage.update_selection_state(
-            selection_id, models.ProcessState.FAILED, deps.get_epoch_ms())
+            internal_selection_id, models.ProcessState.FAILED, deps.get_epoch_ms())
     finally:
         if hb:
             hb.stop()
@@ -53,9 +53,12 @@ async def _selection_process(
             await arangoclient.close()
 
 
-def _start_process(selection_id: str, appstate: CollectionsState):
-    processing.CollectionProcess(process=_selection_process, args=[]
-        ).start(selection_id, appstate.get_pickleable_dependencies())
+def _start_process(appstate: CollectionsState, int_sel: models.InternalSelection):
+    processing.CollectionProcess(
+        process=_selection_process,
+        data_id=int_sel.internal_selection_id,
+        args=[int_sel.data_product],
+    ).start(appstate.get_pickleable_dependencies())
 
 
 async def save_selection(
@@ -94,7 +97,7 @@ async def save_selection(
     )
     curr_sel, exists = await appstate.arangostorage.save_selection(int_sel)
     if not exists:
-        _start_process(int_sel.selection_id, appstate)
+        _start_process(appstate, int_sel)
     return curr_sel
 
 
@@ -194,7 +197,7 @@ def _check_selection_state(
     if processing.requires_restart(appstate.get_epoch_ms(), internal_sel):
         logging.getLogger(__name__).warn(
             f"Restarting selection process for ID {internal_sel.selection_id}")
-        _start_process(internal_sel.selection_id, appstate)
+        _start_process(appstate, internal_sel)
     # might need to separate out the still processing error from the id / ver matching
     if require_complete and internal_sel.state != models.ProcessState.COMPLETE:
         raise errors.InvalidSelectionStateError(

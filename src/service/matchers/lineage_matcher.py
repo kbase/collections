@@ -50,7 +50,7 @@ class GTDBLineageMatcherUserParameters(BaseModel):
 
 
 async def _process_match(
-    match_id: str,
+    internal_match_id: str,
     deps: PickleableDependencies,
     args: tuple[list[str], GTDBRank]
 ):
@@ -61,15 +61,18 @@ async def _process_match(
     try:
         arangoclient, storage = await deps.get_storage()
         async def heartbeat(millis: int):
-            await storage.send_match_heartbeat(match_id, millis)
+            await storage.send_match_heartbeat(internal_match_id, millis)
         hb = Heartbeat(heartbeat, HEARTBEAT_INTERVAL_SEC)
         hb.start()
         # this might need to be configurable on the matcher to allow the matcher
         # to run against different data products
-        await genome_attributes.perform_gtdb_lineage_match(match_id, storage, lineages, rank)
+        await genome_attributes.perform_gtdb_lineage_match(
+            internal_match_id, storage, lineages, rank)
     except Exception as e:
-        logging.getLogger(__name__).exception(f"Matching process for match {match_id} failed")
-        await storage.update_match_state(match_id, models.ProcessState.FAILED, deps.get_epoch_ms())
+        logging.getLogger(__name__).exception(
+            f"Matching process for match with internal ID{internal_match_id} failed")
+        await storage.update_match_state(
+            internal_match_id, models.ProcessState.FAILED, deps.get_epoch_ms())
     finally:
         if hb:
             hb.stop()
@@ -79,7 +82,9 @@ async def _process_match(
 
 class GTDBLineageMatcher(Matcher):
 
-    def generate_match_process(self,
+    def generate_match_process(
+        self,
+        internal_match_id: str,
         metadata: dict[str, dict[str, Any]],
         user_parameters: dict[str, Any],
         collection_parameters: dict[str, Any],
@@ -89,6 +94,7 @@ class GTDBLineageMatcher(Matcher):
         an exception if that is not the case; otherwise returns a CollectionProcess that allows
         calculating the match.
 
+        internal_match_id - the internal ID of the match.
         metadata - the workspace metadata of the objects to match against, mapped by its UPA.
         collection_parameters - the parameters for this match from the collection specification.
             It it expected that the parameters have been validated against the matcher schema
@@ -122,7 +128,9 @@ class GTDBLineageMatcher(Matcher):
             lineages.append(meta[_GTDB_LINEAGE_METADATA_KEY])
         rank = user_parameters.get("gtdb_rank") if user_parameters else None
         rank = GTDBRank(rank) if rank else GTDBRank.SPECIES
-        return CollectionProcess(process=_process_match, args=[lineages, rank])
+        return CollectionProcess(
+            process=_process_match, data_id=internal_match_id, args=[lineages, rank]
+        )
 
 
 MATCHER = GTDBLineageMatcher(
