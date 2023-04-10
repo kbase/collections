@@ -38,9 +38,9 @@ class ColumnCategory(BaseModel):
     )
 
 
-class Columns(BaseModel):
+class HeatMapMeta(BaseModel):
     """
-    Provides information about the set of columns in a heatmap view.
+    Provides meta information about the data in a heatmap.
     """
     categories: list[ColumnCategory] = Field(
         description="The categories in the heat map, provided in render order."
