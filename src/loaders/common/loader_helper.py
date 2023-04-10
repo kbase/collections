@@ -96,7 +96,7 @@ def get_token(token_filename):
         with open(os.path.join(home_dir, "." + token_filename), "r") as f:
             token = f.readline().strip()
     except FileNotFoundError as e:
-        print(e.errno)
+        raise e
     return token
 
 
@@ -115,7 +115,7 @@ def start_podman_service(uid):
     return proc
 
 
-def is_upaInfo_complete(output_dir, upa):
+def is_upa_info_complete(output_dir, upa):
     """
     Check whether an UPA needs to be downloaded or not by loading the metadata file.
     Make sure it has all the right keys.
@@ -127,7 +127,7 @@ def is_upaInfo_complete(output_dir, upa):
     try:
         with open(meta_path, "r") as json_file:
             data = json.load(json_file)
-    except OSError:
+    except:
         return False
     if set(data.keys()) != set(META_KEYS):
         return False

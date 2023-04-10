@@ -1,10 +1,10 @@
 """
-usage: workspace_downloader.py [-h] --workspace_id WORKSPACE_ID [--root_dir ROOT_DIR] [--workers WORKERS] [--token_filename TOKEN_FILENAME]
-                               [--ci] [--delete_job_dir]
+usage: workspace_downloader.py [-h] --workspace_id WORKSPACE_ID [--root_dir ROOT_DIR] [--kb_base_url KB_BASE_URL] [--workers {1,2,3,4}]
+                               [--token_filename TOKEN_FILENAME] [--delete_job_dir]
 
 PROTOTYPE - Download genome files from the workspace service (WSS).
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
 
 required named arguments:
@@ -13,10 +13,11 @@ required named arguments:
 
 optional arguments:
   --root_dir ROOT_DIR   Root directory.
-  --workers WORKERS     Number of workers for multiprocessing
+  --kb_base_url KB_BASE_URL
+                        KBase base URL, defaulting to prod
+  --workers             Number of workers for multiprocessing
   --token_filename TOKEN_FILENAME
                         Filename in home directory that stores token
-  --ci                  Use ci env. Default to prod
   --delete_job_dir      Delete job directory
 
             
@@ -41,7 +42,7 @@ import os
 import shutil
 import stat
 import time
-from multiprocessing import Pool, Queue
+from multiprocessing import Pool, Queue, cpu_count
 
 from JobRunner.Callback import Callback
 
@@ -92,14 +93,8 @@ class Conf:
 
 def _make_output_dir(root_dir, source_data_dir, source, workspace_id):
     """Helper function that makes output directory for a specific collection under root directory."""
-
-    if source == "WS":
-        output_dir = os.path.join(root_dir, source_data_dir, source, str(workspace_id))
-    else:
-        raise ValueError(f"Unexpected source: {source}")
-
+    output_dir = os.path.join(root_dir, source_data_dir, source, str(workspace_id))
     os.makedirs(output_dir, exist_ok=True)
-
     return output_dir
 
 
@@ -231,7 +226,8 @@ def main():
         "--workers",
         type=int,
         default=5,
-        help="Number of workers for multiprocessing. Target workers >= 1",
+        choices=range(1, cpu_count() + 1),
+        help="Number of workers for multiprocessing",
     )
     optional.add_argument(
         "--token_filename",
@@ -245,8 +241,6 @@ def main():
     )
 
     args = parser.parse_args()
-    if args.workers <= 0:
-        parser.error("Minimum workers is 1")
 
     (workspace_id, root_dir, kb_base_url, workers, token_filename, delete_job_dir) = (
         args.workspace_id,
@@ -275,7 +269,7 @@ def main():
         [
             upa
             for upa in os.listdir(output_dir)
-            if loader_helper.is_upaInfo_complete(output_dir, upa)
+            if loader_helper.is_upa_info_complete(output_dir, upa)
         ]
     )
     print("Skipping: ", visited)
