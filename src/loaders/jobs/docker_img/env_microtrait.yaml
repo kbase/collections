@@ -7,33 +7,33 @@ channels:
   - bioconda
 dependencies:
   - pyopenssl=20.0.1
-  - python=3.9.1
+  - python=3.11.3
   - requests=2.25.1
-  - r-devtools
-  - r-r.utils
-  - r-rcolorbrewer
-  - r-ape
-  - r-assertthat
-  - r-checkmate
-  - r-corrplot
-  - r-doparallel
-  - r-dplyr
-  - r-futile.logger
-  - r-gtools
-  - r-lazyeval
-  - r-magrittr
-  - r-pheatmap
-  - r-readr
-  - r-stringr
-  - r-tibble
-  - r-tictoc
-  - r-tidyr
-  - bioconductor-biostrings
-  - bioconductor-cordon
-  - bioconductor-complexheatmap
+  - r-devtools=2.4.5
+  - r-r.utils=2.12.2
+  - r-rcolorbrewer=1.1_3
+  - r-ape=5.7
+  - r-assertthat=0.2.1
+  - r-checkmate=2.1.0
+  - r-corrplot=0.92
+  - r-doparallel=1.0.17
+  - r-dplyr=1.1.1
+  - r-futile.logger=1.4.3
+  - r-gtools=3.9.4
+  - r-lazyeval=0.2.2
+  - r-magrittr=2.0.3
+  - r-pheatmap=1.0.12
+  - r-readr=2.1.4
+  - r-stringr=1.5.0
+  - r-tibble=3.2.1
+  - r-tictoc=1.1
+  - r-tidyr=1.3.0
+  - bioconductor-biostrings=2.66.0
+  - bioconductor-cordon=1.16.0
+  - bioconductor-complexheatmap=2.14.0
   - hmmer=3.3.2
   - prodigal=2.6.3
   - barrnap=0.9
-  - ipython
-  - rpy2
-  - pandas
+  - ipython=8.12.0
+  - rpy2=3.5.10
+  - pandas=2.0.0
