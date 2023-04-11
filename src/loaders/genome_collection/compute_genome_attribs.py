@@ -70,7 +70,7 @@ from rpy2.robjects.packages import importr
 
 from src.loaders.common import loader_common_names
 
-SERIES_TOOLS = []  # Tools cannot be executed in parallel
+SERIES_TOOLS = ['microtrait']  # Tools cannot be executed in parallel
 
 # Fraction amount of system cores can be utilized
 # (i.e. 0.5 - program will use 50% of total processors,
@@ -344,9 +344,16 @@ def microtrait(genome_ids, work_dir, source_data_dir, debug, program_threads, ba
 
     start = time.time()
 
-    # RUN MicroTrait in serial
+    # RUN MicroTrait in parallel with multiprocessing
     args_list = [(*genome_file, debug) for genome_file in list(source_genome_file_map.items())]
-    results = [_run_microtrait(*args) for args in args_list]
+
+    pool = multiprocessing.Pool(processes=program_threads)
+    results = pool.starmap(_run_microtrait, args_list)
+
+    pool.close()
+    pool.join()
+
+    # TODO process results from _run_microtrait
 
     end_time = time.time()
     print(
@@ -452,7 +459,7 @@ def main():
         start = time.time()
         print(f"Start executing {tool} with {threads} threads")
         if tool in SERIES_TOOLS:
-            failed_ids = comp_ops(genome_ids, work_dir, source_data_dir, debug, threads)
+            failed_ids = comp_ops(genome_ids, work_dir, source_data_dir, debug, threads, 0, node_id, source_file_ext)
         else:
             # call tool execution in parallel
             num_batches = max(math.floor(threads / program_threads), 1)
