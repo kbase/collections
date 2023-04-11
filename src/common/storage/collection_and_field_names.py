@@ -143,3 +143,6 @@ COLL_MICROTRAIT_META = _MICROTRAIT_COLL_PREFIX  + "meta"
 
 # Stores the core microtrait data
 COLL_MICROTRAIT_DATA = _MICROTRAIT_COLL_PREFIX + "data"
+
+# Stores cell detail information for the heatmap
+COLL_MICROTRAIT_CELLS = _MICROTRAIT_COLL_PREFIX + "cells"
