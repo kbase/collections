@@ -15,3 +15,6 @@ gtdb_attribs2.jsonl
 .DS_Store
 .vscode/settings.json
 collections_config.toml
+gtdb_attribs3.jsonl
+gtdb_taxa_count2_rank.jsonl
+gtdb_taxa_count2.jsonl

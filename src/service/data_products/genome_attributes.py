@@ -21,6 +21,7 @@ from src.service.data_products.common_functions import (
     remove_collection_keys,
     query_simple_collection_list,
     count_simple_collection_list,
+    mark_data_by_kbase_id,
 )
 from src.service.data_products.common_models import (
     DataProductSpec,
@@ -654,40 +655,13 @@ async def mark_selections(storage: ArangoStorage, selection_id: str):
     Mark genome attribute entries that are present in the selection and complete the selection
     process.
     """
-    sel = await storage.get_selection_full(selection_id)
-    # use version number to avoid race conditions with activating collections
-    coll = await storage.get_collection_version_by_num(sel.collection_id, sel.collection_ver)
-    load_ver = {dp.product: dp.version for dp in coll.data_products}[ID]
-
-    # a bit too tricky to DRY this up with gtdb lineage matches above, although they're similar
-    # retries?
-    selfld = names.FLD_MATCHES_SELECTIONS
-    aql = f"""
-        FOR d IN @@{_FLD_COL_NAME}
-            FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
-            FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
-            FILTER d.{names.FLD_KBASE_ID} IN @genome_ids
-            UPDATE d WITH {{
-                {selfld}: APPEND(d.{selfld}, [@internal_selection_id], true)
-            }} IN @@{_FLD_COL_NAME}
-            OPTIONS {{exclusive: true}}
-            LET updated = NEW
-            RETURN KEEP(updated, "{names.FLD_KBASE_ID}")
-        """
-    bind_vars = {
-        f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
-        _FLD_COL_ID: coll.id,
-        _FLD_COL_LV: load_ver,
-        "genome_ids": sel.selection_ids,
-        "internal_selection_id": _SELECTION_ID_PREFIX + sel.internal_selection_id,
-    }
-    matched = set()
-    cur = await storage.aql().execute(aql, bind_vars=bind_vars)
-    try:
-        async for d in cur:
-            matched.add(d[names.FLD_KBASE_ID])
-    finally:
-        await cur.close(ignore_missing=True)
-    missed = sorted(set(sel.selection_ids) - matched)
+    missed = await mark_data_by_kbase_id(
+        storage,
+        names.COLL_GENOME_ATTRIBS,
+        selection_id,
+        False,
+        ID,
+        id_prefix = _SELECTION_ID_PREFIX
+    )
     state = models.ProcessState.FAILED if missed else models.ProcessState.COMPLETE
     await storage.update_selection_state(selection_id, state, now_epoch_millis(), missed)
