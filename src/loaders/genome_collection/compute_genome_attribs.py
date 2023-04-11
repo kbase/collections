@@ -78,7 +78,13 @@ SERIES_TOOLS = ['microtrait']  # Tools cannot be executed in parallel
 SYSTEM_UTILIZATION = 0.5
 
 
-def _find_genome_file(genome_id, file_ext, source_data_dir, exclude_file_name_substr=None, expected_file_count=1):
+def _find_genome_file(genome_id, file_ext, source_data_dir, exclude_file_name_substr=None,
+                      expected_file_count=1):
+    # In most cases, our focus is solely on the {genome_id}.genomic.fna.gz file from NCBI, while excluding
+    # {genome_id}.cds_from_genomic.fna.gz, {genome_id}.rna_from_genomic.fna.gz, and
+    # {genome_id}.ERR_genomic.fna.gz files.
+    if exclude_file_name_substr is None:
+        exclude_file_name_substr = ['cds_from', 'rna_from', 'ERR']
     genome_path = os.path.join(source_data_dir, genome_id)
 
     if not os.path.exists(genome_path):
@@ -254,9 +260,7 @@ def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
     tool_genome_id_map, source_genome_file_map = dict(), dict()
     with open(batch_file_path, "w") as batch_file:
         for genome_id in genome_ids:
-            genome_file = _find_genome_file(genome_id, source_file_ext, source_data_dir,
-                                            exclude_file_name_substr=['cds_from', 'rna_from', 'ERR'],
-                                            expected_file_count=1)
+            genome_file = _find_genome_file(genome_id, source_file_ext, source_data_dir)
 
             if genome_file:
                 tool_genome_id_map.update(_map_tool_id_to_genome_id('gtdb_tk',
@@ -282,16 +286,14 @@ def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
     # Many checkm2 dependencies (e.g. scikit-learn=0.23.2, tensorflow, diamond, etc.) support Python version up to 3.9
 
     failed_ids, size = list(), len(genome_ids)
-    print(f'Start executing checkM2 for {len(genome_ids)} genomes')
+    print(f'Start executing checkM2 for {size} genomes')
 
     batch_dir = _create_batch_dir(work_dir, batch_number, size, node_id)
     tool_genome_id_map, source_genome_file_map = dict(), dict()
     # retrieve genomic.fna.gz files
     fna_files = list()
     for genome_id in genome_ids:
-        genome_file = _find_genome_file(genome_id, source_file_ext, source_data_dir,
-                                        exclude_file_name_substr=['cds_from', 'rna_from', 'ERR'],
-                                        expected_file_count=1)
+        genome_file = _find_genome_file(genome_id, source_file_ext, source_data_dir)
 
         if genome_file:
             tool_genome_id_map.update(_map_tool_id_to_genome_id('checkm2',
@@ -323,16 +325,14 @@ def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
 
 def microtrait(genome_ids, work_dir, source_data_dir, debug, program_threads, node_id, source_file_ext):
     failed_ids, size = list(), len(genome_ids)
-    print(f'Start executing MicroTrait for {len(genome_ids)} genomes')
+    print(f'Start executing MicroTrait for {size} genomes')
 
     batch_dir = _create_batch_dir(work_dir, 'series', size, node_id)
     tool_genome_id_map, source_genome_file_map = dict(), dict()
     # retrieve genomic.fna.gz files
     fna_files = list()
     for genome_id in genome_ids:
-        genome_file = _find_genome_file(genome_id, source_file_ext, source_data_dir,
-                                        exclude_file_name_substr=['cds_from', 'rna_from', 'ERR'],
-                                        expected_file_count=1)
+        genome_file = _find_genome_file(genome_id, source_file_ext, source_data_dir)
 
         if genome_file:
             tool_genome_id_map.update(_map_tool_id_to_genome_id('microtrait',
