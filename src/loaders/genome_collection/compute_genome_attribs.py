@@ -228,7 +228,7 @@ def _run_microtrait(genome_id, fna_file, debug):
 
     # Load the microtrait package
     importr("microtrait")
-    # TODO: implement the Rscript to run microtrait
+    # TODO: implement the Rscript to run microtrait, potentially an isolated Rscript and get rid of the rpy2 dependency
 
     return microtrait_result_dict
 
@@ -321,11 +321,11 @@ def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
     return failed_ids
 
 
-def microtrait(genome_ids, work_dir, source_data_dir, debug, program_threads, batch_number, node_id, source_file_ext):
+def microtrait(genome_ids, work_dir, source_data_dir, debug, program_threads, node_id, source_file_ext):
     failed_ids, size = list(), len(genome_ids)
     print(f'Start executing MicroTrait for {len(genome_ids)} genomes')
 
-    batch_dir = _create_batch_dir(work_dir, batch_number, size, node_id)
+    batch_dir = _create_batch_dir(work_dir, 'series', size, node_id)
     tool_genome_id_map, source_genome_file_map = dict(), dict()
     # retrieve genomic.fna.gz files
     fna_files = list()
@@ -459,7 +459,7 @@ def main():
         start = time.time()
         print(f"Start executing {tool} with {threads} threads")
         if tool in SERIES_TOOLS:
-            failed_ids = comp_ops(genome_ids, work_dir, source_data_dir, debug, threads, 0, node_id, source_file_ext)
+            failed_ids = comp_ops(genome_ids, work_dir, source_data_dir, debug, threads, node_id, source_file_ext)
         else:
             # call tool execution in parallel
             num_batches = max(math.floor(threads / program_threads), 1)
