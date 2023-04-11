@@ -66,6 +66,7 @@ import time
 import uuid
 
 import pandas as pd
+from rpy2.robjects.packages import importr
 
 from src.loaders.common import loader_common_names
 
@@ -200,7 +201,7 @@ def _map_tool_id_to_genome_id(tool_name, original_genome_id, genome_file_name, s
         base_name = genome_file_name.split(source_file_ext)[0]
         return {base_name: original_genome_id}
 
-    elif tool_name == 'gtdb_tk':
+    elif tool_name in ['gtdb_tk', 'microtrait']:
         # When creating the batch file for GTDB-TK, we use the genome ID as the identifier for each genome.
         return {original_genome_id: original_genome_id}
     else:
@@ -217,8 +218,19 @@ def _create_genome_metadata_file(tool_genome_id_map, source_genome_file_map, gen
     # create tool genome identifier metadata file
     genome_meta_file_path = os.path.join(batch_dir, loader_common_names.GENOME_METADATA_FILE)
     with open(genome_meta_file_path, "w") as meta_file:
+
         for tool_genome_identifier, genome_id in tool_genome_id_map.items():
             meta_file.write(f'{tool_genome_identifier}\t{genome_id}\t{source_genome_file_map.get(genome_id)}\n')
+
+
+def _run_microtrait(genome_id, fna_file, debug):
+    microtrait_result_dict = {'genome_id': genome_id, 'source_file': fna_file}
+
+    # Load the microtrait package
+    importr("microtrait")
+    # TODO: implement the Rscript to run microtrait
+
+    return microtrait_result_dict
 
 
 def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch_number,
@@ -268,7 +280,6 @@ def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
 def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch_number, node_id, source_file_ext):
     # NOTE: require Python <= 3.9
     # Many checkm2 dependencies (e.g. scikit-learn=0.23.2, tensorflow, diamond, etc.) support Python version up to 3.9
-    # TODO: run checkm2 tool via docker container
 
     failed_ids, size = list(), len(genome_ids)
     print(f'Start executing checkM2 for {len(genome_ids)} genomes')
@@ -304,6 +315,42 @@ def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
     end_time = time.time()
     print(
         f'Used {round((end_time - start) / 60, 2)} minutes to execute checkM2 predict for {len(genome_ids)} genomes')
+
+    _create_genome_metadata_file(tool_genome_id_map, source_genome_file_map, len(genome_ids), batch_dir)
+    # TODO: inspect stdout for failed ids or do it in the parser program
+    return failed_ids
+
+
+def microtrait(genome_ids, work_dir, source_data_dir, debug, program_threads, batch_number, node_id, source_file_ext):
+    failed_ids, size = list(), len(genome_ids)
+    print(f'Start executing MicroTrait for {len(genome_ids)} genomes')
+
+    batch_dir = _create_batch_dir(work_dir, batch_number, size, node_id)
+    tool_genome_id_map, source_genome_file_map = dict(), dict()
+    # retrieve genomic.fna.gz files
+    fna_files = list()
+    for genome_id in genome_ids:
+        genome_file = _find_genome_file(genome_id, source_file_ext, source_data_dir,
+                                        exclude_file_name_substr=['cds_from', 'rna_from', 'ERR'],
+                                        expected_file_count=1)
+
+        if genome_file:
+            tool_genome_id_map.update(_map_tool_id_to_genome_id('microtrait',
+                                                                genome_id,
+                                                                os.path.basename(genome_file[0]),
+                                                                source_file_ext))
+            source_genome_file_map[genome_id] = genome_file[0]
+            fna_files.append(str(genome_file[0]))
+
+    start = time.time()
+
+    # RUN MicroTrait in serial
+    args_list = [(*genome_file, debug) for genome_file in list(source_genome_file_map.items())]
+    results = [_run_microtrait(*args) for args in args_list]
+
+    end_time = time.time()
+    print(
+        f'Used {round((end_time - start) / 60, 2)} minutes to execute MicroTrait for {len(genome_ids)} genomes')
 
     _create_genome_metadata_file(tool_genome_id_map, source_genome_file_map, len(genome_ids), batch_dir)
     # TODO: inspect stdout for failed ids or do it in the parser program
