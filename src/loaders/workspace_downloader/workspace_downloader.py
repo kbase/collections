@@ -258,41 +258,47 @@ def main():
     output_dir = _make_output_dir(
         root_dir, loader_common_names.SOURCE_DATA_DIR, SOURCE, workspace_id
     )
+    boolean_flag = False
+    try:
+        # start podman service
+        proc = loader_helper.start_podman_service(uid)
+        boolean_flag = True
+    except:
+        raise Exception("Podman service fails to start")
+    else:
+        # set up conf and start callback server
+        conf = Conf(job_dir, output_dir, workers, kb_base_url, token_filename)
 
-    # start podman service
-    proc = loader_helper.start_podman_service(uid)
+        visited = set(
+            [
+                upa
+                for upa in os.listdir(output_dir)
+                if loader_helper.is_upa_info_complete(output_dir, upa)
+            ]
+        )
+        print("Skipping: ", visited)
 
-    # set up conf and start callback server
-    conf = Conf(job_dir, output_dir, workers, kb_base_url, token_filename)
+        for obj_info in list_objects(workspace_id, conf, FILTER_OBJECTS_NAME_BY):
+            upa = "{6}_{0}_{4}".format(*obj_info)
+            if upa in visited:
+                continue
+            # remove legacy upa_dir to avoid FileExistsError in hard link
+            dirpath = os.path.join(output_dir, upa)
+            if os.path.exists(dirpath) and os.path.isdir(dirpath):
+                shutil.rmtree(dirpath)
+            conf.queue.put([upa, obj_info])
 
-    visited = set(
-        [
-            upa
-            for upa in os.listdir(output_dir)
-            if loader_helper.is_upa_info_complete(output_dir, upa)
-        ]
-    )
-    print("Skipping: ", visited)
+        for i in range(workers + 1):
+            conf.queue.put(None)
 
-    for obj_info in list_objects(workspace_id, conf, FILTER_OBJECTS_NAME_BY):
-        upa = "{6}_{0}_{4}".format(*obj_info)
-        if upa in visited:
-            continue
-        # remove legacy upa_dir to avoid FileExistsError in hard link
-        dirpath = os.path.join(output_dir, upa)
-        if os.path.exists(dirpath) and os.path.isdir(dirpath):
-            shutil.rmtree(dirpath)
-        conf.queue.put([upa, obj_info])
+        conf.pools.close()
+        conf.pools.join()
+        conf.cb.stop()
 
-    for i in range(workers + 1):
-        conf.queue.put(None)
-
-    conf.pools.close()
-    conf.pools.join()
-    conf.cb.stop()
-
-    # stop podman service
-    proc.terminate()
+    finally:
+        # stop podman service if is on
+        if boolean_flag:
+            proc.terminate()
 
     if delete_job_dir:
         shutil.rmtree(job_dir)
