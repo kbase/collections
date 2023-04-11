@@ -2,7 +2,7 @@
 Reusable code for creating a heatmap based data product.
 """
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Query
 
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
@@ -162,7 +162,13 @@ class HeatMapController:
         self,
         r: Request,
         collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
-        # TODO HEATMAP support startfrom
+        start_after: str | None = Query(
+            default=None,
+            example="GB_GCA_000006155.2",
+            description=f"The `{names.FLD_KBASE_ID}` to start after when listing data. This "
+                + "parameter can be used to page through the data by providing the ID from "
+                + "the last row in the previous set of data."
+        ),
         limit: int = QUERY_VALIDATOR_LIMIT,
         count: bool = QUERY_COUNT,
         load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
@@ -179,6 +185,7 @@ class HeatMapController:
                 storage,
                 collection_id,
                 load_ver,
+                start_after,
                 limit,
                 None,
                 False,
@@ -212,6 +219,7 @@ class HeatMapController:
         store: ArangoStorage,
         collection_id: str,
         load_ver: str,
+        start_after: str,
         limit: int,
         internal_match_id: str | None,
         match_mark: bool,
@@ -229,6 +237,7 @@ class HeatMapController:
             names.FLD_KBASE_ID,
             sort_descending=False,
             skip=0,
+            start_after=start_after,
             limit=limit,
             internal_match_id=_prefix_id(_MATCH_ID_PREFIX, internal_match_id),
             match_mark=match_mark,
