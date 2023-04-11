@@ -5,6 +5,12 @@ Common pydantic and fastAPI models for heat map data products.
 from pydantic import BaseModel, Field
 
 
+_FLD_CELL_ID = Field(
+    example="4",
+    description="The unique ID of the cell in the heatmap."
+)
+
+
 class ColumnInformation(BaseModel):
     """
     Information about a column in the heat map, e.g. its name, ID, description, etc.
@@ -59,10 +65,7 @@ class Cell(BaseModel):
     """
     Information about an indvidual cell in a heatmap.
     """
-    celid: str = Field(
-        example="4",
-        description="The unique ID of the cell in the heatmap."
-    )
+    celid: str = _FLD_CELL_ID
     colid: str = Field(
         example="8",
         description="The ID of the column in which this cell is located."
@@ -109,3 +112,27 @@ class HeatMap(BaseModel):
         example=42,
         description="The total number of rows that match the query."
     )
+
+
+class CellDetailEntry(BaseModel):
+    """
+    An entry in a list of cell detail values.
+    """
+    id: str = Field(
+        example="spo0A",
+        description="The ID of of the cell entry, often a gene name."
+    )
+    value: float | bool = Field(
+        example=56.1,
+        description="The value of the cell entry."
+    )
+    class Config:
+        smart_union=True
+
+
+class CellDetail(BaseModel):
+    """
+    Detailed information about a cell in a heatmap.
+    """
+    celid: str = _FLD_CELL_ID
+    values: list[CellDetailEntry]
