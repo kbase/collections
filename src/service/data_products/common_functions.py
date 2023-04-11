@@ -3,7 +3,10 @@ Functions common to all data products
 """
 
 import src.common.storage.collection_and_field_names as names
-from src.common.storage.db_doc_conversions import collection_load_version_key
+from src.common.storage.db_doc_conversions import (
+    collection_load_version_key,
+    collection_data_id_key,
+)
 from src.service import errors
 from src.service import models
 from src.service import kb_auth
@@ -71,7 +74,7 @@ async def get_collection_singleton_from_db(
 ) -> dict[str, Any]:
     """
     Get a document from the database where it is expected that only one instance of that document
-    exists per collection load version.
+    exists per collection load version and the key is calculated by `collection_load_version_key`.
     
     store - the storage system.
     collection - the arango collection containing the document.
@@ -79,8 +82,56 @@ async def get_collection_singleton_from_db(
     load_ver - the load version of the collection.
     no_data_error - raise a NoDataFoundError (indicating a caller error) instead of a ValueError
         (indicating a problem with the database) if the document isn't found.
-
     """
+    return await _query_collection(
+        store,
+        collection,
+        collection_load_version_key(collection_id, load_ver),
+        f"No data loaded for {collection_id} collection load version {load_ver}",
+        no_data_error,
+    )
+
+
+async def get_doc_from_collection_by_unique_id(
+    store: ArangoStorage,
+    collection: str,
+    collection_id: str,
+    load_ver: str,
+    data_id: str,
+    data_type: str,
+    no_data_error: bool,
+) -> dict[str, Any]:
+    """
+    Get a document from the database where it is expected that only one instance of that document
+    exists per collection load version for a specific data ID and the key is calculated by
+    `collection_data_id_key`.
+    
+    store - the storage system.
+    collection - the arango collection containing the document.
+    collection_id - the KBase collection containing the document.
+    load_ver - the load version of the collection.
+    data_id - the unique ID of the document in the collection load.
+    data_type - the type of the data. This field is used for customizing the error message.
+    no_data_error - raise a NoDataFoundError (indicating a caller error) instead of a ValueError
+        (indicating a problem with the database) if the document isn't found.
+    """
+    return await _query_collection(
+        store,
+        collection,
+        collection_data_id_key(collection_id, load_ver, data_id),
+        f"No {data_type} found for {collection_id} collection load version "
+            + f"{load_ver} ID {data_id}",
+        no_data_error,
+    )
+
+
+async def _query_collection(
+    store: ArangoStorage,
+    collection: str,
+    key: str,
+    err: str,
+    no_data_error: bool,
+) -> dict[str, Any]:
     aql = f"""
         FOR d IN @@coll
             FILTER d.{names.FLD_ARANGO_KEY} == @key
@@ -88,12 +139,11 @@ async def get_collection_singleton_from_db(
     """
     bind_vars = {
         "@coll": collection,
-        "key": collection_load_version_key(collection_id, load_ver),
+        "key": key,
     }
     cur = await store.aql().execute(aql, bind_vars=bind_vars, count=True)
     try:
         if cur.count() < 1:
-            err = f"No data loaded for {collection_id} collection load version {load_ver}"
             if no_data_error:
                 raise errors.NoDataFoundError(err)
             raise ValueError(err)

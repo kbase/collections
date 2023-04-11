@@ -10,6 +10,7 @@ _MICROTRAIT_CONTROLLER = HeatMapController(
     "microTrait",
     names.COLL_MICROTRAIT_META,
     names.COLL_MICROTRAIT_DATA,
+    names.COLL_MICROTRAIT_CELLS,
 )
 
 MICROTRAIT_SPEC = _MICROTRAIT_CONTROLLER.data_product_spec
