@@ -113,6 +113,7 @@ async def query_simple_collection_list(
     sort_on: str,
     sort_descending: bool = False,
     skip: int = 0,
+    start_after: str = None,
     limit: int = 1000,
     internal_match_id: str | None = None,
     match_mark: bool = False,
@@ -135,6 +136,11 @@ async def query_simple_collection_list(
     sort_descending - sort in descending order rather than ascending.
     skip - the number of records to skip. Use this parameter wisely, as paging through records via
         increasing skip incrementally is an O(n^2) operation.
+    start_after - skip any records prior to and including this value in the `sort_on` field,
+        which should contain unique values.
+        It is strongly recommended to set up an index that the query can use to skip to
+        the correct starting record without a table scan. This parameter allows for
+        non-O(n^2) paging of data.
     limit - the maximum number of rows to return.
     internal_match_id - an ID for a match.
     match_mark - if True, don't filter based on the match, just mark matched rows.
@@ -156,6 +162,11 @@ async def query_simple_collection_list(
         FILTER d.{names.FLD_COLLECTION_ID} == @coll_id
         FILTER d.{names.FLD_LOAD_VERSION} == @load_ver
     """
+    if start_after:
+        aql += f"""
+            FILTER d.@sort > @start_after
+        """
+        bind_vars["start_after"] = start_after
     if internal_match_id and not match_mark:
         bind_vars["internal_match_id"] = internal_match_id
         aql += f"""
