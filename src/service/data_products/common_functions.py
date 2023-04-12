@@ -372,3 +372,35 @@ async def mark_data_by_kbase_id(
     finally:
         await cur.close(ignore_missing=True)
     return sorted(set(data_ids) - matched)
+
+
+async def remove_marked_subset(
+    storage: ArangoStorage,
+    collection: str,
+    subset_internal_id: str
+):
+    f"""
+    Remove a set of marks from a set of data. The marks are removed from the
+    `{names.FLD_MATCHES_SELECTIONS} field, and it is strongly recommended to have an index on
+    that field.
+
+    storage - the storage system.
+    collection - the name of the arango collection to modify.
+    subset_internal_id - the internal ID of the subset to remove, including any prefixes that
+    may have been applied when marking the data.
+    """
+    m = names.FLD_MATCHES_SELECTIONS
+    bind_vars = {
+        f"@coll": collection,
+        "internal_id": subset_internal_id,
+    }
+    aql = f"""
+        FOR d IN @@coll
+            FILTER @internal_id IN d.{m}
+            UPDATE d WITH {{
+                {m}: REMOVE_VALUE(d.{m}, @internal_id)
+            }} IN @@coll
+            OPTIONS {{exclusive: true}}
+        """
+    cur = await storage.aql().execute(aql, bind_vars=bind_vars)
+    await cur.close(ignore_missing=True)
