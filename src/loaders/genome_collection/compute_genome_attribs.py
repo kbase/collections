@@ -84,6 +84,12 @@ IGNORE_MISSING_GENOME_FILES_COLLECTIONS = ['GTDB']
 
 def _find_genome_file(genome_id, file_ext, source_data_dir, collection, exclude_file_name_substr=None,
                       expected_file_count=1):
+    # Finds genome file(s) for a given genome ID in a source data directory,
+    # excluding files whose name contains specified substrings.
+
+    # Return a list of matching genome file paths or an empty list if no matching files are found and the collection is
+    # in the IGNORE_MISSING_GENOME_FILES_COLLECTIONS list.
+
     # In most cases, our focus is solely on the {genome_id}.genomic.fna.gz file from NCBI, while excluding
     # {genome_id}.cds_from_genomic.fna.gz, {genome_id}.rna_from_genomic.fna.gz, and
     # {genome_id}.ERR_genomic.fna.gz files.
@@ -100,9 +106,11 @@ def _find_genome_file(genome_id, file_ext, source_data_dir, collection, exclude_
         genome_files = [f for f in genome_files if
                         all(name_substr not in f for name_substr in exclude_file_name_substr)]
 
+    # Raise an error if no genome files are found and the collection is not in the ignored collections
     if not genome_files and collection not in IGNORE_MISSING_GENOME_FILES_COLLECTIONS:
         raise ValueError(f'Cannot find target file(s) for: {genome_id}')
 
+    # Raise an error if the number of files found does not match the expected file count
     if genome_files and len(genome_files) != expected_file_count:
         raise ValueError(f'Found {len(genome_files)} files for {genome_id} but expected {expected_file_count}')
 
@@ -233,7 +241,8 @@ def _create_genome_metadata_file(genomes_meta, batch_dir):
 def _retrieve_genome_file(genome_id, source_data_dir, source_file_ext, collection, tool,
                           exclude_file_name_substr=None):
     # retrieve the genome file associated with genome_id
-    # return the genome file path if it exists, otherwise raise an error
+    # return the genome file path if it exists, otherwise raise an error if collection is not in the list of
+    # IGNORE_MISSING_GENOME_FILES_COLLECTIONS
 
     genome_files = _find_genome_file(genome_id, source_file_ext, source_data_dir, collection,
                                      exclude_file_name_substr=exclude_file_name_substr)
@@ -249,9 +258,11 @@ def _retrieve_genome_file(genome_id, source_data_dir, source_file_ext, collectio
 
 def _prepare_tool(tool_name, work_dir, batch_number, size, node_id, genome_ids, source_data_dir, source_file_ext,
                   kbase_collection):
-    # prepare for tool execution including creating the batch directory and retrieving the genome files
+    # Prepares for tool execution by creating a batch directory and retrieving genome files with associated metadata.
 
     batch_dir = _create_batch_dir(work_dir, batch_number, size, node_id)
+
+    # Retrieve genome files and associated metadata for each genome ID
     genome_meta = dict()
     for genome_id in genome_ids:
         genome_file, tool_identifier = _retrieve_genome_file(
