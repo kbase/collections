@@ -293,12 +293,12 @@ def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
         for genome_id, genome_meta in genomes_meta.items():
             batch_file.write(f'{genome_meta["source_file"]}\t{genome_id}\n')
 
-    _create_genome_metadata_file(genomes_meta, batch_dir)
     if run_steps:
         _run_gtdb_tk_steps(batch_file_path, batch_dir, debug, genome_ids, program_threads)
     else:
         _run_gtdb_tk_classify_wf(batch_file_path, batch_dir, debug, genome_ids, program_threads)
 
+    _create_genome_metadata_file(genomes_meta, batch_dir)
     # TODO: inspect stdout for failed ids or do it in the parser program
     return failed_ids
 
