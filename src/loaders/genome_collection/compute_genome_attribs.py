@@ -291,7 +291,7 @@ def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
     #       Ensure that Third-party software are on the system path.
     #       https://ecogenomics.github.io/GTDBTk/installing/index.html#installing-third-party-software
 
-    size = list()
+    size = len(genome_ids)
     print(f'Start executing GTDB-TK for {size} genomes')
 
     batch_dir, genomes_meta = _prepare_tool('gtdb_tk', work_dir, batch_number, size, node_id, genome_ids,
@@ -318,7 +318,7 @@ def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
     # NOTE: require Python <= 3.9
     # Many checkm2 dependencies (e.g. scikit-learn=0.23.2, tensorflow, diamond, etc.) support Python version up to 3.9
 
-    size = list()
+    size = len(genome_ids)
     print(f'Start executing checkM2 for {size} genomes')
 
     batch_dir, genomes_meta = _prepare_tool('checkm2', work_dir, batch_number, size, node_id, genome_ids,
