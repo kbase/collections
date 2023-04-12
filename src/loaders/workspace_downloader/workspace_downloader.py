@@ -22,7 +22,7 @@ optional arguments:
 
             
 e.g.
-PYTHONPATH=. python src/loaders/workspace_downloader/workspace_downloader.py --workspace_id 39795 --ci
+PYTHONPATH=. python src/loaders/workspace_downloader/workspace_downloader.py --workspace_id 39795 --kb_base_url https://ci.kbase.us/services/
 
 NOTE:
 NERSC file structure for WS:
