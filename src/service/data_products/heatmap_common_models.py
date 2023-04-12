@@ -4,6 +4,8 @@ Common pydantic and fastAPI models for heat map data products.
 
 from pydantic import BaseModel, Field
 
+from src.service import models
+
 
 _FLD_CELL_ID = Field(
     example="4",
@@ -80,6 +82,12 @@ class HeatMapRow(BaseModel):
     """
     A row of cells in a heatmap.
     """
+    match: bool | None = Field(
+        description="True if this row is included in a match. Null if there is no match."
+    )
+    sel: bool | None = Field(
+        description="True if this row is included in a selection. Null if there is no selection."
+    )
     kbase_id: str = Field(
         example="GB_GCA_000006155.2",
         description="The unique ID of the subject of a heatmap row. Often a genome, MAG, etc."
@@ -93,8 +101,20 @@ class HeatMap(BaseModel):
     """
     A heatmap or a portion of a heatmap.
 
-    Either data, min_value, and max_value are supplied, or count is supplied.
+    If match or selection IDs are supplied, their processing states are returned.
+
+    Additionally either data, min_value, and max_value, or count may be supplied.
     """
+    heatmap_match_state: models.ProcessState | None = Field(
+        example=models.ProcessState.PROCESSING,
+        description="The processing state of the match (if any) for this data product. "
+            + "This data product requires additional processing beyond the primary match."
+    )
+    heatmap_selection_state: models.ProcessState | None = Field(
+        example=models.ProcessState.FAILED,
+        description="The processing state of the selection (if any) for this data product. "
+            + "This data product requires additional processing beyond the primary selection."
+    )
     data: list[HeatMapRow] | None = Field(
         description="The rows in the heatmap."
     )
