@@ -77,6 +77,8 @@ SERIES_TOOLS = ['microtrait']  # Tools cannot be executed in parallel
 SYSTEM_UTILIZATION = 0.5
 
 # source genome files can be missing for those collections
+# genomes with missing files will be skipped rather than raising an error
+# TODO parser script should catch those missing genomes and report them or writes to a file for later use
 IGNORE_MISSING_GENOME_FILES_COLLECTIONS = ['GTDB']
 
 
