@@ -94,7 +94,7 @@ class HeatMapController:
             self.get_cell,
             methods=["GET"],
             response_model=heatmap_models.CellDetail,
-            summary=f"Get a cell in a {api_category} heatmap.",
+            summary=f"Get a cell in a {api_category} heatmap",
             description=f"Get detailed information about a cell in a {api_category} heatmap."
         )
         return router
