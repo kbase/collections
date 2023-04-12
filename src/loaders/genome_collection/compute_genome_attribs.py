@@ -56,7 +56,6 @@ Require defining the 'GTDBTK_DATA_PATH' environment variable to run GTDB_TK tool
 e.g. export GTDBTK_DATA_PATH=/global/cfs/cdirs/kbase/collections/libraries/gtdb_tk/release207_v2
 """
 import argparse
-import itertools
 import math
 import multiprocessing
 import os
@@ -78,7 +77,8 @@ SYSTEM_UTILIZATION = 0.5
 
 # source genome files can be missing for those collections
 # genomes with missing files will be skipped rather than raising an error
-# TODO parser script should catch those missing genomes and report them or writes to a file for later use
+# TODO parser script should catch those missing genomes and report them or writes to a file for later use or
+#  having download script not create empty directories for genomes with missing files
 IGNORE_MISSING_GENOME_FILES_COLLECTIONS = ['GTDB']
 
 
@@ -292,7 +292,7 @@ def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
     #       Ensure that Third-party software are on the system path.
     #       https://ecogenomics.github.io/GTDBTk/installing/index.html#installing-third-party-software
 
-    failed_ids, size = list(), len(genome_ids)
+    size = list()
     print(f'Start executing GTDB-TK for {size} genomes')
 
     batch_dir, genomes_meta = _prepare_tool('gtdb_tk', work_dir, batch_number, size, node_id, genome_ids,
@@ -312,8 +312,6 @@ def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
         _run_gtdb_tk_classify_wf(batch_file_path, batch_dir, debug, genome_ids, program_threads)
 
     _create_genome_metadata_file(genomes_meta, batch_dir)
-    # TODO: inspect stdout for failed ids or do it in the parser program
-    return failed_ids
 
 
 def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch_number, node_id, source_file_ext,
@@ -321,7 +319,7 @@ def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
     # NOTE: require Python <= 3.9
     # Many checkm2 dependencies (e.g. scikit-learn=0.23.2, tensorflow, diamond, etc.) support Python version up to 3.9
 
-    failed_ids, size = list(), len(genome_ids)
+    size = list()
     print(f'Start executing checkM2 for {size} genomes')
 
     batch_dir, genomes_meta = _prepare_tool('checkm2', work_dir, batch_number, size, node_id, genome_ids,
@@ -345,13 +343,11 @@ def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
         f'Used {round((end_time - start) / 60, 2)} minutes to execute checkM2 predict for {size} genomes')
 
     _create_genome_metadata_file(genomes_meta, batch_dir)
-    # TODO: inspect stdout for failed ids or do it in the parser program
-    return failed_ids
 
 
 def microtrait(genome_ids, work_dir, source_data_dir, debug, program_threads, node_id, source_file_ext,
                kbase_collection):
-    failed_ids, size = list(), len(genome_ids)
+    size = len(genome_ids)
     print(f'Start executing MicroTrait for {size} genomes')
 
     batch_dir, genomes_meta = _prepare_tool('microtrait', work_dir, 'series', size, node_id, genome_ids,
@@ -372,8 +368,6 @@ def microtrait(genome_ids, work_dir, source_data_dir, debug, program_threads, no
         f'Used {round((end_time - start) / 60, 2)} minutes to execute MicroTrait for {size} genomes')
 
     _create_genome_metadata_file(genomes_meta, batch_dir)
-    # TODO: inspect stdout for failed ids or do it in the parser program
-    return failed_ids
 
 
 def main():
@@ -471,8 +465,7 @@ def main():
         start = time.time()
         print(f"Start executing {tool} with {threads} threads")
         if tool in SERIES_TOOLS:
-            failed_ids = comp_ops(genome_ids, work_dir, source_data_dir, debug, threads, node_id, source_file_ext,
-                                  kbase_collection)
+            comp_ops(genome_ids, work_dir, source_data_dir, debug, threads, node_id, source_file_ext, kbase_collection)
         else:
             # call tool execution in parallel
             num_batches = max(math.floor(threads / program_threads), 1)
@@ -487,15 +480,11 @@ def main():
                             source_file_ext,
                             kbase_collection) for batch_number, i in enumerate(range(0, total_count, chunk_size))]
             pool = multiprocessing.Pool(processes=num_batches)
-            batch_result = pool.starmap(comp_ops, batch_input)
-            failed_ids = list(itertools.chain.from_iterable(batch_result))
+            pool.starmap(comp_ops, batch_input)
+            pool.close()
+            pool.join()
         print(
             f'In total used {round((time.time() - start) / 60, 2)} minutes to execute {tool} for {total_count} genomes')
-
-        if failed_ids:
-            print(f'Failed to execute {tool} for {failed_ids}')
-        else:
-            print(f'Successfully executed all genomes for {tool}')
 
 
 if __name__ == "__main__":
