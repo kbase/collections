@@ -342,7 +342,7 @@ def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
     _run_command(command, debug=debug, log_dir=os.path.join(batch_dir, 'checkm2_log'))
     end_time = time.time()
     print(
-        f'Used {round((end_time - start) / 60, 2)} minutes to execute checkM2 predict for {len(genome_ids)} genomes')
+        f'Used {round((end_time - start) / 60, 2)} minutes to execute checkM2 predict for {size} genomes')
 
     _create_genome_metadata_file(genomes_meta, batch_dir)
     # TODO: inspect stdout for failed ids or do it in the parser program
@@ -369,7 +369,7 @@ def microtrait(genome_ids, work_dir, source_data_dir, debug, program_threads, no
 
     end_time = time.time()
     print(
-        f'Used {round((end_time - start) / 60, 2)} minutes to execute MicroTrait for {len(genome_ids)} genomes')
+        f'Used {round((end_time - start) / 60, 2)} minutes to execute MicroTrait for {size} genomes')
 
     _create_genome_metadata_file(genomes_meta, batch_dir)
     # TODO: inspect stdout for failed ids or do it in the parser program
