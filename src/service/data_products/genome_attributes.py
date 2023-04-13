@@ -30,6 +30,10 @@ from src.service.data_products.common_models import (
     QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
     QUERY_VALIDATOR_LIMIT,
     QUERY_COUNT,
+    QUERY_MATCH_ID,
+    QUERY_MATCH_MARK,
+    QUERY_SELECTION_ID,
+    QUERY_SELECTION_MARK,
 )
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
@@ -70,23 +74,24 @@ class GenomeAttribsSpec(DataProductSpec):
         await remove_marked_subset(
             storage, names.COLL_GENOME_ATTRIBS, _SELECTION_ID_PREFIX + internal_selection_id)
 
-    async def apply_selection(self, storage: ArangoStorage, selection_id: str):
+    async def apply_selection(self, storage: ArangoStorage, internal_selection_id: str):
         """
         Mark selections in genome attribute data.
 
         storage - the storage system.
-        selection_id - the selection to apply.
+        internal_selection_id - the internal ID of the selection to apply.
         """
         missed = await mark_data_by_kbase_id(
             storage,
             names.COLL_GENOME_ATTRIBS,
-            selection_id,
+            internal_selection_id,
             False,
             ID,
             id_prefix = _SELECTION_ID_PREFIX
         )
         state = models.ProcessState.FAILED if missed else models.ProcessState.COMPLETE
-        await storage.update_selection_state(selection_id, state, now_epoch_millis(), missed)
+        await storage.update_selection_state(
+            internal_selection_id, state, now_epoch_millis(), missed)
 
     async def get_upas_for_selection(
         self,
@@ -155,7 +160,7 @@ GENOME_ATTRIBS_SPEC = GenomeAttribsSpec(
                     # https://www.arangodb.com/docs/stable/indexing-index-basics.html#indexing-array-values
                     names.FLD_MATCHES_SELECTIONS + "[*]",
                     names.FLD_KBASE_ID,
-                    # for finding matches/selections, and opt a default sort on the genome ID
+                    # for finding matches/selections, and opt a default sort on the kbase ID
                 ],
                 [names.FLD_MATCHES_SELECTIONS + "[*]"]  # for deletion
             ]
@@ -256,34 +261,11 @@ async def get_genome_attributes(
         description="Whether to return the data in table form or dictionary list form"
     ),
     count: bool = QUERY_COUNT,
-    match_id: str | None = Query(
-        default = None,
-        description="A match ID to set the view to the match rather than "
-            + "the entire collection. Authentication is required. If a match ID is "
-            # matches are against a specific load version, so...
-            + "set, any load version override is ignored. "
-            + "If a selection filter and a match filter are provided, they are ANDed together. "
-            + "Has no effect on a `count` if `match_mark` is true."
-    ),  # TODO FEATURE support a choice of AND or OR
-    match_mark: bool = Query(
-        default=False,
-        description="Whether to mark matched rows rather than filter based on the match ID. "
-            + "Matched rows will be indicated by a true value in the special field "
-            + f"`{names.FLD_MATCHED}`."
-    ),
-    selection_id: str | None = Query(
-        default=None,
-        description="A selection ID to set the view to the selection rather than the entire "
-            + "collection. If a selection ID is set, any load version override is ignored. "
-            + "If a selection filter and a match filter are provided, they are ANDed together. "
-            + "Has no effect on a `count` if `selection_mark` is true."
-    ),
-    selection_mark: bool = Query(
-        default=False,
-        description="Whether to mark selected rows rather than filter based on the selection ID. "
-            + "Selected rows will be indicated by a true value in the special field "
-            + f"`{names.FLD_SELECTED}`."
-    ),
+    match_id: str | None = QUERY_MATCH_ID,
+    # TODO FEATURE support a choice of AND or OR for matches & selections
+    match_mark: bool = QUERY_MATCH_MARK,
+    selection_id: str | None = QUERY_SELECTION_ID,
+    selection_mark: bool = QUERY_SELECTION_MARK,
     load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
 ):
@@ -433,7 +415,7 @@ async def _count(
 
 
 async def perform_gtdb_lineage_match(
-    match_id: str,
+    internal_match_id: str,
     storage: ArangoStorage,
     lineages: list[str],
     rank: GTDBRank
@@ -442,15 +424,13 @@ async def perform_gtdb_lineage_match(
     Add an internal match ID to genome records in the attributes table that match a set of
     GTDB lineages.
 
-    match_id - the ID of the match.
+    internal_match_id - the ID of the match.
     storage - the storage system containing the match and the genome attribute records.
     lineages - the GTDB lineage strings to match against the genome attributes
     rank - the rank at which to match. This effectively truncates the lineage strings when
         matching.
     """
-    # Could save some bandwidth here buy adding a method to just get the internal ID
-    # Microoptimization, wait until it's a problem
-    match = await storage.get_match_full(match_id)
+    match = await storage.get_match_by_internal_id(internal_match_id)
     # use version number to avoid race conditions with activating collections
     coll = await storage.get_collection_version_by_num(match.collection_id, match.collection_ver)
     load_ver = {dp.product: dp.version for dp in coll.data_products}[ID]
@@ -463,11 +443,11 @@ async def perform_gtdb_lineage_match(
             filtered_lineages.add(str(lineage))
     if rank == GTDBRank.SPECIES:
         await _mark_gtdb_matches_IN_strategy(
-            storage, coll.id, load_ver, filtered_lineages, match.match_id, match.internal_match_id
+            storage, coll.id, load_ver, filtered_lineages, match.internal_match_id
         )
     else:
         await _mark_gtdb_matches_STARTS_WITH_strategy(
-            storage, coll.id, load_ver, filtered_lineages, match.match_id, match.internal_match_id
+            storage, coll.id, load_ver, filtered_lineages, match.internal_match_id
         )
 
 
@@ -476,7 +456,6 @@ async def _mark_gtdb_matches_IN_strategy(
     collection_id: str,
     load_ver: str,
     lineages: set[str],
-    match_id: str,
     internal_match_id: str
 ):
     # may need to batch this if lineages is too big
@@ -501,14 +480,14 @@ async def _mark_gtdb_matches_IN_strategy(
         "lineages": list(lineages),
         "internal_match_id": _MATCH_ID_PREFIX + internal_match_id,
     }
-    await _mark_gtdb_matches_complete(storage, aql, bind_vars, match_id)
+    await _mark_gtdb_matches_complete(storage, aql, bind_vars, internal_match_id)
 
 
 async def _mark_gtdb_matches_complete(
     storage: ArangoStorage,
     aql: str,
     bind_vars: dict[str, Any],
-    match_id: str
+    internal_match_id: str
 ):
     cur = await storage.aql().execute(aql, bind_vars=bind_vars)
     genome_ids = []
@@ -518,7 +497,7 @@ async def _mark_gtdb_matches_complete(
     finally:
         await cur.close(ignore_missing=True)
     await storage.update_match_state(
-        match_id, models.ProcessState.COMPLETE, now_epoch_millis(), genome_ids
+        internal_match_id, models.ProcessState.COMPLETE, now_epoch_millis(), genome_ids
     )
 
 
@@ -527,7 +506,6 @@ async def _mark_gtdb_matches_STARTS_WITH_strategy(
     collection_id: str,
     load_ver: str,
     lineages: set[str],
-    match_id: str,
     internal_match_id: str
 ):
     # this almost certainly needs to be batched, but let's write it stupid for now and improve
@@ -568,7 +546,7 @@ async def _mark_gtdb_matches_STARTS_WITH_strategy(
         # character, but that seems pretty edgy. Don't worry about it for now
         # Famous last words...
         bind_vars[f"lintop{i}"] = lin[:-1] + chr(ord(lin[-1]) + 1)
-    await _mark_gtdb_matches_complete(storage, aql, bind_vars, match_id)
+    await _mark_gtdb_matches_complete(storage, aql, bind_vars, internal_match_id)
 
 
 async def process_subset_documents(

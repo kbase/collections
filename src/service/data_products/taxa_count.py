@@ -150,7 +150,7 @@ class TaxaCounts(BaseModel):
     taxa_count_selection_state: models.ProcessState | None = Field(
         example=models.ProcessState.FAILED,
         description="The processing state of the selection (if any) for this data product. "
-            + "This data product requires additional processing beyond the primary match."
+            + "This data product requires additional processing beyond the primary selection."
     )
     data: list[TaxaCount] | None
 
@@ -286,7 +286,7 @@ async def _get_data_product_match(
     coll: models.SavedCollection,
     match_id: str,
     user: kb_auth.KBaseUser
-):
+) -> models.DataProductProcess:
     if not user:
         raise errors.UnauthorizedError("Authentication is required if a match ID is supplied")
     match = await processing_matches.get_match_full(
@@ -302,7 +302,7 @@ async def _get_data_product_selection(
     appstate: CollectionsState,
     coll: models.SavedCollection,
     selection_id: str,
-):
+) -> models.DataProductProcess:
     sel = await processing_selections.get_selection_full(
         appstate, selection_id, require_complete=True, require_collection=coll)
     dpid = models.DataProductProcessIdentifier(
