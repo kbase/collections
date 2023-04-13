@@ -56,15 +56,18 @@ Require defining the 'GTDBTK_DATA_PATH' environment variable to run GTDB_TK tool
 e.g. export GTDBTK_DATA_PATH=/global/cfs/cdirs/kbase/collections/libraries/gtdb_tk/release207_v2
 """
 import argparse
+import gzip
 import math
 import multiprocessing
 import os
+import shutil
 import subprocess
 import sys
 import time
 import uuid
 
 import pandas as pd
+from rpy2 import robjects
 
 from src.loaders.common import loader_common_names
 
@@ -272,14 +275,63 @@ def _prepare_tool(tool_name, work_dir, batch_number, size, node_id, genome_ids, 
     return batch_dir, genome_meta
 
 
-def _run_microtrait(genome_id, fna_file, debug):
-    microtrait_result_dict = {'genome_id': genome_id, 'source_file': fna_file}
+def _get_r_list_element(r_list, element_name):
+    # retrieve the element from the R list
+    pos = r_list.names.index(element_name)
+    return r_list[pos]
 
-    # Load the microtrait package
-    # importr("microtrait")
-    # TODO: implement the Rscript to run microtrait, potentially an isolated Rscript and get rid of the rpy2 dependency
 
-    return microtrait_result_dict
+def _unpack_gz_file(gz_file):
+    # unpack the gz file
+    # TODO refactor downloader script to automatically unpack gz files
+
+    output_file_path = os.path.splitext(gz_file)[0]
+    if os.path.exists(output_file_path):
+        print(f'file {output_file_path} already exists. Skipping unpacking {gz_file}')
+        return output_file_path
+
+    print(f'unpacking {gz_file}')
+    with gzip.open(gz_file, 'rb') as f_in:
+        with open(output_file_path, 'wb') as f_out:
+            shutil.copyfileobj(f_in, f_out)
+
+    return output_file_path
+
+
+def _run_microtrait(genome_id, fna_file, batch_dir):
+    # run microtrait.extract_traits on the genome file
+
+    genome_dir = os.path.join(batch_dir, genome_id)
+    os.makedirs(genome_dir, exist_ok=True)
+
+    # Load the R script as an R function
+    r_script = """
+    library(microtrait)
+    extract_traits <- function(genome_file) {
+      genome_file <- file.path(genome_file)
+      microtrait_result <- extract.traits(genome_file)
+      return(microtrait_result)
+    }
+    """
+    r_func = robjects.r(r_script)
+
+    if fna_file.endswith('.gz'):
+        fna_file = _unpack_gz_file(fna_file)
+    r_result = r_func(fna_file)
+
+    microtrait_result = _get_r_list_element(r_result, 'microtrait_result')
+
+    # save the RDS file
+    rds_file = _get_r_list_element(r_result, 'rds_file')[0]
+    shutil.copy(rds_file, genome_dir)
+
+    # retrieve genes_detected_table from microtrait_result and save it as a csv file
+    genes_detected_table = _get_r_list_element(microtrait_result, 'genes_detected_table')
+    data = dict()
+    for idx, name in enumerate(genes_detected_table.names):
+        data.update({name: list(genes_detected_table[idx])})
+    genes_detected_df = pd.DataFrame(data=data)
+    genes_detected_df.to_csv(os.path.join(genome_dir, 'genes_detected_table.csv'), index=False)
 
 
 def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch_number,
@@ -354,13 +406,11 @@ def microtrait(genome_ids, work_dir, source_data_dir, debug, program_threads, no
     start = time.time()
 
     # RUN MicroTrait in parallel with multiprocessing
-    args_list = [(genome_id, genome_meta['source_file'], debug) for genome_id, genome_meta in genomes_meta.items()]
+    args_list = [(genome_id, genome_meta['source_file'], batch_dir) for genome_id, genome_meta in genomes_meta.items()]
     pool = multiprocessing.Pool(processes=program_threads)
-    results = pool.starmap(_run_microtrait, args_list)
+    pool.starmap(_run_microtrait, args_list)
     pool.close()
     pool.join()
-
-    # TODO process results from _run_microtrait
 
     end_time = time.time()
     print(
