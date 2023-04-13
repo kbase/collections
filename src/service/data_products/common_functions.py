@@ -301,7 +301,7 @@ async def count_simple_collection_list(
 async def mark_data_by_kbase_id(
     storage: ArangoStorage,
     collection: str,
-    subset_id: str,
+    internal_subset_id: str,
     match: bool,
     data_product:str,
     id_prefix: str = ""
@@ -320,19 +320,17 @@ async def mark_data_by_kbase_id(
 
     storage - the storage system.
     collection - the name of the arango collection to alter.
-    subset_id - the ID of the match or selection.
+    subset_id - the internal ID of the match or selection.
     match - True for a match, False for a selection.
     data_product - the data product to alter. It is assumed the data product is present in
         the collection referenced by the match or selection ID.
     id_prefix - a prefix to apply to the match or selection internal ID when marking data records.
     """
     if match:
-        colspec = await storage.get_match_full(subset_id)
-        intid = colspec.internal_match_id
+        colspec = await storage.get_match_by_internal_id(internal_subset_id)
         data_ids = colspec.matches
     else:
-        colspec = await storage.get_selection_full(subset_id)
-        intid = colspec.internal_selection_id
+        colspec = await storage.get_selection_by_internal_id(internal_subset_id)
         data_ids = colspec.selection_ids
 
     # use version number to avoid race conditions with activating collections
@@ -360,7 +358,7 @@ async def mark_data_by_kbase_id(
         "coll_id": coll.id,
         "load_ver": load_ver,
         "kbase_ids": data_ids,
-        "internal_id": id_prefix + intid,
+        "internal_id": id_prefix + internal_subset_id,
     }
     matched = set()
     # TODO TEST Should probably change this to storage.execute_aql(aql, bind_vars={}, count=False)

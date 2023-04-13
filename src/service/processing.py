@@ -30,19 +30,21 @@ class CollectionProcess(BaseModel):
             + "that defines what the callable should do (typically a match or selection ID),"
             + "the storage system, and the arguments for the process as the callable arguments."
     )
+    data_id: str = Field(
+        description="The ID of data used to define what the callable should do, typically an "
+            + "internal match or selection ID."
+    )
     args: list[Any] = Field(
         description="The arguments for the process."
     )
 
-    def start(self, data_id: str, storage: PickleableDependencies):
+    def start(self, deps: PickleableDependencies):
         """
         Start the process in a forkserver.
 
-        data_id - the ID of data used to define what the callable should do, typically a match
-            or selection ID.
-        storage - the storage system containing the ID data and the data to match against.
+        deps - the system dependencies, pickleable.
         """
-        run_async_process(target=self.process, args=(data_id, storage, self.args))
+        run_async_process(target=self.process, args=(self.data_id, deps, self.args))
 
 
 def run_async_process(target: Callable, args: list[Any]):
@@ -182,4 +184,4 @@ def _start_process(
     deps: PickleableDependencies,
     args: list[Any],
 ) -> None:
-    CollectionProcess(process=process_callable, args=args).start(internal_id, deps)
+    CollectionProcess(process=process_callable, data_id=internal_id, args=args).start(deps)

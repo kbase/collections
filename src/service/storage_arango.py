@@ -527,20 +527,32 @@ class ArangoStorage:
         }
         return await self._execute_aql_and_check_item_exists(aql, bind_vars, item_id, errclass)
 
-    async def send_match_heartbeat(self, match_id: str, heartbeat_timestamp: int):
+    async def send_match_heartbeat(self, internal_match_id: str, heartbeat_timestamp: int):
         """
         Send a heartbeat to a match, updating the heartbeat timestamp.
 
-        match_id - the ID of the match to modify.
+        internal_match_id - the internal ID of the match to modify.
         heartbeat_timestamp - the timestamp of the heartbeat in epoch milliseconts.
         """
         await self._send_heartbeat(
-            names.COLL_SRV_MATCHES, match_id, heartbeat_timestamp, errors.NoSuchMatchError)
+            names.COLL_SRV_MATCHES,
+            internal_match_id,
+            heartbeat_timestamp,
+            errors.NoSuchMatchError,
+            filter_key=models.FIELD_MATCH_INTERNAL_MATCH_ID,
+        )
 
-    async def _send_heartbeat(self, collection: str, key: str, heartbeat_timestamp: int, errclass):
+    async def _send_heartbeat(
+        self,
+        collection: str,
+        key: str,
+        heartbeat_timestamp: int,
+        errclass,
+        filter_key: str = names.FLD_ARANGO_KEY
+    ):
         aql = f"""
             FOR d in @@{_FLD_COLLECTION}
-                FILTER d.{names.FLD_ARANGO_KEY} == @key
+                FILTER d.{filter_key} == @key
                 UPDATE d WITH {{
                     {models.FIELD_PROCESS_HEARTBEAT}: @heartbeat
                 }} IN @@{_FLD_COLLECTION}
@@ -566,7 +578,6 @@ class ArangoStorage:
         exception: bool = True,
     ) -> dict[str, Any] | None:
         cur = await self._db.aql.execute(aql, bind_vars=bind_vars, count=True)
-        # having a count > 1 is impossible since keys are unique
         try:
             if cur.empty():
                 if exception:
@@ -663,7 +674,7 @@ class ArangoStorage:
 
     async def update_match_state(
         self,
-        match_id: str,
+        internal_match_id: str,
         match_state: models.ProcessState,
         update_time: int,
         matches: list[str] = None
@@ -671,17 +682,18 @@ class ArangoStorage:
         """
         Update the state of the match, optionally setting match IDs.
 
-        match_id - the ID of the match to update
+        internal_match_id - the internal ID of the match to update
         match_state - the state of the match to set
         update_time - the time at which the match state was updated in epoch milliseconds
         matches - the matches to add to the match
         """
         await self._update_state(
-            match_id,
+            internal_match_id,
             match_state,
             update_time,
             names.COLL_SRV_MATCHES,
             errors.NoSuchMatchError,
+            filter_key=models.FIELD_MATCH_INTERNAL_MATCH_ID,
             data_list=matches,
             data_list_field=models.FIELD_MATCH_MATCHES,
         )
@@ -693,6 +705,7 @@ class ArangoStorage:
         update_time: int,
         collection: str,
         errclass,
+        filter_key: str = names.FLD_ARANGO_KEY,
         data_list: list[str] = None,
         data_list_field: str = None,
     ):
@@ -704,7 +717,7 @@ class ArangoStorage:
         }
         aql = f"""
             FOR d in @@{_FLD_COLLECTION}
-                FILTER d.{names.FLD_ARANGO_KEY} == @id
+                FILTER d.{filter_key} == @id
                 UPDATE d WITH {{
                     {models.FIELD_PROCESS_STATE}: @state,
                     {models.FIELD_PROCESS_STATE_UPDATED}: @update_time,
@@ -1012,23 +1025,24 @@ class ArangoStorage:
         )
         return self._to_internal_selection(doc) if doc else None
 
-    async def send_selection_heartbeat(self, selection_id: str, heartbeat_timestamp: int):
+    async def send_selection_heartbeat(self, internal_selection_id: str, heartbeat_timestamp: int):
         """
         Send a heartbeat to a selection, updating the heartbeat timestamp.
 
-        selection-id - the ID of the selection to modify.
+        internal_selection_id - the internal ID of the selection to modify.
         heartbeat_timestamp - the timestamp of the heartbeat in epoch milliseconts.
         """
         await self._send_heartbeat(
             names.COLL_SRV_SELECTIONS,
-            selection_id,
+            internal_selection_id,
             heartbeat_timestamp,
-            errors.NoSuchSelectionError
+            errors.NoSuchSelectionError,
+            filter_key=models.FIELD_SELECTION_INTERNAL_SELECTION_ID,
         )
 
     async def update_selection_state(
         self,
-        selection_id: str,
+        internal_selection_id: str,
         state: models.ProcessState,
         update_time: int,
         missing_selections: list[str] = None,
@@ -1036,17 +1050,18 @@ class ArangoStorage:
         """
         Update the state of the selection, optionally setting missing selection IDs.
 
-        selection_id - the ID of the selection to update
+        internal_selection_id - the internal ID of the selection to update
         state - the state of the selection to set
         update_time - the time at which the selection state was updated in epoch milliseconds
         missing_selections - the selection IDs to add to the missing attribute for the selection
         """
         await self._update_state(
-            selection_id,
+            internal_selection_id,
             state,
             update_time,
             names.COLL_SRV_SELECTIONS,
             errors.NoSuchSelectionError,
+            filter_key=models.FIELD_SELECTION_INTERNAL_SELECTION_ID,
             data_list=missing_selections,
             data_list_field=models.FIELD_SELECTION_UNMATCHED_IDS,
         )
