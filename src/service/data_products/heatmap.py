@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Request, Query, Path
 
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
-from src.service.app_state_data_structures import PickleableDependencies
+from src.service.app_state_data_structures import PickleableDependencies, CollectionsState
 from src.service.data_products import heatmap_common_models as heatmap_models
 from src.service.data_products.common_functions import (
     get_load_version,
@@ -34,6 +34,7 @@ from src.service.data_products.common_models import (
     QUERY_STATUS_ONLY,
 )
 from src.service.http_bearer import KBaseHTTPBearer
+from src.service import errors
 from src.service import kb_auth
 from src.service import models
 from src.service import processing_matches
@@ -41,7 +42,7 @@ from src.service import processing_selections
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage
 
-from typing import Annotated
+from typing import Annotated, Awaitable, Callable
 
 _OPT_AUTH = KBaseHTTPBearer(optional=True)
 
@@ -117,6 +118,15 @@ class HeatMapController:
             response_model=heatmap_models.CellDetail,
             summary=f"Get a cell in a {self._api_category} heatmap",
             description=f"Get detailed information about a cell in a {self._api_category} heatmap."
+        )
+        router.add_api_route(
+            "/missing",
+            self.get_missing_ids,
+            methods=["GET"],
+            response_model=heatmap_models.HeatMapMissingIDs,
+            summary=f"Get missing IDs for a match or selection",
+            description=f"Get the list of IDs that were not found in this {self._api_category} "
+                + "heatmap but were present in the match and / or selection.",
         )
         return router
 
@@ -239,21 +249,16 @@ class HeatMapController:
         user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
     ) -> heatmap_models.HeatMap:
         appstate = app_state.get_app_state(r)
-        dp_match, dp_sel = None, None
-        if match_id or selection_id:
-            coll = await appstate.arangostorage.get_collection_active(collection_id)
-            load_ver = get_load_ver_from_collection(coll, self._id)
-        else:
-            load_ver = await get_load_version(
-                appstate.arangostorage, collection_id, self._id, load_ver_override, user)
-        if match_id:
-            dp_match = await processing_matches.get_or_create_data_product_match_process(
-                appstate, coll, user, match_id, self._id, self._process_heatmap_subset
-            )
-        if selection_id:
-            dp_sel = await processing_selections.get_or_create_data_product_selection_process(
-                appstate, coll, selection_id, self._id, self._process_heatmap_subset
-            )
+        load_ver, dp_match, dp_sel = await self._get_load_version_and_processes(
+            appstate,
+            user,
+            collection_id,
+            self._id,
+            self._process_heatmap_subset,
+            load_ver_override=load_ver_override,
+            match_id=match_id,
+            selection_id=selection_id,
+        )
         if status_only:
             return self._heatmap(dp_match=dp_match, dp_sel=dp_sel)
         elif count:
@@ -277,7 +282,75 @@ class HeatMapController:
                 selection_proc=dp_sel,
                 selection_mark=selection_mark,
             )
+
+    async def get_missing_ids(
+        self,
+        r: Request,
+        collection_id: Annotated[str, PATH_VALIDATOR_COLLECTION_ID],
+        match_id: Annotated[str | None, Query(description="A match ID.")] = None,
+        selection_id: Annotated[str | None, Query(description="A selection ID.")] = None,
+        user: kb_auth.KBaseUser = Depends(_OPT_AUTH),
+    ) -> heatmap_models.HeatMapMissingIDs:
+        appstate = app_state.get_app_state(r)
+        if not match_id and not selection_id:
+            raise errors.IllegalParameterError(
+                "At last one of a match ID or selection ID must be supplied")
+        load_ver, dp_match, dp_sel = await self._get_load_version_and_processes(
+            appstate,
+            user,
+            collection_id,
+            self._id,
+            self._process_heatmap_subset,
+            match_id=match_id,
+            selection_id=selection_id,
+        )
+        return heatmap_models.HeatMapMissingIDs(
+            heatmap_match_state=dp_match.state if dp_match else None,
+            heatmap_selection_state=dp_sel.state if dp_sel else None,
+            match_missing=dp_match.missing_ids if dp_match else None,
+            selection_missing=dp_sel.missing_ids if dp_sel else None,
+        )
     
+    async def _get_load_version_and_processes( # pretty huge method sig here
+        self,
+        appstate: CollectionsState,
+        user: kb_auth.KBaseUser | None,
+        collection_id: str,
+        data_product: str,  # can use self._id here but if we want to make this general in future
+        subset_fn: Callable[
+            [
+                PickleableDependencies,
+                ArangoStorage,
+                models.InternalMatch | models.InternalSelection,
+                models.SavedCollection,
+                models.DataProductProcessIdentifier
+            ],
+            Awaitable[None],
+        ],
+        load_ver_override: str | None = None,
+        match_id: str | None = None,
+        selection_id: str | None = None,
+    ):
+        # this is very similar to code in taxa_counts - maybe once it gets cleaned up a bit
+        # and handles the dependency on genome_attribs in a saner way this can be moved
+        # to common_functions and shared
+        dp_match, dp_sel = None, None
+        if match_id or selection_id:
+            coll = await appstate.arangostorage.get_collection_active(collection_id)
+            load_ver = get_load_ver_from_collection(coll, data_product)
+        else:
+            load_ver = await get_load_version(
+                appstate.arangostorage, collection_id, data_product, load_ver_override, user)
+        if match_id:
+            dp_match = await processing_matches.get_or_create_data_product_match_process(
+                appstate, coll, user, match_id, data_product, subset_fn
+            )
+        if selection_id:
+            dp_sel = await processing_selections.get_or_create_data_product_selection_process(
+                appstate, coll, selection_id, data_product, subset_fn
+            )
+        return load_ver, dp_match, dp_sel
+
     async def _process_heatmap_subset(
         self,
         deps: PickleableDependencies,
@@ -295,7 +368,6 @@ class HeatMapController:
             match_or_sel.matches if dpid.is_match() else match_or_sel.selection_ids,
             (_MATCH_ID_PREFIX if dpid.is_match() else _SELECTION_ID_PREFIX) + dpid.internal_id,
         )
-        # TODO NEXT add an endpoint to get the missing IDs
         await storage.update_data_product_process_state(
             dpid, models.ProcessState.COMPLETE, deps.get_epoch_ms(), missing_ids=missed
         )

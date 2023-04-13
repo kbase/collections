@@ -97,14 +97,7 @@ class HeatMapRow(BaseModel):
     )
 
 
-class HeatMap(BaseModel):
-    """
-    A heatmap or a portion of a heatmap.
-
-    If match or selection IDs are supplied, their processing states are returned.
-
-    Additionally either data, min_value, and max_value, or count may be supplied.
-    """
+class HeatMapProcessState(BaseModel):
     heatmap_match_state: models.ProcessState | None = Field(
         example=models.ProcessState.PROCESSING,
         description="The processing state of the match (if any) for this data product. "
@@ -115,6 +108,16 @@ class HeatMap(BaseModel):
         description="The processing state of the selection (if any) for this data product. "
             + "This data product requires additional processing beyond the primary selection."
     )
+
+
+class HeatMap(HeatMapProcessState):
+    """
+    A heatmap or a portion of a heatmap.
+
+    If match or selection IDs are supplied, their processing states are returned.
+
+    Additionally either data, min_value, and max_value, or count may be supplied.
+    """
     data: list[HeatMapRow] | None = Field(
         description="The rows in the heatmap."
     )
@@ -156,3 +159,17 @@ class CellDetail(BaseModel):
     """
     celid: str = _FLD_CELL_ID
     values: list[CellDetailEntry]
+
+
+class HeatMapMissingIDs(HeatMapProcessState):
+    """
+    IDs that weren't found in the heatmap as part of a match or selection process.
+    """
+    match_missing: list[str] | None = Field(
+        example=models.FIELD_SELECTION_EXAMPLE,
+        description="Any IDs that were part of the match but not found in this heatmap",
+    )
+    selection_missing: list[str] | None = Field(
+        example=models.FIELD_SELECTION_EXAMPLE,
+        description="Any IDs that were part of the selection but not found in this heatmap",
+    )
