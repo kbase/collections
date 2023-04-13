@@ -334,36 +334,36 @@ async def _process_taxa_count_subset(
     coll: models.SavedCollection,
     dpid: models.DataProductProcessIdentifier,
 ):
-        load_ver = {dp.product: dp.version for dp in coll.data_products}[ID]
-        # Right now this is hard coded to use the GTDB lineage, which is the only choice we
-        # have. Might need to expand in future for other count strategies.
-        # Maybe a collection parameter, which would be available from the collection data structure
-        # given the matcher ID.
-        count = GTDBTaxaCount()
-        await genome_attributes.process_subset_documents(
-            storage,
-            coll,
-            dpid.internal_id,
-            dpid.type,
-            lambda doc: count.add(doc[names.FLD_GENOME_ATTRIBS_GTDB_LINEAGE]),
-            fields=[names.FLD_GENOME_ATTRIBS_GTDB_LINEAGE]
-        )
-        docs = [
-            taxa_node_count_to_doc(
-                coll.id, load_ver, tc, _TYPE2PREFIX[dpid.type] + dpid.internal_id
-            ) for tc in count
-        ]
-        # May need to batch this?
-        # The other option I considered here was adding the match counts to the records directly.
-        # That is going to be way slower, since you have to update one record at a time,
-        # and adds a lot of complication since you'll need to store many matches in the same
-        # record. For now go with separate records for matches for speed and simplicity. If
-        # we need to refactor later we'll do it when the user story exists.
-        # Ignore collisions so that if two match processes get kicked off at once the result
-        # is the same and neither fails.
-        await storage.import_bulk_ignore_collisions(names.COLL_TAXA_COUNT, docs)
-        await storage.update_data_product_process_state(
-            dpid, models.ProcessState.COMPLETE, deps.get_epoch_ms())
+    load_ver = {dp.product: dp.version for dp in coll.data_products}[ID]
+    # Right now this is hard coded to use the GTDB lineage, which is the only choice we
+    # have. Might need to expand in future for other count strategies.
+    # Maybe a collection parameter, which would be available from the collection data structure
+    # given the matcher ID.
+    count = GTDBTaxaCount()
+    await genome_attributes.process_subset_documents(
+        storage,
+        coll,
+        dpid.internal_id,
+        dpid.type,
+        lambda doc: count.add(doc[names.FLD_GENOME_ATTRIBS_GTDB_LINEAGE]),
+        fields=[names.FLD_GENOME_ATTRIBS_GTDB_LINEAGE]
+    )
+    docs = [
+        taxa_node_count_to_doc(
+            coll.id, load_ver, tc, _TYPE2PREFIX[dpid.type] + dpid.internal_id
+        ) for tc in count
+    ]
+    # May need to batch this?
+    # The other option I considered here was adding the match counts to the records directly.
+    # That is going to be way slower, since you have to update one record at a time,
+    # and adds a lot of complication since you'll need to store many matches in the same
+    # record. For now go with separate records for matches for speed and simplicity. If
+    # we need to refactor later we'll do it when the user story exists.
+    # Ignore collisions so that if two match processes get kicked off at once the result
+    # is the same and neither fails.
+    await storage.import_bulk_ignore_collisions(names.COLL_TAXA_COUNT, docs)
+    await storage.update_data_product_process_state(
+        dpid, models.ProcessState.COMPLETE, deps.get_epoch_ms())
 
 
 async def delete_match(storage: ArangoStorage, internal_match_id: str):
