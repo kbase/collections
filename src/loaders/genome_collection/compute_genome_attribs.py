@@ -307,9 +307,9 @@ def _run_microtrait(genome_id, fna_file, batch_dir):
     # Load the R script as an R function
     r_script = """
     library(microtrait)
-    extract_traits <- function(genome_file) {
+    extract_traits <- function(genome_file, out_dir) {
       genome_file <- file.path(genome_file)
-      microtrait_result <- extract.traits(genome_file)
+      microtrait_result <- extract.traits(in_file = genome_file, out_dir = out_dir)
       return(microtrait_result)
     }
     """
@@ -317,15 +317,10 @@ def _run_microtrait(genome_id, fna_file, batch_dir):
 
     if fna_file.endswith('.gz'):
         fna_file = _unpack_gz_file(fna_file)
-    r_result = r_func(fna_file)
-
-    microtrait_result = _get_r_list_element(r_result, 'microtrait_result')
-
-    # save the RDS file
-    rds_file = _get_r_list_element(r_result, 'rds_file')[0]
-    shutil.copy(rds_file, genome_dir)
+    r_result = r_func(fna_file, genome_dir)
 
     # retrieve genes_detected_table from microtrait_result and save it as a csv file
+    microtrait_result = _get_r_list_element(r_result, 'microtrait_result')
     genes_detected_table = _get_r_list_element(microtrait_result, 'genes_detected_table')
     data = dict()
     for idx, name in enumerate(genes_detected_table.names):
