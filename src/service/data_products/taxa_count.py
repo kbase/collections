@@ -32,7 +32,7 @@ from src.service.data_products import genome_attributes
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
-from typing import Any
+from typing import Any, Annotated
 
 
 ID = "taxa_count"
@@ -172,7 +172,7 @@ _FLD_COL_RANK = "rank"
 async def get_ranks(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
-    load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
+    load_ver_override: Annotated[str | None, QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE] = None,
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
 ):
     store = app_state.get_app_state(r).arangostorage
@@ -216,7 +216,7 @@ async def get_taxa_counts(
         description="A selection ID to include the selection count in the taxa count data. "
             + "Note that if a selection ID is set, any load version override is ignored."),
     status_only: bool = QUERY_STATUS_ONLY,
-    load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
+    load_ver_override: Annotated[str | None, QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE] = None,
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
 ):
     appstate = app_state.get_app_state(r)

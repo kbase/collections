@@ -41,6 +41,8 @@ from src.service import processing_selections
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage
 
+from typing import Annotated
+
 _OPT_AUTH = KBaseHTTPBearer(optional=True)
 
 _MATCH_ID_PREFIX = "m_"
@@ -184,8 +186,8 @@ class HeatMapController:
     async def get_meta_info(
         self,
         r: Request,
-        collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
-        load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
+        collection_id: Annotated[str, PATH_VALIDATOR_COLLECTION_ID],
+        load_ver_override: Annotated[str | None, QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE] = None,
         user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
     ) -> heatmap_models.HeatMapMeta:
         storage = app_state.get_app_state(r).arangostorage
@@ -198,12 +200,12 @@ class HeatMapController:
     async def get_cell(
         self,
         r: Request,
-        collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
+        collection_id: Annotated[str, PATH_VALIDATOR_COLLECTION_ID],
         cell_id: str = Path(
             example="4",
             description="The ID of the cell in the heatmap."
         ),
-        load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
+        load_ver_override: Annotated[str | None, QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE] = None,
         user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
     ) -> heatmap_models.CellDetail:
         storage = app_state.get_app_state(r).arangostorage
@@ -217,7 +219,7 @@ class HeatMapController:
     async def get_heatmap(
         self,
         r: Request,
-        collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
+        collection_id: Annotated[str, PATH_VALIDATOR_COLLECTION_ID],
         start_after: str | None = Query(
             default=None,
             example="GB_GCA_000006155.2",
@@ -233,7 +235,7 @@ class HeatMapController:
         selection_id: str | None = QUERY_SELECTION_ID,
         selection_mark: bool = QUERY_SELECTION_MARK,
         status_only: bool = QUERY_STATUS_ONLY,
-        load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
+        load_ver_override: Annotated[str | None, QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE] = None,
         user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
     ) -> heatmap_models.HeatMap:
         appstate = app_state.get_app_state(r)
