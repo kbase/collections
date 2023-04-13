@@ -56,7 +56,6 @@ Require defining the 'GTDBTK_DATA_PATH' environment variable to run GTDB_TK tool
 e.g. export GTDBTK_DATA_PATH=/global/cfs/cdirs/kbase/collections/libraries/gtdb_tk/release207_v2
 """
 import argparse
-import itertools
 import math
 import multiprocessing
 import os
@@ -69,15 +68,32 @@ import pandas as pd
 
 from src.loaders.common import loader_common_names
 
-SERIES_TOOLS = []  # Tools cannot be executed in parallel
+SERIES_TOOLS = ['microtrait']  # Tools cannot be executed in parallel
 
 # Fraction amount of system cores can be utilized
 # (i.e. 0.5 - program will use 50% of total processors,
 #       0.1 - program will use 10% of total processors)
 SYSTEM_UTILIZATION = 0.5
 
+# source genome files can be missing for those collections
+# genomes with missing files will be skipped rather than raising an error
+# TODO having download script not create empty directories for genomes with missing files so that we no longer need this
+IGNORE_MISSING_GENOME_FILES_COLLECTIONS = ['GTDB']
 
-def _find_genome_file(genome_id, file_ext, source_data_dir, exclude_file_name_substr=None, expected_file_count=1):
+
+def _find_genome_file(genome_id, file_ext, source_data_dir, collection, exclude_file_name_substr=None,
+                      expected_file_count=1):
+    # Finds genome file(s) for a given genome ID in a source data directory,
+    # excluding files whose name contains specified substrings.
+
+    # Return a list of matching genome file paths or an empty list if no matching files are found and the collection is
+    # in the IGNORE_MISSING_GENOME_FILES_COLLECTIONS list.
+
+    # In most cases, our focus is solely on the {genome_id}.genomic.fna.gz file from NCBI, while excluding
+    # {genome_id}.cds_from_genomic.fna.gz, {genome_id}.rna_from_genomic.fna.gz, and
+    # {genome_id}.ERR_genomic.fna.gz files.
+    if exclude_file_name_substr is None:
+        exclude_file_name_substr = ['cds_from', 'rna_from', 'ERR']
     genome_path = os.path.join(source_data_dir, genome_id)
 
     if not os.path.exists(genome_path):
@@ -89,9 +105,13 @@ def _find_genome_file(genome_id, file_ext, source_data_dir, exclude_file_name_su
         genome_files = [f for f in genome_files if
                         all(name_substr not in f for name_substr in exclude_file_name_substr)]
 
-    if not genome_files or len(genome_files) != expected_file_count:
-        print(f'Cannot retrieve target file(s). Please check download folder for genome: {genome_id}')
-        return None
+    # Raise an error if no genome files are found and the collection is not in the ignored collections
+    if not genome_files and collection not in IGNORE_MISSING_GENOME_FILES_COLLECTIONS:
+        raise ValueError(f'Cannot find target file(s) for: {genome_id}')
+
+    # Raise an error if the number of files found does not match the expected file count
+    if genome_files and len(genome_files) != expected_file_count:
+        raise ValueError(f'Found {len(genome_files)} files for {genome_id} but expected {expected_file_count}')
 
     return genome_files
 
@@ -187,10 +207,9 @@ def _run_gtdb_tk_classify_wf(batch_file_path, work_dir, debug, genome_ids, progr
         f'{len(genome_ids)} genomes')
 
 
-def _map_tool_id_to_genome_id(tool_name, original_genome_id, genome_file_name, source_file_ext):
+def _retrieve_tool_genome_identifier(tool_name, original_genome_id, genome_file_name=None, source_file_ext=None):
     """
-    Construct a dictionary that associates tool-generated genome IDs with the original genome IDs used to create
-    the _key field of a document.
+    Generate the unique genome identifier linked to the tool, which corresponds to the original genome ID.
 
     The method is specific to the tool being used, as each tool has its own logic for generating unique genome IDs.
     """
@@ -198,31 +217,73 @@ def _map_tool_id_to_genome_id(tool_name, original_genome_id, genome_file_name, s
     if tool_name == 'checkm2':
         # CheckM2 uses the base name (without extension) of genome_file as the genome identifier
         base_name = genome_file_name.split(source_file_ext)[0]
-        return {base_name: original_genome_id}
+        return base_name
 
-    elif tool_name == 'gtdb_tk':
+    elif tool_name in ['gtdb_tk', 'microtrait']:
         # When creating the batch file for GTDB-TK, we use the genome ID as the identifier for each genome.
-        return {original_genome_id: original_genome_id}
+        return original_genome_id
     else:
         raise ValueError(f'the method for tool {tool_name} has not been implemented.')
 
 
-def _create_genome_metadata_file(tool_genome_id_map, source_genome_file_map, genome_count, batch_dir):
+def _create_genome_metadata_file(genomes_meta, batch_dir):
     # create tab separated metadata file with tool generated genome identifier, original genome id and
     # source genome file info.
-
-    if len(tool_genome_id_map) != genome_count:
-        raise ValueError('Some genomes are absent from the genome metadata file')
 
     # create tool genome identifier metadata file
     genome_meta_file_path = os.path.join(batch_dir, loader_common_names.GENOME_METADATA_FILE)
     with open(genome_meta_file_path, "w") as meta_file:
-        for tool_genome_identifier, genome_id in tool_genome_id_map.items():
-            meta_file.write(f'{tool_genome_identifier}\t{genome_id}\t{source_genome_file_map.get(genome_id)}\n')
+        for genome_id, genome_meta_info in genomes_meta.items():
+            meta_file.write(f'{genome_meta_info["tool_identifier"]}\t{genome_id}\t{genome_meta_info["source_file"]}\n')
+
+
+def _retrieve_genome_file(genome_id, source_data_dir, source_file_ext, collection, tool,
+                          exclude_file_name_substr=None):
+    # retrieve the genome file associated with genome_id
+    # return the genome file path if it exists, otherwise raise an error if collection is not in the list of
+    # IGNORE_MISSING_GENOME_FILES_COLLECTIONS
+
+    genome_files = _find_genome_file(genome_id, source_file_ext, source_data_dir, collection,
+                                     exclude_file_name_substr=exclude_file_name_substr)
+
+    tool_identifier, genome_file = None, None
+    if genome_files:
+        genome_file = genome_files[0]  # only one genome file is expected
+        tool_identifier = _retrieve_tool_genome_identifier(
+            tool, genome_id, genome_file_name=os.path.basename(genome_file), source_file_ext=source_file_ext)
+
+    return genome_file, tool_identifier
+
+
+def _prepare_tool(tool_name, work_dir, batch_number, size, node_id, genome_ids, source_data_dir, source_file_ext,
+                  kbase_collection):
+    # Prepares for tool execution by creating a batch directory and retrieving genome files with associated metadata.
+
+    batch_dir = _create_batch_dir(work_dir, batch_number, size, node_id)
+
+    # Retrieve genome files and associated metadata for each genome ID
+    genome_meta = dict()
+    for genome_id in genome_ids:
+        genome_file, tool_identifier = _retrieve_genome_file(
+            genome_id, source_data_dir, source_file_ext, kbase_collection, tool_name)
+        if genome_file:
+            genome_meta[genome_id] = {'tool_identifier': tool_identifier, 'source_file': genome_file}
+
+    return batch_dir, genome_meta
+
+
+def _run_microtrait(genome_id, fna_file, debug):
+    microtrait_result_dict = {'genome_id': genome_id, 'source_file': fna_file}
+
+    # Load the microtrait package
+    # importr("microtrait")
+    # TODO: implement the Rscript to run microtrait, potentially an isolated Rscript and get rid of the rpy2 dependency
+
+    return microtrait_result_dict
 
 
 def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch_number,
-            node_id, source_file_ext, run_steps=False):
+            node_id, source_file_ext, kbase_collection, run_steps=False):
     # NOTE: Require defining the 'GTDBTK_DATA_PATH' environment variable
     #       e.g. export GTDBTK_DATA_PATH=/global/cfs/cdirs/kbase/collections/libraries/gtdb_tk/release207_v2
     #       https://ecogenomics.github.io/GTDBTk/installing/index.html#gtdb-tk-reference-data
@@ -230,65 +291,40 @@ def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
     #       Ensure that Third-party software are on the system path.
     #       https://ecogenomics.github.io/GTDBTk/installing/index.html#installing-third-party-software
 
-    failed_ids, size = list(), len(genome_ids)
+    size = len(genome_ids)
     print(f'Start executing GTDB-TK for {size} genomes')
 
-    batch_dir = _create_batch_dir(work_dir, batch_number, size, node_id)
+    batch_dir, genomes_meta = _prepare_tool('gtdb_tk', work_dir, batch_number, size, node_id, genome_ids,
+                                            source_data_dir, source_file_ext, kbase_collection)
 
     # create the batch file
     # tab separated in 2 columns (FASTA file, genome ID)
     batch_file_name = f'genome.fasta.list'
     batch_file_path = os.path.join(batch_dir, batch_file_name)
-    tool_genome_id_map, source_genome_file_map = dict(), dict()
     with open(batch_file_path, "w") as batch_file:
-        for genome_id in genome_ids:
-            genome_file = _find_genome_file(genome_id, source_file_ext, source_data_dir,
-                                            exclude_file_name_substr=['cds_from', 'rna_from', 'ERR'],
-                                            expected_file_count=1)
+        for genome_id, genome_meta in genomes_meta.items():
+            batch_file.write(f'{genome_meta["source_file"]}\t{genome_id}\n')
 
-            if genome_file:
-                tool_genome_id_map.update(_map_tool_id_to_genome_id('gtdb_tk',
-                                                                    genome_id,
-                                                                    os.path.basename(genome_file[0]),
-                                                                    source_file_ext))
-                source_genome_file_map[genome_id] = genome_file[0]
-                # According to GTDB, the batch file should be a two column file indicating the location of each genome
-                # and the desired genome identifier
-                batch_file.write(f'{genome_file[0]}\t{genome_id}\n')
-    _create_genome_metadata_file(tool_genome_id_map, source_genome_file_map, len(genome_ids), batch_dir)
     if run_steps:
         _run_gtdb_tk_steps(batch_file_path, batch_dir, debug, genome_ids, program_threads)
     else:
         _run_gtdb_tk_classify_wf(batch_file_path, batch_dir, debug, genome_ids, program_threads)
 
-    # TODO: inspect stdout for failed ids or do it in the parser program
-    return failed_ids
+    _create_genome_metadata_file(genomes_meta, batch_dir)
 
 
-def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch_number, node_id, source_file_ext):
+def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch_number, node_id, source_file_ext,
+            kbase_collection):
     # NOTE: require Python <= 3.9
     # Many checkm2 dependencies (e.g. scikit-learn=0.23.2, tensorflow, diamond, etc.) support Python version up to 3.9
-    # TODO: run checkm2 tool via docker container
 
-    failed_ids, size = list(), len(genome_ids)
-    print(f'Start executing checkM2 for {len(genome_ids)} genomes')
+    size = len(genome_ids)
+    print(f'Start executing checkM2 for {size} genomes')
 
-    batch_dir = _create_batch_dir(work_dir, batch_number, size, node_id)
-    tool_genome_id_map, source_genome_file_map = dict(), dict()
-    # retrieve genomic.fna.gz files
-    fna_files = list()
-    for genome_id in genome_ids:
-        genome_file = _find_genome_file(genome_id, source_file_ext, source_data_dir,
-                                        exclude_file_name_substr=['cds_from', 'rna_from', 'ERR'],
-                                        expected_file_count=1)
+    batch_dir, genomes_meta = _prepare_tool('checkm2', work_dir, batch_number, size, node_id, genome_ids,
+                                            source_data_dir, source_file_ext, kbase_collection)
 
-        if genome_file:
-            tool_genome_id_map.update(_map_tool_id_to_genome_id('checkm2',
-                                                                genome_id,
-                                                                os.path.basename(genome_file[0]),
-                                                                source_file_ext))
-            source_genome_file_map[genome_id] = genome_file[0]
-            fna_files.append(str(genome_file[0]))
+    fna_files = [str(genome_meta['source_file']) for genome_meta in genomes_meta.values()]
 
     start = time.time()
     # RUN checkM2 predict
@@ -303,11 +339,34 @@ def checkm2(genome_ids, work_dir, source_data_dir, debug, program_threads, batch
     _run_command(command, debug=debug, log_dir=os.path.join(batch_dir, 'checkm2_log'))
     end_time = time.time()
     print(
-        f'Used {round((end_time - start) / 60, 2)} minutes to execute checkM2 predict for {len(genome_ids)} genomes')
+        f'Used {round((end_time - start) / 60, 2)} minutes to execute checkM2 predict for {size} genomes')
 
-    _create_genome_metadata_file(tool_genome_id_map, source_genome_file_map, len(genome_ids), batch_dir)
-    # TODO: inspect stdout for failed ids or do it in the parser program
-    return failed_ids
+    _create_genome_metadata_file(genomes_meta, batch_dir)
+
+
+def microtrait(genome_ids, work_dir, source_data_dir, debug, program_threads, node_id, source_file_ext,
+               kbase_collection):
+    size = len(genome_ids)
+    print(f'Start executing MicroTrait for {size} genomes')
+
+    batch_dir, genomes_meta = _prepare_tool('microtrait', work_dir, 'series', size, node_id, genome_ids,
+                                            source_data_dir, source_file_ext, kbase_collection)
+    start = time.time()
+
+    # RUN MicroTrait in parallel with multiprocessing
+    args_list = [(genome_id, genome_meta['source_file'], debug) for genome_id, genome_meta in genomes_meta.items()]
+    pool = multiprocessing.Pool(processes=program_threads)
+    results = pool.starmap(_run_microtrait, args_list)
+    pool.close()
+    pool.join()
+
+    # TODO process results from _run_microtrait
+
+    end_time = time.time()
+    print(
+        f'Used {round((end_time - start) / 60, 2)} minutes to execute MicroTrait for {size} genomes')
+
+    _create_genome_metadata_file(genomes_meta, batch_dir)
 
 
 def main():
@@ -405,7 +464,7 @@ def main():
         start = time.time()
         print(f"Start executing {tool} with {threads} threads")
         if tool in SERIES_TOOLS:
-            failed_ids = comp_ops(genome_ids, work_dir, source_data_dir, debug, threads)
+            comp_ops(genome_ids, work_dir, source_data_dir, debug, threads, node_id, source_file_ext, kbase_collection)
         else:
             # call tool execution in parallel
             num_batches = max(math.floor(threads / program_threads), 1)
@@ -417,17 +476,14 @@ def main():
                             program_threads,
                             batch_number,
                             node_id,
-                            source_file_ext) for batch_number, i in enumerate(range(0, total_count, chunk_size))]
+                            source_file_ext,
+                            kbase_collection) for batch_number, i in enumerate(range(0, total_count, chunk_size))]
             pool = multiprocessing.Pool(processes=num_batches)
-            batch_result = pool.starmap(comp_ops, batch_input)
-            failed_ids = list(itertools.chain.from_iterable(batch_result))
+            pool.starmap(comp_ops, batch_input)
+            pool.close()
+            pool.join()
         print(
             f'In total used {round((time.time() - start) / 60, 2)} minutes to execute {tool} for {total_count} genomes')
-
-        if failed_ids:
-            print(f'Failed to execute {tool} for {failed_ids}')
-        else:
-            print(f'Successfully executed all genomes for {tool}')
 
 
 if __name__ == "__main__":
