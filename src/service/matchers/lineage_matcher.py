@@ -7,7 +7,7 @@ import logging
 from pydantic import BaseModel, Field, Extra
 from typing import Any, Callable
 
-from src.common.gtdb_lineage import GTDBRank
+from src.common.gtdb_lineage import GTDBRank, GTDBLineage, GTDBLineageError
 from src.common.storage.collection_and_field_names import FLD_GENOME_ATTRIBS_GTDB_LINEAGE
 from src.service import errors
 from src.service import models
@@ -52,10 +52,10 @@ class GTDBLineageMatcherUserParameters(BaseModel):
 async def _process_match(
     internal_match_id: str,
     deps: PickleableDependencies,
-    args: tuple[list[str], GTDBRank]
+    args: tuple[list[str], bool]
 ):
     lineages = args[0]
-    rank = args[1]
+    truncated = args[1]
     hb = None
     arangoclient = None
     try:
@@ -67,7 +67,7 @@ async def _process_match(
         # this might need to be configurable on the matcher to allow the matcher
         # to run against different data products
         await genome_attributes.perform_gtdb_lineage_match(
-            internal_match_id, storage, lineages, rank)
+            internal_match_id, storage, lineages, truncated)
     except Exception as e:
         logging.getLogger(__name__).exception(
             f"Matching process for match with internal ID{internal_match_id} failed")
@@ -100,17 +100,24 @@ class GTDBLineageMatcher(Matcher):
             It it expected that the parameters have been validated against the matcher schema
             for said parameters.
         """
-        lineages = []
+        lineages = set()  # remove duplicates
+        rank = user_parameters.get("gtdb_rank") if user_parameters else None
+        rank = GTDBRank(rank) if rank else GTDBRank.SPECIES
         for upa, meta in metadata.items():
             # Assume that if the lineage exists in the metadata it's in the correct format.
             # It's added as autometadata from the object created by an uploader so this should
             # be true.
             # If it turns out that someone is adding bad lineage information to the workspace
             # objects add a more rigorous parser
-            if not meta.get(_GTDB_LINEAGE_METADATA_KEY):
+            lin = meta.get(_GTDB_LINEAGE_METADATA_KEY)
+            if not lin:
                 raise errors.MissingLineageError(
                     f"Object {upa} is missing lineage metadata in key {_GTDB_LINEAGE_METADATA_KEY}"
                 )
+            try:
+                lin = GTDBLineage(lin, force_complete=False).truncate_to_rank(rank)
+            except GTDBLineageError as e:
+                raise errors.IllegalLineageError(f"Object {upa} illegal lineage: {str(e)}") from e
             lin_ver = meta.get(_GTDB_LINEAGE_VERSION_METADATA_KEY)
             if not lin_ver:
                 raise errors.MissingLineageError(
@@ -125,11 +132,12 @@ class GTDBLineageMatcher(Matcher):
                     f"Object {upa} lineage version is {lin_ver}, while the collection's version "
                     + f"is {coll_lin_ver}"
                 )
-            lineages.append(meta[_GTDB_LINEAGE_METADATA_KEY])
-        rank = user_parameters.get("gtdb_rank") if user_parameters else None
-        rank = GTDBRank(rank) if rank else GTDBRank.SPECIES
+            if lin:
+                lineages.add(str(lin))
         return CollectionProcess(
-            process=_process_match, data_id=internal_match_id, args=[lineages, rank]
+            process=_process_match,
+            data_id=internal_match_id,
+            args=[lineages, rank != GTDBRank.SPECIES]
         )
 
 
