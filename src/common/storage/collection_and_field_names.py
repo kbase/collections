@@ -47,13 +47,13 @@ Used for marking matches and selections; contains a list of internal match or se
 Underscore to separate from "real" attribs
 """
 
-FLD_MATCHED = "__match__"
+FLD_MATCHED = "match"
 """
 Used for marking matches when returning data to the user and they request match marking vs.
 filtering on a match.
 """
 
-FLD_SELECTED = "__sel__"
+FLD_SELECTED = "sel"
 """
 Used for marking selections when returning data to the user and they request selection marking vs.
 filtering on a selection.
@@ -126,6 +126,20 @@ COLL_GENOME_ATTRIBS = COLLECTION_PREFIX + "genome_attribs"
 
 # Used for lineage matchers
 FLD_GENOME_ATTRIBS_GTDB_LINEAGE = "classification"
+
+FLD_GENOME_ATTRIBS_MATCHED = "__match__"
+"""
+Used for marking matches when returning data to the user and they request match marking vs.
+filtering on a match. Can't use the standard match field since genome attribute column names
+are unlimited.
+"""
+
+FLD_GENOME_ATTRIBS_SELECTED = "__sel__"
+"""
+Used for marking selections when returning data to the user and they request selection marking vs.
+filtering on a selection. Can't use the standard match field since genome attribute column names
+are unlimited.
+"""
 
 ### Heatmap general fields for heat map data products (e.g. microTrait)
 

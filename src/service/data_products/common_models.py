@@ -107,9 +107,7 @@ QUERY_MATCH_ID = Query(
 
 QUERY_MATCH_MARK = Query(
     default=False,
-    description="Whether to mark matched rows rather than filter based on the match ID. "
-        + "Matched rows will be indicated by a true value in the special field "
-        + f"`{names.FLD_MATCHED}`."
+    description="Whether to mark matched rows rather than filter based on the match ID."
 )
 
 
@@ -124,7 +122,5 @@ QUERY_SELECTION_ID = Query(
 
 QUERY_SELECTION_MARK = Query(
     default=False,
-    description="Whether to mark selected rows rather than filter based on the selection ID. "
-        + "Selected rows will be indicated by a true value in the special field "
-        + f"`{names.FLD_SELECTED}`."
+    description="Whether to mark selected rows rather than filter based on the selection ID."
 )

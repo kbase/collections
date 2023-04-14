@@ -296,6 +296,9 @@ class ProcessStateField(BaseModel):  # for lack of a better name
         description="The state of the process associated with this data."
     )
 
+    def is_complete(self):
+        return self.state == ProcessState.COMPLETE
+
 
 class ProcessAttributes(ProcessStateField):
     created: int = Field(
@@ -456,6 +459,9 @@ class DataProductProcessIdentifier(BaseModel):
         example=SubsetType.SELECTION.value,
         description="The type of data the process is acting on."
     )
+
+    def is_match(self):
+        return self.type == SubsetType.MATCH
 
 
 class DataProductProcess(DataProductProcessIdentifier, ProcessAttributes):
