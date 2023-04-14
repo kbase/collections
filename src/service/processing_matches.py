@@ -10,10 +10,10 @@ import jsonschema
 import logging
 import uuid
 
-from typing import Any
+from typing import Any, Callable, Awaitable
 from collections.abc import Iterable
 
-from src.service.app_state_data_structures import CollectionsState
+from src.service.app_state_data_structures import CollectionsState, PickleableDependencies
 # kinda feel like users should be more generic, but not work the trouble
 from src.service import kb_auth
 from src.service import deletion
@@ -21,6 +21,7 @@ from src.service import errors
 from src.service import models
 from src.service import processing
 from src.service.matchers.common_models import Matcher
+from src.service.storage_arango import ArangoStorage
 from src.service.workspace_wrapper import WorkspaceWrapper, WORKSPACE_UPA_PATH
 
 
@@ -374,3 +375,55 @@ async def delete_match(appstate: CollectionsState, match_id: str, verbose: bool 
         match.upas = []
         match.matches = []
     return match
+
+
+async def get_or_create_data_product_match_process(
+    appstate: CollectionsState,
+    coll: models.SavedCollection,
+    user: kb_auth.KBaseUser,
+    match_id: str,
+    data_product: str,
+    match_fn: Callable[
+        [
+            PickleableDependencies,
+            ArangoStorage,
+            models.InternalMatch | models.InternalSelection,
+            models.SavedCollection,
+            models.DataProductProcessIdentifier
+        ],
+        Awaitable[None],
+    ],
+) -> models.DataProductProcess:
+    """
+    Get a process data structure for a match data product process.
+
+    Creates and starts the process if the process does not already exist.
+
+    If the process exists but hasn't had a heartbeat in the required time frame, starts another
+    instance of the process.
+
+    appstate - the collections service state.
+    coll - the most recent version of the collection associated with the match.
+    user - the user performing the match.
+    match_id - the ID of the match.
+    data_product - the data product performing the match.
+    match_fn - the function that will perform the match calculations and DB updates.
+        Runs if there is no process information in the database or
+        the heartbeat is too old. The arguments are
+            * the system dependencies (provided by `appstate`),
+            * a storage system created from the system dependencies. The storage system will
+              be closed by the calling function after the callable returns
+            * the match or selection
+            * the collection (pulled from the storage system via the data in the subset record)
+            * the data product process identifier.
+    """
+    if not user:
+        raise errors.UnauthorizedError("Authentication is required if a match ID is supplied")
+    match = await get_match_full(
+            appstate, match_id, user, require_complete=True, require_collection=coll)
+    dpid = models.DataProductProcessIdentifier(
+        internal_id=match.internal_match_id,
+        data_product=data_product,
+        type=models.SubsetType.MATCH,
+    )
+    return await processing.get_or_create_data_product_process(appstate, dpid, match_fn)

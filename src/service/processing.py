@@ -9,14 +9,19 @@ import logging
 import multiprocessing
 
 from pydantic import BaseModel, Field
-from typing import Callable, Any
+from typing import Callable, Any, Awaitable
 from src.service.app_state_data_structures import PickleableDependencies, CollectionsState
 from src.service import models
+from src.service.storage_arango import ArangoStorage
 from src.service.timestamp import now_epoch_millis
 
 
 HEARTBEAT_INTERVAL_SEC = 10  # make configurable?
 HEARTBEAT_RESTART_THRESHOLD_MS = 60 * 1000  # 1 minute without a heartbeat
+
+
+_KEY_DPID = "dpid"
+_KEY_SUBSET_FN = "subset_fn"
 
 
 class CollectionProcess(BaseModel):
@@ -133,10 +138,18 @@ class Heartbeat:
 
 
 async def get_or_create_data_product_process(
-    deps: CollectionsState,
+    appstate: CollectionsState,
     dpid: models.DataProductProcessIdentifier,
-    process_callable: Callable[[str, PickleableDependencies, list[Any]], None],
-    args: list[Any] = None,
+    subset_fn: Callable[
+        [
+            PickleableDependencies,
+            ArangoStorage,
+            models.InternalMatch | models.InternalSelection,
+            models.SavedCollection,
+            models.DataProductProcessIdentifier
+        ],
+        Awaitable[None],
+    ],
 ) -> models.DataProductProcess:
     """
     Get a process data structure for a data product process.
@@ -146,16 +159,20 @@ async def get_or_create_data_product_process(
     If the process exists but hasn't had a heartbeat in the required time frame, starts another
     instance of the process.
 
-    deps - the collections service state.
+    appdate - the collections service state.
     dpid - the identifier for the process to create.
-    process_callable - the callable to run if there is no process information in the database or
-        the heartbeat is too old. The arguments are the internal ID of the match or selection,
-        a dependencies instance, and the arguments to be provided to the callable.
-    args - the argument list to provide to process_callable in the third parameter.
+    subset_fn - the callable to run if there is no process information in the database or
+        the heartbeat is too old. The arguments are
+            * the system dependencies (provided by `appstate`),
+            * a storage system created from the system dependencies. The storage system will
+              be closed by the calling function after the callable returns
+            * the match or selection
+            * the collection (pulled from the storage system via the data in the subset record)
+            * the data product process identifier.
     """
-    args = args or []
-    now = deps.get_epoch_ms()
-    dp_proc, exists = await deps.arangostorage.create_or_get_data_product_process(
+    args = [{_KEY_DPID: dpid, _KEY_SUBSET_FN: subset_fn}]
+    now = appstate.get_epoch_ms()
+    dp_proc, exists = await appstate.arangostorage.create_or_get_data_product_process(
         models.DataProductProcess(
             data_product=dpid.data_product,
             type=dpid.type,
@@ -167,14 +184,14 @@ async def get_or_create_data_product_process(
     )
     if not exists:
         _start_process(
-            dpid.internal_id, process_callable, deps.get_pickleable_dependencies(), args)
-    elif requires_restart(deps.get_epoch_ms(), dp_proc):
+            dpid.internal_id, _process_subset, appstate.get_pickleable_dependencies(), args)
+    elif requires_restart(appstate.get_epoch_ms(), dp_proc):
         logging.getLogger(__name__).warn(
             f"Restarting {dpid.type.value} process for internal ID {dpid.internal_id} "
             + f"data product {dpid.data_product}"
         )
         _start_process(
-            dpid.internal_id, process_callable, deps.get_pickleable_dependencies(), args)
+            dpid.internal_id, _process_subset, appstate.get_pickleable_dependencies(), args)
     return dp_proc
 
 
@@ -185,3 +202,57 @@ def _start_process(
     args: list[Any],
 ) -> None:
     CollectionProcess(process=process_callable, data_id=internal_id, args=args).start(deps)
+
+
+async def _process_subset(
+    internal_id: str,
+    deps: PickleableDependencies,
+    args: list[dict[str,
+        models.DataProductProcessIdentifier |
+        Callable[
+            [
+                PickleableDependencies,
+                ArangoStorage,
+                models.InternalMatch | models.InternalSelection,
+                models.SavedCollection,
+                models.DataProductProcessIdentifier
+            ],
+            Awaitable[None],
+        ]
+    ]],
+):
+    # TODO DOCS document that processes should run regardless of the state
+    #      of any other processes for the same match or selection. It is up to the code starting
+    #      the process to ensure it is correct to start. As such, the processes should be
+    #      idempotent.
+    dpid = args[0][_KEY_DPID]
+    subset_fn = args[0][_KEY_SUBSET_FN]
+    hb = None
+    arangoclient = None
+    try:
+        arangoclient, storage = await deps.get_storage()
+        if dpid.type == models.SubsetType.MATCH:
+            collspec = await storage.get_match_by_internal_id(dpid.internal_id)
+        else:
+            collspec = await storage.get_selection_by_internal_id(dpid.internal_id)
+        async def heartbeat(millis: int):
+            await storage.send_data_product_heartbeat(dpid, millis)
+        hb = Heartbeat(heartbeat, HEARTBEAT_INTERVAL_SEC)
+        hb.start()
+        
+        # use version number to avoid race conditions with activating collections
+        coll = await storage.get_collection_version_by_num(
+            collspec.collection_id, collspec.collection_ver
+        )
+        await subset_fn(deps, storage, collspec, coll, dpid)
+    except Exception as e:
+        logging.getLogger(__name__).exception(
+            f"{dpid.type.value} process {dpid.internal_id} for data product "
+            + f"{dpid.data_product} failed")
+        await storage.update_data_product_process_state(
+            dpid, models.ProcessState.FAILED, deps.get_epoch_ms())
+    finally:
+        if hb:
+            hb.stop()
+        if arangoclient:
+            await arangoclient.close()

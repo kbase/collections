@@ -167,8 +167,10 @@ async def query_simple_collection_list(
     limit: int = 1000,
     internal_match_id: str | None = None,
     match_mark: bool = False,
+    match_field: str = names.FLD_MATCHED,
     internal_selection_id: str | None = None,
     selection_mark: bool = False,
+    selection_field: str = names.FLD_SELECTED
 ):
     f"""
     Query rows in a collection. Index set up is the responsibilty of the caller.
@@ -194,9 +196,11 @@ async def query_simple_collection_list(
     limit - the maximum number of rows to return.
     internal_match_id - an ID for a match.
     match_mark - if True, don't filter based on the match, just mark matched rows.
+    match_field - the name of the field in the document where the match mark should be stored.
     internal_selection_id - an ID for a selection.
     selection_mark - if True, don't filter based on the selection, just mark selected rows.
-
+    selection_field - the name of the field in the document where the selection mark should
+        be stored.
     """
     bind_vars = {
         f"@coll": collection,
@@ -238,9 +242,9 @@ async def query_simple_collection_list(
     try:
         async for d in cur:
             if internal_match_id:
-                d[names.FLD_MATCHED] = internal_match_id in d[names.FLD_MATCHES_SELECTIONS]
+                d[match_field] = internal_match_id in d[names.FLD_MATCHES_SELECTIONS]
             if internal_selection_id:
-                d[names.FLD_SELECTED] = internal_selection_id in d[names.FLD_MATCHES_SELECTIONS]
+                d[selection_field] = internal_selection_id in d[names.FLD_MATCHES_SELECTIONS]
             acceptor(d)
     finally:
         await cur.close(ignore_missing=True)
@@ -301,43 +305,30 @@ async def count_simple_collection_list(
 async def mark_data_by_kbase_id(
     storage: ArangoStorage,
     collection: str,
-    internal_subset_id: str,
-    match: bool,
-    data_product:str,
-    id_prefix: str = ""
+    collection_id: str,
+    load_ver: str,
+    kbase_ids: list[str],
+    subset_internal_id: str,
 ) -> list[str]:
     f"""
-    Mark data entries that are present in a match or selection in a data product. Uses the
-    special {names.FLD_KBASE_ID} field to find data entries to mark.
+    Mark data entries in a data product. Uses the special {names.FLD_KBASE_ID} field to find
+    data entries to mark.
 
     It is strongly recommended to have a compound index on the fields
     `{names.FLD_COLLECTION_ID}, {names.FLD_LOAD_VERSION}, {names.FLD_KBASE_ID}`.
 
-    The (possibly prefixed) internal ID from the subset is added to the
-    `{names.FLD_MATCHES_SELECTIONS}` field.
+    The subset internal ID is added to the `{names.FLD_MATCHES_SELECTIONS}` field.
 
     Returns a sorted list of any IDs in the match or selection that weren't found.
 
     storage - the storage system.
     collection - the name of the arango collection to alter.
-    subset_id - the internal ID of the match or selection.
-    match - True for a match, False for a selection.
-    data_product - the data product to alter. It is assumed the data product is present in
-        the collection referenced by the match or selection ID.
-    id_prefix - a prefix to apply to the match or selection internal ID when marking data records.
+    collection_id - the name of the KBase collection to alter.
+    load_ver - the load version of the KBase collection to alter
+    kbase_ids - the ids to mark in the data set.
+    subset_internal_id - the ID with with to mark the data entries in the data set, including
+        any prefixes that might be necessasry.
     """
-    if match:
-        colspec = await storage.get_match_by_internal_id(internal_subset_id)
-        data_ids = colspec.matches
-    else:
-        colspec = await storage.get_selection_by_internal_id(internal_subset_id)
-        data_ids = colspec.selection_ids
-
-    # use version number to avoid race conditions with activating collections
-    coll = await storage.get_collection_version_by_num(
-        colspec.collection_id, colspec.collection_ver)
-    load_ver = {dp.product: dp.version for dp in coll.data_products}[data_product]
-
     # This should be batched up, most likely. Stupid implmentation for now, batch up later
     # https://stackoverflow.com/a/57877288/643675 to start and wait for multiple async routines
     selfld = names.FLD_MATCHES_SELECTIONS
@@ -355,10 +346,10 @@ async def mark_data_by_kbase_id(
         """
     bind_vars = {
         "@coll": collection,
-        "coll_id": coll.id,
+        "coll_id": collection_id,
         "load_ver": load_ver,
-        "kbase_ids": data_ids,
-        "internal_id": id_prefix + internal_subset_id,
+        "kbase_ids": kbase_ids,
+        "internal_id": subset_internal_id,
     }
     matched = set()
     # TODO TEST Should probably change this to storage.execute_aql(aql, bind_vars={}, count=False)
@@ -369,7 +360,7 @@ async def mark_data_by_kbase_id(
             matched.add(d[names.FLD_KBASE_ID])
     finally:
         await cur.close(ignore_missing=True)
-    return sorted(set(data_ids) - matched)
+    return sorted(set(kbase_ids) - matched)
 
 
 async def remove_marked_subset(
