@@ -1,11 +1,11 @@
-FROM python:3.11.0
+FROM python:3.11
 
 RUN mkdir -p /kb/collections
 WORKDIR /kb/collections
 
 # install pipenv
 RUN pip install --upgrade pip && \
-    pip install pipenv==2023.2.18
+    pip install pipenv
 
 # install deps
 COPY Pipfile* ./
