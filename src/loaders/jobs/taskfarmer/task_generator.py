@@ -49,11 +49,12 @@ running 4 batches in parallel per NERSC node resulted in optimal performance, de
 256 cores.
 '''
 
-TOOLS_AVAILABLE = ['gtdb_tk', 'checkm2']
+TOOLS_AVAILABLE = ['gtdb_tk', 'checkm2', 'microtrait']
 
 # estimated execution time (in minutes) for each tool to process a chunk of data
 TASK_META = {'checkm2': {'chunk_size': 5000, 'exe_time': 60},
-             'gtdb_tk': {'chunk_size': 1000, 'exe_time': 65}}
+             'gtdb_tk': {'chunk_size': 1000, 'exe_time': 65},
+             'microtrait': {'chunk_size': 5000, 'exe_time': 60}}
 NODE_TIME_LIMIT = 5  # hours  # TODO: automatically calculate this based on tool execution time and NODE_THREADS
 MAX_NODE_NUM = 100  # maximum number of nodes to use
 # The THREADS variable controls the number of parallel tasks per node
@@ -214,7 +215,7 @@ def _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper
             task_list += f''' --volume={mount_vol}:{docker_vol} '''
 
         for env_var, env_val in env_vars.items():
-            task_list += f'''--env {env_var}={env_val} '''
+            task_list += f''' --env {env_var}={env_val} '''
 
         task_list += f'''--entrypoint\n'''
 
