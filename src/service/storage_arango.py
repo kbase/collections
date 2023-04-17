@@ -862,6 +862,8 @@ class ArangoStorage:
             return dp_match, False
         except DocumentInsertError as e:
             if e.error_code == _ARANGO_ERR_UNIQUE_CONSTRAINT:
+                # Could possibly improve bandwidth by not getting missing_ids key,
+                # would need to use AQL vs get()
                 doc = await col.get({names.FLD_ARANGO_KEY: key})
                 if not doc:
                     # This is highly unlikely. Not worth spending any time trying to recover
@@ -895,6 +897,7 @@ class ArangoStorage:
         dpid: models.DataProductProcessIdentifier,
         state: models.ProcessState,
         update_time: int,
+        missing_ids: list[str] | None = None,
     ):
         """
         Update the state of a data product process.
@@ -902,6 +905,8 @@ class ArangoStorage:
         dpid - the data process ID.
         state - the state to set
         update_time - the time at which the state was updated in epoch milliseconds
+        missing_ids - any match or selection IDs that were not found when processing the match
+            or selection.
         """
         await self._update_state(
             self._data_product_process_key(dpid),
@@ -909,6 +914,8 @@ class ArangoStorage:
             update_time,
             names.COLL_SRV_DATA_PRODUCT_PROCESSES,
             _ERRMAP[dpid.type],
+            data_list=missing_ids,
+            data_list_field=models.FIELD_DATA_PRODUCT_PROCESS_MISSING_IDS,
         )
 
     async def remove_data_product_process(self, dpid: models.DataProductProcessIdentifier):

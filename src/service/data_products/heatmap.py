@@ -295,15 +295,10 @@ class HeatMapController:
             match_or_sel.matches if dpid.is_match() else match_or_sel.selection_ids,
             (_MATCH_ID_PREFIX if dpid.is_match() else _SELECTION_ID_PREFIX) + dpid.internal_id,
         )
-        # since this is a secondary match the process shouldn't fail since the match / selection
-        # was already applied to another data product, but we should report just in case
-        state = models.ProcessState.FAILED if missed else models.ProcessState.COMPLETE
-        if missed:
-            logging.getLogger(__name__).warn(
-                f"{dpid.type.value} process with internal ID {dpid.internal_id} failed due to "
-                + f"missing data IDs: {missed}"
-            )
-        await storage.update_data_product_process_state(dpid, state, deps.get_epoch_ms())
+        # TODO NEXT add an endpoint to get the missing IDs
+        await storage.update_data_product_process_state(
+            dpid, models.ProcessState.COMPLETE, deps.get_epoch_ms(), missing_ids=missed
+        )
 
     def _heatmap(
         self,
