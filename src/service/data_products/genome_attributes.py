@@ -39,7 +39,7 @@ from src.service.http_bearer import KBaseHTTPBearer
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
 from src.service.timestamp import now_epoch_millis
-from typing import Any, Callable
+from typing import Any, Callable, Annotated
 
 # Implementation note - we know FLD_KBASE_ID is unique per collection id /
 # load version combination since the loader uses those 3 fields as the arango _key
@@ -284,7 +284,7 @@ async def get_genome_attributes(
             + "Selected rows will be indicated by a true value in the special field "
             + f"`{names.FLD_GENOME_ATTRIBS_SELECTED}`."
     ),
-    load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
+    load_ver_override: Annotated[str | None, QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE] = None,
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
 ):
     # sorting only works here since we expect the largest collection to be ~300K records and

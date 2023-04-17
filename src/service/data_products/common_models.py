@@ -68,7 +68,6 @@ class DataProductSpec(BaseModel):
 
 
 QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = Query(
-    default=None,
     min_length=models.LENGTH_MIN_LOAD_VERSION,
     max_length=models.LENGTH_MAX_LOAD_VERSION,
     regex=models.REGEX_LOAD_VERSION,
