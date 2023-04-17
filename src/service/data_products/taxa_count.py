@@ -26,6 +26,7 @@ from src.service.data_products.common_models import (
     DataProductSpec,
     DBCollection,
     QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
+    QUERY_STATUS_ONLY,
 )
 from src.service.data_products import genome_attributes
 from src.service.http_bearer import KBaseHTTPBearer
@@ -214,6 +215,7 @@ async def get_taxa_counts(
         default = None,
         description="A selection ID to include the selection count in the taxa count data. "
             + "Note that if a selection ID is set, any load version override is ignored."),
+    status_only: bool = QUERY_STATUS_ONLY,
     load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
 ):
@@ -233,6 +235,8 @@ async def get_taxa_counts(
         dp_sel = await processing_selections.get_or_create_data_product_selection_process(
             appstate, coll, selection_id, ID, _process_taxa_count_subset
         )
+    if status_only:
+        return _taxa_counts(dp_match=dp_match, dp_sel=dp_sel)
     ranks = await get_ranks_from_db(store, collection_id, load_ver, bool(load_ver_override))
     if rank not in ranks.data:
         raise errors.IllegalParameterError(f"Invalid rank: {rank}")
@@ -241,10 +245,18 @@ async def get_taxa_counts(
         await _add_subset_data_in_place(q, store, collection_id, load_ver, rank, dp_proc)
         # For now always sort by the std data. See if ppl want sort by match/selection data
         # before implementing something more sophisticated.
+    return _taxa_counts(dp_match=dp_match, dp_sel=dp_sel, data=q)
+
+
+def _taxa_counts(
+    dp_match: models.DataProductProcess = None,
+    dp_sel: models.DataProductProcess = None,
+    data: dict[str, Any] = None,
+) -> TaxaCounts:
     return TaxaCounts(
         taxa_count_match_state=dp_match.state if dp_match else None,
         taxa_count_selection_state=dp_sel.state if dp_sel else None,
-        data=q,
+        data=data,
     )
 
 

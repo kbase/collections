@@ -31,6 +31,7 @@ from src.service.data_products.common_models import (
     QUERY_MATCH_MARK,
     QUERY_SELECTION_ID,
     QUERY_SELECTION_MARK,
+    QUERY_STATUS_ONLY,
 )
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service import kb_auth
@@ -231,11 +232,7 @@ class HeatMapController:
         match_mark: bool = QUERY_MATCH_MARK,
         selection_id: str | None = QUERY_SELECTION_ID,
         selection_mark: bool = QUERY_SELECTION_MARK,
-        status_only: bool = Query(  # TODO FEATURE add this to taxa_counts
-            default=False,
-            description="Only return the status of any match or selection processing "
-                + "without any heatmap data."
-        ),
+        status_only: bool = QUERY_STATUS_ONLY,
         load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
         user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
     ) -> heatmap_models.HeatMap:

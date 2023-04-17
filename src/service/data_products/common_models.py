@@ -124,3 +124,9 @@ QUERY_SELECTION_MARK = Query(
     default=False,
     description="Whether to mark selected rows rather than filter based on the selection ID."
 )
+
+
+QUERY_STATUS_ONLY = Query(
+    default=False,
+    description="Only return the status of any match or selection processing without any data."
+)
