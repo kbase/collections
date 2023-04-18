@@ -104,11 +104,6 @@ class GTDBLineageMatcher(Matcher):
         rank = user_parameters.get("gtdb_rank") if user_parameters else None
         rank = GTDBRank(rank) if rank else GTDBRank.SPECIES
         for upa, meta in metadata.items():
-            # Assume that if the lineage exists in the metadata it's in the correct format.
-            # It's added as autometadata from the object created by an uploader so this should
-            # be true.
-            # If it turns out that someone is adding bad lineage information to the workspace
-            # objects add a more rigorous parser
             lin = meta.get(_GTDB_LINEAGE_METADATA_KEY)
             if not lin:
                 raise errors.MissingLineageError(
