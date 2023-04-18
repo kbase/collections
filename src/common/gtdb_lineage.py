@@ -7,15 +7,19 @@ from collections import namedtuple, defaultdict
 from typing import Iterable, Self
 
 
-class GTDBLineageRankError(Exception):
+class GTDBLineageError(Exception):
+    """The general GTDB lineage error. """
+
+
+class GTDBLineageRankError(GTDBLineageError):
     """Raised when a GTDB lineage has incorrect ranks."""
 
 
-class GTDBLineageParseError(Exception):
+class GTDBLineageParseError(GTDBLineageError):
     """Raised when a GTDB lineage string cannot be parsed."""
 
 
-class GTDBLineageResolutionError(Exception):
+class GTDBLineageResolutionError(GTDBLineageError):
     """Raised with a GTDB lineage is not fully resolved."""
 
 

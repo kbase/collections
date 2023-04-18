@@ -6,7 +6,6 @@ from collections import defaultdict
 
 from fastapi import APIRouter, Request, Depends, Query
 from pydantic import BaseModel, Field, Extra
-from src.common.gtdb_lineage import GTDBLineage, GTDBRank
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
 from src.service.app_state_data_structures import CollectionsState, PickleableDependencies
@@ -437,8 +436,8 @@ async def _count(
 async def perform_gtdb_lineage_match(
     internal_match_id: str,
     storage: ArangoStorage,
-    lineages: list[str],
-    rank: GTDBRank
+    lineages: set[str],
+    truncated: bool
 ):
     """
     Add an internal match ID to genome records in the attributes table that match a set of
@@ -446,28 +445,21 @@ async def perform_gtdb_lineage_match(
 
     internal_match_id - the ID of the match.
     storage - the storage system containing the match and the genome attribute records.
-    lineages - the GTDB lineage strings to match against the genome attributes
-    rank - the rank at which to match. This effectively truncates the lineage strings when
-        matching.
+    lineages - the GTDB lineage strings to match against the genome attributes.
+    truncated - whether the lineages have been truncated, and therefore do not represent the full
+        lineage.
     """
     match = await storage.get_match_by_internal_id(internal_match_id)
     # use version number to avoid race conditions with activating collections
     coll = await storage.get_collection_version_by_num(match.collection_id, match.collection_ver)
     load_ver = {dp.product: dp.version for dp in coll.data_products}[ID]
-    filtered_lineages = set()  # remove duplicates
-    for lin in lineages:
-        # may need to catch errors here and report with object UPA or something
-        # or parse lineages prior to starting the process, that's probably better
-        lineage = GTDBLineage(lin, force_complete=False).truncate_to_rank(rank)
-        if lineage:
-            filtered_lineages.add(str(lineage))
-    if rank == GTDBRank.SPECIES:
+    if not truncated:
         await _mark_gtdb_matches_IN_strategy(
-            storage, coll.id, load_ver, filtered_lineages, match.internal_match_id
+            storage, coll.id, load_ver, lineages, match.internal_match_id
         )
     else:
         await _mark_gtdb_matches_STARTS_WITH_strategy(
-            storage, coll.id, load_ver, filtered_lineages, match.internal_match_id
+            storage, coll.id, load_ver, lineages, match.internal_match_id
         )
 
 
