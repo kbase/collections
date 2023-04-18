@@ -23,7 +23,8 @@ from src.loaders.common import loader_common_names
 
 DATA_ID_COLUMN_HEADER = "genome_id"  # TODO DATA_ID change to data ID for generality
 
-# TODO CODE move these to loader common names to share with parser
+# TODO CODE add a common module for saving and loading the metadata shared between the compute
+#           and parser
 META_SOURCE_FILE = "source_file"
 META_TOOL_IDENTIFIER = "tool_identifier"
 
@@ -37,7 +38,7 @@ SYSTEM_UTILIZATION = 0.5  # This might need to be customizable per tool
 # TODO having download script not create empty directories for genomes with missing files
 #      so that we no longer need this
 IGNORE_MISSING_GENOME_FILES_COLLECTIONS = ['GTDB']
-# TODO DOWNLOAD if we settle on a standard file name schem for downloaders we can get
+# TODO DOWNLOAD if we settle on a standard file name scheme for downloaders we can get
 #               rid of this
 STANDARD_FILE_EXCLUDE_SUBSTRINGS = ['cds_from', 'rna_from', 'ERR']
 
@@ -85,7 +86,7 @@ class ToolRunner:
 
     def _parse_args(self):
         parser = argparse.ArgumentParser(
-            description='PROTOTYPE - Compute genome attributes in addition to GTDB metadata.')
+            description='PROTOTYPE - Run a computational tool on a set of data.')
         required = parser.add_argument_group('required named arguments')
         optional = parser.add_argument_group('optional arguments')
 
@@ -96,7 +97,7 @@ class ToolRunner:
         )
         required.add_argument(
             '--source_data_dir', required=True, type=str,
-            help='Source data (genome files) directory. '
+            help='Source data (e.g. genome files) directory. '
                 + '(e.g. /global/cfs/cdirs/kbase/collections/sourcedata/GTDB/r207'
         )
 
@@ -188,7 +189,7 @@ class ToolRunner:
             output_dir = batch_dir / data_id
             os.makedirs(output_dir, exist_ok=True)
             args_list.append((genome_meta[META_SOURCE_FILE], output_dir, self._debug))
-        self._execute(self._program_threads, tool_callable, args_list, start, False)
+        self._execute(self._threads, tool_callable, args_list, start, False)
         _create_genome_metadata_file(genomes_meta, batch_dir)
     
     def run_batched(self, tool_callable: Callable[[dict[str, Path], Path, int, bool], None]):
