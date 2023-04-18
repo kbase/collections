@@ -8,7 +8,7 @@ ENV ENV_TOOL micromamba
 # The user and group IDs, both denoted as "$MAMBA_USER," are defined within the base image
 # use --chown=$MAMBA_USER:$MAMBA_USER to set the owner of the files to the user $MAMBA_USER is recommended
 # https://github.com/mamba-org/micromamba-docker#quick-start
-COPY --chown=$MAMBA_USER:$MAMBA_USER /src/loaders/jobs/docker_img/env_microtrait.yaml /tmp/env_microtrait.yaml
+COPY --chown=$MAMBA_USER:$MAMBA_USER /src/loaders/compute_tools/microtrait/env_microtrait.yaml /tmp/env_microtrait.yaml
 RUN micromamba install -y -n $CONDA_ENV -f /tmp/env_microtrait.yaml && \
     micromamba clean --all --yes
 
