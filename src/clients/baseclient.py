@@ -176,7 +176,7 @@ class BaseClient(object):
             arg_hash['context'] = context
 
         body = _json.dumps(arg_hash, cls=_JSONObjectEncoder)
-        self._header["User-Agent"] = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36"
+        self._headers["User-Agent"] = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36"
         ret = _requests.post(url, data=body, headers=self._headers,
                              timeout=self.timeout,
                              verify=not self.trust_all_ssl_certificates)
