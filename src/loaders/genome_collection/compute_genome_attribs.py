@@ -57,6 +57,7 @@ e.g. export GTDBTK_DATA_PATH=/global/cfs/cdirs/kbase/collections/libraries/gtdb_
 """
 import argparse
 import gzip
+import json
 import math
 import multiprocessing
 import os
@@ -70,6 +71,8 @@ import pandas as pd
 from rpy2 import robjects
 
 from src.loaders.common import loader_common_names
+from src.service.data_products.heatmap_common_models import (Cell, ColumnInformation, ColumnCategory, HeatMapMeta,
+                                                             HeatMapRow)
 
 SERIES_TOOLS = ['microtrait']  # Tools cannot be executed in parallel
 
@@ -281,6 +284,24 @@ def _get_r_list_element(r_list, element_name):
     return r_list[pos]
 
 
+def _r_table_to_df(r_table):
+    # convert R table to pandas dataframe
+
+    data = dict()
+    for idx, name in enumerate(r_table.names):
+
+        if isinstance(r_table[idx], robjects.vectors.FactorVector):
+            levels = tuple(r_table[idx].levels)
+            values = [levels[idx - 1] for idx in tuple(r_table[idx])]
+            data.update({name: values})
+        else:
+            data.update({name: list(r_table[idx])})
+
+    df = pd.DataFrame(data=data)
+
+    return df
+
+
 def _unpack_gz_file(gz_file):
     # unpack the gz file
 
@@ -309,38 +330,70 @@ def _run_microtrait(genome_id, fna_file, batch_dir):
     genome_dir = os.path.join(batch_dir, genome_id)
     os.makedirs(genome_dir, exist_ok=True)
 
-    # Load the R script as an R function
-    r_script = """
-    library(microtrait)
-    extract_traits <- function(genome_file, out_dir) {
-      genome_file <- file.path(genome_file)
-      microtrait_result <- extract.traits(in_file = genome_file, out_dir = out_dir)
-      return(microtrait_result)
-    }
-    """
-    r_func = robjects.r(r_script)
-
     remove_gz_file = False
     if fna_file.endswith('.gz'):
         remove_gz_file = True
         fna_file = _unpack_gz_file(fna_file)
-    r_result = r_func(fna_file, genome_dir)
 
-    # retrieve genes_detected_table from microtrait_result and save it as a csv file
-    # genes_detected_table includes the following columns:
-    # gene_name, gene_len, hmm_name, gene_score, gene_from, gene_to, cov_gene, hmm_from, hmm_to, cov_domain
-    microtrait_result = _get_r_list_element(r_result, 'microtrait_result')
-    genes_detected_table = _get_r_list_element(microtrait_result, 'genes_detected_table')
-    data = dict()
-    for idx, name in enumerate(genes_detected_table.names):
-        data.update({name: list(genes_detected_table[idx])})
-    genes_detected_df = pd.DataFrame(data=data)
-    genes_detected_df.to_csv(os.path.join(genome_dir, 'genes_detected_table.csv'), index=False)
+    try:
+        # Load the R script as an R function
+        r_script = """
+        library(microtrait)
+        extract_traits <- function(genome_file, out_dir) {
+          genome_file <- file.path(genome_file)
+          microtrait_result <- extract.traits(in_file = genome_file, out_dir = out_dir)
+          return(microtrait_result)
+        }
+        """
+        r_func = robjects.r(r_script)
+        r_result = r_func(fna_file, genome_dir)
 
-    # remove the unpacked assembly file to save space
-    if remove_gz_file:
-        print(f'removing {fna_file}')
-        os.remove(fna_file)
+        microtrait_result = _get_r_list_element(r_result, 'microtrait_result')
+
+        trait_counts_atgranularity3 = _get_r_list_element(microtrait_result, 'trait_counts_atgranularity3')
+        trait_counts_atgranularity3_df = _r_table_to_df(trait_counts_atgranularity3)
+
+        trait_counts_atgranularity3_df.to_csv(os.path.join(genome_dir, 'trait_counts_atgranularity3.csv'), index=False)
+
+    except Exception as e:
+        raise ValueError(f'Error running microtrait on {fna_file}') from e
+    finally:
+        # remove the unpacked assembly file to save space
+        if remove_gz_file:
+            print(f'removing {fna_file}')
+            os.remove(fna_file)
+
+    selected_cols = ['microtrait_trait-value', 'microtrait_trait-displaynameshort', 'microtrait_trait-displaynamelong']
+    cell_info_df = trait_counts_atgranularity3_df[selected_cols]
+
+    # Extract the substring of the 'microtrait_trait-displaynamelong' column before the last colon character
+    # and assign it to a new 'category' column in the DataFrame
+    cell_info_df['category'] = cell_info_df['microtrait_trait-displaynamelong'].str.rsplit(':', 1).str[0]
+    # Use the microtrait_trait-displaynameshort column as the column name, microtrait_trait-displaynamelong column
+    # as the column description, and microtrait_trait-value as the cell value
+    cell_info_df = cell_info_df.rename(columns={'microtrait_trait-displaynameshort': 'col_name',
+                                                'microtrait_trait-displaynamelong': 'col_description',
+                                                'microtrait_trait-value': 'cell_val'})
+
+    categories, cells, celid, min_value, max_value = list(), list(), 0, float('inf'), float('-inf')
+    for category_name, category_df in cell_info_df.groupby('category'):
+        columns = list()
+        for i, row in category_df.iterrows():
+            columns.append(ColumnInformation(id=str(i), name=row['col_name'], description=row['col_description']))
+            cell_val = float(row['cell_val'])
+            cells.append(Cell(celid=str(celid), colid=str(i), val=cell_val))
+            min_value, max_value = min(min_value, cell_val), max(max_value, cell_val)
+            celid += 1
+        categories.append(ColumnCategory(category=category_name, columns=columns))
+
+    meta = HeatMapMeta(categories=categories, min_value=min_value, max_value=max_value)
+    row = HeatMapRow(kbase_id=genome_id, cells=cells)
+
+    with open(os.path.join(genome_dir, 'heatmap_meta.json'), "w") as heatmap_meta:
+        json.dump(dict(meta), heatmap_meta)
+
+    with open(os.path.join(genome_dir, 'heatmap_row.json'), "w") as heatmap_row:
+        json.dump(dict(row), heatmap_row)
 
 
 def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch_number,
