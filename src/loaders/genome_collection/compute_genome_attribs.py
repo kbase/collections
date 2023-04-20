@@ -57,7 +57,6 @@ e.g. export GTDBTK_DATA_PATH=/global/cfs/cdirs/kbase/collections/libraries/gtdb_
 """
 import argparse
 import gzip
-import json
 import math
 import multiprocessing
 import os
@@ -71,8 +70,6 @@ import pandas as pd
 from rpy2 import robjects
 
 from src.loaders.common import loader_common_names
-from src.service.data_products.heatmap_common_models import (Cell, ColumnInformation, ColumnCategory, HeatMapMeta,
-                                                             HeatMapRow)
 
 SERIES_TOOLS = ['microtrait']  # Tools cannot be executed in parallel
 
@@ -85,6 +82,9 @@ SYSTEM_UTILIZATION = 0.5
 # genomes with missing files will be skipped rather than raising an error
 # TODO having download script not create empty directories for genomes with missing files so that we no longer need this
 IGNORE_MISSING_GENOME_FILES_COLLECTIONS = ['GTDB']
+
+# the name of the component used for extracting traits from microtrait's 'extract.traits' result
+TRAIT_COUNTS_ATGRANULARITY = 'trait_counts_atgranularity3'
 
 
 def _find_genome_file(genome_id, file_ext, source_data_dir, collection, exclude_file_name_substr=None,
@@ -350,10 +350,10 @@ def _run_microtrait(genome_id, fna_file, batch_dir):
 
         microtrait_result = _get_r_list_element(r_result, 'microtrait_result')
 
-        trait_counts_atgranularity3 = _get_r_list_element(microtrait_result, 'trait_counts_atgranularity3')
-        trait_counts_atgranularity3_df = _r_table_to_df(trait_counts_atgranularity3)
+        trait_counts = _get_r_list_element(microtrait_result, TRAIT_COUNTS_ATGRANULARITY)
+        trait_counts_df = _r_table_to_df(trait_counts)
 
-        trait_counts_atgranularity3_df.to_csv(os.path.join(genome_dir, 'trait_counts_atgranularity3.csv'), index=False)
+        trait_counts_df.to_csv(os.path.join(genome_dir, loader_common_names.TRAIT_COUNTS_FILE), index=False)
 
     except Exception as e:
         raise ValueError(f'Error running microtrait on {fna_file}') from e
@@ -362,38 +362,6 @@ def _run_microtrait(genome_id, fna_file, batch_dir):
         if remove_gz_file:
             print(f'removing {fna_file}')
             os.remove(fna_file)
-
-    selected_cols = ['microtrait_trait-value', 'microtrait_trait-displaynameshort', 'microtrait_trait-displaynamelong']
-    cell_info_df = trait_counts_atgranularity3_df[selected_cols]
-
-    # Extract the substring of the 'microtrait_trait-displaynamelong' column before the last colon character
-    # and assign it to a new 'category' column in the DataFrame
-    cell_info_df['category'] = cell_info_df['microtrait_trait-displaynamelong'].str.rsplit(':', 1).str[0]
-    # Use the microtrait_trait-displaynameshort column as the column name, microtrait_trait-displaynamelong column
-    # as the column description, and microtrait_trait-value as the cell value
-    cell_info_df = cell_info_df.rename(columns={'microtrait_trait-displaynameshort': 'col_name',
-                                                'microtrait_trait-displaynamelong': 'col_description',
-                                                'microtrait_trait-value': 'cell_val'})
-
-    categories, cells, celid, min_value, max_value = list(), list(), 0, float('inf'), float('-inf')
-    for category_name, category_df in cell_info_df.groupby('category'):
-        columns = list()
-        for i, row in category_df.iterrows():
-            columns.append(ColumnInformation(id=str(i), name=row['col_name'], description=row['col_description']))
-            cell_val = float(row['cell_val'])
-            cells.append(Cell(celid=str(celid), colid=str(i), val=cell_val))
-            min_value, max_value = min(min_value, cell_val), max(max_value, cell_val)
-            celid += 1
-        categories.append(ColumnCategory(category=category_name, columns=columns))
-
-    meta = HeatMapMeta(categories=categories, min_value=min_value, max_value=max_value)
-    row = HeatMapRow(kbase_id=genome_id, cells=cells)
-
-    with open(os.path.join(genome_dir, 'heatmap_meta.json'), "w") as heatmap_meta:
-        json.dump(dict(meta), heatmap_meta)
-
-    with open(os.path.join(genome_dir, 'heatmap_row.json'), "w") as heatmap_row:
-        json.dump(dict(row), heatmap_row)
 
 
 def gtdb_tk(genome_ids, work_dir, source_data_dir, debug, program_threads, batch_number,
