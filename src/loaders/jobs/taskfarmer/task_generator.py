@@ -65,6 +65,9 @@ NODE_THREADS = 4
 
 REGISTRY = 'tiangu01'  # public Docker Hub registry to pull images from
 
+# TODO GTDB update readme to specify to get correct version of data, not just latest
+# TODO REPRODUCIBILITY need to version the databases and use the correct version with the
+#                      correct tool version
 # directory containing the unarchived GTDB-Tk reference data
 # download data following the instructions provided on
 # https://ecogenomics.github.io/GTDBTk/installing/index.html#gtdb-tk-reference-data
