@@ -211,7 +211,7 @@ class ToolRunner:
         else:
             # executing all data IDs
             data_ids = all_data_ids
-        return data_ids
+        return list(set(data_ids))
 
     def run_single(self, tool_callable: Callable[[str, Path, Path, bool], None]):
         """
