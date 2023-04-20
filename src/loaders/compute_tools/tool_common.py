@@ -285,7 +285,7 @@ class ToolRunner:
         self,
         threads: int,
         tool_callable: Callable[..., None],
-        args: List[Tuple[...]],
+        args: List[Tuple[Any]],
         start: datetime.datetime,
         total: bool,
     ):
