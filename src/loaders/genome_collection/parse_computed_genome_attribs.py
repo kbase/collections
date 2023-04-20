@@ -173,7 +173,9 @@ def checkm2(root_dir, kbase_collection, load_ver):
     result_dir = _locate_dir(root_dir, kbase_collection, load_ver, tool='checkm2')
 
     # Get the list of directories for batches
-    batch_dirs = [d for d in os.listdir(result_dir) if os.path.isdir(os.path.join(result_dir, d))]
+    batch_dirs = [d for d in os.listdir(result_dir)
+                    if os.path.isdir(os.path.join(result_dir, d))
+                    and d.startswith(loader_common_names.COMPUTE_OUTPUT_PREFIX)]
 
     tool_file_name, genome_id_col = 'quality_report.tsv', 'Name'
     for batch_dir in batch_dirs:
