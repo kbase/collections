@@ -238,7 +238,7 @@ class ToolRunner:
         for data_id, meta in genomes_meta.items():
             output_dir = batch_dir / data_id
             os.makedirs(output_dir, exist_ok=True)
-            args_list.append((genome_meta[META_SOURCE_FILE], output_dir, self._debug))
+            args_list.append((meta[META_SOURCE_FILE], output_dir, self._debug))
         self._execute(self._threads, tool_callable, args_list, start, False)
         _create_metadata_file(genomes_meta, batch_dir)
     
@@ -301,7 +301,7 @@ def unpack_gz_file(gz_file: Path):
     Unpack a gzipped file. Does nothing if the file without the 'gz' extension already exists.
     """
 
-    output_file_path = gz_file.stem
+    output_file_path = gz_file.with_suffix("")
     if output_file_path.exists():
         print(f'file {output_file_path} already exists. Skipping unpacking {gz_file}')
         return output_file_path
