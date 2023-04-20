@@ -213,13 +213,16 @@ class ToolRunner:
             data_ids = all_data_ids
         return data_ids
 
-    def run_single(self, tool_callable: Callable[[Path, Path, bool], None]):
+    def run_single(self, tool_callable: Callable[[str, Path, Path, bool], None]):
         """
         Run a tool data file by data file, storing the results in a single batch directory with
         the individual runs stored in directories by the data ID.
 
-        tool_callable - the callable for the tool that takes three arguments: the input file,
-            the output directory, and a debug boolean.
+        tool_callable - the callable for the tool that takes four arguments:
+            * The data ID
+            * The input file
+            * The output directory
+            * A debug boolean
         """
         start = time.time()
         batch_dir, genomes_meta = _prepare_tool(
@@ -238,7 +241,7 @@ class ToolRunner:
         for data_id, meta in genomes_meta.items():
             output_dir = batch_dir / data_id
             os.makedirs(output_dir, exist_ok=True)
-            args_list.append((meta[META_SOURCE_FILE], output_dir, self._debug))
+            args_list.append((data_id, meta[META_SOURCE_FILE], output_dir, self._debug))
         self._execute(self._threads, tool_callable, args_list, start, False)
         _create_metadata_file(genomes_meta, batch_dir)
     
@@ -282,7 +285,7 @@ class ToolRunner:
         self,
         threads: int,
         tool_callable: Callable[..., None],
-        args: List[Tuple[Any]],
+        args: List[Tuple[...]],
         start: datetime.datetime,
         total: bool,
     ):
