@@ -58,7 +58,12 @@ STANDARD_FILE_EXCLUDE_SUBSTRINGS = ['cds_from', 'rna_from', 'ERR']
 
 class ToolRunner:
 
-    def __init__(self, tool_name: str, tool_data_id_from_filename=False):
+    def __init__(
+        self,
+        tool_name: str,
+        random_ids: bool = False,
+        tool_data_id_from_filename: bool = False,
+    ):
         """
         Create the runner.
         
@@ -104,6 +109,11 @@ class ToolRunner:
 
         Programmatic arguments:
         tool_name - the name of the tool that will be run. Used as a unique identifier.
+        random_ids - instead of the standard data ID, pass a UUID to the tool for the data ID.
+            These will be mapped to the original in the metadata file written in every batch
+            directory. This can be useful for tools that are picky about IDs. Do not use this
+            option if the tool creates IDs from the data filename (e.g. checkm2).
+            If random_ids is set, tool_data_id_from_filename is ignored.
         tool_data_id_from_filename - True if the tool uses the filename without extension
             as the data ID, meaning the tool runner needs to map from the data ID to the filename
         """
@@ -111,6 +121,7 @@ class ToolRunner:
         # TODO DOWNLOAD if we settle on a standard file name schem for downloaders we can get
         #               rid of this
         self._tool_data_id_from_filename = tool_data_id_from_filename
+        self._random_ids = random_ids
         args = self._parse_args()
         kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
         self._allow_missing_files = kbase_collection in IGNORE_MISSING_FILES_COLLECTIONS
@@ -234,6 +245,7 @@ class ToolRunner:
             self._source_file_ext,
             self._allow_missing_files,
             self._tool_data_id_from_filename,
+            self._random_ids,
         )
 
         # RUN tool in parallel with multiprocessing
@@ -241,7 +253,8 @@ class ToolRunner:
         for data_id, meta in genomes_meta.items():
             output_dir = batch_dir / data_id
             os.makedirs(output_dir, exist_ok=True)
-            args_list.append((data_id, meta[META_SOURCE_FILE], output_dir, self._debug))
+            args_list.append(
+                (meta[META_TOOL_IDENTIFIER], meta[META_SOURCE_FILE], output_dir, self._debug))
         self._execute(self._threads, tool_callable, args_list, start, False)
         _create_metadata_file(genomes_meta, batch_dir)
     
@@ -273,9 +286,10 @@ class ToolRunner:
                 self._source_file_ext,
                 self._allow_missing_files,
                 self._tool_data_id_from_filename,
+                self._random_ids,
             )
             metas.append((meta, batch_dir))
-            ids_to_files = {d: meta[d][META_SOURCE_FILE] for d in data_ids}
+            ids_to_files = {m[META_TOOL_IDENTIFIER]: m[META_SOURCE_FILE] for m in meta.values()}
             batch_input.append((ids_to_files, batch_dir, self._program_threads, self._debug))
         self._execute(num_batches, tool_callable, batch_input, start, True)
         for meta in metas:
@@ -364,6 +378,7 @@ def _prepare_tool(
     source_file_ext: str,
     allow_missing_files: bool,
     data_id_from_filename: bool,
+    random_ids: bool,
 ) -> Tuple[Path, Dict[str, Dict[str, Union[str, Path]]]]:
     # Prepares for tool execution by creating a batch directory and retrieving data
     # files with associated metadata.
@@ -382,6 +397,7 @@ def _prepare_tool(
             source_file_ext,
             allow_missing_files,
             data_id_from_filename,
+            random_ids,
         )
         if data_file:
             meta[data_id] = {META_TOOL_IDENTIFIER: tool_identifier, META_SOURCE_FILE: data_file}
@@ -395,6 +411,7 @@ def _retrieve_data_file(
     source_file_ext: str,
     allow_missing_files: bool,
     data_id_from_filename: bool,
+    random_ids: bool,
 ) -> Tuple[Path, str]:
     # retrieve the data file associated with data_id
     # return the data file path if it exists, otherwise raise an error unless missing files are
@@ -407,7 +424,9 @@ def _retrieve_data_file(
     #                  worry about multiple files matching the extension
     if data_file:
         data_file = Path(data_file)
-        if data_id_from_filename:
+        if random_ids:
+            tool_identifier = str(uuid.uuid4())
+        elif data_id_from_filename:
             # CheckM2 uses the base name (without extension) of genome_file as the genome
             # identifier
             # can't use path.stem since source_file_ext may have multiple extensions
