@@ -30,6 +30,10 @@ class ColumnInformation(BaseModel):
             + "B. subtilis.",
         description="The description of the column."
     )
+    type: str = Field(
+        example="count",
+        description="The type of the column values, e.g. bool, count, int, etc."
+    )
 
 
 class ColumnCategory(BaseModel):
@@ -72,10 +76,12 @@ class Cell(BaseModel):
         example="8",
         description="The ID of the column in which this cell is located."
     )
-    val: float = Field(
+    val: float | bool = Field(
         example=4.2,
         description="The value of the heatmap at this cell."
     )
+    class Config:
+        smart_union=True
 
 
 class HeatMapRow(BaseModel):
