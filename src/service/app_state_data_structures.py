@@ -6,7 +6,7 @@ import aioarango
 
 from src.service._app_state_build_storage import build_storage
 from src.service.config import CollectionsServiceConfig
-from src.service.data_products.common_models import DBCollection
+from src.service import data_product_specs
 from src.service.kb_auth import KBaseAuth
 from src.service.matchers.common_models import Matcher
 from src.service.sdk_async_client import SDKAsyncClient
@@ -20,21 +20,15 @@ class PickleableDependencies:
     to recreate said dependencies.
     """
 
-    def __init__(
-        self,
-        cfg: CollectionsServiceConfig,
-        data_products: dict[str, list[DBCollection]]
-    ):
+    def __init__(self, cfg: CollectionsServiceConfig):
         self._cfg = cfg
-        # TODO CODE do we need to pickle this anymore? Just get from the registry
-        self._dps = data_products
     
     async def get_storage(self) -> tuple[aioarango.ArangoClient, ArangoStorage]:
         """
         Get the Arango client and storage system. The arango client must be closed when the
         storage system is no longer necessary.
         """
-        return await build_storage(self._cfg, self._dps)
+        return await build_storage(self._cfg, data_product_specs.get_data_products())
 
     def get_epoch_ms(self) -> int:
         """
@@ -63,7 +57,6 @@ class CollectionsState:
         sdk_client: SDKAsyncClient,
         arangoclient: aioarango.ArangoClient,
         arangostorage: ArangoStorage,
-        data_products: dict[str, list[DBCollection]],
         matchers: list[Matcher],
         cfg: CollectionsServiceConfig,
     ):
@@ -75,7 +68,6 @@ class CollectionsState:
         self._client = arangoclient
         self.sdk_client = sdk_client
         self.arangostorage = arangostorage
-        self._data_products = data_products
         self._matchers = {m.id: m for m in matchers}
         self._cfg = cfg
 
@@ -91,7 +83,7 @@ class CollectionsState:
         Get an object that can be pickled, passed to another process, and used to reinitialize the
         system dependencies there.
         """
-        return PickleableDependencies(self._cfg, self._data_products)
+        return PickleableDependencies(self._cfg)
 
     def get_matcher(self, matcher_id) -> Matcher | None:
         """
