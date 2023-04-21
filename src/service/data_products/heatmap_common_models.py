@@ -2,6 +2,7 @@
 Common pydantic and fastAPI models for heat map data products.
 """
 
+from enum import Enum
 from pydantic import BaseModel, Field
 
 from src.service import models
@@ -11,6 +12,19 @@ _FLD_CELL_ID = Field(
     example="4",
     description="The unique ID of the cell in the heatmap."
 )
+
+class ColumnType(str, Enum):
+    """
+    The type of a column's values.
+    """
+    FLOAT = "float",
+    """ A float. """
+    INT = "int"
+    """ An integer. """
+    COUNT = "count"
+    """ Similar to an integer, but represents a numeric count. """
+    BOOL = "bool"
+    """ A boolean. """
 
 
 class ColumnInformation(BaseModel):
@@ -30,9 +44,9 @@ class ColumnInformation(BaseModel):
             + "B. subtilis.",
         description="The description of the column."
     )
-    type: str = Field(
-        example="count",
-        description="The type of the column values, e.g. bool, count, int, etc."
+    type: ColumnType = Field(
+        example=ColumnType.COUNT.value,
+        description="The type of the column values."
     )
 
 
