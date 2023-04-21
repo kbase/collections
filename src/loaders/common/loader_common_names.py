@@ -31,3 +31,6 @@ COLLECTION_DATA_DIR = 'collectionsdata'  # subdirectory for collected data (e.g.
 # metadata file generated in the tool result folder with tool generated genome identifier,
 # original genome id and source genome file info
 GENOME_METADATA_FILE = 'genome_metadata.tsv'
+
+# the name of the CSV file where we store the trait counts
+TRAIT_COUNTS_FILE = 'trait_counts.csv'
