@@ -273,8 +273,6 @@ async def _create_match_process(
     # Getting the objects might be really expensive depending on the size and number, so we
     # leave that to the matchers themselves, which should probably start a ee2 (?) job if object
     # downloads are required
-    # TODO PERFORMANCE might want to write our own async routines for contacting the workspace
-    #      vs using the compiled client. Made this method async just in case
     upas, _ = _check_and_sort_UPAs_and_get_wsids(upas)
     if user_parameters:
         try:
