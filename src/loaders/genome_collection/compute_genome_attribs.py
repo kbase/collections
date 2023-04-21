@@ -351,6 +351,10 @@ def _run_microtrait(genome_id, fna_file, batch_dir):
         microtrait_result = _get_r_list_element(r_result, 'microtrait_result')
 
         trait_counts = _get_r_list_element(microtrait_result, TRAIT_COUNTS_ATGRANULARITY)
+        # example trait_counts_df from trait_counts_atgranularity3
+        # microtrait_trait-name,microtrait_trait-value,microtrait_trait-displaynameshort,microtrait_trait-displaynamelong,microtrait_trait-strategy,microtrait_trait-type,microtrait_trait-granularity,microtrait_trait-version,microtrait_trait-displayorder,microtrait_trait-value1
+        # Resource Acquisition:Substrate uptake:aromatic acid transport,1,Aromatic acid transport,Resource Acquisition:Substrate uptake:aromatic acid transport,Resource Acquisition,count,3,production,1,1
+        # Resource Acquisition:Substrate uptake:biopolymer transport,3,Biopolymer transport,Resource Acquisition:Substrate uptake:biopolymer transport,Resource Acquisition,count,3,production,2,3
         trait_counts_df = _r_table_to_df(trait_counts)
 
         trait_counts_df.to_csv(os.path.join(genome_dir, loader_common_names.TRAIT_COUNTS_FILE), index=False)
