@@ -12,7 +12,7 @@ A storage system for collections based on an Arango backend.
 #
 #
 
-from aioarango.aql import AQL
+from aioarango.cursor import Cursor
 from aioarango.database import StandardDatabase
 from aioarango.exceptions import CollectionCreateError, DocumentInsertError
 from fastapi.encoders import jsonable_encoder
@@ -22,7 +22,7 @@ from src.common.hash import md5_string
 from src.common.storage import collection_and_field_names as names
 from src.service import models
 from src.service import errors
-from src.service.data_products.common_models import DBCollection
+from src.service.data_products.common_models import DataProductSpec
 
 
 _ERRMAP = {
@@ -121,18 +121,18 @@ def _doc_to_saved_coll(doc: dict):
         **models.remove_non_model_fields(doc, models.SavedCollection))
 
 
-def _get_and_check_col_names(dps: dict[str, list[DBCollection]]):
+def _get_and_check_col_names(dps: list[DataProductSpec]):
     col_to_id = {col: _BUILTIN for col in _COLLECTIONS}
     collections = [] + _COLLECTIONS  # don't mutate original list
-    for dpid, db_collections in dps.items():
-        if dpid == _BUILTIN:
+    for dp in dps:
+        if dp.data_product == _BUILTIN:
             raise ValueError(f"Cannot use name {_BUILTIN} for a data product ID")
-        for colspec in db_collections:
+        for colspec in dp.db_collections:
             if colspec.name in col_to_id:
                 raise ValueError(
-                    f"two data products, {dpid} and {col_to_id[colspec.name]}, "
+                    f"two data products, {dp.data_product} and {col_to_id[colspec.name]}, "
                     + f"are using the same collection, {colspec.name}")
-            col_to_id[colspec.name] = dpid
+            col_to_id[colspec.name] = dp.data_product
             collections.append(colspec.name)
     return collections
     
@@ -146,7 +146,7 @@ class ArangoStorage:
     async def create(
         cls,
         db: StandardDatabase,
-        data_products: dict[str, list[DBCollection]] = None,
+        data_products: list[DataProductSpec] = None,
         create_collections_on_startup: bool = False
     ) -> Self:
         """
@@ -161,7 +161,7 @@ class ArangoStorage:
             allow for system administrators to set up sharding to their liking, but auto
             creation is useful for quickly standing up a test service.
         """
-        dps = data_products or {}
+        dps = data_products or []
         for colname in _get_and_check_col_names(dps):
             if create_collections_on_startup:
                 await _create_collection(db, colname)
@@ -183,8 +183,8 @@ class ArangoStorage:
         await typescol.add_persistent_index(
             [names.FLD_COLLECTION_ID, names.FLD_DATA_PRODUCT, names.FLD_LOAD_VERSION]
         )
-        for col_list in dps.values():
-            for col in col_list:
+        for dp in dps:
+            for col in dp.db_collections:
                 dbcol = db.collection(col.name)
                 for index in col.indexes:
                     await dbcol.add_persistent_index(index)
@@ -194,10 +194,17 @@ class ArangoStorage:
     def __init__(self, db: StandardDatabase):
         self._db = db
 
+    async def execute_aql(self, aql_str: str, bind_vars: dict[str, Any] = None, count: bool = False
+    ) -> Cursor:
+        """
+        Execute an aql statement.
 
-    def aql(self) -> AQL:
-        """ Get the database AQL instance for running arbitrary queries. """
-        return self._db.aql
+        aql_str - the AQL string to execute.
+        bind_vars - any bind variables for the AQL string.
+        count - True to return the total count for the match. This can be significantly more
+             expensive than the query so use the option wisely.
+        """
+        return await self._db.aql.execute(aql_str, bind_vars=bind_vars or {}, count=count)
 
     async def get_next_version(self, collection_id: str) -> int:
         """ Get the next available version number for a collection. """
@@ -284,7 +291,8 @@ class ArangoStorage:
                 SORT d.{names.FLD_ARANGO_KEY} ASC
                 RETURN d
             """
-        cur = await self._db.aql.execute(aql, bind_vars={f"@{_FLD_COLLECTION}": names.COLL_SRV_ACTIVE})
+        cur = await self._db.aql.execute(
+            aql, bind_vars={f"@{_FLD_COLLECTION}": names.COLL_SRV_ACTIVE})
         try:
             return [_doc_to_active_coll(d) async for d in cur]
         finally:
