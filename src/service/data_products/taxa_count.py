@@ -328,7 +328,7 @@ async def _query(
     """
     # could get the doc count, but that'll be slower since all docs have to be counted vs. just
     # getting LIMIT docs. YAGNI for now
-    cur = await store.aql().execute(aql, bind_vars=bind_vars)
+    cur = await store.execute_aql(aql, bind_vars=bind_vars)
     ret = []
     try:
         async for d in cur:
@@ -409,5 +409,5 @@ async def _delete_subset(storage: ArangoStorage, internal_id: str, type_: models
             REMOVE d IN @@{_FLD_COL_NAME}
             OPTIONS {{exclusive: true}}
     """
-    cur = await storage.aql().execute(aql, bind_vars=bind_vars)
+    cur = await storage.execute_aql(aql, bind_vars=bind_vars)
     await cur.close(ignore_missing=True)
