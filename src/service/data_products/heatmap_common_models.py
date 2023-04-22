@@ -90,7 +90,7 @@ class Cell(BaseModel):
         example="8",
         description="The ID of the column in which this cell is located."
     )
-    val: float | bool = Field(
+    val: float | int | bool = Field(
         example=4.2,
         description="The value of the heatmap at this cell."
     )
