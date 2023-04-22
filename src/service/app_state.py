@@ -37,15 +37,12 @@ async def build_app(
     """
     auth = await KBaseAuth.create(cfg.auth_url, cfg.auth_full_admin_roles)
     sdk_client = SDKAsyncClient(cfg.workspace_url)
-    # pickling problems with the full spec, see
-    # https://github.com/cloudpipe/cloudpickle/issues/408
-    data_products = {dp.data_product: dp.db_collections for dp in data_products}
     cli = None
     try:
         cli, storage = await build_storage(cfg, data_products)
         await _check_workspace_url(sdk_client, cfg.workspace_url)
         app.state._colstate = CollectionsState(
-            auth, sdk_client, cli, storage, data_products, matchers, cfg
+            auth, sdk_client, cli, storage, matchers, cfg
         )
         app.state._match_deletion = SubsetCleanup(
             app.state._colstate.get_pickleable_dependencies(),

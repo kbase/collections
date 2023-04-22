@@ -30,6 +30,8 @@ def _ensure_cache():
         for mod, spec in _SPECS.items():
             # just throw the errors for now, maybe do a bit better error handling if needed later
             loaded = getattr(importlib.import_module(mod), spec)
+            if loaded.data_product in _IMPORT_CACHE:
+                raise ValueError(f"> 1 data product with ID {loaded.data_product}")
             _IMPORT_CACHE[loaded.data_product] = loaded
 
 

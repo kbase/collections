@@ -3,13 +3,13 @@ import asyncio
 import sys
 
 from src.service.config import CollectionsServiceConfig
-from src.service.data_products.common_models import DBCollection
+from src.service.data_products.common_models import DataProductSpec
 from src.service.storage_arango import ArangoStorage, ARANGO_ERR_NAME_EXISTS
 
 
 async def build_storage(
     cfg: CollectionsServiceConfig,
-    data_products: dict[str, list[DBCollection]],
+    data_products: list[DataProductSpec],
 ) -> tuple[aioarango.ArangoClient, ArangoStorage]:
     cli = aioarango.ArangoClient(hosts=cfg.arango_url)
     try:
