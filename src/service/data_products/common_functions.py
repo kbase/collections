@@ -141,7 +141,7 @@ async def _query_collection(
         "@coll": collection,
         "key": key,
     }
-    cur = await store.aql().execute(aql, bind_vars=bind_vars, count=True)
+    cur = await store.execute_aql(aql, bind_vars=bind_vars, count=True)
     try:
         if cur.count() < 1:
             if no_data_error:
@@ -238,7 +238,7 @@ async def query_simple_collection_list(
         LIMIT @skip, @limit
         RETURN d
     """
-    cur = await storage.aql().execute(aql, bind_vars=bind_vars)
+    cur = await storage.execute_aql(aql, bind_vars=bind_vars)
     try:
         async for d in cur:
             if internal_match_id:
@@ -295,7 +295,7 @@ async def count_simple_collection_list(
         COLLECT WITH COUNT INTO length
         RETURN length
     """
-    cur = await storage.aql().execute(aql, bind_vars=bind_vars)
+    cur = await storage.execute_aql(aql, bind_vars=bind_vars)
     try:
         return await cur.next()
     finally:
@@ -352,9 +352,7 @@ async def mark_data_by_kbase_id(
         "internal_id": subset_internal_id,
     }
     matched = set()
-    # TODO TEST Should probably change this to storage.execute_aql(aql, bind_vars={}, count=False)
-    #           Cleaner, less internals exposed, easier to mock for tests
-    cur = await storage.aql().execute(aql, bind_vars=bind_vars)
+    cur = await storage.execute_aql(aql, bind_vars=bind_vars)
     try:
         async for d in cur:
             matched.add(d[names.FLD_KBASE_ID])
@@ -391,5 +389,5 @@ async def remove_marked_subset(
             }} IN @@coll
             OPTIONS {{exclusive: true}}
         """
-    cur = await storage.aql().execute(aql, bind_vars=bind_vars)
+    cur = await storage.execute_aql(aql, bind_vars=bind_vars)
     await cur.close(ignore_missing=True)

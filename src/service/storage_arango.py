@@ -12,7 +12,7 @@ A storage system for collections based on an Arango backend.
 #
 #
 
-from aioarango.aql import AQL
+from aioarango.cursor import Cursor
 from aioarango.database import StandardDatabase
 from aioarango.exceptions import CollectionCreateError, DocumentInsertError
 from fastapi.encoders import jsonable_encoder
@@ -194,10 +194,17 @@ class ArangoStorage:
     def __init__(self, db: StandardDatabase):
         self._db = db
 
+    async def execute_aql(self, aql_str: str, bind_vars: dict[str, Any] = None, count: bool = False
+    ) -> Cursor:
+        """
+        Execute an aql statement.
 
-    def aql(self) -> AQL:
-        """ Get the database AQL instance for running arbitrary queries. """
-        return self._db.aql
+        aql_str - the AQL string to execute.
+        bind_vars - any bind variables for the AQL string.
+        count - True to return the total count for the match. This can be significantly more
+             expensive than the query so use the option wisely.
+        """
+        return await self._db.aql.execute(aql_str, bind_vars=bind_vars or {}, count=count)
 
     async def get_next_version(self, collection_id: str) -> int:
         """ Get the next available version number for a collection. """
@@ -284,7 +291,8 @@ class ArangoStorage:
                 SORT d.{names.FLD_ARANGO_KEY} ASC
                 RETURN d
             """
-        cur = await self._db.aql.execute(aql, bind_vars={f"@{_FLD_COLLECTION}": names.COLL_SRV_ACTIVE})
+        cur = await self._db.aql.execute(
+            aql, bind_vars={f"@{_FLD_COLLECTION}": names.COLL_SRV_ACTIVE})
         try:
             return [_doc_to_active_coll(d) async for d in cur]
         finally:

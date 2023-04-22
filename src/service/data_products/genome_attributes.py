@@ -501,7 +501,7 @@ async def _mark_gtdb_matches_complete(
     bind_vars: dict[str, Any],
     internal_match_id: str
 ):
-    cur = await storage.aql().execute(aql, bind_vars=bind_vars)
+    cur = await storage.execute_aql(aql, bind_vars=bind_vars)
     genome_ids = []
     try:
         async for d in cur:
@@ -606,7 +606,7 @@ async def process_subset_documents(
             RETURN d
         """
 
-    cur = await storage.aql().execute(aql, bind_vars=bind_vars)
+    cur = await storage.execute_aql(aql, bind_vars=bind_vars)
     try:
         async for d in cur:
             acceptor(d)
