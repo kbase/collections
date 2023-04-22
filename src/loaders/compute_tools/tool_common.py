@@ -7,9 +7,6 @@ of the KBase collections service.
 # https://github.com/chklovski/CheckM2/blob/89004c928537a1515a9fb3d276ce2dc0b5ffdadd/checkm2.yml#L6
 # Hence the old fasioned type annotations.
 
-# TODO FINALLY remove jobs/docker_img and compute_genome_attribs.py
-# TODO FINALLY remove rpy2 from pipfile
-
 # TODO COMPUTE_CONFIG if this is only going to be run from inside a docker file via the
 #                     entrypoint script, maybe ditch the argparse stuff and read settings from
 #                     a config file instead.
