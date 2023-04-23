@@ -1,4 +1,4 @@
-import src.loaders.genome_collection.parse_computed_genome_attribs as parse_computed_genome_attribs
+import src.loaders.genome_collection.parse_tool_results as parse_tool_results
 
 
 def test_noop():
