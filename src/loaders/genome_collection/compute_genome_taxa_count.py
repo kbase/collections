@@ -48,7 +48,7 @@ GENOME_TAXA_COUNT_FILE = "parsed_genome_taxa_counts.json"
 
 # The source of the input file containing genome taxonomy information to be parsed
 # GTDB - taxonomy file downloaded directly from the GTDB website, such as 'bac120_taxonomy_r207.tsv'
-# genome_attributes - genome attributes file created by running 'parse_tool_results.py' script.
+# genome_attributes - genome attributes file created by running 'parse_computed_genome_attribs.py' script.
 VALID_SOURCE = ['GTDB', 'genome_attributes']
 
 
@@ -61,7 +61,7 @@ def _parse_lineage_from_line(line, source):
         # line from taxonomy file downloaded directly from the GTDB website, such as 'bac120_taxonomy_r207.tsv'
         lineage_str = line.strip().split("\t")[1]
     elif source == 'genome_attributes':
-        # line from genome attributes file created by running 'parse_tool_results.py' script
+        # line from genome attributes file created by running 'parse_computed_genome_attribs.py' script
         data = json.loads(line)
 
         if names.FLD_GENOME_ATTRIBS_GTDB_LINEAGE not in data:
