@@ -1,7 +1,7 @@
-import re
 from collections import defaultdict
 
 import jsonlines
+from pydantic import BaseModel
 
 import src.common.storage.collection_and_field_names as names
 from src.common.hash import md5_string
@@ -22,6 +22,21 @@ def convert_to_json(docs, outfile):
 
     with jsonlines.Writer(outfile) as writer:
         writer.write_all(docs)
+
+
+def base_model_to_dict(model):
+    """
+    Recursively converts a BaseModel object to a dictionary that includes all its children elements.
+    """
+    model_dict = model.dict()
+    for key, value in model_dict.items():
+        if isinstance(value, BaseModel):
+            model_dict[key] = base_model_to_dict(value)
+        elif isinstance(value, list):
+            for i, item in enumerate(value):
+                if isinstance(item, BaseModel):
+                    model_dict[key][i] = base_model_to_dict(item)
+    return model_dict
 
 
 def parse_genome_id(gtdb_accession):
@@ -72,7 +87,8 @@ def init_genome_atrri_doc(kbase_collection, load_version, genome_id):
         names.FLD_ARANGO_KEY: md5_string(f"{kbase_collection}_{load_version}_{genome_id}"),
         names.FLD_COLLECTION_ID: kbase_collection,
         names.FLD_LOAD_VERSION: load_version,
-        names.FLD_KBASE_ID: genome_id,  # Begin with the input genome_id, though it may be altered by the calling script.
+        names.FLD_KBASE_ID: genome_id,
+        # Begin with the input genome_id, though it may be altered by the calling script.
         names.FLD_MATCHES_SELECTIONS: []  # for saving matches and selections
     }
 
