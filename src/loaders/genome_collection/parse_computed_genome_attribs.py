@@ -429,8 +429,8 @@ def _process_heatmap_tools(heatmap_tools, root_dir, kbase_collection, load_ver):
 
         heatmap_meta_dict, heatmap_rows_list = parse_ops(root_dir, kbase_collection, load_ver)
 
-        meta_output = f'{kbase_collection}_{load_ver}_{tool}_"meta"_{HEATMAP_FILE}'
-        rows_output = f'{kbase_collection}_{load_ver}_{tool}_"rows"_{HEATMAP_FILE}'
+        meta_output = f'{kbase_collection}_{load_ver}_{tool}_meta_{HEATMAP_FILE}'
+        rows_output = f'{kbase_collection}_{load_ver}_{tool}_rows_{HEATMAP_FILE}'
 
         with open(meta_output, 'w') as meta_output_json:
             convert_to_json([heatmap_meta_dict], meta_output_json)
