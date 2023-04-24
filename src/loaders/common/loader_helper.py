@@ -1,7 +1,6 @@
 from collections import defaultdict
 
 import jsonlines
-from pydantic import BaseModel
 
 import src.common.storage.collection_and_field_names as names
 from src.common.hash import md5_string
@@ -22,21 +21,6 @@ def convert_to_json(docs, outfile):
 
     with jsonlines.Writer(outfile) as writer:
         writer.write_all(docs)
-
-
-def base_model_to_dict(model):
-    """
-    Recursively converts a BaseModel object to a dictionary that includes all its children elements.
-    """
-    model_dict = model.dict()
-    for key, value in model_dict.items():
-        if isinstance(value, BaseModel):
-            model_dict[key] = base_model_to_dict(value)
-        elif isinstance(value, list):
-            for i, item in enumerate(value):
-                if isinstance(item, BaseModel):
-                    model_dict[key][i] = base_model_to_dict(item)
-    return model_dict
 
 
 def parse_genome_id(gtdb_accession):

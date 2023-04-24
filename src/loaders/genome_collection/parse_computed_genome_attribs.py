@@ -39,7 +39,7 @@ import pandas as pd
 import src.common.storage.collection_and_field_names as names
 from src.common.storage.db_doc_conversions import collection_data_id_key, collection_load_version_key
 from src.loaders.common import loader_common_names
-from src.loaders.common.loader_helper import convert_to_json, init_genome_atrri_doc, merge_docs, base_model_to_dict
+from src.loaders.common.loader_helper import convert_to_json, init_genome_atrri_doc, merge_docs
 from src.service.data_products.heatmap_common_models import HeatMapMeta, ColumnInformation, ColumnCategory, Cell, \
     HeatMapRow, ColumnType
 
@@ -404,8 +404,7 @@ def microtrait(root_dir, kbase_collection, load_ver):
             trait_df.apply(_process_trait, args=(traits_meta, traits_val, data_id), axis=1).to_list()
 
     heatmap_meta, heatmap_rows = _create_heatmap_objs(traits_meta, traits_val)
-    heatmap_meta_dict, heatmap_rows_list = base_model_to_dict(heatmap_meta), [base_model_to_dict(row) for row in
-                                                                              heatmap_rows]
+    heatmap_meta_dict, heatmap_rows_list = heatmap_meta.dict(), [row.dict() for row in heatmap_rows]
 
     # Add _key, collection id and load version to the heatmap metadata and rows
     heatmap_meta_dict.update({names.FLD_ARANGO_KEY: collection_load_version_key(kbase_collection, load_ver),
