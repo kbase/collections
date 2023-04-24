@@ -61,7 +61,7 @@ SELECTED_CHECKM2_FEATURES = {'Completeness', 'Contamination'}
 SELECTED_GTDBTK_SUMMARY_FEATURES = {}
 
 # tools result will be parsed as computed genome attributes
-GENOME_ATTR_TOOLS = ['checkm2', 'gtdb-tk']
+GENOME_ATTR_TOOLS = ['checkm2', 'gtdb_tk']
 # tool result will be parsed as headmap data
 HEATMAP_TOOLS = ['microtrait']
 
