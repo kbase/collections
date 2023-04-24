@@ -396,9 +396,9 @@ def microtrait(root_dir, kbase_collection, load_ver):
                              _MICROTRAIT_TRAIT_VALUE]
             trait_df = pd.read_csv(trait_count_file, usecols=selected_cols)
 
-            # Extract the substring of the 'microtrait_trait-displaynamelong' column before the last colon character
+            # Extract the substring of the 'microtrait_trait-displaynamelong' column before the first colon character
             # and assign it to a new 'category' column in the DataFrame
-            trait_df[_SYS_TRAIT_CATEGORY] = trait_df[_MICROTRAIT_TRAIT_DISPLAYNAME_LONG].str.rsplit(':', 1).str[0]
+            trait_df[_SYS_TRAIT_CATEGORY] = trait_df[_MICROTRAIT_TRAIT_DISPLAYNAME_LONG].str.split(':').str[0]
 
             trait_df = trait_df.rename(columns=_MICROTRAIT_TO_SYS_TRAIT_MAP)
             trait_df.apply(_process_trait, args=(traits_meta, traits_val, data_id), axis=1).to_list()
