@@ -45,11 +45,11 @@ from src.service.data_products.heatmap_common_models import HeatMapMeta, ColumnI
 
 # Default result file name for parsed computed genome attributes data for arango import.
 # Collection, load version and tools name will be prepended to this file name.
-COMPUTED_GENOME_ATTR_FILE = "computed_genome_attribs.json"
+COMPUTED_GENOME_ATTR_FILE = "computed_genome_attribs.jsonl"
 
 # Default result file name for parsed heatmap data for arango import.
 # Collection, load version and tools name will be prepended to this file name.
-HEATMAP_FILE = "heatmap_data.json"
+HEATMAP_FILE = "heatmap_data.jsonl"
 
 # The following features will be extracted from the CheckM2 result quality_report.tsv file as computed genome attributes
 # If empty, select all available fields
