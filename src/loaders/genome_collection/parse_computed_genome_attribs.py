@@ -385,7 +385,8 @@ def microtrait(root_dir, kbase_collection, load_ver):
 
     traits_meta, traits_val = dict(), dict()
     for batch_dir in batch_dirs:
-        data_ids = os.listdir(os.path.join(result_dir, batch_dir))
+        data_ids = [item for item in os.listdir(os.path.join(result_dir, batch_dir)) if
+                    os.path.isdir(os.path.join(result_dir, batch_dir, item))]
         for data_id in data_ids:
             data_dir = os.path.join(result_dir, batch_dir, data_id)
             trait_count_file = os.path.join(data_dir, loader_common_names.TRAIT_COUNTS_FILE)
