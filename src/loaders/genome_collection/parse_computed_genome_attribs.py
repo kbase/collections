@@ -37,9 +37,6 @@ from typing import Any
 import pandas as pd
 
 import src.common.storage.collection_and_field_names as names
-from src.common.storage.db_doc_conversions import collection_data_id_key, collection_load_version_key
-from src.loaders.common import loader_common_names
-from src.loaders.common.loader_helper import convert_to_json, init_genome_atrri_doc, merge_docs
 from src.common.product_models.heatmap_common_models import (
     HeatMapMeta,
     ColumnInformation,
@@ -48,6 +45,9 @@ from src.common.product_models.heatmap_common_models import (
     HeatMapRow,
     ColumnType,
 )
+from src.common.storage.db_doc_conversions import collection_data_id_key, collection_load_version_key
+from src.loaders.common import loader_common_names
+from src.loaders.common.loader_helper import convert_to_json, init_genome_atrri_doc, merge_docs
 
 # Default result file name suffix for parsed computed genome attributes data for arango import.
 # Collection, load version and tools name will be prepended to this file name suffix.
@@ -76,6 +76,7 @@ _MICROTRAIT_TRAIT_NAME = 'microtrait_trait-name'  # unique identifier for a trai
 _MICROTRAIT_TRAIT_DISPLAYNAME_SHORT = 'microtrait_trait-displaynameshort'
 _MICROTRAIT_TRAIT_DISPLAYNAME_LONG = 'microtrait_trait-displaynamelong'
 _MICROTRAIT_TRAIT_VALUE = 'microtrait_trait-value'
+_MICROTRAIT_TRAIT_TYPE = 'microtrait_trait-type'
 
 # The following features are used to create the heatmap metadata and rows
 _SYS_TRAIT_ID = 'trait_id'  # unique identifier for a trait
@@ -84,8 +85,9 @@ _SYS_TRAIT_NAME = 'trait_name'  # name of the trait
 _SYS_TRAIT_DESCRIPTION = 'trait_description'  # description of the trait
 _SYS_TRAIT_CATEGORY = 'trait_category'  # category of the trait
 _SYS_TRAIT_VALUE = 'trait_value'  # value of the trait
+_SYS_TRAIT_TYPE = 'trait_type'  # value of the trait
 
-_SYS_DEFAULT_TRAIT_VALUE = 0  # default value for a trait if the value is missing/not available
+_SYS_DEFAULT_TRAIT_VALUE = 0  # default value (0 or False) for a trait if the value is missing/not available
 
 # The map between the MicroTrait trait names and the corresponding system trait names
 # Use the microtrait_trait-name column as the unique identifier for a trait globally,
@@ -96,7 +98,8 @@ _MICROTRAIT_TO_SYS_TRAIT_MAP = {
     _MICROTRAIT_TRAIT_NAME: _SYS_TRAIT_ID,
     _MICROTRAIT_TRAIT_DISPLAYNAME_SHORT: _SYS_TRAIT_NAME,
     _MICROTRAIT_TRAIT_DISPLAYNAME_LONG: _SYS_TRAIT_DESCRIPTION,
-    _MICROTRAIT_TRAIT_VALUE: _SYS_TRAIT_VALUE
+    _MICROTRAIT_TRAIT_VALUE: _SYS_TRAIT_VALUE,
+    _MICROTRAIT_TRAIT_TYPE: _SYS_TRAIT_TYPE,
 }
 
 
@@ -246,9 +249,17 @@ def _process_trait(row: dict[str, str | float | int | bool],
                    data_id: str, ):
     # Process a row from the trait file and update the global traits metadata and value lists accordingly
 
-    _append_or_check_trait(traits_meta, row[_SYS_TRAIT_ID], row[_SYS_TRAIT_NAME], row[_SYS_TRAIT_DESCRIPTION],
-                           row[_SYS_TRAIT_CATEGORY])
-    _append_trait_val(traits_meta, traits_val, row[_SYS_TRAIT_ID], row[_SYS_TRAIT_VALUE], data_id)
+    _append_or_check_trait(traits_meta,
+                           row[_SYS_TRAIT_ID],
+                           row[_SYS_TRAIT_NAME],
+                           row[_SYS_TRAIT_DESCRIPTION],
+                           row[_SYS_TRAIT_CATEGORY],
+                           row[_SYS_TRAIT_TYPE])
+    _append_trait_val(traits_meta,
+                      traits_val,
+                      row[_SYS_TRAIT_ID],
+                      row[_SYS_TRAIT_VALUE],
+                      data_id)
 
 
 def _append_trait_val(
@@ -268,7 +279,8 @@ def _append_trait_val(
         traits_val[data_id] = list()
 
     traits_val[data_id].append({_SYS_TRAIT_INDEX: trait_index,  # used as column index in the heatmap
-                                _SYS_TRAIT_VALUE: trait_value})
+                                _SYS_TRAIT_VALUE: trait_value,
+                                })
 
 
 def _append_or_check_trait(
@@ -276,7 +288,8 @@ def _append_or_check_trait(
         trait_id: str,
         trait_name: str,
         trait_description: str,
-        trait_category: str):
+        trait_category: str,
+        trait_type: str):
     # Append a new trait to the global traits dictionary or check if the trait information is consistent
 
     if trait_id not in global_traits_meta:
@@ -285,14 +298,16 @@ def _append_or_check_trait(
             _SYS_TRAIT_INDEX: len(global_traits_meta),  # used as column index in the heatmap
             _SYS_TRAIT_NAME: trait_name,
             _SYS_TRAIT_DESCRIPTION: trait_description,
-            _SYS_TRAIT_CATEGORY: trait_category
+            _SYS_TRAIT_CATEGORY: trait_category,
+            _SYS_TRAIT_TYPE: trait_type,
         }
     else:
         # check if the trait information is consistent
         existing_trait = global_traits_meta[trait_id]
         if (existing_trait[_SYS_TRAIT_NAME] != trait_name or
                 existing_trait[_SYS_TRAIT_DESCRIPTION] != trait_description or
-                existing_trait[_SYS_TRAIT_CATEGORY] != trait_category):
+                existing_trait[_SYS_TRAIT_CATEGORY] != trait_category or
+                existing_trait[_SYS_TRAIT_TYPE] != trait_type):
             raise ValueError(f'Inconsistent trait information for trait {trait_id}')
 
 
@@ -303,6 +318,14 @@ def _parse_categories(traits_meta: dict[str, dict[str, str]]) -> list[ColumnCate
     # loop over each trait in traits_meta
     for trait in traits_meta.values():
         trait_category = trait[_SYS_TRAIT_CATEGORY]
+        trait_type = trait[_SYS_TRAIT_TYPE]
+
+        if trait[_SYS_TRAIT_TYPE] == 'count':
+            trait_type = ColumnType.COUNT.value
+        elif trait[_SYS_TRAIT_TYPE] == 'binary':
+            trait_type = ColumnType.BOOL.value
+        else:
+            raise ValueError(f'Unknown trait type {trait[_SYS_TRAIT_TYPE]}')
 
         # if the trait_category is not available, create a new ColumnCategory object with empty columns
         if trait_category not in categories:
@@ -312,7 +335,7 @@ def _parse_categories(traits_meta: dict[str, dict[str, str]]) -> list[ColumnCate
         categories[trait_category].columns.append(ColumnInformation(id=str(trait[_SYS_TRAIT_INDEX]),
                                                                     name=trait[_SYS_TRAIT_NAME],
                                                                     description=trait[_SYS_TRAIT_DESCRIPTION],
-                                                                    type=ColumnType.COUNT.value))
+                                                                    type=trait_type))
 
     return list(categories.values())
 
@@ -322,15 +345,45 @@ def _is_float_int(num: Any) -> bool:
     return isinstance(num, int) or (isinstance(num, float) and num.is_integer())
 
 
+def _int(num: float | int) -> int:
+    # Convert a float to an integer if the float is an integer
+    if _is_float_int(num):
+        return int(num)
+    else:
+        raise ValueError(f'Input must be an integer. Got {num} instead.')
+
+
+def _is_binary(num: int) -> bool:
+    # Given a number, checks if it is a binary num (i.e., being only 0 or 1).
+    return num == 0 or num == 1
+
+
+def _num_to_bool(num: int | bool) -> bool:
+    # Given a number, checks if it is a binary type (i.e., contains only 0s and 1s).
+
+    if _is_binary(num):
+        return bool(num)
+    else:
+        raise ValueError(f'Input must be a binary number (i.e., 0 or 1). Got {num} instead.')
+
+
 def _append_cell(
         heatmap_row: HeatMapRow,
         trait_idx: int,
         cell_count: int,
+        trait_type: str,
         min_value: float | int,
         max_value: float | int,
         trait_val: float | int | bool = 0
 ) -> (float | int, float | int):
     # Append a cell to the heatmap row and return the global min and max values
+
+    if trait_type == 'count':
+        trait_val = _int(trait_val)
+    elif trait_type == 'binary':
+        trait_val = _num_to_bool(trait_val)
+    else:
+        raise ValueError(f'Unknown trait type {trait_type}')
 
     cell = Cell(celid=str(cell_count), colid=str(trait_idx), val=trait_val)
     heatmap_row.cells.append(cell)
@@ -338,10 +391,20 @@ def _append_cell(
     return min(min_value, trait_val), max(max_value, trait_val)
 
 
+def _find_trait_by_id(trait_id: int,
+                      trait_meta: dict[str, dict[str, int | str]]
+                      ) -> dict[str, int | str]:
+    # Find a trait in the global traits dictionary by its ID
+    for trait in trait_meta.values():
+        if trait['trait_index'] == trait_id:
+            return trait
+
+    raise ValueError(f'Unable to find trait with ID {trait_id}')
+
+
 def _parse_heatmap_rows(
         traits_meta: dict[str, dict[str, int | str]],
         traits_val: dict[str, list[dict[str, int | float | bool]]],
-        ensure_ints: bool = False
 ) -> (list[HeatMapRow], float | int, float | int):
     min_value, max_value, cell_count = float('inf'), float('-inf'), 0
     heatmap_rows, trait_idxs = [], set([trait[_SYS_TRAIT_INDEX] for trait in traits_meta.values()])
@@ -349,20 +412,32 @@ def _parse_heatmap_rows(
         heatmap_row = HeatMapRow(kbase_id=data_id, cells=[])
         visited_traits = set()
         for trait_val_info in traits_val_list:
-            trait_idx, trait_val = trait_val_info[_SYS_TRAIT_INDEX], trait_val_info[_SYS_TRAIT_VALUE]
-            visited_traits.add(trait_idx)
-            if ensure_ints:
-                if not _is_float_int(trait_val):
-                    raise ValueError(f'Trait value {trait_val} does not hold an integer value')
-                trait_val = int(trait_val)
-            min_value, max_value = _append_cell(heatmap_row, trait_idx, cell_count, min_value, max_value,
+            trait_idx = trait_val_info[_SYS_TRAIT_INDEX]
+            trait_val = trait_val_info[_SYS_TRAIT_VALUE]
+            trait = _find_trait_by_id(trait_idx, traits_meta)
+            trait_type = trait.get('trait_type')
+
+            min_value, max_value = _append_cell(heatmap_row,
+                                                trait_idx,
+                                                cell_count,
+                                                trait_type,
+                                                min_value,
+                                                max_value,
                                                 trait_val=trait_val)
+            visited_traits.add(trait_idx)
             cell_count += 1
 
         # fill in missing trait values with 0s for all cells
         missing_trait_idxs = trait_idxs - visited_traits
         for missing_trait_idx in missing_trait_idxs:
-            min_value, max_value = _append_cell(heatmap_row, missing_trait_idx, cell_count, min_value, max_value,
+            trait = _find_trait_by_id(missing_trait_idx, traits_meta)
+            trait_type = trait.get('trait_type')
+            min_value, max_value = _append_cell(heatmap_row,
+                                                missing_trait_idx,
+                                                cell_count,
+                                                trait_type,
+                                                min_value,
+                                                max_value,
                                                 trait_val=_SYS_DEFAULT_TRAIT_VALUE)
             cell_count += 1
 
@@ -376,7 +451,7 @@ def _create_heatmap_objs(
         traits_val: dict[str, list[dict[str, int | float | bool]]]) -> (HeatMapMeta, list[HeatMapRow]):
     # Create the HeatMapMeta and list of HeatMapRow from parsed trait metadata and values
 
-    heatmap_rows, min_value, max_value = _parse_heatmap_rows(traits_meta, traits_val, ensure_ints=True)
+    heatmap_rows, min_value, max_value = _parse_heatmap_rows(traits_meta, traits_val)
     categories = _parse_categories(traits_meta)
     heatmap_meta = HeatMapMeta(categories=categories, min_value=min_value, max_value=max_value)
 
@@ -401,7 +476,8 @@ def microtrait(root_dir, kbase_collection, load_ver):
             selected_cols = [_MICROTRAIT_TRAIT_NAME,
                              _MICROTRAIT_TRAIT_DISPLAYNAME_SHORT,
                              _MICROTRAIT_TRAIT_DISPLAYNAME_LONG,
-                             _MICROTRAIT_TRAIT_VALUE]
+                             _MICROTRAIT_TRAIT_VALUE,
+                             _MICROTRAIT_TRAIT_TYPE, ]
             trait_df = pd.read_csv(trait_count_file, usecols=selected_cols)
 
             # Extract the substring of the 'microtrait_trait-displaynamelong' column before the first colon character
