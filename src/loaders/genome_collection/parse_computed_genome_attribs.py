@@ -32,7 +32,7 @@ import argparse
 import copy
 import os
 import sys
-from typing import Dict, Union, List, Any
+from typing import Any
 
 import pandas as pd
 
@@ -40,16 +40,22 @@ import src.common.storage.collection_and_field_names as names
 from src.common.storage.db_doc_conversions import collection_data_id_key, collection_load_version_key
 from src.loaders.common import loader_common_names
 from src.loaders.common.loader_helper import convert_to_json, init_genome_atrri_doc, merge_docs
-from src.service.data_products.heatmap_common_models import HeatMapMeta, ColumnInformation, ColumnCategory, Cell, \
-    HeatMapRow, ColumnType
+from src.service.data_products.heatmap_common_models import (
+    HeatMapMeta,
+    ColumnInformation,
+    ColumnCategory,
+    Cell,
+    HeatMapRow,
+    ColumnType,
+)
 
-# Default result file name for parsed computed genome attributes data for arango import.
-# Collection, load version and tools name will be prepended to this file name.
-COMPUTED_GENOME_ATTR_FILE = "computed_genome_attribs.jsonl"
+# Default result file name suffix for parsed computed genome attributes data for arango import.
+# Collection, load version and tools name will be prepended to this file name suffix.
+COMPUTED_GENOME_ATTR_FILE_SUFFIX = "computed_genome_attribs.jsonl"
 
-# Default result file name for parsed heatmap data for arango import.
-# Collection, load version and tools name will be prepended to this file name.
-HEATMAP_FILE = "heatmap_data.jsonl"
+# Default result file name suffix for parsed heatmap data for arango import.
+# Collection, load version, tools name and categories (meta, rows, cells etc.) will be prepended to this suffix.
+HEATMAP_FILE_SUFFIX = "heatmap_data.jsonl"
 
 # The following features will be extracted from the CheckM2 result quality_report.tsv file as computed genome attributes
 # If empty, select all available fields
@@ -62,7 +68,7 @@ SELECTED_GTDBTK_SUMMARY_FEATURES = {}
 
 # tools result will be parsed as computed genome attributes
 GENOME_ATTR_TOOLS = ['checkm2', 'gtdb_tk']
-# tool result will be parsed as headmap data
+# tool result will be parsed as heatmap data
 HEATMAP_TOOLS = ['microtrait']
 
 # The following features will be extracted from the MicroTrait result file as heatmap data
@@ -234,9 +240,9 @@ def checkm2(root_dir, kbase_collection, load_ver):
     return checkm2_docs
 
 
-def _process_trait(row: Dict[str, Union[str, float, int, bool]],
-                   traits_meta: Dict[str, Dict[str, str]],
-                   traits_val: Dict[str, List[Dict[str, Union[int, float, bool]]]],
+def _process_trait(row: dict[str, str | float | int | bool],
+                   traits_meta: dict[str, dict[str, str]],
+                   traits_val: dict[str, list[dict[str, int | float | bool]]],
                    data_id: str, ):
     # Process a row from the trait file and update the global traits metadata and value lists accordingly
 
@@ -246,8 +252,8 @@ def _process_trait(row: Dict[str, Union[str, float, int, bool]],
 
 
 def _append_trait_val(
-        traits_meta: Dict[str, Dict[str, str]],
-        traits_val: Dict[str, List[Dict[str, Union[int, float, bool]]]],
+        traits_meta: dict[str, dict[str, str]],
+        traits_val: dict[str, list[dict[str, float | int | bool]]],
         trait_id: str,
         trait_value: float | int | bool,
         data_id: str):
@@ -266,7 +272,7 @@ def _append_trait_val(
 
 
 def _append_or_check_trait(
-        global_traits_meta: Dict[str, Dict[str, str]],
+        global_traits_meta: dict[str, dict[str, str]],
         trait_id: str,
         trait_name: str,
         trait_description: str,
@@ -290,7 +296,7 @@ def _append_or_check_trait(
             raise ValueError(f'Inconsistent trait information for trait {trait_id}')
 
 
-def _parse_categories(traits_meta: Dict[str, Dict[str, str]]) -> List[ColumnCategory]:
+def _parse_categories(traits_meta: dict[str, dict[str, str]]) -> list[ColumnCategory]:
     # Parse the trait categories from the global traits dictionary
 
     categories = {}
@@ -322,7 +328,8 @@ def _append_cell(
         cell_count: int,
         min_value: float | int,
         max_value: float | int,
-        trait_val: float | int | bool = 0) -> (float | int, float | int):
+        trait_val: float | int | bool = 0
+) -> (float | int, float | int):
     # Append a cell to the heatmap row and return the global min and max values
 
     cell = Cell(celid=str(cell_count), colid=str(trait_idx), val=trait_val)
@@ -331,10 +338,11 @@ def _append_cell(
     return min(min_value, trait_val), max(max_value, trait_val)
 
 
-def _parse_rows(
-        traits_meta: Dict[str, Dict[str, Union[int, str]]],
-        traits_val: Dict[str, List[Dict[str, Union[int, float, bool]]]],
-        ensure_ints: bool = False) -> (List[HeatMapRow], Union[float, int], Union[float, int]):
+def _parse_heatmap_rows(
+        traits_meta: dict[str, dict[str, int | str]],
+        traits_val: dict[str, list[dict[str, int | float | bool]]],
+        ensure_ints: bool = False
+) -> (list[HeatMapRow], float | int, float | int):
     min_value, max_value, cell_count = float('inf'), float('-inf'), 0
     heatmap_rows, trait_idxs = [], set([trait[_SYS_TRAIT_INDEX] for trait in traits_meta.values()])
     for data_id, traits_val_list in traits_val.items():
@@ -364,11 +372,11 @@ def _parse_rows(
 
 
 def _create_heatmap_objs(
-        traits_meta: Dict[str, Dict[str, str]],
-        traits_val: Dict[str, List[Dict[str, Union[int, float, bool]]]]) -> (HeatMapMeta, List[HeatMapRow]):
+        traits_meta: dict[str, dict[str, str]],
+        traits_val: dict[str, list[dict[str, int | float | bool]]]) -> (HeatMapMeta, list[HeatMapRow]):
     # Create the HeatMapMeta and list of HeatMapRow from parsed trait metadata and values
 
-    heatmap_rows, min_value, max_value = _parse_rows(traits_meta, traits_val, ensure_ints=True)
+    heatmap_rows, min_value, max_value = _parse_heatmap_rows(traits_meta, traits_val, ensure_ints=True)
     categories = _parse_categories(traits_meta)
     heatmap_meta = HeatMapMeta(categories=categories, min_value=min_value, max_value=max_value)
 
@@ -417,7 +425,10 @@ def microtrait(root_dir, kbase_collection, load_ver):
     return heatmap_meta_dict, heatmap_rows_list
 
 
-def _process_heatmap_tools(heatmap_tools, root_dir, kbase_collection, load_ver):
+def _process_heatmap_tools(heatmap_tools: set[str],
+                           root_dir: str,
+                           kbase_collection: str,
+                           load_ver: str):
     # parse result files generated by heatmap tools such as microtrait
 
     for tool in heatmap_tools:
@@ -428,8 +439,8 @@ def _process_heatmap_tools(heatmap_tools, root_dir, kbase_collection, load_ver):
 
         heatmap_meta_dict, heatmap_rows_list = parse_ops(root_dir, kbase_collection, load_ver)
 
-        meta_output = f'{kbase_collection}_{load_ver}_{tool}_meta_{HEATMAP_FILE}'
-        rows_output = f'{kbase_collection}_{load_ver}_{tool}_rows_{HEATMAP_FILE}'
+        meta_output = f'{kbase_collection}_{load_ver}_{tool}_meta_{HEATMAP_FILE_SUFFIX}'
+        rows_output = f'{kbase_collection}_{load_ver}_{tool}_rows_{HEATMAP_FILE_SUFFIX}'
 
         with open(meta_output, 'w') as meta_output_json:
             convert_to_json([heatmap_meta_dict], meta_output_json)
@@ -438,12 +449,16 @@ def _process_heatmap_tools(heatmap_tools, root_dir, kbase_collection, load_ver):
             convert_to_json(heatmap_rows_list, rows_output_json)
 
 
-def _process_genome_attri_tools(genome_attr_tools, root_dir, kbase_collection, load_ver):
+def _process_genome_attri_tools(genome_attr_tools: set[str],
+                                root_dir: str,
+                                kbase_collection: str,
+                                load_ver: str):
     # parse result files generated by genome attribute tools such as checkm2, gtdb-tk, etc
 
     if not genome_attr_tools:
         return
 
+    genome_attr_tools = sorted(genome_attr_tools)  # sort the tools to ensure consistent order of the output
     docs = list()
     for tool in genome_attr_tools:
         try:
@@ -455,7 +470,7 @@ def _process_genome_attri_tools(genome_attr_tools, root_dir, kbase_collection, l
 
     docs = merge_docs(docs, '_key')
 
-    output = f'{kbase_collection}_{load_ver}_{"_".join(genome_attr_tools)}_{COMPUTED_GENOME_ATTR_FILE}'
+    output = f'{kbase_collection}_{load_ver}_{"_".join(genome_attr_tools)}_{COMPUTED_GENOME_ATTR_FILE_SUFFIX}'
 
     with open(output, 'w') as genome_attribs_json:
         convert_to_json(docs, genome_attribs_json)
