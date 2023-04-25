@@ -40,7 +40,7 @@ import src.common.storage.collection_and_field_names as names
 from src.common.storage.db_doc_conversions import collection_data_id_key, collection_load_version_key
 from src.loaders.common import loader_common_names
 from src.loaders.common.loader_helper import convert_to_json, init_genome_atrri_doc, merge_docs
-from src.service.data_products.heatmap_common_models import (
+from src.common.product_models.heatmap_common_models import (
     HeatMapMeta,
     ColumnInformation,
     ColumnCategory,

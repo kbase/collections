@@ -2,14 +2,12 @@
 Reusable code for creating a heatmap based data product.
 """
 
-import logging
-
 from fastapi import APIRouter, Depends, Request, Query, Path
 
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
 from src.service.app_state_data_structures import PickleableDependencies, CollectionsState
-from src.service.data_products import heatmap_common_models as heatmap_models
+from src.common.product_models import heatmap_common_models as heatmap_models
 from src.service.data_products.common_functions import (
     get_load_version,
     get_load_ver_from_collection,
