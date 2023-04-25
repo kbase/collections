@@ -73,10 +73,11 @@ HEATMAP_TOOLS = ['microtrait']
 
 # The following features will be extracted from the MicroTrait result file as heatmap data
 _MICROTRAIT_TRAIT_NAME = 'microtrait_trait-name'  # unique identifier for a trait globally
-_MICROTRAIT_TRAIT_DISPLAYNAME_SHORT = 'microtrait_trait-displaynameshort'
-_MICROTRAIT_TRAIT_DISPLAYNAME_LONG = 'microtrait_trait-displaynamelong'
-_MICROTRAIT_TRAIT_VALUE = 'microtrait_trait-value'
-_MICROTRAIT_TRAIT_TYPE = 'microtrait_trait-type'
+_MICROTRAIT_TRAIT_DISPLAYNAME_SHORT = 'microtrait_trait-displaynameshort' # used as column name of the trait
+_MICROTRAIT_TRAIT_DISPLAYNAME_LONG = 'microtrait_trait-displaynamelong'  # used as description of the trait
+_MICROTRAIT_TRAIT_VALUE = 'microtrait_trait-value'  # value of the trait (can be integer or 0/1 as boolean)
+_MICROTRAIT_TRAIT_TYPE = 'microtrait_trait-type'  # type of trait (count or binary)
+_MICROTRAIT_TRAIT_ORDER = 'microtrait_trait-displayorder'  # order of the trait defined by the granularity table used as the index of trait
 
 # The following features are used to create the heatmap metadata and rows
 _SYS_TRAIT_ID = 'trait_id'  # unique identifier for a trait
@@ -100,6 +101,7 @@ _MICROTRAIT_TO_SYS_TRAIT_MAP = {
     _MICROTRAIT_TRAIT_DISPLAYNAME_LONG: _SYS_TRAIT_DESCRIPTION,
     _MICROTRAIT_TRAIT_VALUE: _SYS_TRAIT_VALUE,
     _MICROTRAIT_TRAIT_TYPE: _SYS_TRAIT_TYPE,
+    _MICROTRAIT_TRAIT_ORDER: _SYS_TRAIT_INDEX,
 }
 
 # Default directory name for the parsed JSONL files for arango import
@@ -202,6 +204,7 @@ def _process_trait(row: dict[str, str | float | int | bool],
 
     _append_or_check_trait(traits_meta,
                            row[_SYS_TRAIT_ID],
+                           row[_SYS_TRAIT_INDEX],
                            row[_SYS_TRAIT_NAME],
                            row[_SYS_TRAIT_DESCRIPTION],
                            row[_SYS_TRAIT_CATEGORY],
@@ -293,6 +296,7 @@ def _process_genome_attri_tools(genome_attr_tools: set[str],
 def _append_or_check_trait(
         global_traits_meta: dict[str, dict[str, str]],
         trait_id: str,
+        trait_index: int,
         trait_name: str,
         trait_description: str,
         trait_category: str,
@@ -302,7 +306,7 @@ def _append_or_check_trait(
     if trait_id not in global_traits_meta:
         # add new trait
         global_traits_meta[trait_id] = {
-            _SYS_TRAIT_INDEX: len(global_traits_meta),  # used as column index in the heatmap
+            _SYS_TRAIT_INDEX: trait_index,
             _SYS_TRAIT_NAME: trait_name,
             _SYS_TRAIT_DESCRIPTION: trait_description,
             _SYS_TRAIT_CATEGORY: trait_category,
@@ -312,6 +316,7 @@ def _append_or_check_trait(
         # check if the trait information is consistent
         existing_trait = global_traits_meta[trait_id]
         if (existing_trait[_SYS_TRAIT_NAME] != trait_name or
+                existing_trait[_SYS_TRAIT_INDEX] != trait_index or
                 existing_trait[_SYS_TRAIT_DESCRIPTION] != trait_description or
                 existing_trait[_SYS_TRAIT_CATEGORY] != trait_category or
                 existing_trait[_SYS_TRAIT_TYPE] != trait_type):
@@ -395,7 +400,8 @@ def _append_cell(
     cell = Cell(celid=str(cell_count), colid=str(trait_idx), val=trait_val)
     heatmap_row.cells.append(cell)
 
-    return min(min_value, trait_val), max(max_value, trait_val)
+    return (min(min_value, trait_val),
+            max(max_value, trait_val)) if isinstance(trait_val, int) else (min_value, max_value)
 
 
 def _find_trait_by_id(trait_id: int,
@@ -484,7 +490,9 @@ def microtrait(root_dir, kbase_collection, load_ver):
                              _MICROTRAIT_TRAIT_DISPLAYNAME_SHORT,
                              _MICROTRAIT_TRAIT_DISPLAYNAME_LONG,
                              _MICROTRAIT_TRAIT_VALUE,
-                             _MICROTRAIT_TRAIT_TYPE, ]
+                             _MICROTRAIT_TRAIT_TYPE,
+                             _MICROTRAIT_TRAIT_ORDER,
+                             ]
             trait_df = pd.read_csv(trait_count_file, usecols=selected_cols)
 
             # Extract the substring of the 'microtrait_trait-displaynamelong' column before the first colon character
