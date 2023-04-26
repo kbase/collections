@@ -20,17 +20,19 @@ from src.service import processing_selections
 from src.service.data_products.common_functions import (
     get_load_version,
     get_load_ver_from_collection,
+    get_collection_singleton_from_db,
 )
 from src.service.data_products.common_models import (
     DataProductSpec,
     DBCollection,
     QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
+    QUERY_STATUS_ONLY,
 )
 from src.service.data_products import genome_attributes
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
-from typing import Any
+from typing import Any, Annotated
 
 
 ID = "taxa_count"
@@ -91,13 +93,6 @@ TAXA_COUNT_SPEC = TaxaCountSpec(
 _OPT_AUTH = KBaseHTTPBearer(optional=True)
 
 
-def ranks_key(collection_id: str, load_ver: str):
-    f"""
-    Calculate the ranks database key for the {ID} data product.
-    """
-    return md5_string(f"{collection_id}_{load_ver}")
-
-
 # modifies in place
 def _remove_counts_keys(doc: dict):
     for k in [names.FLD_TAXA_COUNT_RANK,
@@ -156,7 +151,7 @@ class TaxaCounts(BaseModel):
     taxa_count_selection_state: models.ProcessState | None = Field(
         example=models.ProcessState.FAILED,
         description="The processing state of the selection (if any) for this data product. "
-            + "This data product requires additional processing beyond the primary match."
+            + "This data product requires additional processing beyond the primary selection."
     )
     data: list[TaxaCount] | None
 
@@ -177,7 +172,7 @@ _FLD_COL_RANK = "rank"
 async def get_ranks(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
-    load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
+    load_ver_override: Annotated[str | None, QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE] = None,
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
 ):
     store = app_state.get_app_state(r).arangostorage
@@ -191,26 +186,8 @@ async def get_ranks_from_db(
     load_ver: str,
     load_ver_overridden: bool,
 ):
-    aql = f"""
-        FOR d IN @@{_FLD_COL_ID}
-            FILTER d.{names.FLD_ARANGO_KEY} == @{_FLD_KEY}
-            RETURN d
-    """
-    bind_vars = {
-        f"@{_FLD_COL_ID}": names.COLL_TAXA_COUNT_RANKS,
-        _FLD_KEY: ranks_key(collection_id, load_ver)
-    }
-    cur = await store.aql().execute(aql, bind_vars=bind_vars, count=True)
-    try:
-        if cur.count() < 1:
-            err = f"No data loaded for {collection_id} collection load version {load_ver}"
-            if load_ver_overridden:
-                raise errors.NoDataFoundError(err)
-            raise ValueError(err)
-        # since we're getting a doc by _key > 1 is impossible
-        doc = await cur.next()
-    finally:
-        await cur.close(ignore_missing=True)
+    doc = await get_collection_singleton_from_db(
+        store, names.COLL_TAXA_COUNT_RANKS, collection_id, load_ver, load_ver_overridden)
     return Ranks(data=doc[names.FLD_TAXA_COUNT_RANKS])
 
 
@@ -238,7 +215,8 @@ async def get_taxa_counts(
         default = None,
         description="A selection ID to include the selection count in the taxa count data. "
             + "Note that if a selection ID is set, any load version override is ignored."),
-    load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
+    status_only: bool = QUERY_STATUS_ONLY,
+    load_ver_override: Annotated[str | None, QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE] = None,
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
 ):
     appstate = app_state.get_app_state(r)
@@ -250,9 +228,15 @@ async def get_taxa_counts(
     else:
         load_ver = await get_load_version(store, collection_id, ID, load_ver_override, user)
     if match_id:
-        dp_match = await _get_data_product_match(appstate, coll, match_id, user)
+        dp_match = await processing_matches.get_or_create_data_product_match_process(
+            appstate, coll, user, match_id, ID, _process_taxa_count_subset
+        )
     if selection_id:
-        dp_sel = await _get_data_product_selection(appstate, coll, selection_id)
+        dp_sel = await processing_selections.get_or_create_data_product_selection_process(
+            appstate, coll, selection_id, ID, _process_taxa_count_subset
+        )
+    if status_only:
+        return _taxa_counts(dp_match=dp_match, dp_sel=dp_sel)
     ranks = await get_ranks_from_db(store, collection_id, load_ver, bool(load_ver_override))
     if rank not in ranks.data:
         raise errors.IllegalParameterError(f"Invalid rank: {rank}")
@@ -261,10 +245,18 @@ async def get_taxa_counts(
         await _add_subset_data_in_place(q, store, collection_id, load_ver, rank, dp_proc)
         # For now always sort by the std data. See if ppl want sort by match/selection data
         # before implementing something more sophisticated.
+    return _taxa_counts(dp_match=dp_match, dp_sel=dp_sel, data=q)
+
+
+def _taxa_counts(
+    dp_match: models.DataProductProcess = None,
+    dp_sel: models.DataProductProcess = None,
+    data: dict[str, Any] = None,
+) -> TaxaCounts:
     return TaxaCounts(
         taxa_count_match_state=dp_match.state if dp_match else None,
         taxa_count_selection_state=dp_sel.state if dp_sel else None,
-        data=q,
+        data=data,
     )
 
 
@@ -276,7 +268,7 @@ async def _add_subset_data_in_place(
     rank: str,
     dp_process: models.DataProductProcess,
 ):
-    if dp_process and dp_process.state == models.ProcessState.COMPLETE:
+    if dp_process and dp_process.is_complete():
         matchq = await _query(
             store,
             collection_id,
@@ -303,37 +295,6 @@ async def _get_load_ver(appstate: CollectionsState, collection_id: str, errclass
             + f"{genome_attributes.ID} data product")
     load_ver = get_load_ver_from_collection(coll, ID)
     return load_ver, coll
-
-
-async def _get_data_product_match(
-    appstate: CollectionsState,
-    coll: models.SavedCollection,
-    match_id: str,
-    user: kb_auth.KBaseUser
-):
-    if not user:
-        raise errors.UnauthorizedError("Authentication is required if a match ID is supplied")
-    match = await processing_matches.get_match_full(
-        appstate, match_id, user, require_complete=True, require_collection=coll)
-    dpid = models.DataProductProcessIdentifier(
-        internal_id=match.internal_match_id, data_product=ID, type=models.SubsetType.MATCH
-    )
-    return await processing.get_or_create_data_product_process(
-        appstate, dpid, _process_match, args=[models.SubsetType.MATCH])
-
-
-async def _get_data_product_selection(
-    appstate: CollectionsState,
-    coll: models.SavedCollection,
-    selection_id: str,
-):
-    sel = await processing_selections.get_selection_full(
-        appstate, selection_id, require_complete=True, require_collection=coll)
-    dpid = models.DataProductProcessIdentifier(
-        internal_id=sel.internal_selection_id, data_product=ID, type=models.SubsetType.SELECTION
-    )
-    return await processing.get_or_create_data_product_process(
-        appstate, dpid, _process_match, args=[models.SubsetType.SELECTION])
 
 
 async def _query(
@@ -367,7 +328,7 @@ async def _query(
     """
     # could get the doc count, but that'll be slower since all docs have to be counted vs. just
     # getting LIMIT docs. YAGNI for now
-    cur = await store.aql().execute(aql, bind_vars=bind_vars)
+    cur = await store.execute_aql(aql, bind_vars=bind_vars)
     ret = []
     try:
         async for d in cur:
@@ -378,71 +339,43 @@ async def _query(
     return ret
 
 
-async def _process_match(
-    internal_id: str, deps: PickleableDependencies, args: list[models.SubsetType]
+async def _process_taxa_count_subset(
+    deps: PickleableDependencies,
+    storage: ArangoStorage,
+    match_or_sel: models.InternalMatch | models.InternalSelection,
+    coll: models.SavedCollection,
+    dpid: models.DataProductProcessIdentifier,
 ):
-    # TODO DOCS document that processes should run regardless of the state
-    #      of any other processes for the same match or selection. It is up to the code starting
-    #      the process to ensure it is correct to start. As such, the processes should be
-    #      idempotent.
-    type_ = args[0]
-    hb = None
-    arangoclient = None
-    dpid = models.DataProductProcessIdentifier(
-        internal_id=internal_id, data_product=ID, type=type_)
-    try:
-        arangoclient, storage = await deps.get_storage()
-        if type_ == models.SubsetType.MATCH:
-            collspec = await storage.get_match_by_internal_id(internal_id)
-        else:
-            collspec = await storage.get_selection_by_internal_id(internal_id)
-        async def heartbeat(millis: int):
-            await storage.send_data_product_heartbeat(dpid, millis)
-        hb = processing.Heartbeat(heartbeat, processing.HEARTBEAT_INTERVAL_SEC)
-        hb.start()
-        
-        # use version number to avoid race conditions with activating collections
-        coll = await storage.get_collection_version_by_num(
-            collspec.collection_id, collspec.collection_ver
-        )
-        load_ver = {dp.product: dp.version for dp in coll.data_products}[ID]
-        # Right now this is hard coded to use the GTDB lineage, which is the only choice we
-        # have. Might need to expand in future for other count strategies.
-        # Maybe a collection parameter, which would be available from the collection data structure
-        # given the matcher ID.
-        count = GTDBTaxaCount()
-        await genome_attributes.process_subset_documents(
-            storage,
-            coll,
-            internal_id,
-            type_,
-            lambda doc: count.add(doc[names.FLD_GENOME_ATTRIBS_GTDB_LINEAGE]),
-            fields=[names.FLD_GENOME_ATTRIBS_GTDB_LINEAGE]
-        )
-        docs = [taxa_node_count_to_doc(coll.id, load_ver, tc, _TYPE2PREFIX[type_] + internal_id)
-                for tc in count
-                ]
-        # May need to batch this?
-        # The other option I considered here was adding the match counts to the records directly.
-        # That is going to be way slower, since you have to update one record at a time,
-        # and adds a lot of complication since you'll need to store many matches in the same
-        # record. For now go with separate records for matches for speed and simplicity. If
-        # we need to refactor later we'll do it when the user story exists.
-        # Ignore collisions so that if two match processes get kicked off at once the result
-        # is the same and neither fails.
-        await storage.import_bulk_ignore_collisions(names.COLL_TAXA_COUNT, docs)
-        await storage.update_data_product_process_state(
-            dpid, models.ProcessState.COMPLETE, deps.get_epoch_ms())
-    except Exception as e:
-        logging.getLogger(__name__).exception(
-            f"{type_.value} process {internal_id} for data product {ID} failed")
-        await storage.update_data_product_process_state(
-            dpid, models.ProcessState.FAILED, deps.get_epoch_ms())
-    finally:
-        if hb:
-            hb.stop()
-        if arangoclient:
-            await arangoclient.close()
+    load_ver = {dp.product: dp.version for dp in coll.data_products}[ID]
+    # Right now this is hard coded to use the GTDB lineage, which is the only choice we
+    # have. Might need to expand in future for other count strategies.
+    # Maybe a collection parameter, which would be available from the collection data structure
+    # given the matcher ID.
+    count = GTDBTaxaCount()
+    await genome_attributes.process_subset_documents(
+        storage,
+        coll,
+        dpid.internal_id,
+        dpid.type,
+        lambda doc: count.add(doc[names.FLD_GENOME_ATTRIBS_GTDB_LINEAGE]),
+        fields=[names.FLD_GENOME_ATTRIBS_GTDB_LINEAGE]
+    )
+    docs = [
+        taxa_node_count_to_doc(
+            coll.id, load_ver, tc, _TYPE2PREFIX[dpid.type] + dpid.internal_id
+        ) for tc in count
+    ]
+    # May need to batch this?
+    # The other option I considered here was adding the match counts to the records directly.
+    # That is going to be way slower, since you have to update one record at a time,
+    # and adds a lot of complication since you'll need to store many matches in the same
+    # record. For now go with separate records for matches for speed and simplicity. If
+    # we need to refactor later we'll do it when the user story exists.
+    # Ignore collisions so that if two match processes get kicked off at once the result
+    # is the same and neither fails.
+    await storage.import_bulk_ignore_collisions(names.COLL_TAXA_COUNT, docs)
+    await storage.update_data_product_process_state(
+        dpid, models.ProcessState.COMPLETE, deps.get_epoch_ms())
 
 
 async def delete_match(storage: ArangoStorage, internal_match_id: str):
@@ -476,5 +409,5 @@ async def _delete_subset(storage: ArangoStorage, internal_id: str, type_: models
             REMOVE d IN @@{_FLD_COL_NAME}
             OPTIONS {{exclusive: true}}
     """
-    cur = await storage.aql().execute(aql, bind_vars=bind_vars)
+    cur = await storage.execute_aql(aql, bind_vars=bind_vars)
     await cur.close(ignore_missing=True)

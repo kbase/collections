@@ -6,10 +6,9 @@ from collections import defaultdict
 
 from fastapi import APIRouter, Request, Depends, Query
 from pydantic import BaseModel, Field, Extra
-from src.common.gtdb_lineage import GTDBLineage, GTDBRank
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
-from src.service.app_state_data_structures import CollectionsState
+from src.service.app_state_data_structures import CollectionsState, PickleableDependencies
 from src.service import errors
 from src.service import kb_auth
 from src.service import processing_matches
@@ -18,20 +17,30 @@ from src.service import processing_selections
 from src.service.data_products.common_functions import (
     get_load_version,
     get_load_ver_from_collection,
-    remove_collection_keys
+    remove_collection_keys,
+    query_simple_collection_list,
+    count_simple_collection_list,
+    mark_data_by_kbase_id,
+    remove_marked_subset,
 )
 from src.service.data_products.common_models import (
     DataProductSpec,
     DBCollection,
     QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
+    QUERY_VALIDATOR_LIMIT,
+    QUERY_COUNT,
+    QUERY_MATCH_ID,
+    QUERY_MATCH_MARK,
+    QUERY_SELECTION_ID,
+    QUERY_SELECTION_MARK,
 )
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
 from src.service.timestamp import now_epoch_millis
-from typing import Any, Callable
+from typing import Any, Callable, Annotated
 
-# Implementation note - we know FLD_GENOME_ATTRIBS_KBASE_GENOME_ID is unique per collection id /
+# Implementation note - we know FLD_KBASE_ID is unique per collection id /
 # load version combination since the loader uses those 3 fields as the arango _key
 
 ID = "genome_attribs"
@@ -51,7 +60,8 @@ class GenomeAttribsSpec(DataProductSpec):
         storage - the storage system
         internal_match_id - the match to delete.
         """
-        await delete_match(storage, internal_match_id)
+        await remove_marked_subset(
+            storage, names.COLL_GENOME_ATTRIBS, _MATCH_ID_PREFIX + internal_match_id)
 
     async def delete_selection(self, storage: ArangoStorage, internal_selection_id: str):
         """
@@ -60,16 +70,35 @@ class GenomeAttribsSpec(DataProductSpec):
         storage - the storage system
         internal_selection_id - the selection to delete.
         """
-        await delete_selection(storage, internal_selection_id)
+        await remove_marked_subset(
+            storage, names.COLL_GENOME_ATTRIBS, _SELECTION_ID_PREFIX + internal_selection_id)
 
-    async def apply_selection(self, storage: ArangoStorage, selection_id: str):
+    async def apply_selection(self,
+        deps: PickleableDependencies,
+        storage: ArangoStorage,
+        selection: models.InternalSelection,
+        collection: models.SavedCollection,
+    ):
         """
         Mark selections in genome attribute data.
 
+        deps - the system dependencies
         storage - the storage system.
-        selection_id - the selection to apply.
+        selection - the selection to apply.
+        collection - the collection to which the selection is attached.
         """
-        await mark_selections(storage, selection_id)
+        load_ver = {dp.product: dp.version for dp in collection.data_products}[ID]
+        missed = await mark_data_by_kbase_id(
+            storage,
+            names.COLL_GENOME_ATTRIBS,
+            collection.id,
+            load_ver,
+            selection.selection_ids,
+            _SELECTION_ID_PREFIX + selection.internal_selection_id,
+        )
+        state = models.ProcessState.FAILED if missed else models.ProcessState.COMPLETE
+        await storage.update_selection_state(
+            selection.internal_selection_id, state, deps.get_epoch_ms(), missed)
 
     async def get_upas_for_selection(
         self,
@@ -121,7 +150,7 @@ GENOME_ATTRIBS_SPEC = GenomeAttribsSpec(
                 [
                     names.FLD_COLLECTION_ID,
                     names.FLD_LOAD_VERSION,
-                    names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID,
+                    names.FLD_KBASE_ID,
                     # Since this is the default sort option (see below), we specify an index
                     # for fast sorts since every time the user hits the UI for the first time
                     # or without specifying a sort order it'll sort on this field
@@ -136,11 +165,11 @@ GENOME_ATTRIBS_SPEC = GenomeAttribsSpec(
                     names.FLD_COLLECTION_ID,
                     names.FLD_LOAD_VERSION,
                     # https://www.arangodb.com/docs/stable/indexing-index-basics.html#indexing-array-values
-                    names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS + "[*]",
-                    names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID,
-                    # for finding matches, and optionally a default sort on the genome ID
+                    names.FLD_MATCHES_SELECTIONS + "[*]",
+                    names.FLD_KBASE_ID,
+                    # for finding matches/selections, and opt a default sort on the kbase ID
                 ],
-                [names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS + "[*]"]  # for deletion
+                [names.FLD_MATCHES_SELECTIONS + "[*]"]  # for deletion
             ]
         )
     ]
@@ -151,14 +180,14 @@ _OPT_AUTH = KBaseHTTPBearer(optional=True)
 
 def _remove_keys(doc):
     doc = remove_collection_keys(remove_arango_keys(doc))
-    doc.pop(names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS, None)
+    doc.pop(names.FLD_MATCHES_SELECTIONS, None)
     doc.pop(names.FLD_UPA_MAP, None)
     return doc
 
 
 class AttributeName(BaseModel):
     name: str = Field(
-        example=names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID,
+        example=names.FLD_KBASE_ID,
         description="The name of an attribute"
     )
 
@@ -185,7 +214,7 @@ class GenomeAttributes(BaseModel, extra=Extra.allow):
             + "table with each entry being the entry for that column."
     )
     data: list[dict[str, Any]] | None = Field(
-        example=[{names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID: "assigned_kbase_genome_id"}],
+        example=[{names.FLD_KBASE_ID: "assigned_kbase_genome_id"}],
         description="The attributes as a list of dictionaries."
     )
     count: int | None = Field(
@@ -213,12 +242,12 @@ _FLD_LIMIT = "limit"
         + "Authentication is not required unless submitting a match ID or overriding the load "
         + "version; in the latter case service administration permissions are required.\n\n"
         + "When creating selections from genome attributes, use the "
-        + f"`{names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID}` field values as input." )
+        + f"`{names.FLD_KBASE_ID}` field values as input.")
 async def get_genome_attributes(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     sort_on: str = Query(
-        default=names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID,
+        default=names.FLD_KBASE_ID,
         example="genome_size",
         description="The field to sort on."
     ),
@@ -233,51 +262,28 @@ async def get_genome_attributes(
         example=1000,
         description="The number of records to skip"
     ),
-    limit: int = Query(
-        default=1000,
-        ge=1,
-        le=1000,
-        example=1000,
-        description="The maximum number of results"
-    ),
+    limit: int = QUERY_VALIDATOR_LIMIT,
     output_table: bool = Query(
         default=True,
         description="Whether to return the data in table form or dictionary list form"
     ),
-    count: bool = Query(
-        default = False,
-        description="Whether to return the number of records that match the query rather than "
-            + "the records themselves. Paging parameters are ignored."
-    ),
-    match_id: str | None = Query(
-        default = None,
-        description="A match ID to set the view to the match rather than "
-            + "the entire collection. Authentication is required. If a match ID is "
-            # matches are against a specific load version, so...
-            + "set, any load version override is ignored. "
-            + "If a selection filter and a match filter are provided, they are ANDed together. "
-            + "Has no effect on a `count` if `match_mark` is true."
-    ),  # TODO FEATURE support a choice of AND or OR
+    count: bool = QUERY_COUNT,
+    match_id: str | None = QUERY_MATCH_ID,
+    # TODO FEATURE support a choice of AND or OR for matches & selections
     match_mark: bool = Query(
         default=False,
         description="Whether to mark matched rows rather than filter based on the match ID. "
             + "Matched rows will be indicated by a true value in the special field "
             + f"`{names.FLD_GENOME_ATTRIBS_MATCHED}`."
     ),
-    selection_id: str | None = Query(
-        default=None,
-        description="A selection ID to set the view to the selection rather than the entire "
-            + "collection. If a selection ID is set, any load version override is ignored. "
-            + "If a selection filter and a match filter are provided, they are ANDed together. "
-            + "Has no effect on a `count` if `selection_mark` is true."
-    ),
+    selection_id: str | None = QUERY_SELECTION_ID,
     selection_mark: bool = Query(
         default=False,
         description="Whether to mark selected rows rather than filter based on the selection ID. "
             + "Selected rows will be indicated by a true value in the special field "
             + f"`{names.FLD_GENOME_ATTRIBS_SELECTED}`."
     ),
-    load_ver_override: str | None = QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
+    load_ver_override: Annotated[str | None, QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE] = None,
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
 ):
     # sorting only works here since we expect the largest collection to be ~300K records and
@@ -340,6 +346,19 @@ async def _get_internal_match_id(
     return match.internal_match_id
 
 
+def _query_acceptor(
+    data: list[dict[str, Any]],
+    last: list[dict[str, Any]],
+    doc: dict[str, Any],
+    output_table: bool
+):
+    last[0] = doc
+    if output_table:
+        data.append([doc[k] for k in sorted(_remove_keys(doc))])
+    else:
+        data.append({k: doc[k] for k in sorted(_remove_keys(doc))})
+
+
 async def _query(
     # ew. too many args
     store: ArangoStorage,
@@ -355,70 +374,43 @@ async def _query(
     internal_selection_id: str | None,
     selection_mark: bool,
 ):
-    # this method is too long but it seems pretty easy to read through... meh
-    bind_vars = {
-        f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
-        _FLD_COL_ID: collection_id,
-        _FLD_COL_LV: load_ver,
-        _FLD_SORT: sort_on,
-        _FLD_SORT_DIR: "DESC" if sort_desc else "ASC",
-        _FLD_SKIP: skip,
-        _FLD_LIMIT: limit
-    }
-    aql = f"""
-    FOR d IN @@{_FLD_COL_NAME}
-        FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
-        FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
-    """
-    if internal_match_id and not match_mark:
-        bind_vars["internal_match_id"] = _MATCH_ID_PREFIX + internal_match_id
-        aql += f"""
-            FILTER @internal_match_id IN d.{names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS}
-        """
-    # this will AND the match and selection. To OR, just OR the two filters instead of having
-    # separate statements.
-    if internal_selection_id and not selection_mark:
-        bind_vars["internal_selection_id"] = _SELECTION_ID_PREFIX + internal_selection_id
-        aql += f"""
-            FILTER @internal_selection_id IN d.{names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS}
-        """
-    aql += f"""
-        SORT d.@{_FLD_SORT} @{_FLD_SORT_DIR}
-        LIMIT @{_FLD_SKIP}, @{_FLD_LIMIT}
-        RETURN d
-    """
-    cur = await store.aql().execute(aql, bind_vars=bind_vars)
+    data = []
+    last = [None]
+    await query_simple_collection_list(
+        store,
+        names.COLL_GENOME_ATTRIBS,
+        lambda doc: _query_acceptor(data, last, doc, output_table),
+        collection_id,
+        load_ver,
+        sort_on,
+        sort_descending=sort_desc,
+        skip=skip,
+        limit=limit,
+        internal_match_id=_prefix_id(_MATCH_ID_PREFIX, internal_match_id),
+        match_mark=match_mark,
+        match_field=names.FLD_GENOME_ATTRIBS_MATCHED,
+        internal_selection_id=_prefix_id(_SELECTION_ID_PREFIX, internal_selection_id),
+        selection_mark=selection_mark,
+        selection_field=names.FLD_GENOME_ATTRIBS_SELECTED,
+    )
     # Sort everything since we can't necessarily rely on arango, the client, or the loader
     # to have the same insertion order for the dicts
     # If we want a specific order the loader should stick a keys doc or something into arango
     # and we order by that
-    data = []
-    d = None
-    fldsel = names.FLD_GENOME_ATTRIBS_SELECTED
-    try:
-        async for d in cur:
-            if internal_match_id:
-                d[names.FLD_GENOME_ATTRIBS_MATCHED] = _MATCH_ID_PREFIX + internal_match_id in d[
-                    names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS]
-            if internal_selection_id:
-                d[fldsel] = _SELECTION_ID_PREFIX + internal_selection_id in d[
-                    names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS]
-            if output_table:
-                data.append([d[k] for k in sorted(_remove_keys(d))])
-            else:
-                data.append({k: d[k] for k in sorted(_remove_keys(d))})
-    finally:
-        await cur.close(ignore_missing=True)
     fields = []
-    if d:
-        if sort_on not in d: 
+    if last[0]:
+        if sort_on not in last[0]: 
             raise errors.IllegalParameterError(
                 f"No such field for collection {collection_id} load version {load_ver}: {sort_on}")
-        fields = [{"name": k} for k in sorted(d)]
+        fields = [{"name": k} for k in sorted(last[0])]
     if output_table:
         return {_FLD_SKIP: skip, _FLD_LIMIT: limit, "fields": fields, "table": data}
     else:
         return {_FLD_SKIP: skip, _FLD_LIMIT: limit, "data": data}
+
+
+def _prefix_id(prefix: str, id_: str | None) -> str | None:
+    return prefix + id_ if id_ else None
 
 
 async def _count(
@@ -430,74 +422,44 @@ async def _count(
 ):
     # for now this method doesn't do much. One we have some filtering implemented
     # it'll need to take that into account.
-
-    bind_vars = {
-        f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
-        _FLD_COL_ID: collection_id,
-        _FLD_COL_LV: load_ver,
-    }
-    aql = f"""
-    FOR d IN @@{_FLD_COL_NAME}
-        FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
-        FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
-    """
-    if internal_match_id:
-        bind_vars["internal_match_id"] = _MATCH_ID_PREFIX + internal_match_id
-        aql += f"""
-            FILTER @internal_match_id IN d.{names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS}
-        """
-    if internal_selection_id:
-        bind_vars["internal_selection_id"] = _SELECTION_ID_PREFIX + internal_selection_id
-        aql += f"""
-            FILTER @internal_selection_id IN d.{names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS}
-        """
-    aql += f"""
-        COLLECT WITH COUNT INTO length
-        RETURN length
-    """
-    cur = await store.aql().execute(aql, bind_vars=bind_vars)
-    try:
-        return {_FLD_SKIP: 0, _FLD_LIMIT: 0, "count": await cur.next()}
-    finally:
-        await cur.close(ignore_missing=True)
+    count = await count_simple_collection_list(
+        store,
+        names.COLL_GENOME_ATTRIBS,
+        collection_id,
+        load_ver,
+        internal_match_id=_prefix_id(_MATCH_ID_PREFIX, internal_match_id),
+        internal_selection_id=_prefix_id(_SELECTION_ID_PREFIX, internal_selection_id),
+    )
+    return {_FLD_SKIP: 0, _FLD_LIMIT: 0, "count": count}
 
 
 async def perform_gtdb_lineage_match(
-    match_id: str,
+    internal_match_id: str,
     storage: ArangoStorage,
-    lineages: list[str],
-    rank: GTDBRank
+    lineages: set[str],
+    truncated: bool
 ):
     """
     Add an internal match ID to genome records in the attributes table that match a set of
     GTDB lineages.
 
-    match_id - the ID of the match.
+    internal_match_id - the ID of the match.
     storage - the storage system containing the match and the genome attribute records.
-    lineages - the GTDB lineage strings to match against the genome attributes
-    rank - the rank at which to match. This effectively truncates the lineage strings when
-        matching.
+    lineages - the GTDB lineage strings to match against the genome attributes.
+    truncated - whether the lineages have been truncated, and therefore do not represent the full
+        lineage.
     """
-    # Could save some bandwidth here buy adding a method to just get the internal ID
-    # Microoptimization, wait until it's a problem
-    match = await storage.get_match_full(match_id)
+    match = await storage.get_match_by_internal_id(internal_match_id)
     # use version number to avoid race conditions with activating collections
     coll = await storage.get_collection_version_by_num(match.collection_id, match.collection_ver)
     load_ver = {dp.product: dp.version for dp in coll.data_products}[ID]
-    filtered_lineages = set()  # remove duplicates
-    for lin in lineages:
-        # may need to catch errors here and report with object UPA or something
-        # or parse lineages prior to starting the process, that's probably better
-        lineage = GTDBLineage(lin, force_complete=False).truncate_to_rank(rank)
-        if lineage:
-            filtered_lineages.add(str(lineage))
-    if rank == GTDBRank.SPECIES:
+    if not truncated:
         await _mark_gtdb_matches_IN_strategy(
-            storage, coll.id, load_ver, filtered_lineages, match.match_id, match.internal_match_id
+            storage, coll.id, load_ver, lineages, match.internal_match_id
         )
     else:
         await _mark_gtdb_matches_STARTS_WITH_strategy(
-            storage, coll.id, load_ver, filtered_lineages, match.match_id, match.internal_match_id
+            storage, coll.id, load_ver, lineages, match.internal_match_id
         )
 
 
@@ -506,12 +468,11 @@ async def _mark_gtdb_matches_IN_strategy(
     collection_id: str,
     load_ver: str,
     lineages: set[str],
-    match_id: str,
     internal_match_id: str
 ):
     # may need to batch this if lineages is too big
     # retries?
-    mtch = names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS
+    mtch = names.FLD_MATCHES_SELECTIONS
     aql = f"""
         FOR d IN @@{_FLD_COL_NAME}
             FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
@@ -522,7 +483,7 @@ async def _mark_gtdb_matches_IN_strategy(
             }} IN @@{_FLD_COL_NAME}
             OPTIONS {{exclusive: true}}
             LET updated = NEW
-            RETURN KEEP(updated, "{names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID}")
+            RETURN KEEP(updated, "{names.FLD_KBASE_ID}")
         """
     bind_vars = {
         f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
@@ -531,24 +492,24 @@ async def _mark_gtdb_matches_IN_strategy(
         "lineages": list(lineages),
         "internal_match_id": _MATCH_ID_PREFIX + internal_match_id,
     }
-    await _mark_gtdb_matches_complete(storage, aql, bind_vars, match_id)
+    await _mark_gtdb_matches_complete(storage, aql, bind_vars, internal_match_id)
 
 
 async def _mark_gtdb_matches_complete(
     storage: ArangoStorage,
     aql: str,
     bind_vars: dict[str, Any],
-    match_id: str
+    internal_match_id: str
 ):
-    cur = await storage.aql().execute(aql, bind_vars=bind_vars)
+    cur = await storage.execute_aql(aql, bind_vars=bind_vars)
     genome_ids = []
     try:
         async for d in cur:
-            genome_ids.append(d[names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID])
+            genome_ids.append(d[names.FLD_KBASE_ID])
     finally:
         await cur.close(ignore_missing=True)
     await storage.update_match_state(
-        match_id, models.ProcessState.COMPLETE, now_epoch_millis(), genome_ids
+        internal_match_id, models.ProcessState.COMPLETE, now_epoch_millis(), genome_ids
     )
 
 
@@ -557,14 +518,13 @@ async def _mark_gtdb_matches_STARTS_WITH_strategy(
     collection_id: str,
     load_ver: str,
     lineages: set[str],
-    match_id: str,
     internal_match_id: str
 ):
     # this almost certainly needs to be batched, but let's write it stupid for now and improve
     # later
     # could also probably DRY up this and the above method
     # retries?
-    mtch = names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS
+    mtch = names.FLD_MATCHES_SELECTIONS
     lin = names.FLD_GENOME_ATTRIBS_GTDB_LINEAGE
     aql = f"""
         FOR d IN @@{_FLD_COL_NAME}
@@ -584,7 +544,7 @@ async def _mark_gtdb_matches_STARTS_WITH_strategy(
             }} IN @@{_FLD_COL_NAME}
             OPTIONS {{exclusive: true}}
             LET updated = NEW
-            RETURN KEEP(updated, "{names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID}")
+            RETURN KEEP(updated, "{names.FLD_KBASE_ID}")
         """
     bind_vars = {
         f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
@@ -598,7 +558,7 @@ async def _mark_gtdb_matches_STARTS_WITH_strategy(
         # character, but that seems pretty edgy. Don't worry about it for now
         # Famous last words...
         bind_vars[f"lintop{i}"] = lin[:-1] + chr(ord(lin[-1]) + 1)
-    await _mark_gtdb_matches_complete(storage, aql, bind_vars, match_id)
+    await _mark_gtdb_matches_complete(storage, aql, bind_vars, internal_match_id)
 
 
 async def process_subset_documents(
@@ -634,7 +594,7 @@ async def process_subset_documents(
     FOR d IN @@{_FLD_COL_NAME}
         FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
         FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
-        FILTER @internal_id IN d.{names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS}
+        FILTER @internal_id IN d.{names.FLD_MATCHES_SELECTIONS}
         """
     if fields:
         aql += """
@@ -646,91 +606,9 @@ async def process_subset_documents(
             RETURN d
         """
 
-    cur = await storage.aql().execute(aql, bind_vars=bind_vars)
+    cur = await storage.execute_aql(aql, bind_vars=bind_vars)
     try:
         async for d in cur:
             acceptor(d)
     finally:
         await cur.close(ignore_missing=True)
-
-
-async def delete_match(storage: ArangoStorage, internal_match_id: str):
-    """
-    Delete genome attribues match data.
-
-    storage - the storage system
-    internal_match_id - the match to delete.
-    """
-    await _delete_subset(storage, _MATCH_ID_PREFIX + internal_match_id)
-
-
-async def delete_selection(storage: ArangoStorage, internal_selection_id: str):
-    """
-    Delete genome attribues selection data.
-
-    storage - the storage system
-    internal_selection_id - the selection to delete.
-    """
-    await _delete_subset(storage, _SELECTION_ID_PREFIX + internal_selection_id)
-
-
-async def _delete_subset(storage: ArangoStorage, subset_id: str):
-    m = names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS
-    bind_vars = {
-        f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
-        "internal_id": subset_id,
-    }
-    aql = f"""
-        FOR d IN @@{_FLD_COL_NAME}
-            FILTER @internal_id IN d.{m}
-            UPDATE d WITH {{
-                {m}: REMOVE_VALUE(d.{m}, @internal_id)
-            }} IN @@{_FLD_COL_NAME}
-            OPTIONS {{exclusive: true}}
-        """
-    cur = await storage.aql().execute(aql, bind_vars=bind_vars)
-    await cur.close(ignore_missing=True)
-
-
-async def mark_selections(storage: ArangoStorage, selection_id: str):
-    """
-    Mark genome attribute entries that are present in the selection and complete the selection
-    process.
-    """
-    sel = await storage.get_selection_full(selection_id)
-    # use version number to avoid race conditions with activating collections
-    coll = await storage.get_collection_version_by_num(sel.collection_id, sel.collection_ver)
-    load_ver = {dp.product: dp.version for dp in coll.data_products}[ID]
-
-    # a bit too tricky to DRY this up with gtdb lineage matches above, although they're similar
-    # retries?
-    selfld = names.FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS
-    aql = f"""
-        FOR d IN @@{_FLD_COL_NAME}
-            FILTER d.{names.FLD_COLLECTION_ID} == @{_FLD_COL_ID}
-            FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
-            FILTER d.{names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID} IN @genome_ids
-            UPDATE d WITH {{
-                {selfld}: APPEND(d.{selfld}, [@internal_selection_id], true)
-            }} IN @@{_FLD_COL_NAME}
-            OPTIONS {{exclusive: true}}
-            LET updated = NEW
-            RETURN KEEP(updated, "{names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID}")
-        """
-    bind_vars = {
-        f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
-        _FLD_COL_ID: coll.id,
-        _FLD_COL_LV: load_ver,
-        "genome_ids": sel.selection_ids,
-        "internal_selection_id": _SELECTION_ID_PREFIX + sel.internal_selection_id,
-    }
-    matched = set()
-    cur = await storage.aql().execute(aql, bind_vars=bind_vars)
-    try:
-        async for d in cur:
-            matched.add(d[names.FLD_GENOME_ATTRIBS_KBASE_GENOME_ID])
-    finally:
-        await cur.close(ignore_missing=True)
-    missed = sorted(set(sel.selection_ids) - matched)
-    state = models.ProcessState.FAILED if missed else models.ProcessState.COMPLETE
-    await storage.update_selection_state(selection_id, state, now_epoch_millis(), missed)

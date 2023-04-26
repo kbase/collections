@@ -4,14 +4,16 @@ import os
 from collections import defaultdict
 
 import src.common.storage.collection_and_field_names as names
+from src.common.storage.db_doc_conversions import (
+    taxa_node_count_to_doc,
+    collection_load_version_key,
+)
 import src.loaders.common.loader_common_names as loader_common_names
 from src.common.gtdb_lineage import (
     GTDBTaxaCount,
     GTDBRank
 )
-from src.common.storage.db_doc_conversions import taxa_node_count_to_doc
 from src.loaders.common.loader_helper import convert_to_json
-from src.service.data_products import taxa_count
 
 """
 PROTOTYPE - Prepare genome taxa count data and identical ranks in JSON format for arango import.
@@ -95,7 +97,7 @@ def _create_rank_docs(kbase_collection, load_version, identical_ranks):
     rank_candidates = [r.value for r in GTDBRank]
 
     rank_doc = [{
-        names.FLD_ARANGO_KEY: taxa_count.ranks_key(kbase_collection, load_version),
+        names.FLD_ARANGO_KEY: collection_load_version_key(kbase_collection, load_version),
         names.FLD_COLLECTION_ID: kbase_collection,
         names.FLD_LOAD_VERSION: load_version,
         names.FLD_TAXA_COUNT_RANKS: [r for r in rank_candidates if r in identical_ranks]}]

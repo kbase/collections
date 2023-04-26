@@ -36,6 +36,8 @@ optional arguments:
   --use_cached_image    Use an existing image without pulling
   --submit_job          Submit job to slurm
   --force               Force overwrite of existing job directory
+  --source_file_ext SOURCE_FILE_EXT
+                        Select files from source data directory that match the given extension.
   
 Note: Based on our experiment with GTDB-Tk, we have determined that the optimal chunk size is 1000 genomes.
 With 4 batches running in parallel, each using 32 cores, it takes around 50 minutes to process a single chunk.
@@ -49,11 +51,12 @@ running 4 batches in parallel per NERSC node resulted in optimal performance, de
 256 cores.
 '''
 
-TOOLS_AVAILABLE = ['gtdb_tk']  # TODO: fix checkm2 container bug
+TOOLS_AVAILABLE = ['gtdb_tk', 'checkm2', 'microtrait']
 
 # estimated execution time (in minutes) for each tool to process a chunk of data
 TASK_META = {'checkm2': {'chunk_size': 5000, 'exe_time': 60},
-             'gtdb_tk': {'chunk_size': 1000, 'exe_time': 65}}
+             'gtdb_tk': {'chunk_size': 1000, 'exe_time': 65},
+             'microtrait': {'chunk_size': 5000, 'exe_time': 60}}
 NODE_TIME_LIMIT = 5  # hours  # TODO: automatically calculate this based on tool execution time and NODE_THREADS
 MAX_NODE_NUM = 100  # maximum number of nodes to use
 # The THREADS variable controls the number of parallel tasks per node
@@ -62,6 +65,9 @@ NODE_THREADS = 4
 
 REGISTRY = 'tiangu01'  # public Docker Hub registry to pull images from
 
+# TODO GTDB update readme to specify to get correct version of data, not just latest
+# TODO REPRODUCIBILITY need to version the databases and use the correct version with the
+#                      correct tool version
 # directory containing the unarchived GTDB-Tk reference data
 # download data following the instructions provided on
 # https://ecogenomics.github.io/GTDBTk/installing/index.html#gtdb-tk-reference-data
@@ -214,7 +220,7 @@ def _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper
             task_list += f''' --volume={mount_vol}:{docker_vol} '''
 
         for env_var, env_val in env_vars.items():
-            task_list += f'''--env {env_var}={env_val} '''
+            task_list += f''' --env {env_var}={env_val} '''
 
         task_list += f'''--entrypoint\n'''
 
@@ -310,6 +316,8 @@ def main():
                           help='Use an existing image without pulling')
     optional.add_argument('--submit_job', action='store_true', help='Submit job to slurm')
     optional.add_argument('--force', action='store_true', help='Force overwrite of existing job directory')
+    optional.add_argument('--source_file_ext', type=str, default='.fa',
+                          help='Select files from source data directory that match the given extension.')
 
     args = parser.parse_args()
 
@@ -318,6 +326,7 @@ def main():
     load_ver = getattr(args, loader_common_names.LOAD_VER_ARG_NAME)
     source_data_dir = args.source_data_dir
     root_dir = args.root_dir
+    source_file_ext = args.source_file_ext
 
     try:
         task_mgr = TFTaskManager(kbase_collection, load_ver, tool, source_data_dir, args.force, root_dir=root_dir)
@@ -331,7 +340,7 @@ def main():
     image_str = _fetch_image(REGISTRY, tool, job_dir, tag=args.image_tag, force_pull=not args.use_cached_image)
     wrapper_file = _create_shifter_wrapper(job_dir, image_str)
     task_list_file, n_jobs = _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper_file, job_dir,
-                                               root_dir)
+                                               root_dir, source_file_ext=source_file_ext)
 
     batch_script = _create_batch_script(job_dir, task_list_file, n_jobs, tool)
 

@@ -4,6 +4,7 @@ Data structures common to all data products
 
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, validator, Field
+from src.common.storage import collection_and_field_names as names
 from src.service import models
 from src.service import errors
 
@@ -67,11 +68,64 @@ class DataProductSpec(BaseModel):
 
 
 QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = Query(
-    default=None,
     min_length=models.LENGTH_MIN_LOAD_VERSION,
     max_length=models.LENGTH_MAX_LOAD_VERSION,
     regex=models.REGEX_LOAD_VERSION,
     example=models.FIELD_LOAD_VERSION_EXAMPLE,
     description=models.FIELD_LOAD_VERSION_DESCRIPTION + ". This will override the collection's "
         + "load version. Service administrator privileges are required."
+)
+
+
+QUERY_VALIDATOR_LIMIT = Query(
+    default=1000,
+    ge=1,
+    le=1000,
+    example=1000,
+    description="The maximum number of results"
+)
+
+
+QUERY_COUNT = Query(
+    default=False,
+    description="Whether to return the number of records that match the query rather than "
+        + "the records themselves. Paging parameters are ignored."
+)
+
+
+QUERY_MATCH_ID = Query(
+    default = None,
+    description="A match ID to set the view to the match rather than "
+        + "the entire collection. Authentication is required. If a match ID is "
+        # matches are against a specific load version, so...
+        + "set, any load version override is ignored. "
+        + "If a selection filter and a match filter are provided, they are ANDed together. "
+        + "Has no effect on a `count` if `match_mark` is true."
+)
+
+
+QUERY_MATCH_MARK = Query(
+    default=False,
+    description="Whether to mark matched rows rather than filter based on the match ID."
+)
+
+
+QUERY_SELECTION_ID = Query(
+    default=None,
+    description="A selection ID to set the view to the selection rather than the entire "
+        + "collection. If a selection ID is set, any load version override is ignored. "
+        + "If a selection filter and a match filter are provided, they are ANDed together. "
+        + "Has no effect on a `count` if `selection_mark` is true."
+)
+
+
+QUERY_SELECTION_MARK = Query(
+    default=False,
+    description="Whether to mark selected rows rather than filter based on the selection ID."
+)
+
+
+QUERY_STATUS_ONLY = Query(
+    default=False,
+    description="Only return the status of any match or selection processing without any data."
 )

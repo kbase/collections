@@ -10,10 +10,10 @@ import jsonschema
 import logging
 import uuid
 
-from typing import Any
+from typing import Any, Callable, Awaitable
 from collections.abc import Iterable
 
-from src.service.app_state_data_structures import CollectionsState
+from src.service.app_state_data_structures import CollectionsState, PickleableDependencies
 # kinda feel like users should be more generic, but not work the trouble
 from src.service import kb_auth
 from src.service import deletion
@@ -21,6 +21,7 @@ from src.service import errors
 from src.service import models
 from src.service import processing
 from src.service.matchers.common_models import Matcher
+from src.service.storage_arango import ArangoStorage
 from src.service.workspace_wrapper import WorkspaceWrapper, WORKSPACE_UPA_PATH
 
 
@@ -43,8 +44,10 @@ async def create_match(
     coll = await appstate.arangostorage.get_collection_active(collection_id)
     matcher_info = _get_matcher_from_collection(coll, matcher_id)
     ww = WorkspaceWrapper(appstate.sdk_client, token=user.token)
+    internal_match_id = str(uuid.uuid4())
     matcher = appstate.get_matcher(matcher_info.matcher)
     match_process, upas, wsids = await _create_match_process(
+        internal_match_id,
         matcher,
         ww,
         upas,
@@ -64,7 +67,7 @@ async def create_match(
         state_updated=perm_check,
         upas=upas,
         matches=[],
-        internal_match_id=str(uuid.uuid4()),
+        internal_match_id=internal_match_id,
         wsids=wsids,
         created=perm_check,
         last_access=perm_check,
@@ -73,7 +76,7 @@ async def create_match(
     curr_match, exists = await appstate.arangostorage.save_match(int_match)
     # don't bother checking if the match heartbeat is old here, just do it in the access methods
     if not exists:
-        match_process.start(curr_match.match_id, appstate.get_pickleable_dependencies())
+        match_process.start(appstate.get_pickleable_dependencies())
     return curr_match
 
 
@@ -224,6 +227,7 @@ async def _check_match_state(
     # Also only restart if the match is requested for the correct collection
     if processing.requires_restart(deps.get_epoch_ms(), match):
         mp, _, _ = await _create_match_process(
+            match.internal_match_id,
             deps.get_matcher(match.matcher_id),
             ww,
             match.upas,
@@ -231,13 +235,14 @@ async def _check_match_state(
             match.collection_parameters
         )
         logging.getLogger(__name__).warn(f"Restarting match process for match {match.match_id}")
-        mp.start(match.match_id, deps.get_pickleable_dependencies())
+        mp.start(deps.get_pickleable_dependencies())
     # might need to separate out the still processing error from the id / ver matching
     if require_complete and match.state != models.ProcessState.COMPLETE:
         raise errors.InvalidMatchStateError(f"Match {match.match_id} processing is not complete")
 
 
 async def _create_match_process(
+    internal_match_id: str,
     matcher: Matcher,
     ww: WorkspaceWrapper,
     upas: list[str],
@@ -268,8 +273,6 @@ async def _create_match_process(
     # Getting the objects might be really expensive depending on the size and number, so we
     # leave that to the matchers themselves, which should probably start a ee2 (?) job if object
     # downloads are required
-    # TODO PERFORMANCE might want to write our own async routines for contacting the workspace
-    #      vs using the compiled client. Made this method async just in case
     upas, _ = _check_and_sort_UPAs_and_get_wsids(upas)
     if user_parameters:
         try:
@@ -292,7 +295,7 @@ async def _create_match_process(
             + "this limit was violated after set expansion")
     upa2meta = {u: upa2meta[u] for u in upas}
     return matcher.generate_match_process(
-        upa2meta, user_parameters, collection_parameters
+        internal_match_id, upa2meta, user_parameters, collection_parameters
     ), upas, wsids
 
 
@@ -370,3 +373,55 @@ async def delete_match(appstate: CollectionsState, match_id: str, verbose: bool 
         match.upas = []
         match.matches = []
     return match
+
+
+async def get_or_create_data_product_match_process(
+    appstate: CollectionsState,
+    coll: models.SavedCollection,
+    user: kb_auth.KBaseUser,
+    match_id: str,
+    data_product: str,
+    match_fn: Callable[
+        [
+            PickleableDependencies,
+            ArangoStorage,
+            models.InternalMatch | models.InternalSelection,
+            models.SavedCollection,
+            models.DataProductProcessIdentifier
+        ],
+        Awaitable[None],
+    ],
+) -> models.DataProductProcess:
+    """
+    Get a process data structure for a match data product process.
+
+    Creates and starts the process if the process does not already exist.
+
+    If the process exists but hasn't had a heartbeat in the required time frame, starts another
+    instance of the process.
+
+    appstate - the collections service state.
+    coll - the most recent version of the collection associated with the match.
+    user - the user performing the match.
+    match_id - the ID of the match.
+    data_product - the data product performing the match.
+    match_fn - the function that will perform the match calculations and DB updates.
+        Runs if there is no process information in the database or
+        the heartbeat is too old. The arguments are
+            * the system dependencies (provided by `appstate`),
+            * a storage system created from the system dependencies. The storage system will
+              be closed by the calling function after the callable returns
+            * the match or selection
+            * the collection (pulled from the storage system via the data in the subset record)
+            * the data product process identifier.
+    """
+    if not user:
+        raise errors.UnauthorizedError("Authentication is required if a match ID is supplied")
+    match = await get_match_full(
+            appstate, match_id, user, require_complete=True, require_collection=coll)
+    dpid = models.DataProductProcessIdentifier(
+        internal_id=match.internal_match_id,
+        data_product=data_product,
+        type=models.SubsetType.MATCH,
+    )
+    return await processing.get_or_create_data_product_process(appstate, dpid, match_fn)

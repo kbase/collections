@@ -3,7 +3,7 @@ A configuration parser for the collections service. The configuration is expecte
 (https://toml.io/en/) format.
 """
 
-import tomli  # TODO CODE swap to stdlib in py 3.11
+import tomllib
 from typing import Optional, BinaryIO, TextIO
 
 _SEC_ARANGO = "Arango"
@@ -46,7 +46,7 @@ class CollectionsServiceConfig:
             raise ValueError("config_file is required")
         # Since this is service startup and presumably the person starting the server is
         # savvy enough to figure out toml errors, we just throw the errors as is
-        config = tomli.load(config_file)
+        config = tomllib.load(config_file)
         # I feel like there ought to be a lib to do this kind of stuff... jsonschema doesn't
         # quite do what I want
         _check_missing_section(config, _SEC_ARANGO)

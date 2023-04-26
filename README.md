@@ -104,4 +104,22 @@ PYTHONPATH=. pytest test
 * Run through all code, refactor to production quality
 * Add tests where missing (which is a lot) and inspect current tests for completeness and quality
   * E.g. don't assume existing tests are any good
-  * Async testing help https://tonybaloney.github.io/posts/async-test-patterns-for-pytest-and-unittest.html
+  * Async testing help
+    https://tonybaloney.github.io/posts/async-test-patterns-for-pytest-and-unittest.html
+* Build & push tool images in GHA
+  * Consider using a base image for each tool with a "real" image that builds from the base image.
+    The "real" image should just copy the files into the image and set the entry point. This will
+    make GHA builds a lot faster
+  * Alternatively use docker's GHA cache feature
+* Testing tool containers
+  * DO NOT import the tool specific scripts and / or run them directly in tests, as that will
+    require all their dependencies to be installed, creating dependency hell.
+  * Instead
+    * Test as a black box using `docker run`
+      * This won't work for gtdb_tk, probably. Automated testing for that is going to be
+        problematic.
+    * If necessary, add a `Dockerfile.test` dockerfile to build a test specific image and run
+      tests in there.
+      * Either mount a directory in which to save the coverage info or `docker cp` it when the
+        run is complete
+      * Figure out how to merge the various coverage files.

@@ -46,6 +46,7 @@ FIELD_MATCH_USER_PERMS = "user_last_perm_check"
 FIELD_MATCH_MATCHES = "matches"
 FIELD_SELECTION_INTERNAL_SELECTION_ID = "internal_selection_id"
 FIELD_SELECTION_UNMATCHED_IDS = "unmatched_ids"
+FIELD_DATA_PRODUCT_PROCESS_MISSING_IDS = "missing_ids"
 FIELD_DATE_CREATE = "date_create"
 FIELD_USER_CREATE = "user_create"
 FIELD_DATE_ACTIVE = "date_active"
@@ -296,6 +297,9 @@ class ProcessStateField(BaseModel):  # for lack of a better name
         description="The state of the process associated with this data."
     )
 
+    def is_complete(self):
+        return self.state == ProcessState.COMPLETE
+
 
 class ProcessAttributes(ProcessStateField):
     created: int = Field(
@@ -457,6 +461,9 @@ class DataProductProcessIdentifier(BaseModel):
         description="The type of data the process is acting on."
     )
 
+    def is_match(self):
+        return self.type == SubsetType.MATCH
+
 
 class DataProductProcess(DataProductProcessIdentifier, ProcessAttributes):
     """
@@ -472,6 +479,13 @@ class DataProductProcess(DataProductProcessIdentifier, ProcessAttributes):
     # last access / user perms are tracked in the primary match document. When that document
     # is deleted in the DB, this one should be as well (after deleting any data associated with
     # the match).
+    missing_ids: list[str] | None = Field(
+        example=FIELD_SELECTION_EXAMPLE,
+        description="Any IDs that were not found during the match or selection processing but "
+            + "were not in the original match. This may happen normally if a data product "
+            + "depends on data that is not available at the data source for a subset of the "
+            + "data units at the data source."
+    )
 
 
 class Selection(CollectionSpec, ProcessStateField):

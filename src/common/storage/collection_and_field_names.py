@@ -23,6 +23,9 @@ FLD_COLLECTION_ID = "coll"
 FLD_LOAD_VERSION = "load_ver"
 """ The name of the key that has a load version as its value. """
 
+FLD_KBASE_ID = "kbase_id"
+""" A special key in load data that can be used to relate data across different data products. """
+
 FLD_DATA_PRODUCT = "data_product"
 """ The name of the key that has a data product ID as its value. """
 
@@ -36,6 +39,24 @@ FLD_UPA_MAP = "_upas"
 """
 The name of the key that has a mapping of workspace type to workspce UPA for workspace
 data associated with the document.
+"""
+
+FLD_MATCHES_SELECTIONS = "_mtchsel"
+"""
+Used for marking matches and selections; contains a list of internal match or selection IDs.
+Underscore to separate from "real" attribs
+"""
+
+FLD_MATCHED = "match"
+"""
+Used for marking matches when returning data to the user and they request match marking vs.
+filtering on a match.
+"""
+
+FLD_SELECTED = "sel"
+"""
+Used for marking selections when returning data to the user and they request selection marking vs.
+filtering on a selection.
 """
 
 # Collections
@@ -103,28 +124,39 @@ COLL_GENOME_ATTRIBS = COLLECTION_PREFIX + "genome_attribs"
 
 #### Genome attribute document fields
 
-# Used as sort key in genome attributes collection
-FLD_GENOME_ATTRIBS_KBASE_GENOME_ID = "kbase_genome_id" 
-
 # Used for lineage matchers
 FLD_GENOME_ATTRIBS_GTDB_LINEAGE = "classification"
 
-# Used for marking matches and selections in the Arango collection; contains a list of internal
-# match or selection IDs.
-# Underscore to separate from "real" attribs
-FLD_GENOME_ATTRIBS_MATCHES_SELECTIONS = "_mtchsel"
-
-# Used for marking matches when returning data to the user and they select match marking vs.
-# filtering on a match.
 FLD_GENOME_ATTRIBS_MATCHED = "__match__"
+"""
+Used for marking matches when returning data to the user and they request match marking vs.
+filtering on a match. Can't use the standard match field since genome attribute column names
+are unlimited.
+"""
 
-# Used for marking selections when returning data to the user and they select selection marking vs.
-# filtering on a selectin.
 FLD_GENOME_ATTRIBS_SELECTED = "__sel__"
+"""
+Used for marking selections when returning data to the user and they request selection marking vs.
+filtering on a selection. Can't use the standard match field since genome attribute column names
+are unlimited.
+"""
+
+### Heatmap general fields for heat map data products (e.g. microTrait)
+
+FLD_HEATMAP_COLUMN_CATEGORIES = "categories"
+# the categories field for the column data document. The structure of the document is defined
+# in /src/service/data_products/heatmap_common_models.py
+# Maybe that should live in /src/common and we should use it in the loaders...?
 
 ### microTrait
 
-_MICROTRAIT_PREFIX = "microtrait_"
+_MICROTRAIT_COLL_PREFIX = COLLECTION_PREFIX + "microtrait_"
 
-# Stores data about the microtrait columns in the heatmap
-COLL_MICROTRAIT_COLUMNS = COLLECTION_PREFIX + _MICROTRAIT_PREFIX  + "columns"
+# Stores metadata about the microtrait heatmap
+COLL_MICROTRAIT_META = _MICROTRAIT_COLL_PREFIX  + "meta"
+
+# Stores the core microtrait data
+COLL_MICROTRAIT_DATA = _MICROTRAIT_COLL_PREFIX + "data"
+
+# Stores cell detail information for the heatmap
+COLL_MICROTRAIT_CELLS = _MICROTRAIT_COLL_PREFIX + "cells"

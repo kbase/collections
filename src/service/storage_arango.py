@@ -12,7 +12,7 @@ A storage system for collections based on an Arango backend.
 #
 #
 
-from aioarango.aql import AQL
+from aioarango.cursor import Cursor
 from aioarango.database import StandardDatabase
 from aioarango.exceptions import CollectionCreateError, DocumentInsertError
 from fastapi.encoders import jsonable_encoder
@@ -22,7 +22,7 @@ from src.common.hash import md5_string
 from src.common.storage import collection_and_field_names as names
 from src.service import models
 from src.service import errors
-from src.service.data_products.common_models import DBCollection
+from src.service.data_products.common_models import DataProductSpec
 
 
 _ERRMAP = {
@@ -121,18 +121,18 @@ def _doc_to_saved_coll(doc: dict):
         **models.remove_non_model_fields(doc, models.SavedCollection))
 
 
-def _get_and_check_col_names(dps: dict[str, list[DBCollection]]):
+def _get_and_check_col_names(dps: list[DataProductSpec]):
     col_to_id = {col: _BUILTIN for col in _COLLECTIONS}
     collections = [] + _COLLECTIONS  # don't mutate original list
-    for dpid, db_collections in dps.items():
-        if dpid == _BUILTIN:
+    for dp in dps:
+        if dp.data_product == _BUILTIN:
             raise ValueError(f"Cannot use name {_BUILTIN} for a data product ID")
-        for colspec in db_collections:
+        for colspec in dp.db_collections:
             if colspec.name in col_to_id:
                 raise ValueError(
-                    f"two data products, {dpid} and {col_to_id[colspec.name]}, "
+                    f"two data products, {dp.data_product} and {col_to_id[colspec.name]}, "
                     + f"are using the same collection, {colspec.name}")
-            col_to_id[colspec.name] = dpid
+            col_to_id[colspec.name] = dp.data_product
             collections.append(colspec.name)
     return collections
     
@@ -146,7 +146,7 @@ class ArangoStorage:
     async def create(
         cls,
         db: StandardDatabase,
-        data_products: dict[str, list[DBCollection]] = None,
+        data_products: list[DataProductSpec] = None,
         create_collections_on_startup: bool = False
     ) -> Self:
         """
@@ -161,7 +161,7 @@ class ArangoStorage:
             allow for system administrators to set up sharding to their liking, but auto
             creation is useful for quickly standing up a test service.
         """
-        dps = data_products or {}
+        dps = data_products or []
         for colname in _get_and_check_col_names(dps):
             if create_collections_on_startup:
                 await _create_collection(db, colname)
@@ -183,8 +183,8 @@ class ArangoStorage:
         await typescol.add_persistent_index(
             [names.FLD_COLLECTION_ID, names.FLD_DATA_PRODUCT, names.FLD_LOAD_VERSION]
         )
-        for col_list in dps.values():
-            for col in col_list:
+        for dp in dps:
+            for col in dp.db_collections:
                 dbcol = db.collection(col.name)
                 for index in col.indexes:
                     await dbcol.add_persistent_index(index)
@@ -194,10 +194,17 @@ class ArangoStorage:
     def __init__(self, db: StandardDatabase):
         self._db = db
 
+    async def execute_aql(self, aql_str: str, bind_vars: dict[str, Any] = None, count: bool = False
+    ) -> Cursor:
+        """
+        Execute an aql statement.
 
-    def aql(self) -> AQL:
-        """ Get the database AQL instance for running arbitrary queries. """
-        return self._db.aql
+        aql_str - the AQL string to execute.
+        bind_vars - any bind variables for the AQL string.
+        count - True to return the total count for the match. This can be significantly more
+             expensive than the query so use the option wisely.
+        """
+        return await self._db.aql.execute(aql_str, bind_vars=bind_vars or {}, count=count)
 
     async def get_next_version(self, collection_id: str) -> int:
         """ Get the next available version number for a collection. """
@@ -284,7 +291,8 @@ class ArangoStorage:
                 SORT d.{names.FLD_ARANGO_KEY} ASC
                 RETURN d
             """
-        cur = await self._db.aql.execute(aql, bind_vars={f"@{_FLD_COLLECTION}": names.COLL_SRV_ACTIVE})
+        cur = await self._db.aql.execute(
+            aql, bind_vars={f"@{_FLD_COLLECTION}": names.COLL_SRV_ACTIVE})
         try:
             return [_doc_to_active_coll(d) async for d in cur]
         finally:
@@ -527,20 +535,32 @@ class ArangoStorage:
         }
         return await self._execute_aql_and_check_item_exists(aql, bind_vars, item_id, errclass)
 
-    async def send_match_heartbeat(self, match_id: str, heartbeat_timestamp: int):
+    async def send_match_heartbeat(self, internal_match_id: str, heartbeat_timestamp: int):
         """
         Send a heartbeat to a match, updating the heartbeat timestamp.
 
-        match_id - the ID of the match to modify.
+        internal_match_id - the internal ID of the match to modify.
         heartbeat_timestamp - the timestamp of the heartbeat in epoch milliseconts.
         """
         await self._send_heartbeat(
-            names.COLL_SRV_MATCHES, match_id, heartbeat_timestamp, errors.NoSuchMatchError)
+            names.COLL_SRV_MATCHES,
+            internal_match_id,
+            heartbeat_timestamp,
+            errors.NoSuchMatchError,
+            filter_key=models.FIELD_MATCH_INTERNAL_MATCH_ID,
+        )
 
-    async def _send_heartbeat(self, collection: str, key: str, heartbeat_timestamp: int, errclass):
+    async def _send_heartbeat(
+        self,
+        collection: str,
+        key: str,
+        heartbeat_timestamp: int,
+        errclass,
+        filter_key: str = names.FLD_ARANGO_KEY
+    ):
         aql = f"""
             FOR d in @@{_FLD_COLLECTION}
-                FILTER d.{names.FLD_ARANGO_KEY} == @key
+                FILTER d.{filter_key} == @key
                 UPDATE d WITH {{
                     {models.FIELD_PROCESS_HEARTBEAT}: @heartbeat
                 }} IN @@{_FLD_COLLECTION}
@@ -566,7 +586,6 @@ class ArangoStorage:
         exception: bool = True,
     ) -> dict[str, Any] | None:
         cur = await self._db.aql.execute(aql, bind_vars=bind_vars, count=True)
-        # having a count > 1 is impossible since keys are unique
         try:
             if cur.empty():
                 if exception:
@@ -663,7 +682,7 @@ class ArangoStorage:
 
     async def update_match_state(
         self,
-        match_id: str,
+        internal_match_id: str,
         match_state: models.ProcessState,
         update_time: int,
         matches: list[str] = None
@@ -671,17 +690,18 @@ class ArangoStorage:
         """
         Update the state of the match, optionally setting match IDs.
 
-        match_id - the ID of the match to update
+        internal_match_id - the internal ID of the match to update
         match_state - the state of the match to set
         update_time - the time at which the match state was updated in epoch milliseconds
         matches - the matches to add to the match
         """
         await self._update_state(
-            match_id,
+            internal_match_id,
             match_state,
             update_time,
             names.COLL_SRV_MATCHES,
             errors.NoSuchMatchError,
+            filter_key=models.FIELD_MATCH_INTERNAL_MATCH_ID,
             data_list=matches,
             data_list_field=models.FIELD_MATCH_MATCHES,
         )
@@ -693,6 +713,7 @@ class ArangoStorage:
         update_time: int,
         collection: str,
         errclass,
+        filter_key: str = names.FLD_ARANGO_KEY,
         data_list: list[str] = None,
         data_list_field: str = None,
     ):
@@ -704,7 +725,7 @@ class ArangoStorage:
         }
         aql = f"""
             FOR d in @@{_FLD_COLLECTION}
-                FILTER d.{names.FLD_ARANGO_KEY} == @id
+                FILTER d.{filter_key} == @id
                 UPDATE d WITH {{
                     {models.FIELD_PROCESS_STATE}: @state,
                     {models.FIELD_PROCESS_STATE_UPDATED}: @update_time,
@@ -849,6 +870,8 @@ class ArangoStorage:
             return dp_match, False
         except DocumentInsertError as e:
             if e.error_code == _ARANGO_ERR_UNIQUE_CONSTRAINT:
+                # Could possibly improve bandwidth by not getting missing_ids key,
+                # would need to use AQL vs get()
                 doc = await col.get({names.FLD_ARANGO_KEY: key})
                 if not doc:
                     # This is highly unlikely. Not worth spending any time trying to recover
@@ -882,6 +905,7 @@ class ArangoStorage:
         dpid: models.DataProductProcessIdentifier,
         state: models.ProcessState,
         update_time: int,
+        missing_ids: list[str] | None = None,
     ):
         """
         Update the state of a data product process.
@@ -889,6 +913,8 @@ class ArangoStorage:
         dpid - the data process ID.
         state - the state to set
         update_time - the time at which the state was updated in epoch milliseconds
+        missing_ids - any match or selection IDs that were not found when processing the match
+            or selection.
         """
         await self._update_state(
             self._data_product_process_key(dpid),
@@ -896,6 +922,8 @@ class ArangoStorage:
             update_time,
             names.COLL_SRV_DATA_PRODUCT_PROCESSES,
             _ERRMAP[dpid.type],
+            data_list=missing_ids,
+            data_list_field=models.FIELD_DATA_PRODUCT_PROCESS_MISSING_IDS,
         )
 
     async def remove_data_product_process(self, dpid: models.DataProductProcessIdentifier):
@@ -1012,23 +1040,24 @@ class ArangoStorage:
         )
         return self._to_internal_selection(doc) if doc else None
 
-    async def send_selection_heartbeat(self, selection_id: str, heartbeat_timestamp: int):
+    async def send_selection_heartbeat(self, internal_selection_id: str, heartbeat_timestamp: int):
         """
         Send a heartbeat to a selection, updating the heartbeat timestamp.
 
-        selection-id - the ID of the selection to modify.
+        internal_selection_id - the internal ID of the selection to modify.
         heartbeat_timestamp - the timestamp of the heartbeat in epoch milliseconts.
         """
         await self._send_heartbeat(
             names.COLL_SRV_SELECTIONS,
-            selection_id,
+            internal_selection_id,
             heartbeat_timestamp,
-            errors.NoSuchSelectionError
+            errors.NoSuchSelectionError,
+            filter_key=models.FIELD_SELECTION_INTERNAL_SELECTION_ID,
         )
 
     async def update_selection_state(
         self,
-        selection_id: str,
+        internal_selection_id: str,
         state: models.ProcessState,
         update_time: int,
         missing_selections: list[str] = None,
@@ -1036,17 +1065,18 @@ class ArangoStorage:
         """
         Update the state of the selection, optionally setting missing selection IDs.
 
-        selection_id - the ID of the selection to update
+        internal_selection_id - the internal ID of the selection to update
         state - the state of the selection to set
         update_time - the time at which the selection state was updated in epoch milliseconds
         missing_selections - the selection IDs to add to the missing attribute for the selection
         """
         await self._update_state(
-            selection_id,
+            internal_selection_id,
             state,
             update_time,
             names.COLL_SRV_SELECTIONS,
             errors.NoSuchSelectionError,
+            filter_key=models.FIELD_SELECTION_INTERNAL_SELECTION_ID,
             data_list=missing_selections,
             data_list_field=models.FIELD_SELECTION_UNMATCHED_IDS,
         )

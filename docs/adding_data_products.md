@@ -55,12 +55,19 @@ the reader is familiar with
     * When called, this method must delete any selection data associated with the given internal
       selection ID.
     ```python
-    async def apply_selection(self, storage: ArangoStorage, selection_id: str):
+    async def apply_selection(
+        self,
+        deps: PickleableDependencies,
+        storage: ArangoStorage,
+        selection: models.InternalSelection,
+        collection: models.SavedCollection,
+    ):
     ```
     * When called, this method must apply the given selection to the data. See the `genome_attribs`
-      data product for an example.
+      data product for an example. Only data products that are expected to be set as the primary
+      selection target need to implement this method.
     ```python
-        async def get_upas_for_selection(
+    async def get_upas_for_selection(
         self,
         storage: ArangoStorage,
         collection: models.SavedCollection,
@@ -80,7 +87,8 @@ the reader is familiar with
         """
     ```
     * When called, this method iterates through all the selected data in the collection
-      and returns the UPAs mapped from types.
+      and returns the UPAs mapped from types. Only data products that are expected to be
+      set as the primary selection target need to implement this method.
 * Create the endpoints / routes for your data product in the new module.
   * See the existing implementations for examples.
   * Routes must start with `/collection/{collection_id}/data_products/<data_product_id>/`

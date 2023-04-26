@@ -6,15 +6,16 @@ import hashlib
 import logging
 import uuid
 
-from typing import Any
+from typing import Any, Callable, Awaitable
 
 from src.service.app_state_data_structures import CollectionsState, PickleableDependencies
 from src.service import data_product_specs
 from src.service import deletion
 from src.service import errors
+from src.service import kb_auth
 from src.service import models
 from src.service import processing
-from src.service import kb_auth
+from src.service.storage_arango import ArangoStorage
 from src.service.workspace_wrapper import WorkspaceWrapper, SetSpec
 
 
@@ -24,28 +25,32 @@ _UTF_8 = "utf-8"
 
 
 async def _selection_process(
-    selection_id: str,
+    internal_selection_id: str,
     deps: PickleableDependencies,
-    args: list[Any]
+    args: list[str]
 ):
     hb = None
     arangoclient = None
+    data_product = args[0]
     try:
         arangoclient, storage = await deps.get_storage()
         async def heartbeat(millis: int):
-            await storage.send_selection_heartbeat(selection_id, millis)
+            await storage.send_selection_heartbeat(internal_selection_id, millis)
         hb = processing.Heartbeat(heartbeat, processing.HEARTBEAT_INTERVAL_SEC)
         hb.start()
-        internal_sel = await storage.get_selection_full(selection_id)
+        sel = await storage.get_selection_by_internal_id(internal_selection_id)
+        # use version number to avoid race conditions with activating collections
+        coll = await storage.get_collection_version_by_num(
+            sel.collection_id, sel.collection_ver)
         # throws an error if the data product doesn't exist
         # may want to add a wrapper method to PickleableDependencies so this can be mocked
-        data_product = data_product_specs.get_data_product_spec(internal_sel.data_product)
-        await data_product.apply_selection(storage, internal_sel.selection_id)
+        data_product = data_product_specs.get_data_product_spec(data_product)
+        await data_product.apply_selection(deps, storage, sel, coll)
     except Exception as e:
         logging.getLogger(__name__).exception(
-            f"Selection process for selection {selection_id} failed")
+            f"Selection process for selection with internal ID {internal_selection_id} failed")
         await storage.update_selection_state(
-            selection_id, models.ProcessState.FAILED, deps.get_epoch_ms())
+            internal_selection_id, models.ProcessState.FAILED, deps.get_epoch_ms())
     finally:
         if hb:
             hb.stop()
@@ -53,9 +58,12 @@ async def _selection_process(
             await arangoclient.close()
 
 
-def _start_process(selection_id: str, appstate: CollectionsState):
-    processing.CollectionProcess(process=_selection_process, args=[]
-        ).start(selection_id, appstate.get_pickleable_dependencies())
+def _start_process(appstate: CollectionsState, int_sel: models.InternalSelection):
+    processing.CollectionProcess(
+        process=_selection_process,
+        data_id=int_sel.internal_selection_id,
+        args=[int_sel.data_product],
+    ).start(appstate.get_pickleable_dependencies())
 
 
 async def save_selection(
@@ -94,7 +102,7 @@ async def save_selection(
     )
     curr_sel, exists = await appstate.arangostorage.save_selection(int_sel)
     if not exists:
-        _start_process(int_sel.selection_id, appstate)
+        _start_process(appstate, int_sel)
     return curr_sel
 
 
@@ -194,7 +202,7 @@ def _check_selection_state(
     if processing.requires_restart(appstate.get_epoch_ms(), internal_sel):
         logging.getLogger(__name__).warn(
             f"Restarting selection process for ID {internal_sel.selection_id}")
-        _start_process(internal_sel.selection_id, appstate)
+        _start_process(appstate, internal_sel)
     # might need to separate out the still processing error from the id / ver matching
     if require_complete and internal_sel.state != models.ProcessState.COMPLETE:
         raise errors.InvalidSelectionStateError(
@@ -289,3 +297,51 @@ async def delete_selection(appstate: CollectionsState, selection_id: str, verbos
         sel.selection_ids = []
         sel.unmatched_ids = None if sel.unmatched_ids is None else []
     return sel
+
+
+async def get_or_create_data_product_selection_process(
+    appstate: CollectionsState,
+    coll: models.SavedCollection,
+    selection_id: str,
+    data_product: str,
+    selection_fn: Callable[
+        [
+            PickleableDependencies,
+            ArangoStorage,
+            models.InternalMatch | models.InternalSelection,
+            models.SavedCollection,
+            models.DataProductProcessIdentifier
+        ],
+        Awaitable[None],
+    ],
+) -> models.DataProductProcess:
+    """
+    Get a process data structure for a selection data product process.
+
+    Creates and starts the process if the process does not already exist.
+
+    If the process exists but hasn't had a heartbeat in the required time frame, starts another
+    instance of the process.
+
+    appstate - the collections service state.
+    coll - the most recent version of the collection associated with the selection.
+    selection_id - the ID of the selection.
+    data_product - the data product performing the selection.
+    selection_fn - the function that will perform the selection calculations and DB updates.
+        Runs if there is no process information in the database or
+        the heartbeat is too old. The arguments are
+            * the system dependencies (provided by `appstate`),
+            * a storage system created from the system dependencies. The storage system will
+              be closed by the calling function after the callable returns
+            * the match or selection
+            * the collection (pulled from the storage system via the data in the subset record)
+            * the data product process identifier.
+    """
+    sel = await get_selection_full(
+            appstate, selection_id, require_complete=True, require_collection=coll)
+    dpid = models.DataProductProcessIdentifier(
+        internal_id=sel.internal_selection_id,
+        data_product=data_product,
+        type=models.SubsetType.SELECTION,
+    )
+    return await processing.get_or_create_data_product_process(appstate, dpid, selection_fn)
