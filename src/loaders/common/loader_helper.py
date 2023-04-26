@@ -103,11 +103,6 @@ def start_podman_service(uid):
     """
     Start podman service. Used by workspace_downloader.py script.
     """
-    # try:
-    #     check_output(["pidof", "podman"])
-    # except CalledProcessError:
-    #     print("No running podmans servies are detected. Start one now!")
-
     # TODO find out the right way to check if a podman service is running
     proc = subprocess.Popen(["podman", "system", "service", "-t", "0"])
     os.environ["DOCKER_HOST"] = DOCKER_HOST.format(uid)
@@ -134,5 +129,8 @@ def is_upa_info_complete(output_dir, upa):
 
 
 def get_ip():
+    """
+    Get current ip address
+    """
     ip = requests.get('https://ipv4.jsonip.com').json()['ip']
     return ip
