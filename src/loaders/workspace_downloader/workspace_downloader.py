@@ -71,6 +71,7 @@ class Conf:
         token = os.environ["KB_AUTH_TOKEN"]
         ws_url = os.path.join(kb_base_url, "ws")
         callback_url = "http://" + loader_helper.get_ip() + ":" + str(CALLBACK_PORT)
+        print("callback_url: ", callback_url)
 
         self.ws = Workspace(ws_url, token=token)
         self.asu = AssemblyUtil(callback_url, token=token)
@@ -114,6 +115,8 @@ class Conf:
         except Exception as e:
             print("container does not exist and will fetch scanon/callback ")
         status = container.attrs["State"]["Status"] if container else None
+        print("self.env: ", self.env)
+        print("self.vol: ", self.vol)
         if not status:
             container = client.containers.run(
                 name=container_name,
