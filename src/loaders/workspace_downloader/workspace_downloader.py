@@ -57,6 +57,8 @@ from src.loaders.common import loader_common_names, loader_helper
 SOURCE = "WS"
 # filtering applied to list objects
 FILTER_OBJECTS_NAME_BY = "KBaseGenomeAnnotations.Assembly"
+# callback_port
+CALLBACK_PORT = 9999
 
 
 class Conf:
@@ -68,9 +70,10 @@ class Conf:
         # os.environ['SDK_CALLBACK_URL'] = self.cb.callback_url
         token = os.environ["KB_AUTH_TOKEN"]
         ws_url = os.path.join(kb_base_url, "ws")
+        callback_url = loader_helper.get_ip() + ":" + str(CALLBACK_PORT)
 
         self.ws = Workspace(ws_url, token=token)
-        self.asu = AssemblyUtil(loader_helper.get_ip, token=token)
+        self.asu = AssemblyUtil(callback_url, token=token)
         self.queue = Queue()
         self.pth = output_dir
         self.job_dir = job_dir
@@ -95,7 +98,7 @@ class Conf:
         # used by the callback server
         self.env["JOB_DIR"] = job_dir
         # used by the callback server
-        self.env["CALLBACK_PORT"] = 9999
+        self.env["CALLBACK_PORT"] = CALLBACK_PORT
 
         # setup volumes required for docker container
         docker_host = os.environ["DOCKER_HOST"]
