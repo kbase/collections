@@ -44,7 +44,7 @@ import stat
 import time
 from multiprocessing import Pool, Queue, cpu_count
 
-from JobRunner.Callback import Callback
+import docker
 
 from src.clients.AssemblyUtilClient import AssemblyUtil
 from src.clients.workspaceClient import Workspace
@@ -62,8 +62,7 @@ FILTER_OBJECTS_NAME_BY = "KBaseGenomeAnnotations.Assembly"
 class Conf:
     def __init__(self, job_dir, output_dir, workers, kb_base_url, token_filename):
         self.setup_callback_server_envs(job_dir, kb_base_url, token_filename)
-        self.cb = Callback()
-        self.cb.start()
+        self.start_callback_server(docker.from_env(), "cb")
         time.sleep(2)
 
         # os.environ['SDK_CALLBACK_URL'] = self.cb.callback_url
@@ -71,24 +70,66 @@ class Conf:
         ws_url = os.path.join(kb_base_url, "ws")
 
         self.ws = Workspace(ws_url, token=token)
-        self.asu = AssemblyUtil(self.cb.callback_url, token=token)
+        self.asu = AssemblyUtil(loader_helper.get_ip, token=token)
         self.queue = Queue()
         self.pth = output_dir
         self.job_dir = job_dir
         self.pools = Pool(workers, process_input, [self])
 
     def setup_callback_server_envs(self, job_dir, kb_base_url, token_filename):
-        # used by the callback server
-        if not os.environ.get("KB_AUTH_TOKEN"):
+        # initiate env and vol
+        self.env = {}
+        self.vol = {}
+
+        # setup envs required for docker container
+        token = os.environ.get("KB_AUTH_TOKEN")
+        if not token:
             if not token_filename:
                 raise ValueError("Need to provide a token_filename")
-            os.environ["KB_AUTH_TOKEN"] = loader_helper.get_token(token_filename)
+            token = loader_helper.get_token(token_filename)
 
+        self.env["KB_AUTH_TOKEN"] = token
         # used by the callback server
-        os.environ["KB_BASE_URL"] = kb_base_url
+        self.env["KB_BASE_URL"] = kb_base_url
+        # used by the callback server
+        self.env["JOB_DIR"] = job_dir
+        # used by the callback server
+        self.env["CALLBACK_PORT"] = 9999
 
-        # used by the callback server
-        os.environ["JOB_DIR"] = job_dir
+        # setup volumes required for docker container
+        docker_host = os.environ["DOCKER_HOST"]
+        if docker_host.startswith("unix:"):
+            docker_host = docker_host[5:]
+        self.vol[job_dir] = {"bind": job_dir, "mode": "rw"}
+        self.vol[docker_host] = {"bind": "/run/docker.sock", "mode": "rw"}
+
+    def start_callback_server(self, client, container_name):
+        container = None
+        try:
+            container = client.containers.get(container_name)
+        except Exception as e:
+            print("container does not exist and will fetch scanon/callback ")
+        status = container.attrs["State"]["Status"] if container else None
+        if not status:
+            container = client.containers.run(
+                name=container_name,
+                image="scanon/callback",
+                detach=True,
+                network_mode="host",
+                environment=self.env,
+                volumes=self.vol,
+            )
+        elif status == "existed":
+            container.start()
+        elif status == "paused":
+            container.unpause()
+        else:
+            print("container is restarting or running ...")
+        self.container = container
+
+    def stop_callback_server(self):
+        self.container.stop()
+        self.container.remove()
 
 
 def _make_output_dir(root_dir, source_data_dir, source, workspace_id):
@@ -293,7 +334,7 @@ def main():
 
         conf.pools.close()
         conf.pools.join()
-        conf.cb.stop()
+        conf.stop_callback_server()
 
     finally:
         # stop podman service if is on
