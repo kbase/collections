@@ -70,7 +70,7 @@ class Conf:
         # os.environ['SDK_CALLBACK_URL'] = self.cb.callback_url
         token = os.environ["KB_AUTH_TOKEN"]
         ws_url = os.path.join(kb_base_url, "ws")
-        callback_url = loader_helper.get_ip() + ":" + str(CALLBACK_PORT)
+        callback_url = "http://" + loader_helper.get_ip() + ":" + str(CALLBACK_PORT)
 
         self.ws = Workspace(ws_url, token=token)
         self.asu = AssemblyUtil(callback_url, token=token)
