@@ -87,6 +87,7 @@ class Conf:
             if not token_filename:
                 raise ValueError("Need to provide a token_filename")
             token = loader_helper.get_token(token_filename)
+        os.environ["KB_AUTH_TOKEN"] = token
 
         self.env["KB_AUTH_TOKEN"] = token
         # used by the callback server
