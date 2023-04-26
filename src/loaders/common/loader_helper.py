@@ -4,6 +4,7 @@ from collections import defaultdict
 
 import json
 import jsonlines
+import requests
 
 
 import src.common.storage.collection_and_field_names as names
@@ -130,3 +131,8 @@ def is_upa_info_complete(output_dir, upa):
     if set(data.keys()) != set(META_KEYS):
         return False
     return True
+
+
+def get_ip():
+    ip = requests.get('https://ipv4.jsonip.com').json()['ip']
+    return ip
