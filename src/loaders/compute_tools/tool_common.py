@@ -134,7 +134,7 @@ class ToolRunner:
         self._data_ids = self._get_data_ids()
 
         if not self._threads:
-            threads = max(int(multiprocessing.cpu_count() * min(_SYSTEM_UTILIZATION, 1)), 1)
+            self.threads = max(int(multiprocessing.cpu_count() * min(_SYSTEM_UTILIZATION, 1)), 1)
         self._threads = max(1, self._threads)
 
         self._work_dir = Path(
