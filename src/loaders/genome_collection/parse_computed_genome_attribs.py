@@ -244,6 +244,7 @@ def _create_import_files(root_dir: str, file_name: str, docs: list[dict[str, Any
     os.makedirs(import_dir, exist_ok=True)
 
     file_path = os.path.join(import_dir, file_name)
+    print(f'Creating JSONLines import file: {file_path}')
     with open(file_path, 'w') as f:
         convert_to_json(docs, f)
 
