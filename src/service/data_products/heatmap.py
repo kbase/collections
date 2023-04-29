@@ -2,9 +2,10 @@
 Reusable code for creating a heatmap based data product.
 """
 
+import json
 import logging
 
-from fastapi import APIRouter, Depends, Request, Query, Path
+from fastapi import APIRouter, Depends, Request, Query, Path, Response
 
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
@@ -40,7 +41,7 @@ from src.service import models
 from src.service import processing_matches
 from src.service import processing_selections
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
-from src.service.storage_arango import ArangoStorage
+from src.service.storage_arango import ArangoStorage, remove_arango_keys
 
 from typing import Annotated, Awaitable, Callable
 
@@ -48,6 +49,17 @@ _OPT_AUTH = KBaseHTTPBearer(optional=True)
 
 _MATCH_ID_PREFIX = "m_"
 _SELECTION_ID_PREFIX = "s_"
+
+
+# TODO SOON Move fields to heatmap models in common once Tian's PR is merged
+FIELD_HEATMAP_MATCH_STATE = "heatmap_match_state"
+FIELD_HEATMAP_SELECTION_STATE = "heatmap_selection_state"
+FIELD_HEATMAP_DATA = "data"
+FIELD_HEATMAP_MIN_VALUE = "min_value"
+FIELD_HEATMAP_MAX_VALUE = "max_value"
+FIELD_HEATMAP_COUNT = "count"
+FIELD_HEATMAP_CELL_VALUE = "val"
+FIELD_HEATMAP_ROW_CELLS = "cells"
 
 
 def _prefix_id(prefix: str, id_: str | None) -> str | None:
@@ -247,7 +259,9 @@ class HeatMapController:
         status_only: bool = QUERY_STATUS_ONLY,
         load_ver_override: Annotated[str | None, QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE] = None,
         user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
-    ) -> heatmap_models.HeatMap:
+    ) -> Response:
+        # For some reason returning the data as a model slows down the endpoint by ~10x.
+        # Serializing manually and returning a plain response is much faster
         appstate = app_state.get_app_state(r)
         load_ver, dp_match, dp_sel = await self._get_load_version_and_processes(
             appstate,
@@ -260,7 +274,7 @@ class HeatMapController:
             selection_id=selection_id,
         )
         if status_only:
-            return self._heatmap(dp_match=dp_match, dp_sel=dp_sel)
+            return self._response(dp_match=dp_match, dp_sel=dp_sel)
         elif count:
             count = await self._count(
                 appstate.arangostorage,
@@ -269,7 +283,7 @@ class HeatMapController:
                 self._get_complete_internal_id(dp_match) if not match_mark else None,
                 self._get_complete_internal_id(dp_sel) if not selection_mark else None,
             )
-            return self._heatmap(dp_match=dp_match, dp_sel=dp_sel, count=count)
+            return self._response(dp_match=dp_match, dp_sel=dp_sel, count=count)
         else:
             return await self._query(  # may want a sort direction arg?
                 appstate.arangostorage,
@@ -372,7 +386,7 @@ class HeatMapController:
             dpid, models.ProcessState.COMPLETE, deps.get_epoch_ms(), missing_ids=missed
         )
 
-    def _heatmap(
+    def _response(
         self,
         dp_match: models.DataProductProcess = None,
         dp_sel: models.DataProductProcess = None,
@@ -380,15 +394,16 @@ class HeatMapController:
         data: list[heatmap_models.HeatMapRow] = None,
         min_value: int = None,
         max_value: int = None,
-    ) -> heatmap_models.HeatMap:
-        return heatmap_models.HeatMap(
-            heatmap_match_state=dp_match.state if dp_match else None,
-            heatmap_selection_state=dp_sel.state if dp_sel else None,
-            count=count,
-            data=data,
-            min_value=min_value,
-            max_value=max_value,
-        )
+    ) -> Response:
+        j = {
+            FIELD_HEATMAP_MATCH_STATE: dp_match.state if dp_match else None,
+            FIELD_HEATMAP_SELECTION_STATE: dp_sel.state if dp_sel else None,
+            FIELD_HEATMAP_DATA: data,
+            FIELD_HEATMAP_MIN_VALUE: min_value,
+            FIELD_HEATMAP_MAX_VALUE: max_value,
+            FIELD_HEATMAP_COUNT: count,
+        }
+        return Response(content=json.dumps(j), media_type="application/json")
     
     async def _count(
         self,
@@ -432,8 +447,7 @@ class HeatMapController:
         await query_simple_collection_list(
             store,
             self._colname_data,
-            lambda doc: data.append(heatmap_models.HeatMapRow.parse_obj(
-                remove_collection_keys(doc))),
+            lambda doc: data.append(remove_arango_keys(remove_collection_keys(doc))),
             collection_id,
             load_ver,
             names.FLD_KBASE_ID,
@@ -446,10 +460,10 @@ class HeatMapController:
             internal_selection_id=_prefix_id(_SELECTION_ID_PREFIX, internal_selection_id),
             selection_mark=selection_mark,    
         )
-        vals = []
+        vals = set()
         for r in data:  # lazy lazy lazy
-            vals += [c.val for c in r.cells]
-        return self._heatmap(
+            vals |= {c[FIELD_HEATMAP_CELL_VALUE] for c in r[FIELD_HEATMAP_ROW_CELLS]}
+        return self._response(
             dp_match=match_proc,
             dp_sel=selection_proc,
             data=data,
