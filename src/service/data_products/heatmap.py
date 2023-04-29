@@ -3,7 +3,6 @@ Reusable code for creating a heatmap based data product.
 """
 
 import json
-import logging
 
 from fastapi import APIRouter, Depends, Request, Query, Path, Response
 
