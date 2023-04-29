@@ -73,7 +73,7 @@ HEATMAP_TOOLS = ['microtrait']
 
 # The following features will be extracted from the MicroTrait result file as heatmap data
 _MICROTRAIT_TRAIT_NAME = 'microtrait_trait-name'  # unique identifier for a trait globally
-_MICROTRAIT_TRAIT_DISPLAYNAME_SHORT = 'microtrait_trait-displaynameshort' # used as column name of the trait
+_MICROTRAIT_TRAIT_DISPLAYNAME_SHORT = 'microtrait_trait-displaynameshort'  # used as column name of the trait
 _MICROTRAIT_TRAIT_DISPLAYNAME_LONG = 'microtrait_trait-displaynamelong'  # used as description of the trait
 _MICROTRAIT_TRAIT_VALUE = 'microtrait_trait-value'  # value of the trait (can be integer or 0/1 as boolean)
 _MICROTRAIT_TRAIT_TYPE = 'microtrait_trait-type'  # type of trait (count or binary)
@@ -95,14 +95,20 @@ _SYS_DEFAULT_TRAIT_VALUE = 0  # default value (0 or False) for a trait if the va
 # the microtrait_trait-displaynameshort column as the column name,
 # microtrait_trait-displaynamelong column as the column description, and
 # microtrait_trait-value as the cell value
-_MICROTRAIT_TO_SYS_TRAIT_MAP = {
-    _MICROTRAIT_TRAIT_NAME: _SYS_TRAIT_ID,
-    _MICROTRAIT_TRAIT_DISPLAYNAME_SHORT: _SYS_TRAIT_NAME,
-    _MICROTRAIT_TRAIT_DISPLAYNAME_LONG: _SYS_TRAIT_DESCRIPTION,
-    _MICROTRAIT_TRAIT_VALUE: _SYS_TRAIT_VALUE,
-    _MICROTRAIT_TRAIT_TYPE: _SYS_TRAIT_TYPE,
-    _MICROTRAIT_TRAIT_ORDER: _SYS_TRAIT_INDEX,
-}
+_MICROTRAIT_TO_SYS_TRAIT_MAP = dict(zip(
+    [_MICROTRAIT_TRAIT_NAME,
+     _MICROTRAIT_TRAIT_DISPLAYNAME_SHORT,
+     _MICROTRAIT_TRAIT_DISPLAYNAME_LONG,
+     _MICROTRAIT_TRAIT_VALUE,
+     _MICROTRAIT_TRAIT_TYPE,
+     _MICROTRAIT_TRAIT_ORDER],
+    [_SYS_TRAIT_ID,
+     _SYS_TRAIT_NAME,
+     _SYS_TRAIT_DESCRIPTION,
+     _SYS_TRAIT_VALUE,
+     _SYS_TRAIT_TYPE,
+     _SYS_TRAIT_INDEX]
+))
 
 # Default directory name for the parsed JSONL files for arango import
 IMPORT_DIR = 'import_files'
@@ -331,7 +337,6 @@ def _parse_categories(traits_meta: dict[str, dict[str, str]]) -> list[ColumnCate
     # loop over each trait in traits_meta
     for trait in traits_meta.values():
         trait_category = trait[_SYS_TRAIT_CATEGORY]
-        trait_type = trait[_SYS_TRAIT_TYPE]
 
         if trait[_SYS_TRAIT_TYPE] == 'count':
             trait_type = ColumnType.COUNT.value
@@ -350,7 +355,18 @@ def _parse_categories(traits_meta: dict[str, dict[str, str]]) -> list[ColumnCate
                                                                     description=trait[_SYS_TRAIT_DESCRIPTION],
                                                                     type=trait_type))
 
-    return list(categories.values())
+    # sort columns in each ColumnCategory object by the column id
+    for category in categories.values():
+        category.columns = sorted(category.columns, key=lambda column: int(column.id))
+
+    # sort ColumnCategory objects by the column id of the first column in each ColumnCategory object
+    sorted_categories = sorted(categories.values(), key=lambda category: int(category.columns[0].id))
+
+    column_ids = [column.id for category in sorted_categories for column in category.columns]
+    if not _ensure_list_ordered(column_ids):
+        raise ValueError(f'Column ids are not ordered in ascending order: {column_ids}')
+
+    return sorted_categories
 
 
 def _is_float_int(num: Any) -> bool:
@@ -405,15 +421,21 @@ def _append_cell(
             max(max_value, trait_val)) if isinstance(trait_val, int) else (min_value, max_value)
 
 
-def _find_trait_by_id(trait_id: int,
-                      trait_meta: dict[str, dict[str, int | str]]
-                      ) -> dict[str, int | str]:
+def _find_trait_by_index(
+        trait_index: int,
+        trait_meta: dict[str, dict[str, int | str]]
+) -> dict[str, int | str]:
     # Find a trait in the global traits dictionary by its ID
     for trait in trait_meta.values():
-        if trait['trait_index'] == trait_id:
+        if trait[_SYS_TRAIT_INDEX] == trait_index:
             return trait
 
-    raise ValueError(f'Unable to find trait with ID {trait_id}')
+    raise ValueError(f'Unable to find trait with ID {trait_index}')
+
+
+def _ensure_list_ordered(a_list: list[str]) -> bool:
+    # Given a list of int strings, check if the list is ordered in ascending order
+    return a_list == sorted(a_list, key=int)
 
 
 def _parse_heatmap_rows(
@@ -428,8 +450,8 @@ def _parse_heatmap_rows(
         for trait_val_info in traits_val_list:
             trait_idx = trait_val_info[_SYS_TRAIT_INDEX]
             trait_val = trait_val_info[_SYS_TRAIT_VALUE]
-            trait = _find_trait_by_id(trait_idx, traits_meta)
-            trait_type = trait.get('trait_type')
+            trait = _find_trait_by_index(trait_idx, traits_meta)
+            trait_type = trait.get(_SYS_TRAIT_TYPE)
 
             min_value, max_value = _append_cell(heatmap_row,
                                                 trait_idx,
@@ -444,8 +466,8 @@ def _parse_heatmap_rows(
         # fill in missing trait values with 0s for all cells
         missing_trait_idxs = trait_idxs - visited_traits
         for missing_trait_idx in missing_trait_idxs:
-            trait = _find_trait_by_id(missing_trait_idx, traits_meta)
-            trait_type = trait.get('trait_type')
+            trait = _find_trait_by_index(missing_trait_idx, traits_meta)
+            trait_type = trait.get(_SYS_TRAIT_TYPE)
             min_value, max_value = _append_cell(heatmap_row,
                                                 missing_trait_idx,
                                                 cell_count,
@@ -455,6 +477,12 @@ def _parse_heatmap_rows(
                                                 trait_val=_SYS_DEFAULT_TRAIT_VALUE)
             cell_count += 1
 
+        # sort the cells by column ID to ensure the heatmap is in the correct order
+        heatmap_row.cells = sorted(heatmap_row.cells, key=lambda cell: int(cell.colid))
+        cell_col_ids = [cell.colid for cell in heatmap_row.cells]
+        if not _ensure_list_ordered(cell_col_ids):
+            raise ValueError(f'Cell column IDs are not in ascending order: {cell_col_ids}')
+
         heatmap_rows.append(heatmap_row)
 
     return heatmap_rows, min_value, max_value
@@ -462,7 +490,8 @@ def _parse_heatmap_rows(
 
 def _create_heatmap_objs(
         traits_meta: dict[str, dict[str, str]],
-        traits_val: dict[str, list[dict[str, int | float | bool]]]) -> (HeatMapMeta, list[HeatMapRow]):
+        traits_val: dict[str, list[dict[str, int | float | bool]]]
+) -> (HeatMapMeta, list[HeatMapRow]):
     # Create the HeatMapMeta and list of HeatMapRow from parsed trait metadata and values
 
     heatmap_rows, min_value, max_value = _parse_heatmap_rows(traits_meta, traits_val)
@@ -487,21 +516,19 @@ def microtrait(root_dir, kbase_collection, load_ver):
         for data_id in data_ids:
             data_dir = os.path.join(result_dir, batch_dir, data_id)
             trait_count_file = os.path.join(data_dir, loader_common_names.TRAIT_COUNTS_FILE)
-            selected_cols = [_MICROTRAIT_TRAIT_NAME,
-                             _MICROTRAIT_TRAIT_DISPLAYNAME_SHORT,
-                             _MICROTRAIT_TRAIT_DISPLAYNAME_LONG,
-                             _MICROTRAIT_TRAIT_VALUE,
-                             _MICROTRAIT_TRAIT_TYPE,
-                             _MICROTRAIT_TRAIT_ORDER,
-                             ]
+            selected_cols = _MICROTRAIT_TO_SYS_TRAIT_MAP.keys()
             trait_df = pd.read_csv(trait_count_file, usecols=selected_cols)
+
+            # Check if the trait index column has non-unique values
+            if len(trait_df[_MICROTRAIT_TRAIT_NAME].unique()) != len(trait_df):
+                raise ValueError(f"The {_MICROTRAIT_TRAIT_NAME} column has non-unique values")
 
             # Extract the substring of the 'microtrait_trait-displaynamelong' column before the first colon character
             # and assign it to a new 'category' column in the DataFrame
             trait_df[_SYS_TRAIT_CATEGORY] = trait_df[_MICROTRAIT_TRAIT_DISPLAYNAME_LONG].str.split(':').str[0]
 
             trait_df = trait_df.rename(columns=_MICROTRAIT_TO_SYS_TRAIT_MAP)
-            trait_df.apply(_process_trait, args=(traits_meta, traits_val, data_id), axis=1).to_list()
+            trait_df.apply(_process_trait, args=(traits_meta, traits_val, data_id), axis=1)
 
     heatmap_meta, heatmap_rows = _create_heatmap_objs(traits_meta, traits_val)
     heatmap_meta_dict, heatmap_rows_list = heatmap_meta.dict(), [row.dict() for row in heatmap_rows]
