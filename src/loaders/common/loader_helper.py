@@ -1,11 +1,11 @@
+import json
 import os
 import subprocess
+import time
 from collections import defaultdict
 
-import json
 import jsonlines
 import requests
-
 
 import src.common.storage.collection_and_field_names as names
 from src.common.hash import md5_string
@@ -104,7 +104,12 @@ def start_podman_service(uid):
     Start podman service. Used by workspace_downloader.py script.
     """
     # TODO find out the right way to check if a podman service is running
-    proc = subprocess.Popen(["podman", "system", "service", "-t", "0"])
+    command = ["podman", "system", "service", "-t", "0"]
+    proc = subprocess.Popen(command)
+    time.sleep(1)
+    return_code = proc.poll()
+    if return_code:
+        raise ValueError(f'The command {command} failed with return code {return_code}')
     os.environ["DOCKER_HOST"] = DOCKER_HOST.format(uid)
     return proc
 
