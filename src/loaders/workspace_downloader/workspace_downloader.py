@@ -274,7 +274,6 @@ def main():
         "--workers",
         type=int,
         default=5,
-        choices=range(1, cpu_count() + 1),
         help="Number of workers for multiprocessing",
     )
     optional.add_argument(
@@ -289,6 +288,8 @@ def main():
     )
 
     args = parser.parse_args()
+    if args.workers < 1 or args.workers > cpu_count():
+        parser.error(f"minimum worker is 1 and maximum worker is {cpu_count()}")
 
     (workspace_id, root_dir, kb_base_url, workers, token_filename, delete_job_dir) = (
         args.workspace_id,
