@@ -128,7 +128,7 @@ def is_upa_info_complete(output_dir, upa):
             data = json.load(json_file)
     except:
         return False
-    if set(data.keys()) != set(META_KEYS):
+    if not set(META_KEYS).issubset(set(data.keys())):
         return False
     return True
 
