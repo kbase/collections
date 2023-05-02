@@ -50,7 +50,7 @@ from src.clients.AssemblyUtilClient import AssemblyUtil
 from src.clients.workspaceClient import Workspace
 from src.loaders.common import loader_common_names, loader_helper
 
-# setup KB_AUTH_TOKEN as env or provide a token_filename in --token_filename
+# setup KB_AUTH_TOKEN as env or provide a token_filepath in --token_filepath
 # export KB_AUTH_TOKEN="your-kb-auth-token"
 
 # supported source of data
@@ -279,7 +279,7 @@ def main():
     optional.add_argument(
         "--token_filepath",
         type=str,
-        help="A file path that stores token",
+        help="A file path that stores KBase token",
     )
     optional.add_argument(
         "--delete_job_dir",
@@ -288,6 +288,8 @@ def main():
     )
 
     args = parser.parse_args()
+    if args.workspace_id <= 0:
+        parser.error(f"workspace_id needs to be > 0")
     if args.workers < 1 or args.workers > cpu_count():
         parser.error(f"minimum worker is 1 and maximum worker is {cpu_count()}")
 
@@ -307,11 +309,11 @@ def main():
     output_dir = _make_output_dir(
         root_dir, loader_common_names.SOURCE_DATA_DIR, SOURCE, workspace_id
     )
-    boolean_flag = False
+  
     try:
         # start podman service
+        proc = None
         proc = loader_helper.start_podman_service(uid)
-        boolean_flag = True
     except:
         raise Exception("Podman service fails to start")
     else:
@@ -346,7 +348,7 @@ def main():
 
     finally:
         # stop podman service if is on
-        if boolean_flag:
+        if proc:
             proc.terminate()
 
     if delete_job_dir:

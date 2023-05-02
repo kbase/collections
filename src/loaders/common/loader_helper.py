@@ -4,6 +4,7 @@ import socket
 import subprocess
 import time
 from collections import defaultdict
+from contextlib import closing
 
 import jsonlines
 
@@ -133,8 +134,18 @@ def is_upa_info_complete(output_dir: str, upa: str):
 
 def get_ip():
     """
-    Get current ip address
+    Get current ip address.
     """
     hostname = socket.gethostname()
     ip = socket.gethostbyname(hostname)
     return ip
+
+
+def find_free_port():
+    """
+    Dynamically find a free port.
+    """
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+        s.bind(('', 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return s.getsockname()[1]
