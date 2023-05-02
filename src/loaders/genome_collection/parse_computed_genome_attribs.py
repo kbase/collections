@@ -95,20 +95,14 @@ _SYS_DEFAULT_TRAIT_VALUE = 0  # default value (0 or False) for a trait if the va
 # the microtrait_trait-displaynameshort column as the column name,
 # microtrait_trait-displaynamelong column as the column description, and
 # microtrait_trait-value as the cell value
-_MICROTRAIT_TO_SYS_TRAIT_MAP = dict(zip(
-    [_MICROTRAIT_TRAIT_NAME,
-     _MICROTRAIT_TRAIT_DISPLAYNAME_SHORT,
-     _MICROTRAIT_TRAIT_DISPLAYNAME_LONG,
-     _MICROTRAIT_TRAIT_VALUE,
-     _MICROTRAIT_TRAIT_TYPE,
-     _MICROTRAIT_TRAIT_ORDER],
-    [_SYS_TRAIT_ID,
-     _SYS_TRAIT_NAME,
-     _SYS_TRAIT_DESCRIPTION,
-     _SYS_TRAIT_VALUE,
-     _SYS_TRAIT_TYPE,
-     _SYS_TRAIT_INDEX]
-))
+_MICROTRAIT_TO_SYS_TRAIT_MAP = {
+    _MICROTRAIT_TRAIT_NAME: _SYS_TRAIT_ID,
+    _MICROTRAIT_TRAIT_DISPLAYNAME_SHORT: _SYS_TRAIT_NAME,
+    _MICROTRAIT_TRAIT_DISPLAYNAME_LONG: _SYS_TRAIT_DESCRIPTION,
+    _MICROTRAIT_TRAIT_VALUE: _SYS_TRAIT_VALUE,
+    _MICROTRAIT_TRAIT_TYPE: _SYS_TRAIT_TYPE,
+    _MICROTRAIT_TRAIT_ORDER: _SYS_TRAIT_INDEX,
+}
 
 # Default directory name for the parsed JSONL files for arango import
 IMPORT_DIR = 'import_files'
@@ -362,6 +356,8 @@ def _parse_categories(traits_meta: dict[str, dict[str, str]]) -> list[ColumnCate
     # sort ColumnCategory objects by the column id of the first column in each ColumnCategory object
     sorted_categories = sorted(categories.values(), key=lambda category: int(category.columns[0].id))
 
+    # this is to ensure that the column ids are in ascending order
+    # TODO: might need to skip this step for heatmap products other than microtrait
     column_ids = [column.id for category in sorted_categories for column in category.columns]
     if not _ensure_list_ordered(column_ids):
         raise ValueError(f'Column ids are not ordered in ascending order: {column_ids}')
@@ -479,9 +475,6 @@ def _parse_heatmap_rows(
 
         # sort the cells by column ID to ensure the heatmap is in the correct order
         heatmap_row.cells = sorted(heatmap_row.cells, key=lambda cell: int(cell.colid))
-        cell_col_ids = [cell.colid for cell in heatmap_row.cells]
-        if not _ensure_list_ordered(cell_col_ids):
-            raise ValueError(f'Cell column IDs are not in ascending order: {cell_col_ids}')
 
         heatmap_rows.append(heatmap_row)
 
