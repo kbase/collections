@@ -35,9 +35,9 @@ GENOME_METADATA_FILE = 'genome_metadata.tsv'
 # the name of the CSV file where we store the trait counts
 TRAIT_COUNTS_FILE = 'trait_counts.csv'
 
-# subdirectory for all jobs per user
-JOB_DIR = "job_dir"
-# used by the podman service 
+# subdirectory for SDK jobs per user
+SDK_JOB_DIR = "sdk_job_dir"
+# used by the podman service. Note that the unix user ID must be interpolated into the string before use 
 DOCKER_HOST = "unix:/run/user/{}/podman/podman.sock"
 # used by the callback server
 KB_BASE_URL_DEFAULT = "https://kbase.us/services/"

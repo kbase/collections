@@ -62,8 +62,8 @@ CALLBACK_PORT = 9999
 
 
 class Conf:
-    def __init__(self, job_dir, output_dir, workers, kb_base_url, token_filename):
-        self.setup_callback_server_envs(job_dir, kb_base_url, token_filename)
+    def __init__(self, job_dir, output_dir, workers, kb_base_url, token_filepath):
+        self.setup_callback_server_envs(job_dir, kb_base_url, token_filepath)
         time.sleep(1)
         self.start_callback_server(docker.from_env(), "cb")
         time.sleep(2)
@@ -81,7 +81,7 @@ class Conf:
         self.job_dir = job_dir
         self.pools = Pool(workers, process_input, [self])
 
-    def setup_callback_server_envs(self, job_dir, kb_base_url, token_filename):
+    def setup_callback_server_envs(self, job_dir, kb_base_url, token_filepath):
         # initiate env and vol
         self.env = {}
         self.vol = {}
@@ -89,9 +89,9 @@ class Conf:
         # setup envs required for docker container
         token = os.environ.get("KB_AUTH_TOKEN")
         if not token:
-            if not token_filename:
+            if not token_filepath:
                 raise ValueError("Need to provide a token_filename")
-            token = loader_helper.get_token(token_filename)
+            token = loader_helper.get_token(token_filepath)
         os.environ["KB_AUTH_TOKEN"] = token
 
         # used by the callback server
@@ -277,9 +277,9 @@ def main():
         help="Number of workers for multiprocessing",
     )
     optional.add_argument(
-        "--token_filename",
+        "--token_filepath",
         type=str,
-        help="Filename in home directory that stores token",
+        help="A file path that stores token",
     )
     optional.add_argument(
         "--delete_job_dir",
@@ -291,19 +291,19 @@ def main():
     if args.workers < 1 or args.workers > cpu_count():
         parser.error(f"minimum worker is 1 and maximum worker is {cpu_count()}")
 
-    (workspace_id, root_dir, kb_base_url, workers, token_filename, delete_job_dir) = (
+    (workspace_id, root_dir, kb_base_url, workers, token_filepath, delete_job_dir) = (
         args.workspace_id,
         args.root_dir,
         args.kb_base_url,
         args.workers,
-        args.token_filename,
+        args.token_filepath,
         args.delete_job_dir,
     )
 
     uid = os.getuid()
     username = os.getlogin()
 
-    job_dir = _make_job_dir(root_dir, loader_common_names.JOB_DIR, username)
+    job_dir = _make_job_dir(root_dir, loader_common_names.SDK_JOB_DIR, username)
     output_dir = _make_output_dir(
         root_dir, loader_common_names.SOURCE_DATA_DIR, SOURCE, workspace_id
     )
@@ -316,7 +316,7 @@ def main():
         raise Exception("Podman service fails to start")
     else:
         # set up conf and start callback server
-        conf = Conf(job_dir, output_dir, workers, kb_base_url, token_filename)
+        conf = Conf(job_dir, output_dir, workers, kb_base_url, token_filepath)
 
         visited = set(
             [

@@ -1,11 +1,11 @@
 import json
 import os
+import socket
 import subprocess
 import time
 from collections import defaultdict
 
 import jsonlines
-import requests
 
 import src.common.storage.collection_and_field_names as names
 from src.common.hash import md5_string
@@ -86,22 +86,20 @@ def init_genome_atrri_doc(kbase_collection, load_version, genome_id):
     return doc
 
 
-def get_token(token_filename):
+def get_token(token_filepath):
     """
-    Get token if a filename is provided at home dir.
+    Get token from a file path. 
     """
-    try:
-        home_dir = os.path.expanduser("~")
-        with open(os.path.join(home_dir, "." + token_filename), "r") as f:
-            token = f.readline().strip()
-    except FileNotFoundError as e:
-        raise e
+    with open(os.path.expanduser(token_filepath), "r") as f:
+        token = f.readline().strip()
     return token
 
 
-def start_podman_service(uid):
+def start_podman_service(uid: int):
     """
     Start podman service. Used by workspace_downloader.py script.
+
+    uid - the integer unix user ID of the user running the service.
     """
     # TODO find out the right way to check if a podman service is running
     command = ["podman", "system", "service", "-t", "0"]
@@ -114,7 +112,7 @@ def start_podman_service(uid):
     return proc
 
 
-def is_upa_info_complete(output_dir, upa):
+def is_upa_info_complete(output_dir: str, upa: str):
     """
     Check whether an UPA needs to be downloaded or not by loading the metadata file.
     Make sure it has all the right keys.
@@ -137,5 +135,6 @@ def get_ip():
     """
     Get current ip address
     """
-    ip = requests.get('https://ipv4.jsonip.com').json()['ip']
+    hostname = socket.gethostname()
+    ip = socket.gethostbyname(hostname)
     return ip
