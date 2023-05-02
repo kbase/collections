@@ -9,7 +9,7 @@ import requests
 
 import src.common.storage.collection_and_field_names as names
 from src.common.hash import md5_string
-from src.loaders.common.loader_common_names import DOCKER_HOST, META_KEYS
+from src.loaders.common.loader_common_names import DOCKER_HOST, JSON_KEYS
 
 """
 This module contains helper functions used for loaders (e.g. compute_genome_attribs, gtdb_genome_attribs_loader, etc.)
@@ -128,7 +128,7 @@ def is_upa_info_complete(output_dir, upa):
             data = json.load(json_file)
     except:
         return False
-    if not set(META_KEYS).issubset(set(data.keys())):
+    if not set(JSON_KEYS).issubset(set(data.keys())):
         return False
     return True
 

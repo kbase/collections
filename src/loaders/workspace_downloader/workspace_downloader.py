@@ -267,7 +267,7 @@ def main():
     optional.add_argument(
         "--kb_base_url",
         type=str,
-        default=loader_common_names.KB_BASE_URL,
+        default=loader_common_names.KB_BASE_URL_DEFAULT,
         help="KBase base URL, defaulting to prod",
     )
     optional.add_argument(

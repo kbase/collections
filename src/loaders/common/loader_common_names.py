@@ -38,9 +38,9 @@ TRAIT_COUNTS_FILE = 'trait_counts.csv'
 # subdirectory for all jobs per user
 JOB_DIR = "job_dir"
 # used by the podman service 
-DOCKER_HOST="unix:/run/user/{}/podman/podman.sock"
+DOCKER_HOST = "unix:/run/user/{}/podman/podman.sock"
 # used by the callback server
-KB_BASE_URL="https://kbase.us/services/"
-# meta keys
-META_KEYS = ['upa', 'name', 'type', 'timestamp']
+KB_BASE_URL_DEFAULT = "https://kbase.us/services/"
+# JSON keys in the download metadata file in a download directory
+JSON_KEYS = ['upa', 'name', 'type', 'timestamp']
 
