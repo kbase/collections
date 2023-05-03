@@ -13,7 +13,8 @@ The scripts used in the process are located in the `src/loaders` directory.
         * Download the genome files from the NCBI FTP server using the script
           [ncbi_downloader.py](../src/loaders/ncbi_downloader/ncbi_downloader.py).
     * From workspace
-        * `TODO: work remains to be done`
+        * Download the genome files from workspace using the script
+          [workspace_downloader.py](../src/loaders/workspace_downloader/workspace_downloader.py).
 2. Compute Genome Attributes
     * The next step is to execute tools to compute various attributes of the genome using the script
       [compute_genome_attribs.py](../src/loaders/genome_collection/compute_genome_attribs.py).
