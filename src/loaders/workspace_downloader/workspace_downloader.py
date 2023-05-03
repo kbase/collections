@@ -306,7 +306,7 @@ def main():
         proc = None
         proc = loader_helper.start_podman_service(uid)
     except:
-        raise Exception("Podman service fails to start")
+        raise Exception("Podman service failed to start")
     else:
         # set up conf and start callback server
         conf = Conf(job_dir, output_dir, workers, kb_base_url, token_filepath)
