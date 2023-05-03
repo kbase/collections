@@ -35,6 +35,9 @@ GENOME_METADATA_FILE = 'genome_metadata.tsv'
 # the name of the CSV file where we store the trait counts
 TRAIT_COUNTS_FILE = 'trait_counts.csv'
 
+
+# kbase authentication token
+KB_AUTH_TOKEN = "KB_AUTH_TOKEN"
 # subdirectory for SDK jobs per user
 SDK_JOB_DIR = "sdk_job_dir"
 # used by the podman service. Note that the unix user ID must be interpolated into the string before use 

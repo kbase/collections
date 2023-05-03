@@ -1,6 +1,6 @@
 """
-usage: workspace_downloader.py [-h] --workspace_id WORKSPACE_ID [--root_dir ROOT_DIR] [--kb_base_url KB_BASE_URL] [--workers {1,2,3,4}]
-                               [--token_filename TOKEN_FILENAME] [--delete_job_dir]
+usage: workspace_downloader.py [-h] --workspace_id WORKSPACE_ID [--root_dir ROOT_DIR] [--kb_base_url KB_BASE_URL]
+                               [--workers WORKERS] [--token_filepath TOKEN_FILEPATH] [--keep_job_dir]
 
 PROTOTYPE - Download genome files from the workspace service (WSS).
 
@@ -15,14 +15,14 @@ optional arguments:
   --root_dir ROOT_DIR   Root directory.
   --kb_base_url KB_BASE_URL
                         KBase base URL, defaulting to prod
-  --workers             Number of workers for multiprocessing
-  --token_filename TOKEN_FILENAME
-                        Filename in home directory that stores token
-  --delete_job_dir      Delete job directory
+  --workers WORKERS     Number of workers for multiprocessing
+  --token_filepath TOKEN_FILEPATH
+                        A file path that stores KBase token
+  --keep_job_dir        Keep SDK job directory after download task is completed
 
             
 e.g.
-PYTHONPATH=. python src/loaders/workspace_downloader/workspace_downloader.py --workspace_id 39795 --kb_base_url https://ci.kbase.us/services/
+PYTHONPATH=. python src/loaders/workspace_downloader/workspace_downloader.py --workspace_id 39795 --kb_base_url https://ci.kbase.us/services/  --keep_job_dir
 
 NOTE:
 NERSC file structure for WS:
@@ -42,6 +42,7 @@ import os
 import shutil
 import stat
 import time
+import uuid
 from multiprocessing import Pool, Queue, cpu_count
 
 import docker
@@ -57,25 +58,24 @@ from src.loaders.common import loader_common_names, loader_helper
 SOURCE = "WS"
 # filtering applied to list objects
 FILTER_OBJECTS_NAME_BY = "KBaseGenomeAnnotations.Assembly"
-# callback_port
-CALLBACK_PORT = 9999
 
 
 class Conf:
     def __init__(self, job_dir, output_dir, workers, kb_base_url, token_filepath):
-        self.setup_callback_server_envs(job_dir, kb_base_url, token_filepath)
-        time.sleep(1)
-        self.start_callback_server(docker.from_env(), "cb")
+        self.start_callback_server(
+            docker.from_env(), uuid.uuid4().hex, job_dir, kb_base_url, token_filepath
+        )
         time.sleep(2)
 
         # os.environ['SDK_CALLBACK_URL'] = self.cb.callback_url
-        token = os.environ["KB_AUTH_TOKEN"]
         ws_url = os.path.join(kb_base_url, "ws")
-        callback_url = "http://" + loader_helper.get_ip() + ":" + str(CALLBACK_PORT)
+        callback_url = (
+            "http://" + loader_helper.get_ip() + ":" + str(self.env["CALLBACK_PORT"])
+        )
         print("callback_url:", callback_url)
 
-        self.ws = Workspace(ws_url, token=token)
-        self.asu = AssemblyUtil(callback_url, token=token)
+        self.ws = Workspace(ws_url, token=self.env["KB_AUTH_TOKEN"])
+        self.asu = AssemblyUtil(callback_url, token=self.env["KB_AUTH_TOKEN"])
         self.queue = Queue()
         self.pth = output_dir
         self.job_dir = job_dir
@@ -87,12 +87,13 @@ class Conf:
         self.vol = {}
 
         # setup envs required for docker container
-        token = os.environ.get("KB_AUTH_TOKEN")
+        token = os.environ.get(loader_common_names.KB_AUTH_TOKEN)
         if not token:
             if not token_filepath:
-                raise ValueError("Need to provide a token_filename")
+                raise ValueError(
+                    f"Need to provide a token in the {loader_common_names.KB_AUTH_TOKEN} environment variable or as --token_filepath argument to the CLI"
+                )
             token = loader_helper.get_token(token_filepath)
-        os.environ["KB_AUTH_TOKEN"] = token
 
         # used by the callback server
         self.env["KB_AUTH_TOKEN"] = token
@@ -101,38 +102,28 @@ class Conf:
         # used by the callback server
         self.env["JOB_DIR"] = job_dir
         # used by the callback server
-        self.env["CALLBACK_PORT"] = CALLBACK_PORT
+        self.env["CALLBACK_PORT"] = loader_helper.find_free_port()
 
         # setup volumes required for docker container
         docker_host = os.environ["DOCKER_HOST"]
         if docker_host.startswith("unix:"):
             docker_host = docker_host[5:]
+
         self.vol[job_dir] = {"bind": job_dir, "mode": "rw"}
         self.vol[docker_host] = {"bind": "/run/docker.sock", "mode": "rw"}
 
-    def start_callback_server(self, client, container_name):
-        container = None
-        try:
-            container = client.containers.get(container_name)
-        except Exception as e:
-            print("container does not exist and will fetch scanon/callback ")
-        status = container.attrs["State"]["Status"] if container else None
-        if not status:
-            container = client.containers.run(
-                name=container_name,
-                image="scanon/callback",
-                detach=True,
-                network_mode="host",
-                environment=self.env,
-                volumes=self.vol,
-            )
-        elif status == "existed":
-            container.start()
-        elif status == "paused":
-            container.unpause()
-        else:
-            print("container is restarting or running ...")
-        self.container = container
+    def start_callback_server(
+        self, client, container_name, job_dir, kb_base_url, token_filepath
+    ):
+        self.setup_callback_server_envs(job_dir, kb_base_url, token_filepath)
+        self.container = client.containers.run(
+            name=container_name,
+            image="scanon/callback",
+            detach=True,
+            network_mode="host",
+            environment=self.env,
+            volumes=self.vol,
+        )
 
     def stop_callback_server(self):
         self.container.stop()
@@ -282,9 +273,9 @@ def main():
         help="A file path that stores KBase token",
     )
     optional.add_argument(
-        "--delete_job_dir",
+        "--keep_job_dir",
         action="store_true",
-        help="Delete job directory",
+        help="Keep SDK job directory after download task is completed",
     )
 
     args = parser.parse_args()
@@ -293,13 +284,13 @@ def main():
     if args.workers < 1 or args.workers > cpu_count():
         parser.error(f"minimum worker is 1 and maximum worker is {cpu_count()}")
 
-    (workspace_id, root_dir, kb_base_url, workers, token_filepath, delete_job_dir) = (
+    (workspace_id, root_dir, kb_base_url, workers, token_filepath, keep_job_dir) = (
         args.workspace_id,
         args.root_dir,
         args.kb_base_url,
         args.workers,
         args.token_filepath,
-        args.delete_job_dir,
+        args.keep_job_dir,
     )
 
     uid = os.getuid()
@@ -309,7 +300,7 @@ def main():
     output_dir = _make_output_dir(
         root_dir, loader_common_names.SOURCE_DATA_DIR, SOURCE, workspace_id
     )
-  
+
     try:
         # start podman service
         proc = None
@@ -351,7 +342,7 @@ def main():
         if proc:
             proc.terminate()
 
-    if delete_job_dir:
+    if not keep_job_dir:
         shutil.rmtree(job_dir)
 
 
