@@ -1,6 +1,6 @@
 """
-usage: workspace_downloader.py [-h] --workspace_id WORKSPACE_ID [--root_dir ROOT_DIR] [--kb_base_url KB_BASE_URL]
-                               [--workers WORKERS] [--token_filepath TOKEN_FILEPATH] [--keep_job_dir]
+usage: workspace_downloader.py [-h] --workspace_id WORKSPACE_ID --collection COLLECTION --source_version SOURCE_VERSION [--root_dir ROOT_DIR]
+                               [--kb_base_url KB_BASE_URL] [--workers WORKERS] [--token_filepath TOKEN_FILEPATH] [--keep_job_dir]
 
 PROTOTYPE - Download genome files from the workspace service (WSS).
 
@@ -10,6 +10,10 @@ options:
 required named arguments:
   --workspace_id WORKSPACE_ID
                         Workspace addressed by the permanent ID
+  --collection COLLECTION
+                        Create a collection and link in data to that colleciton from the overall workspace source data dir
+  --source_version SOURCE_VERSION
+                        Create a source version and link in data to that colleciton from the overall workspace source data dir
 
 optional arguments:
   --root_dir ROOT_DIR   Root directory.
@@ -22,7 +26,7 @@ optional arguments:
 
             
 e.g.
-PYTHONPATH=. python src/loaders/workspace_downloader/workspace_downloader.py --workspace_id 39795 --kb_base_url https://ci.kbase.us/services/  --keep_job_dir
+PYTHONPATH=. python src/loaders/workspace_downloader/workspace_downloader.py --workspace_id 39795 --collection PMI --source_version 2023.1 --kb_base_url https://ci.kbase.us/services/ --keep_job_dir
 
 NOTE:
 NERSC file structure for WS:
@@ -61,7 +65,15 @@ FILTER_OBJECTS_NAME_BY = "KBaseGenomeAnnotations.Assembly"
 
 
 class Conf:
-    def __init__(self, job_dir, output_dir, collection_source_dir, workers, kb_base_url, token_filepath):
+    def __init__(
+        self,
+        job_dir,
+        output_dir,
+        collection_source_dir,
+        workers,
+        kb_base_url,
+        token_filepath,
+    ):
         self.start_callback_server(
             docker.from_env(), uuid.uuid4().hex, job_dir, kb_base_url, token_filepath
         )
@@ -241,8 +253,8 @@ def process_input(conf):
         # save meta file with relevant object_info
         with open(metafile, "w", encoding="utf8") as json_file:
             json.dump(_process_object_info(obj_info), json_file, indent=2)
-        
-        # soft link .fa file and meta file 
+
+        # soft link .fa file and meta file
         # from sourcedata/WS/<wsid>/<upa> to sourcedata/collection/soure_version/<upa>
         csd_upa_dir = os.path.join(conf.csd, upa)
         os.makirs(csd_upa_dir, exist_ok=True)
@@ -354,7 +366,14 @@ def main():
         raise Exception("Podman service failed to start")
     else:
         # set up conf and start callback server
-        conf = Conf(job_dir, output_dir, collection_source_dir, workers, kb_base_url, token_filepath)
+        conf = Conf(
+            job_dir,
+            output_dir,
+            collection_source_dir,
+            workers,
+            kb_base_url,
+            token_filepath,
+        )
 
         visited = set(
             [
