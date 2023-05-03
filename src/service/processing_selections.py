@@ -79,6 +79,8 @@ async def save_selection(
     collection_id - the ID of collection the selection applies to.
     selection_ids - the IDs of the data that is selected.
     """
+    if not selection_ids:
+        raise errors.IllegalParameterError(f"No selection IDs specified")
     if len(selection_ids) > MAX_SELECTION_IDS:
         raise errors.IllegalParameterError(f"At most {MAX_SELECTION_IDS} can be submitted")
     coll = await appstate.arangostorage.get_collection_active(collection_id)

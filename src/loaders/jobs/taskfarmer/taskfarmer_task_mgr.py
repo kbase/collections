@@ -96,7 +96,8 @@ class TFTaskManager:
         found, return an empty DataFrame.
         """
         task_info_file = self._get_task_info_file()
-        df = pd.read_json(task_info_file, lines=True)
+        # ensure to use str type for all columns in case of numeric values, e.g. load_ver = 2023.01
+        df = pd.read_json(task_info_file, lines=True, dtype=str)
 
         if not df.empty:
             df = df[(df["kbase_collection"] == self.kbase_collection) &
