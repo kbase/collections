@@ -254,14 +254,17 @@ def process_input(conf):
         with open(metafile, "w", encoding="utf8") as json_file:
             json.dump(_process_object_info(obj_info), json_file, indent=2)
 
-        # soft link .fa file and meta file
-        # from sourcedata/WS/<wsid>/<upa> to sourcedata/collection/soure_version/<upa>
+        # remove pre-exsit soft links and reset
         csd_upa_dir = os.path.join(conf.csd, upa)
         if os.path.exists(csd_upa_dir):
             shutil.rmtree(csd_upa_dir)
         os.makedirs(csd_upa_dir)
+
+        # soft link .fa file and meta file
+        # from sourcedata/WS/<wsid>/<upa> to sourcedata/collection/soure_version/<upa>
         os.symlink(dst, os.path.join(csd_upa_dir, f"{upa}.fa"))
         os.symlink(metafile, os.path.join(csd_upa_dir, f"{upa}.meta"))
+
         print("Completed %s" % (upa))
 
 
