@@ -247,6 +247,18 @@ def main():
         type=int,
         help="Workspace addressed by the permanent ID",
     )
+    required.add_argument(
+        "--collection",
+        required=True,
+        type=str,
+        help="Create a collection and link in data to that colleciton from the overall workspace source data dir",
+    )
+    required.add_argument(
+        "--source_version",
+        required=True,
+        type=str,
+        help="Create a source version and link in data to that colleciton from the overall workspace source data dir",
+    )
 
     # Optional argument
     optional.add_argument(
