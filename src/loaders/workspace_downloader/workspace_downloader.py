@@ -257,7 +257,9 @@ def process_input(conf):
         # soft link .fa file and meta file
         # from sourcedata/WS/<wsid>/<upa> to sourcedata/collection/soure_version/<upa>
         csd_upa_dir = os.path.join(conf.csd, upa)
-        os.makedirs(csd_upa_dir, exist_ok=True)
+        if os.path.exists(csd_upa_dir):
+            shutil.rmtree(csd_upa_dir)
+        os.makedirs(csd_upa_dir)
         os.symlink(dst, os.path.join(csd_upa_dir, f"{upa}.fa"))
         os.symlink(metafile, os.path.join(csd_upa_dir, f"{upa}.meta"))
         print("Completed %s" % (upa))
