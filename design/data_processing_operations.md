@@ -48,6 +48,8 @@ can create sets from data selections.
       * This means Mongo will be running over NFS, which isn't ideal, but performance shouldn't
         be a huge issue for this application
       * Applications will need to make sure they don't start multiple copies of Mongo
+      * Step towards the more automated long term system, which will probably require a DB
+      * Alternative - host mongo somewhere else to allow devops to do backups etc
     * SQLite was considered, but there are warnings all over the documentation and email list
       re not using it over networked file systems such as the NERSC file system.
   * For each assembly, store the file location, calculation parameters (including the docker image
