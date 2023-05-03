@@ -146,6 +146,18 @@ def _make_job_dir(root_dir, job_dir, username):
     return job_dir
 
 
+def _make_collection_source_dir(root_dir, source_data_dir, collection, source_version):
+    """
+    Helper function that create a collection & source version and link in data
+    to that colleciton from the overall workspace source data dir.
+    """
+    collection_source_dir = os.path.join(
+        root_dir, source_data_dir, collection, source_version
+    )
+    os.makedirs(collection_source_dir, exist_ok=True)
+    return collection_source_dir
+
+
 def _list_objects_params(wsid, min_id, max_id, type_str):
     """Helper function that creats params needed for list_objects function."""
     params = {
@@ -296,8 +308,19 @@ def main():
     if args.workers < 1 or args.workers > cpu_count():
         parser.error(f"minimum worker is 1 and maximum worker is {cpu_count()}")
 
-    (workspace_id, root_dir, kb_base_url, workers, token_filepath, keep_job_dir) = (
+    (
+        workspace_id,
+        collection,
+        source_version,
+        root_dir,
+        kb_base_url,
+        workers,
+        token_filepath,
+        keep_job_dir,
+    ) = (
         args.workspace_id,
+        args.collection,
+        args.source_version,
         args.root_dir,
         args.kb_base_url,
         args.workers,
@@ -311,6 +334,9 @@ def main():
     job_dir = _make_job_dir(root_dir, loader_common_names.SDK_JOB_DIR, username)
     output_dir = _make_output_dir(
         root_dir, loader_common_names.SOURCE_DATA_DIR, SOURCE, workspace_id
+    )
+    collection_source_dir = _make_collection_source_dir(
+        root_dir, loader_common_names.SOURCE_DATA_DIR, collection, source_version
     )
 
     try:
