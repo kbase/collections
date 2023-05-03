@@ -61,7 +61,7 @@ FILTER_OBJECTS_NAME_BY = "KBaseGenomeAnnotations.Assembly"
 
 
 class Conf:
-    def __init__(self, job_dir, output_dir, workers, kb_base_url, token_filepath):
+    def __init__(self, job_dir, output_dir, collection_source_dir, workers, kb_base_url, token_filepath):
         self.start_callback_server(
             docker.from_env(), uuid.uuid4().hex, job_dir, kb_base_url, token_filepath
         )
@@ -79,6 +79,7 @@ class Conf:
         self.queue = Queue()
         self.pth = output_dir
         self.job_dir = job_dir
+        self.csd = collection_source_dir
         self.pools = Pool(workers, process_input, [self])
 
     def setup_callback_server_envs(self, job_dir, kb_base_url, token_filepath):
@@ -240,7 +241,13 @@ def process_input(conf):
         # save meta file with relevant object_info
         with open(metafile, "w", encoding="utf8") as json_file:
             json.dump(_process_object_info(obj_info), json_file, indent=2)
-
+        
+        # soft link .fa file and meta file 
+        # from sourcedata/WS/<wsid>/<upa> to sourcedata/collection/soure_version/<upa>
+        csd_upa_dir = os.path.join(conf.csd, upa)
+        os.makirs(csd_upa_dir, exist_ok=True)
+        os.symlink(dst, os.path.join(csd_upa_dir, f"{upa}.fa"))
+        os.symlink(metafile, os.path.join(csd_upa_dir, f"{upa}.meta"))
         print("Completed %s" % (upa))
 
 
@@ -347,7 +354,7 @@ def main():
         raise Exception("Podman service failed to start")
     else:
         # set up conf and start callback server
-        conf = Conf(job_dir, output_dir, workers, kb_base_url, token_filepath)
+        conf = Conf(job_dir, output_dir, collection_source_dir, workers, kb_base_url, token_filepath)
 
         visited = set(
             [
