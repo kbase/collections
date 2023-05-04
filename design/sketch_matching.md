@@ -129,16 +129,19 @@ Host: KBase dynamic service, look up in the KBase Catalog
 
 * Rather than using the sketch service, run an EE2 job to retrive the data from the WS, create
  the sketch database, and send it to the homology service
-   * Return the job ID with the matcher state
-     * Need to use the user's token for the job
-   * Sketches are much smaller than the source data, and sketch vs. sketch matching is relatively
-     fast
-   * Could also use the cache service to speed up matches
-     * But if we use the user's token, means caches can't be used by other people
-     * Give the job a special token...? hmm
-       * Maybe add a public cache mode to the Cache service
-   * A hybrid approach could also work where small input counts go to the service, large to the
-     app
+  * Return the job ID with the matcher state
+    * Need to use the user's token for the job
+    * A problem with this approach is that jobs are user specific and matches are not. Might need
+      to use a service token and not provide the job ID to the user.
+  * Sketches are much smaller than the source data, and sketch vs. sketch matching is relatively
+    fast
+  * Could also use the cache service to speed up matches
+    * But if we use the user's token, means caches can't be used by other people
+    * Give the job a special token...? hmm
+      * Maybe add a public cache mode to the Cache service
+        * But then key collisions are possible
+  * A hybrid approach could also work where small input counts go to the service, large to the
+    app
 
 ## Design
 
