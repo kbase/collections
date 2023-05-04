@@ -118,7 +118,7 @@ class Conf:
         self.setup_callback_server_envs(job_dir, kb_base_url, token_filepath)
         self.container = client.containers.run(
             name=container_name,
-            image="scanon/callback",
+            image=loader_common_names.IMAGE_NAME,
             detach=True,
             network_mode="host",
             environment=self.env,
@@ -301,9 +301,11 @@ def main():
         root_dir, loader_common_names.SOURCE_DATA_DIR, SOURCE, workspace_id
     )
 
+    proc = None
+    conf = None
+
     try:
         # start podman service
-        proc = None
         proc = loader_helper.start_podman_service(uid)
     except:
         raise Exception("Podman service failed to start")
@@ -335,10 +337,13 @@ def main():
 
         conf.pools.close()
         conf.pools.join()
-        conf.stop_callback_server()
 
     finally:
-        # stop podman service if is on
+        # stop callback server if it is on
+        if conf:
+            conf.stop_callback_server()
+
+        # stop podman service if it is on
         if proc:
             proc.terminate()
 
