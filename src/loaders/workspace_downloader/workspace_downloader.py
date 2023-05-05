@@ -305,6 +305,7 @@ def main():
         conf = Conf(job_dir, output_dir, workers, kb_base_url, token_filepath)
         objs = list_objects(workspace_id, conf, FILTER_OBJECTS_NAME_BY)
         output_dir_upas = set(os.listdir(output_dir))
+        download = []
 
         for obj_info in objs:
             upa = "{6}_{0}_{4}".format(*obj_info)
@@ -317,12 +318,15 @@ def main():
             if os.path.exists(dirpath) and os.path.isdir(dirpath):
                 shutil.rmtree(dirpath)
             conf.queue.put([upa, obj_info])
+            download.append(upa)
 
         for i in range(workers + 1):
             conf.queue.put(None)
 
         conf.pools.close()
         conf.pools.join()
+
+        print(f"These upas {download} are downloaded in {output_dir} from workspace")
 
     finally:
         # stop callback server if it is on
