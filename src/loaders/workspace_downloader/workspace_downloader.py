@@ -62,7 +62,6 @@ FILTER_OBJECTS_NAME_BY = "KBaseGenomeAnnotations.Assembly"
 
 class Conf:
     def __init__(self, job_dir, output_dir, workers, kb_base_url, token_filepath):
-        ip = loader_helper.get_ip()
         port = loader_helper.find_free_port()
         token = loader_helper.get_token(token_filepath)
 
@@ -71,7 +70,7 @@ class Conf:
         )
 
         ws_url = os.path.join(kb_base_url, "ws")
-        callback_url = "http://" + ip + ":" + str(port)
+        callback_url = "http://" + loader_helper.get_ip() + ":" + str(port)
         print("callback_url:", callback_url)
 
         self.ws = Workspace(ws_url, token=token)
@@ -304,19 +303,14 @@ def main():
     else:
         # set up conf and start callback server
         conf = Conf(job_dir, output_dir, workers, kb_base_url, token_filepath)
+        objs = list_objects(workspace_id, conf, FILTER_OBJECTS_NAME_BY)
+        output_dir_upas = set(os.listdir(output_dir))
 
-        visited = set(
-            [
-                upa
-                for upa in os.listdir(output_dir)
-                if loader_helper.is_upa_info_complete(output_dir, upa)
-            ]
-        )
-        print("Skipping: ", visited)
-
-        for obj_info in list_objects(workspace_id, conf, FILTER_OBJECTS_NAME_BY):
+        for obj_info in objs:
             upa = "{6}_{0}_{4}".format(*obj_info)
-            if upa in visited:
+            if upa in output_dir_upas and loader_helper.is_upa_info_complete(
+                output_dir, upa
+            ):
                 continue
             # remove legacy upa_dir to avoid FileExistsError in hard link
             dirpath = os.path.join(output_dir, upa)
