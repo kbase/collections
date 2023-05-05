@@ -62,64 +62,57 @@ FILTER_OBJECTS_NAME_BY = "KBaseGenomeAnnotations.Assembly"
 
 class Conf:
     def __init__(self, job_dir, output_dir, workers, kb_base_url, token_filepath):
+        ip = loader_helper.get_ip()
+        port = loader_helper.find_free_port()
+        token = loader_helper.get_token(token_filepath)
+
         self.start_callback_server(
-            docker.from_env(), uuid.uuid4().hex, job_dir, kb_base_url, token_filepath
+            docker.from_env(), uuid.uuid4().hex, job_dir, kb_base_url, token, port
         )
 
-        # os.environ['SDK_CALLBACK_URL'] = self.cb.callback_url
         ws_url = os.path.join(kb_base_url, "ws")
-        callback_url = (
-            "http://" + loader_helper.get_ip() + ":" + str(self.env["CALLBACK_PORT"])
-        )
+        callback_url = "http://" + ip + ":" + str(port)
         print("callback_url:", callback_url)
 
-        self.ws = Workspace(ws_url, token=self.env["KB_AUTH_TOKEN"])
-        self.asu = AssemblyUtil(callback_url, token=self.env["KB_AUTH_TOKEN"])
+        self.ws = Workspace(ws_url, token=token)
+        self.asu = AssemblyUtil(callback_url, token=token)
         self.queue = Queue()
         self.pth = output_dir
         self.job_dir = job_dir
         self.pools = Pool(workers, process_input, [self])
 
-    def setup_callback_server_envs(self, job_dir, kb_base_url, token_filepath):
+    def setup_callback_server_envs(self, job_dir, kb_base_url, token, port):
         # initiate env and vol
-        self.env = {}
-        self.vol = {}
-
-        # setup envs required for docker container
-        token = os.environ.get(loader_common_names.KB_AUTH_TOKEN)
-        if not token:
-            if not token_filepath:
-                raise ValueError(
-                    f"Need to provide a token in the {loader_common_names.KB_AUTH_TOKEN} "
-                    + f"environment variable or as --token_filepath argument to the CLI"
-                )
-            token = loader_helper.get_token(token_filepath)
+        env = {}
+        vol = {}
 
         # used by the callback server
-        self.env["KB_AUTH_TOKEN"] = token
-        self.env["KB_BASE_URL"] = kb_base_url
-        self.env["JOB_DIR"] = job_dir
-        self.env["CALLBACK_PORT"] = loader_helper.find_free_port()
+        env["KB_AUTH_TOKEN"] = token
+        env["KB_BASE_URL"] = kb_base_url
+        env["JOB_DIR"] = job_dir
+        env["CALLBACK_PORT"] = port
 
         # setup volumes required for docker container
         docker_host = os.environ["DOCKER_HOST"]
         if docker_host.startswith("unix:"):
             docker_host = docker_host[5:]
 
-        self.vol[job_dir] = {"bind": job_dir, "mode": "rw"}
-        self.vol[docker_host] = {"bind": "/run/docker.sock", "mode": "rw"}
+        vol[job_dir] = {"bind": job_dir, "mode": "rw"}
+        vol[docker_host] = {"bind": "/run/docker.sock", "mode": "rw"}
+
+        return env, vol
 
     def start_callback_server(
-        self, client, container_name, job_dir, kb_base_url, token_filepath
+        self, client, container_name, job_dir, kb_base_url, token, port
     ):
-        self.setup_callback_server_envs(job_dir, kb_base_url, token_filepath)
+        env, vol = self.setup_callback_server_envs(job_dir, kb_base_url, token, port)
         self.container = client.containers.run(
             name=container_name,
             image=loader_common_names.CALLBACK_IMAGE_NAME,
             detach=True,
             network_mode="host",
-            environment=self.env,
-            volumes=self.vol,
+            environment=env,
+            volumes=vol,
         )
         time.sleep(2)
 
