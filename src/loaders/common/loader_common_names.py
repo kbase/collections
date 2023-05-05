@@ -53,4 +53,4 @@ KB_BASE_URL_DEFAULT = "https://kbase.us/services/"
 # JSON keys in the download metadata file in a download directory
 JSON_KEYS = ["upa", "name", "type", "timestamp"]
 # callback server docker image name
-IMAGE_NAME = "scanon/callback"
+CALLBACK_IMAGE_NAME = "scanon/callback"

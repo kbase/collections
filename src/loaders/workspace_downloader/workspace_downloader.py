@@ -65,7 +65,6 @@ class Conf:
         self.start_callback_server(
             docker.from_env(), uuid.uuid4().hex, job_dir, kb_base_url, token_filepath
         )
-        time.sleep(2)
 
         # os.environ['SDK_CALLBACK_URL'] = self.cb.callback_url
         ws_url = os.path.join(kb_base_url, "ws")
@@ -91,7 +90,8 @@ class Conf:
         if not token:
             if not token_filepath:
                 raise ValueError(
-                    f"Need to provide a token in the {loader_common_names.KB_AUTH_TOKEN} environment variable or as --token_filepath argument to the CLI"
+                    f"Need to provide a token in the {loader_common_names.KB_AUTH_TOKEN} "
+                    + f"environment variable or as --token_filepath argument to the CLI"
                 )
             token = loader_helper.get_token(token_filepath)
 
@@ -118,12 +118,13 @@ class Conf:
         self.setup_callback_server_envs(job_dir, kb_base_url, token_filepath)
         self.container = client.containers.run(
             name=container_name,
-            image=loader_common_names.IMAGE_NAME,
+            image=loader_common_names.CALLBACK_IMAGE_NAME,
             detach=True,
             network_mode="host",
             environment=self.env,
             volumes=self.vol,
         )
+        time.sleep(2)
 
     def stop_callback_server(self):
         self.container.stop()
