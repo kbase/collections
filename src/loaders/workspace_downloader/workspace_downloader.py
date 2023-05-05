@@ -326,7 +326,7 @@ def main():
         conf.pools.close()
         conf.pools.join()
 
-        print(f"These upas {download} are downloaded in {output_dir} from workspace")
+        print(f"These upas {download} are downloaded from workspace into {output_dir}")
 
     finally:
         # stop callback server if it is on
