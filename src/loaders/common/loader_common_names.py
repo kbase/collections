@@ -51,6 +51,6 @@ DOCKER_HOST = "unix:/run/user/{}/podman/podman.sock"
 # used by the callback server
 KB_BASE_URL_DEFAULT = "https://kbase.us/services/"
 # JSON keys in the download metadata file in a download directory
-JSON_KEYS = ["upa", "name", "type", "timestamp"]
+SOURCE_METADATA_FILE_KEYS = ["upa", "name", "type", "timestamp"]
 # callback server docker image name
 CALLBACK_IMAGE_NAME = "scanon/callback"

@@ -12,10 +12,10 @@ required named arguments:
                         Workspace addressed by the permanent ID
 
 optional arguments:
-  --root_dir ROOT_DIR   Root directory.
+  --root_dir ROOT_DIR   Root directory. (default: /global/cfs/cdirs/kbase/collections)
   --kb_base_url KB_BASE_URL
-                        KBase base URL, defaulting to prod
-  --workers WORKERS     Number of workers for multiprocessing
+                        KBase base URL, defaulting to prod (default: https://kbase.us/services/)
+  --workers WORKERS     Number of workers for multiprocessing (default: 5)
   --token_filepath TOKEN_FILEPATH
                         A file path that stores KBase token
   --keep_job_dir        Keep SDK job directory after download task is completed
@@ -97,11 +97,8 @@ class Conf:
 
         # used by the callback server
         self.env["KB_AUTH_TOKEN"] = token
-        # used by the callback server
         self.env["KB_BASE_URL"] = kb_base_url
-        # used by the callback server
         self.env["JOB_DIR"] = job_dir
-        # used by the callback server
         self.env["CALLBACK_PORT"] = loader_helper.find_free_port()
 
         # setup volumes required for docker container
@@ -235,7 +232,8 @@ def process_input(conf):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="PROTOTYPE - Download genome files from the workspace service (WSS)."
+        description="PROTOTYPE - Download genome files from the workspace service (WSS).",
+        formatter_class=loader_helper.ExplicitDefaultsHelpFormatter,
     )
 
     required = parser.add_argument_group("required named arguments")
@@ -308,8 +306,8 @@ def main():
     try:
         # start podman service
         proc = loader_helper.start_podman_service(uid)
-    except:
-        raise Exception("Podman service failed to start")
+    except Exception as e:
+        raise Exception("Podman service failed to start") from e
     else:
         # set up conf and start callback server
         conf = Conf(job_dir, output_dir, workers, kb_base_url, token_filepath)

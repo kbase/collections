@@ -1,3 +1,4 @@
+import argparse
 import json
 import os
 import socket
@@ -10,7 +11,7 @@ import jsonlines
 
 import src.common.storage.collection_and_field_names as names
 from src.common.hash import md5_string
-from src.loaders.common.loader_common_names import DOCKER_HOST, JSON_KEYS
+from src.loaders.common.loader_common_names import DOCKER_HOST, SOURCE_METADATA_FILE_KEYS
 
 """
 This module contains helper functions used for loaders (e.g. compute_genome_attribs, gtdb_genome_attribs_loader, etc.)
@@ -129,7 +130,7 @@ def is_upa_info_complete(output_dir: str, upa: str):
             data = json.load(json_file)
     except:
         return False
-    if not set(JSON_KEYS).issubset(set(data.keys())):
+    if not set(SOURCE_METADATA_FILE_KEYS).issubset(set(data.keys())):
         return False
     return True
 
@@ -151,3 +152,10 @@ def find_free_port():
         s.bind(('', 0))
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         return s.getsockname()[1]
+
+
+class ExplicitDefaultsHelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
+    def _get_help_string(self, action):
+        if action.default is None or action.default is False:
+            return action.help
+        return super()._get_help_string(action)
