@@ -3,7 +3,7 @@
 ## Document purpose
 
 Lay out goals / designs for KBase Collections data processing in the short, middle and long term.
-Said goals / designs will necessarly get more vague the further out in time we go.
+Said goals / designs will necessarily get more vague the further out in time we go.
 
 ## Short term goals
 
@@ -98,6 +98,9 @@ See the following tickets:
   * Callback server branch in JobRunner repo
 
 ## Long term goals
+
+NOTE: The data transfer service (DTS) effort has some similarities to this goal. We should
+coordinate with that team to avoid duplicating efforts.
 
 Ultimately, we want a mostly automated system that
 
