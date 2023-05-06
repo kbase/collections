@@ -105,11 +105,11 @@ def get_token(token_filepath):
             token = f.readline().strip()
     else:
         token = os.environ.get(KB_AUTH_TOKEN)
-        if not token:
-            raise ValueError(
-                f"Need to provide a token in the {KB_AUTH_TOKEN} "
-                + f"environment variable or as --token_filepath argument to the CLI"
-            )
+    if not token:
+        raise ValueError(
+            f"Need to provide a token in the {KB_AUTH_TOKEN} "
+            + f"environment variable or as --token_filepath argument to the CLI"
+        )
     return token
 
 
@@ -130,13 +130,14 @@ def start_podman_service(uid: int):
     return proc
 
 
-def is_upa_info_complete(output_dir: str, upa: str):
+def is_upa_info_complete(upa_dir: str):
     """
     Check whether an UPA needs to be downloaded or not by loading the metadata file.
     Make sure it has all the right keys.
     """
-    fa_path = os.path.join(output_dir, upa, upa + ".fa")
-    meta_path = os.path.join(output_dir, upa, upa + ".meta")
+    upa = os.path.basename(upa_dir)
+    fa_path = os.path.join(upa_dir, upa + ".fa")
+    meta_path = os.path.join(upa_dir, upa + ".meta")
     if not os.path.exists(fa_path) or not os.path.exists(meta_path):
         return False
     try:
