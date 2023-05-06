@@ -16,10 +16,10 @@ required named arguments:
                         Create a source version and link in data to that colleciton from the overall workspace source data dir
 
 optional arguments:
-  --root_dir ROOT_DIR   Root directory.
+  --root_dir ROOT_DIR   Root directory. (default: /global/cfs/cdirs/kbase/collections)
   --kb_base_url KB_BASE_URL
-                        KBase base URL, defaulting to prod
-  --workers WORKERS     Number of workers for multiprocessing
+                        KBase base URL, defaulting to prod (default: https://kbase.us/services/)
+  --workers WORKERS     Number of workers for multiprocessing (default: 5)
   --token_filepath TOKEN_FILEPATH
                         A file path that stores KBase token
   --keep_job_dir        Keep SDK job directory after download task is completed
@@ -74,69 +74,59 @@ class Conf:
         kb_base_url,
         token_filepath,
     ):
-        self.start_callback_server(
-            docker.from_env(), uuid.uuid4().hex, job_dir, kb_base_url, token_filepath
-        )
-        time.sleep(2)
+        port = loader_helper.find_free_port()
+        token = loader_helper.get_token(token_filepath)
 
-        # os.environ['SDK_CALLBACK_URL'] = self.cb.callback_url
-        ws_url = os.path.join(kb_base_url, "ws")
-        callback_url = (
-            "http://" + loader_helper.get_ip() + ":" + str(self.env["CALLBACK_PORT"])
+        self.start_callback_server(
+            docker.from_env(), uuid.uuid4().hex, job_dir, kb_base_url, token, port
         )
+
+        ws_url = os.path.join(kb_base_url, "ws")
+        callback_url = "http://" + loader_helper.get_ip() + ":" + str(port)
         print("callback_url:", callback_url)
 
-        self.ws = Workspace(ws_url, token=self.env["KB_AUTH_TOKEN"])
-        self.asu = AssemblyUtil(callback_url, token=self.env["KB_AUTH_TOKEN"])
+        self.ws = Workspace(ws_url, token=token)
+        self.asu = AssemblyUtil(callback_url, token=token)
         self.queue = Queue()
         self.pth = output_dir
         self.job_dir = job_dir
         self.csd = collection_source_dir
         self.pools = Pool(workers, process_input, [self])
 
-    def setup_callback_server_envs(self, job_dir, kb_base_url, token_filepath):
+    def setup_callback_server_envs(self, job_dir, kb_base_url, token, port):
         # initiate env and vol
-        self.env = {}
-        self.vol = {}
-
-        # setup envs required for docker container
-        token = os.environ.get(loader_common_names.KB_AUTH_TOKEN)
-        if not token:
-            if not token_filepath:
-                raise ValueError(
-                    f"Need to provide a token in the {loader_common_names.KB_AUTH_TOKEN} environment variable or as --token_filepath argument to the CLI"
-                )
-            token = loader_helper.get_token(token_filepath)
+        env = {}
+        vol = {}
 
         # used by the callback server
-        self.env["KB_AUTH_TOKEN"] = token
-        # used by the callback server
-        self.env["KB_BASE_URL"] = kb_base_url
-        # used by the callback server
-        self.env["JOB_DIR"] = job_dir
-        # used by the callback server
-        self.env["CALLBACK_PORT"] = loader_helper.find_free_port()
+        env["KB_AUTH_TOKEN"] = token
+        env["KB_BASE_URL"] = kb_base_url
+        env["JOB_DIR"] = job_dir
+        env["CALLBACK_PORT"] = port
 
         # setup volumes required for docker container
         docker_host = os.environ["DOCKER_HOST"]
         if docker_host.startswith("unix:"):
             docker_host = docker_host[5:]
 
-        self.vol[job_dir] = {"bind": job_dir, "mode": "rw"}
-        self.vol[docker_host] = {"bind": "/run/docker.sock", "mode": "rw"}
+        vol[job_dir] = {"bind": job_dir, "mode": "rw"}
+        vol[docker_host] = {"bind": "/run/docker.sock", "mode": "rw"}
+
+        return env, vol
 
     def start_callback_server(
-        self, client, container_name, job_dir, kb_base_url, token_filepath
+        self, client, container_name, job_dir, kb_base_url, token, port
     ):
-        self.setup_callback_server_envs(job_dir, kb_base_url, token_filepath)
+        env, vol = self.setup_callback_server_envs(job_dir, kb_base_url, token, port)
         self.container = client.containers.run(
             name=container_name,
-            image="scanon/callback",
+            image=loader_common_names.CALLBACK_IMAGE_NAME,
             detach=True,
             network_mode="host",
-            environment=self.env,
-            volumes=self.vol,
+            environment=env,
+            volumes=vol,
         )
+        time.sleep(2)
 
     def stop_callback_server(self):
         self.container.stop()
@@ -256,7 +246,7 @@ def process_input(conf):
 
         # remove pre-exsit soft links and reset
         csd_upa_dir = os.path.join(conf.csd, upa)
-        if os.path.exists(csd_upa_dir):
+        if os.path.isdir(csd_upa_dir):
             shutil.rmtree(csd_upa_dir)
         os.makedirs(csd_upa_dir)
 
@@ -270,7 +260,8 @@ def process_input(conf):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="PROTOTYPE - Download genome files from the workspace service (WSS)."
+        description="PROTOTYPE - Download genome files from the workspace service (WSS).",
+        formatter_class=loader_helper.ExplicitDefaultsHelpFormatter,
     )
 
     required = parser.add_argument_group("required named arguments")
@@ -363,12 +354,14 @@ def main():
         root_dir, loader_common_names.SOURCE_DATA_DIR, collection, source_version
     )
 
+    proc = None
+    conf = None
+
     try:
         # start podman service
-        proc = None
         proc = loader_helper.start_podman_service(uid)
-    except:
-        raise Exception("Podman service failed to start")
+    except Exception as e:
+        raise Exception("Podman service failed to start") from e
     else:
         # set up conf and start callback server
         conf = Conf(
@@ -379,24 +372,17 @@ def main():
             kb_base_url,
             token_filepath,
         )
+        objs = list_objects(workspace_id, conf, FILTER_OBJECTS_NAME_BY)
 
-        visited = set(
-            [
-                upa
-                for upa in os.listdir(output_dir)
-                if loader_helper.is_upa_info_complete(output_dir, upa)
-            ]
-        )
-        print("Skipping: ", visited)
-
-        for obj_info in list_objects(workspace_id, conf, FILTER_OBJECTS_NAME_BY):
+        for obj_info in objs:
             upa = "{6}_{0}_{4}".format(*obj_info)
-            if upa in visited:
+            upa_dir = os.path.join(output_dir, upa)
+            if os.path.isdir(upa_dir) and loader_helper.is_upa_info_complete(upa_dir):
                 continue
+
             # remove legacy upa_dir to avoid FileExistsError in hard link
-            dirpath = os.path.join(output_dir, upa)
-            if os.path.exists(dirpath) and os.path.isdir(dirpath):
-                shutil.rmtree(dirpath)
+            if os.path.isdir(upa_dir):
+                shutil.rmtree(upa_dir)
             conf.queue.put([upa, obj_info])
 
         for i in range(workers + 1):
@@ -404,10 +390,13 @@ def main():
 
         conf.pools.close()
         conf.pools.join()
-        conf.stop_callback_server()
 
     finally:
-        # stop podman service if is on
+        # stop callback server if it is on
+        if conf:
+            conf.stop_callback_server()
+
+        # stop podman service if it is on
         if proc:
             proc.terminate()
 
