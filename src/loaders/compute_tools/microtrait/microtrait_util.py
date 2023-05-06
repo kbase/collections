@@ -1,68 +1,59 @@
-def decode_rule_boolean(
-        rule_name: str,
-        rule_name_boolean_dict: dict[str, str],
-        depth: int = 5,
-) -> str:
+from collections import defaultdict
+from pathlib import Path
+
+import pandas as pd
+
+from src.loaders.common.loader_common_names import SYS_TRAIT_ID
+
+# column names from the rule2trait file that contain the trait names
+_RULE2TRAIT_TRAIT_NAME_COLS = ['microtrait_trait-name1', 'microtrait_trait-name2', 'microtrait_trait-name3']
+_RULE2TRAIT_RULE_NAME_COL = 'microtrait_rule-name'  # column name from the rule2trait file that contains the rule name
+
+# `microtrait_ruleunwrapped.txt` file unfortunately has no header, so we need to specify the column names
+_UNWRAPPED_RULE_COL = 'unwrapped_rule'
+_RULEUNWRAPPED_RULE_NAME_COL = 'rule_name'
+_RULEUNWRAPPED_COLS = [
+    _RULEUNWRAPPED_RULE_NAME_COL,
+    'rule_boolean',
+    'rule_display_name',
+    _UNWRAPPED_RULE_COL]
+
+
+def create_trait_unwrapped_rules(
+        rule2trait_file: Path,
+        ruleunwrapped_file: Path,
+        trait_unwrapped_rules_file: Path = None,
+) -> dict[str, set[str]]:
     """
-    Given a rule name and a dictionary of rule names and their corresponding boolean expressions,
-    return the boolean expression at the gene level for the given rule name.
+    Generate a mapping of traits to unwrapped rule expressions.
     """
+    trait_rule_unwrapped_mapping = defaultdict(set)
 
-    if rule_name not in rule_name_boolean_dict:
-        return ''
+    # read the rule2trait file and populate rule names to each trait
+    rule2trait_df = pd.read_csv(rule2trait_file, sep='\t')
+    for index, row in rule2trait_df.iterrows():
+        rule_name = row[_RULE2TRAIT_RULE_NAME_COL]
+        for trait_name_col in _RULE2TRAIT_TRAIT_NAME_COLS:
+            trait_name = row[trait_name_col]
+            trait_rule_unwrapped_mapping[trait_name].add(rule_name) if pd.notna(trait_name) else None
 
-    rule_boolean = rule_name_boolean_dict[rule_name]
+    # read the ruleunwrapped file and populate unwrapped rule expressions to each trait
+    ruleunwrapped_df = pd.read_csv(ruleunwrapped_file, sep='\t', names=_RULEUNWRAPPED_COLS)
+    for trait_name, rule_names in trait_rule_unwrapped_mapping.items():
+        for rule_name in rule_names.copy():
+            unwrapped_rule = ruleunwrapped_df.loc[
+                ruleunwrapped_df[_RULEUNWRAPPED_RULE_NAME_COL] == rule_name, _UNWRAPPED_RULE_COL].values
+            if len(unwrapped_rule) > 0:
+                # remove the rule name from the set and add the unwrapped rule expression
+                trait_rule_unwrapped_mapping[trait_name].remove(rule_name)
+                trait_rule_unwrapped_mapping[trait_name].add(unwrapped_rule[0])
 
-    # Replace any existing rule names with their corresponding boolean expressions
-    for k, v in rule_name_boolean_dict.items():
+    if trait_unwrapped_rules_file is not None:
+        with open(trait_unwrapped_rules_file, 'w') as file:
+            file.write(f"{SYS_TRAIT_ID}\t{_UNWRAPPED_RULE_COL}\n")
+            for trait, rule_set in trait_rule_unwrapped_mapping.items():
+                # Join the set elements into a single string
+                unwrapped_rules = ';'.join(rule_set)
+                file.write(f"{trait}\t{unwrapped_rules}\n")
 
-        # special case when rule boolean is another rule
-        if f"('{rule_name}')" in rule_boolean:
-            rule_boolean = rule_boolean.replace(f"('{rule_name}')", f"((((((('{rule_name}')))))))")
-            return rule_boolean
-
-        if k in rule_boolean:
-            rule_boolean = rule_boolean.replace(f"'{k}'", f"{v}")
-
-    # Recursively call the function until there are no more substitutions to make
-    if any(k in rule_boolean for k in rule_name_boolean_dict) and depth > 0:
-        rule_name_boolean_dict[rule_name] = rule_boolean
-        rule_boolean = decode_rule_boolean(rule_name, rule_name_boolean_dict, depth=depth - 1)
-
-    return rule_boolean
-
-
-def retrieve_detected_genes(
-        decoded_rule_boolean: str,
-        booleanunwrapped_set: str
-) -> list[str]:
-    """
-    retrieve detected genes from decoded_rule_boolean where the corresponding position in the
-    booleanunwrapped_set is 1(True)
-    """
-    detected_genes, j = list(), 0
-    unmatch_msg = f"decoded rule boolean [{decoded_rule_boolean}] does not match booleanunwrapped_set string [{booleanunwrapped_set}]"
-    for i, c in enumerate(booleanunwrapped_set):
-
-        # retrieve corresponding gene name in the decoded rule boolean
-        if c in ['1', '0']:
-            first_quote_position = j
-            start_position = first_quote_position + 1
-            end_position = decoded_rule_boolean.find("'", start_position)
-            substring = decoded_rule_boolean[start_position:end_position]
-
-            if c == '1':
-                detected_genes.append(substring)
-            j += len(substring) + 1
-        else:
-            # check if the character matches the decoded rule boolean
-            if c != decoded_rule_boolean[j]:
-                raise ValueError(unmatch_msg)
-
-        j += 1
-
-    # check if the decoded rule boolean is fully traversed
-    if j != len(decoded_rule_boolean):
-        raise ValueError(unmatch_msg)
-
-    return detected_genes
+    return trait_rule_unwrapped_mapping

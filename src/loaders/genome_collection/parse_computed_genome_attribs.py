@@ -72,7 +72,6 @@ GENOME_ATTR_TOOLS = ['checkm2', 'gtdb_tk']
 HEATMAP_TOOLS = ['microtrait']
 
 # The following features will be extracted from the MicroTrait result file as heatmap data
-_MICROTRAIT_TRAIT_NAME = 'microtrait_trait-name'  # unique identifier for a trait globally
 _MICROTRAIT_TRAIT_DISPLAYNAME_SHORT = 'microtrait_trait-displaynameshort'  # used as column name of the trait
 _MICROTRAIT_TRAIT_DISPLAYNAME_LONG = 'microtrait_trait-displaynamelong'  # used as description of the trait
 _MICROTRAIT_TRAIT_VALUE = 'microtrait_trait-value'  # value of the trait (can be integer or 0/1 as boolean)
@@ -80,7 +79,6 @@ _MICROTRAIT_TRAIT_TYPE = 'microtrait_trait-type'  # type of trait (count or bina
 _MICROTRAIT_TRAIT_ORDER = 'microtrait_trait-displayorder'  # order of the trait defined by the granularity table used as the index of trait
 
 # The following features are used to create the heatmap metadata and rows
-_SYS_TRAIT_ID = 'trait_id'  # unique identifier for a trait
 _SYS_TRAIT_INDEX = 'trait_index'  # index of the trait
 _SYS_TRAIT_NAME = 'trait_name'  # name of the trait
 _SYS_TRAIT_DESCRIPTION = 'trait_description'  # description of the trait
@@ -96,7 +94,7 @@ _SYS_DEFAULT_TRAIT_VALUE = 0  # default value (0 or False) for a trait if the va
 # microtrait_trait-displaynamelong column as the column description, and
 # microtrait_trait-value as the cell value
 _MICROTRAIT_TO_SYS_TRAIT_MAP = {
-    _MICROTRAIT_TRAIT_NAME: _SYS_TRAIT_ID,
+    loader_common_names.MICROTRAIT_TRAIT_NAME: loader_common_names.SYS_TRAIT_ID,
     _MICROTRAIT_TRAIT_DISPLAYNAME_SHORT: _SYS_TRAIT_NAME,
     _MICROTRAIT_TRAIT_DISPLAYNAME_LONG: _SYS_TRAIT_DESCRIPTION,
     _MICROTRAIT_TRAIT_VALUE: _SYS_TRAIT_VALUE,
@@ -203,7 +201,7 @@ def _process_trait(row: dict[str, str | float | int | bool],
     # Process a row from the trait file and update the global traits metadata and value lists accordingly
 
     _append_or_check_trait(traits_meta,
-                           row[_SYS_TRAIT_ID],
+                           row[loader_common_names.SYS_TRAIT_ID],
                            row[_SYS_TRAIT_INDEX],
                            row[_SYS_TRAIT_NAME],
                            row[_SYS_TRAIT_DESCRIPTION],
@@ -211,7 +209,7 @@ def _process_trait(row: dict[str, str | float | int | bool],
                            row[_SYS_TRAIT_TYPE])
     _append_trait_val(traits_meta,
                       traits_val,
-                      row[_SYS_TRAIT_ID],
+                      row[loader_common_names.SYS_TRAIT_ID],
                       row[_SYS_TRAIT_VALUE],
                       data_id)
 
@@ -513,8 +511,8 @@ def microtrait(root_dir, kbase_collection, load_ver):
             trait_df = pd.read_csv(trait_count_file, usecols=selected_cols)
 
             # Check if the trait index column has non-unique values
-            if len(trait_df[_MICROTRAIT_TRAIT_NAME].unique()) != len(trait_df):
-                raise ValueError(f"The {_MICROTRAIT_TRAIT_NAME} column has non-unique values")
+            if len(trait_df[loader_common_names.MICROTRAIT_TRAIT_NAME].unique()) != len(trait_df):
+                raise ValueError(f"The {loader_common_names.MICROTRAIT_TRAIT_NAME} column has non-unique values")
 
             # Extract the substring of the 'microtrait_trait-displaynamelong' column before the first colon character
             # and assign it to a new 'category' column in the DataFrame
