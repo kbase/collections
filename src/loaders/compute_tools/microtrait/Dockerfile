@@ -35,6 +35,8 @@ ENV PY_SCRIPT=/app/collections/src/loaders/compute_tools/microtrait/microtrait.p
 RUN chmod -R 777 /app/collections
 
 # Download microtrait repository
+RUN micromamba install -y -n $CONDA_ENV --channel conda-forge unzip=6.0 && \
+    micromamba clean --all --yes
 ARG MT_RELEASE_TAG=kb
 ARG MT_REPO_URL=https://github.com/ukaraoz/microtrait
 ARG MT_DOWNLOAD_URL=${MT_REPO_URL}/archive/refs/tags/${MT_RELEASE_TAG}.zip
@@ -48,7 +50,7 @@ ARG MT_RULEUNWRAPPED_FILE=/app/microtrait-${MT_RELEASE_TAG}/data-raw/microtrait_
 ENV MT_TRAIT_UNWRAPPED_FILE=/app/microtrait_trait2unwrappedrules.txt
 
 RUN python -c "\
-from src.loaders.compute_tools.microtrait.microtrait_util import get_trait_unwrapped_rules; \
+from src.loaders.compute_tools.microtrait.microtrait_util import create_trait_unwrapped_rules; \
 create_trait_unwrapped_rules('${MT_RULE2TRAIT_FILE}', '${MT_RULEUNWRAPPED_FILE}', '${MT_TRAIT_UNWRAPPED_FILE}')"
 
 ENTRYPOINT ["/app/collections/src/loaders/compute_tools/entrypoint.sh"]
