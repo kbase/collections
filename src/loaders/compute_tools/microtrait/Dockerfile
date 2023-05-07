@@ -35,8 +35,6 @@ ENV PY_SCRIPT=/app/collections/src/loaders/compute_tools/microtrait/microtrait.p
 RUN chmod -R 777 /app/collections
 
 # Download microtrait repository
-RUN micromamba install -y -n $CONDA_ENV --channel conda-forge unzip=6.0 && \
-    micromamba clean --all --yes
 ARG MT_RELEASE_TAG=kb
 ARG MT_REPO_URL=https://github.com/ukaraoz/microtrait
 ARG MT_DOWNLOAD_URL=${MT_REPO_URL}/archive/refs/tags/${MT_RELEASE_TAG}.zip
