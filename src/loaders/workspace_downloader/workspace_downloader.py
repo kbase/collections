@@ -1,6 +1,7 @@
 """
-usage: workspace_downloader.py [-h] --workspace_id WORKSPACE_ID --collection COLLECTION --source_version SOURCE_VERSION [--root_dir ROOT_DIR]
-                               [--kb_base_url KB_BASE_URL] [--workers WORKERS] [--token_filepath TOKEN_FILEPATH] [--keep_job_dir]
+usage: workspace_downloader.py [-h] --workspace_id WORKSPACE_ID [--collection COLLECTION] [--source_version SOURCE_VERSION]
+                               [--root_dir ROOT_DIR] [--kb_base_url KB_BASE_URL] [--workers WORKERS] [--token_filepath TOKEN_FILEPATH]
+                               [--keep_job_dir]
 
 PROTOTYPE - Download genome files from the workspace service (WSS).
 
@@ -10,12 +11,12 @@ options:
 required named arguments:
   --workspace_id WORKSPACE_ID
                         Workspace addressed by the permanent ID
-  --collection COLLECTION
-                        Create a collection and link in data to that colleciton from the overall workspace source data dir
-  --source_version SOURCE_VERSION
-                        Create a source version and link in data to that colleciton from the overall workspace source data dir
 
 optional arguments:
+  --collection COLLECTION
+                        Create a collection and link in data to that collection from the overall workspace source data dir
+  --source_version SOURCE_VERSION
+                        Create a source version and link in data to that collection from the overall workspace source data dir
   --root_dir ROOT_DIR   Root directory. (default: /global/cfs/cdirs/kbase/collections)
   --kb_base_url KB_BASE_URL
                         KBase base URL, defaulting to prod (default: https://kbase.us/services/)
