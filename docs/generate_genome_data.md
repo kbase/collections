@@ -27,7 +27,7 @@ The scripts used in the process are located in the `src/loaders` directory.
 3. Parse Tool Results
     * After the attribute computation tools have been executed, the results need to be parsed and organized
       into a format that is suitable for importing into ArangoDB. This is done using the script
-      [parse_computed_genome_attribs.py](../src/loaders/genome_collection/parse_computed_genome_attribs.py).
+      [parse_tool_results.py](../src/loaders/genome_collection/parse_tool_results.py).
 4. Import JSON Format File Into ArangoDB
    ```commandline
    # set up an SSH tunnel (Not required when using an internal KBase machine such as dev03) 
