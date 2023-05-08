@@ -13,7 +13,9 @@ The scripts used in the process are located in the `src/loaders` directory.
         * Download the genome files from the NCBI FTP server using the script
           [ncbi_downloader.py](../src/loaders/ncbi_downloader/ncbi_downloader.py).
     * From workspace
-        * `TODO: work remains to be done`
+        * Download the genome files from workspace using the script
+          [workspace_downloader.py](../src/loaders/workspace_downloader/workspace_downloader.py).
+        * The downloader also creats a collection & source version and link in data to that collection from the overall workspace
 2. Compute Genome Attributes
     * The next step is to execute tools to compute various attributes of the genome using the script
       [compute_genome_attribs.py](../src/loaders/genome_collection/compute_genome_attribs.py).
@@ -25,7 +27,7 @@ The scripts used in the process are located in the `src/loaders` directory.
 3. Parse Tool Results
     * After the attribute computation tools have been executed, the results need to be parsed and organized
       into a format that is suitable for importing into ArangoDB. This is done using the script
-      [parse_computed_genome_attribs.py](../src/loaders/genome_collection/parse_computed_genome_attribs.py).
+      [parse_tool_results.py](../src/loaders/genome_collection/parse_tool_results.py).
 4. Import JSON Format File Into ArangoDB
    ```commandline
    # set up an SSH tunnel (Not required when using an internal KBase machine such as dev03) 
