@@ -149,13 +149,15 @@ def _make_job_dir(root_dir, job_dir, username):
     return job_dir
 
 
-def _make_collection_source_dir(root_dir, source_data_dir, collection, source_version):
+def _make_collection_source_dir(
+    root_dir, collection_data_dir, collection, source_version, source_data_dir
+):
     """
     Helper function that create a collection & source version and link in data
     to that colleciton from the overall workspace source data dir.
     """
     collection_source_dir = os.path.join(
-        root_dir, source_data_dir, collection, source_version
+        root_dir, collection_data_dir, collection, source_version, source_data_dir
     )
     os.makedirs(collection_source_dir, exist_ok=True)
     return collection_source_dir
@@ -244,16 +246,17 @@ def process_input(conf):
         with open(metafile, "w", encoding="utf8") as json_file:
             json.dump(_process_object_info(obj_info), json_file, indent=2)
 
-        # remove pre-exsit soft links and reset
-        csd_upa_dir = os.path.join(conf.csd, upa)
-        if os.path.isdir(csd_upa_dir):
-            shutil.rmtree(csd_upa_dir)
-        os.makedirs(csd_upa_dir)
+        if conf.csd:
+            # remove pre-existing soft links and reset
+            csd_upa_dir = os.path.join(conf.csd, upa)
+            if os.path.isdir(csd_upa_dir):
+                shutil.rmtree(csd_upa_dir)
+            os.makedirs(csd_upa_dir)
 
-        # soft link .fa file and meta file
-        # from sourcedata/WS/<wsid>/<upa> to sourcedata/collection/soure_version/<upa>
-        os.symlink(dst, os.path.join(csd_upa_dir, f"{upa}.fa"))
-        os.symlink(metafile, os.path.join(csd_upa_dir, f"{upa}.meta"))
+            # soft link .fa file and meta file
+            # from sourcedata/WS/<wsid>/<upa> to sourcedata/collection/soure_version/<upa>
+            os.symlink(dst, os.path.join(csd_upa_dir, f"{upa}.fa"))
+            os.symlink(metafile, os.path.join(csd_upa_dir, f"{upa}.meta"))
 
         print("Completed %s" % (upa))
 
@@ -274,20 +277,18 @@ def main():
         type=int,
         help="Workspace addressed by the permanent ID",
     )
-    required.add_argument(
-        "--collection",
-        required=True,
-        type=str,
-        help="Create a collection and link in data to that colleciton from the overall workspace source data dir",
-    )
-    required.add_argument(
-        "--source_version",
-        required=True,
-        type=str,
-        help="Create a source version and link in data to that colleciton from the overall workspace source data dir",
-    )
 
     # Optional argument
+    optional.add_argument(
+        "--collection",
+        type=str,
+        help="Create a collection and link in data to that collection from the overall workspace source data dir",
+    )
+    optional.add_argument(
+        "--source_version",
+        type=str,
+        help="Create a source version and link in data to that collection from the overall workspace source data dir",
+    )
     optional.add_argument(
         "--root_dir",
         type=str,
@@ -318,30 +319,25 @@ def main():
     )
 
     args = parser.parse_args()
+    if (args.collection and not args.source_version) or (
+        args.source_version and not args.collection
+    ):
+        parser.error(
+            f"if either collection or source_version is specified, both are required"
+        )
     if args.workspace_id <= 0:
         parser.error(f"workspace_id needs to be > 0")
     if args.workers < 1 or args.workers > cpu_count():
         parser.error(f"minimum worker is 1 and maximum worker is {cpu_count()}")
 
-    (
-        workspace_id,
-        collection,
-        source_version,
-        root_dir,
-        kb_base_url,
-        workers,
-        token_filepath,
-        keep_job_dir,
-    ) = (
-        args.workspace_id,
-        args.collection,
-        args.source_version,
-        args.root_dir,
-        args.kb_base_url,
-        args.workers,
-        args.token_filepath,
-        args.keep_job_dir,
-    )
+    workspace_id = args.workspace_id
+    collection = args.collection
+    source_version = args.source_version
+    root_dir = args.root_dir
+    kb_base_url = args.kb_base_url
+    workers = args.workers
+    token_filepath = args.token_filepath
+    keep_job_dir = args.keep_job_dir
 
     uid = os.getuid()
     username = os.getlogin()
@@ -350,8 +346,16 @@ def main():
     output_dir = _make_output_dir(
         root_dir, loader_common_names.SOURCE_DATA_DIR, SOURCE, workspace_id
     )
-    collection_source_dir = _make_collection_source_dir(
-        root_dir, loader_common_names.SOURCE_DATA_DIR, collection, source_version
+    collection_source_dir = (
+        _make_collection_source_dir(
+            root_dir,
+            loader_common_names.COLLECTION_DATA_DIR,
+            collection,
+            source_version,
+            loader_common_names.SOURCE_DATA_DIR,
+        )
+        if (collection and source_version)
+        else None
     )
 
     proc = None
