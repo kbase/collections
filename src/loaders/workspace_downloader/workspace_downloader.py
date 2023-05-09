@@ -252,12 +252,10 @@ def process_input(conf):
             csd_upa_dir = os.path.join(conf.csd, upa)
             if os.path.isdir(csd_upa_dir):
                 shutil.rmtree(csd_upa_dir)
-            os.makedirs(csd_upa_dir)
 
-            # soft link .fa file and meta file
-            # from sourcedata/WS/<wsid>/<upa> to sourcedata/collection/soure_version/<upa>
-            os.symlink(dst, os.path.join(csd_upa_dir, f"{upa}.fa"))
-            os.symlink(metafile, os.path.join(csd_upa_dir, f"{upa}.meta"))
+            # soft link csd_upa_dir to dstd
+            # key files such as .meta or .fa will be automatically added
+            os.symlink(dstd, csd_upa_dir, target_is_directory=True)
 
         print("Completed %s" % (upa))
 
