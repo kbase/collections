@@ -169,21 +169,6 @@ def find_free_port():
         return s.getsockname()[1]
 
 
-def check_linking_status_for_existing_object(
-    collection_source_dir: str, upa: str, upa_dir: str
-):
-    """
-    Detect the files for an object already exist in sourcedata and ensure is correctly linked.
-    """
-    # if colleciton & source_versiona are not specified, then no linking check is required
-    if not collection_source_dir:
-        return True
-    csd_upa_dir = os.path.join(collection_source_dir, upa)
-    if os.path.islink(csd_upa_dir) and os.readlink(csd_upa_dir) == upa_dir:
-        return True
-    return False
-
-
 class ExplicitDefaultsHelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
     def _get_help_string(self, action):
         if action.default is None or action.default is False:

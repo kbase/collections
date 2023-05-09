@@ -70,7 +70,6 @@ class Conf:
         self,
         job_dir,
         output_dir,
-        collection_source_dir,
         workers,
         kb_base_url,
         token_filepath,
@@ -91,7 +90,6 @@ class Conf:
         self.queue = Queue()
         self.pth = output_dir
         self.job_dir = job_dir
-        self.csd = collection_source_dir
         self.pools = Pool(workers, process_input, [self])
 
     def setup_callback_server_envs(self, job_dir, kb_base_url, token, port):
@@ -247,16 +245,6 @@ def process_input(conf):
         with open(metafile, "w", encoding="utf8") as json_file:
             json.dump(_process_object_info(obj_info), json_file, indent=2)
 
-        if conf.csd:
-            # remove pre-existing soft links and reset
-            csd_upa_dir = os.path.join(conf.csd, upa)
-            if os.path.isdir(csd_upa_dir):
-                shutil.rmtree(csd_upa_dir)
-
-            # soft link csd_upa_dir to dstd
-            # key files such as .meta or .fa will be automatically added
-            os.symlink(dstd, csd_upa_dir, target_is_directory=True)
-
         print("Completed %s" % (upa))
 
 
@@ -367,23 +355,18 @@ def main():
         conf = Conf(
             job_dir,
             output_dir,
-            collection_source_dir,
             workers,
             kb_base_url,
             token_filepath,
         )
         objs = list_objects(workspace_id, conf, FILTER_OBJECTS_NAME_BY)
+        upas = []
 
         for obj_info in objs:
             upa = "{6}_{0}_{4}".format(*obj_info)
+            upas.append(upa)
             upa_dir = os.path.join(output_dir, upa)
-            if (
-                os.path.isdir(upa_dir)
-                and loader_helper.is_upa_info_complete(upa_dir)
-                and loader_helper.check_linking_status_for_existing_object(
-                    collection_source_dir, upa, upa_dir
-                )
-            ):
+            if os.path.isdir(upa_dir) and loader_helper.is_upa_info_complete(upa_dir):
                 continue
 
             # remove legacy upa_dir to avoid FileExistsError in hard link
@@ -396,6 +379,14 @@ def main():
 
         conf.pools.close()
         conf.pools.join()
+
+        # create a softlink from the relevant directory under collectionsdata
+        if collection_source_dir:
+            for upa in upas:
+                upa_dir = os.path.join(output_dir, upa)
+                csd_upa_dir = os.path.join(collection_source_dir, upa)
+                if not os.path.islink(csd_upa_dir):
+                    os.symlink(upa_dir, csd_upa_dir, target_is_directory=True)
 
     finally:
         # stop callback server if it is on
