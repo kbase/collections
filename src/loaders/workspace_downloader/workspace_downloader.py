@@ -1,5 +1,5 @@
 """
-usage: workspace_downloader.py [-h] --workspace_id WORKSPACE_ID [--kbase_collection KBASE_COLLECTION] [--load_ver LOAD_VER]
+usage: workspace_downloader.py [-h] --workspace_id WORKSPACE_ID [--kbase_collection KBASE_COLLECTION] [--source_version SOURCE_VERSION]
                                [--root_dir ROOT_DIR] [--kb_base_url KB_BASE_URL] [--workers WORKERS] [--token_filepath TOKEN_FILEPATH]
                                [--keep_job_dir]
 
@@ -15,7 +15,8 @@ required named arguments:
 optional arguments:
   --kbase_collection KBASE_COLLECTION
                         Create a collection and link in data to that collection from the overall workspace source data dir
-  --load_ver LOAD_VER   Create a load version and link in data to that collection from the overall workspace source data dir
+  --source_version SOURCE_VERSION
+                        Create a source version and link in data to that collection from the overall workspace source data dir
   --root_dir ROOT_DIR   Root directory. (default: /global/cfs/cdirs/kbase/collections)
   --kb_base_url KB_BASE_URL
                         KBase base URL, defaulting to prod (default: https://kbase.us/services/)
@@ -150,14 +151,14 @@ def _make_job_dir(root_dir, job_dir, username):
 
 
 def _make_collection_source_dir(
-    root_dir, collection_data_dir, collection, load_ver, source_data_dir
+    root_dir, collection_data_dir, collection, source_verion, source_data_dir
 ):
     """
-    Helper function that create a collection & load version and link in data
+    Helper function that create a collection & source_version and link in data
     to that colleciton from the overall workspace source data dir.
     """
     collection_source_dir = os.path.join(
-        root_dir, collection_data_dir, collection, load_ver, source_data_dir
+        root_dir, collection_data_dir, collection, source_verion, source_data_dir
     )
     os.makedirs(collection_source_dir, exist_ok=True)
     return collection_source_dir
@@ -278,14 +279,14 @@ def main():
 
     # Optional argument
     optional.add_argument(
-        f"--{loader_common_names.KBASE_COLLECTION_ARG_NAME}",
+        "--kbase_collection",
         type=str,
         help="Create a collection and link in data to that collection from the overall workspace source data dir",
     )
     optional.add_argument(
-        f"--{loader_common_names.LOAD_VER_ARG_NAME}",
+        "--source_version",
         type=str,
-        help="Create a load version and link in data to that collection from the overall workspace source data dir",
+        help="Create a source version and link in data to that collection from the overall workspace source data dir",
     )
     optional.add_argument(
         "--root_dir",
@@ -318,23 +319,25 @@ def main():
 
     args = parser.parse_args()
 
-    kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
-    load_ver = getattr(args, loader_common_names.LOAD_VER_ARG_NAME)
+    if (args.kbase_collection and not args.source_verion) or (
+        args.source_verion and not args.kbase_collection
+    ):
+        parser.error(
+            f"if either kbase_collection or source_verion is specified, both are required"
+        )
+    if args.workspace_id <= 0:
+        parser.error(f"workspace_id needs to be > 0")
+    if args.workers < 1 or args.workers > cpu_count():
+        parser.error(f"minimum worker is 1 and maximum worker is {cpu_count()}")
+
     workspace_id = args.workspace_id
+    kbase_collection = args.kbase_collection
+    source_verion = args.source_verion
     root_dir = args.root_dir
     kb_base_url = args.kb_base_url
     workers = args.workers
     token_filepath = args.token_filepath
     keep_job_dir = args.keep_job_dir
-
-    if (kbase_collection and not load_ver) or (load_ver and not kbase_collection):
-        parser.error(
-            f"if either kbase_collection or load_ver is specified, both are required"
-        )
-    if workspace_id <= 0:
-        parser.error(f"workspace_id needs to be > 0")
-    if workers < 1 or workers > cpu_count():
-        parser.error(f"minimum worker is 1 and maximum worker is {cpu_count()}")
 
     uid = os.getuid()
     username = os.getlogin()
@@ -348,10 +351,10 @@ def main():
             root_dir,
             loader_common_names.COLLECTION_DATA_DIR,
             kbase_collection,
-            load_ver,
+            source_verion,
             loader_common_names.SOURCE_DATA_DIR,
         )
-        if (kbase_collection and load_ver)
+        if (kbase_collection and source_verion)
         else None
     )
 
