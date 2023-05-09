@@ -27,7 +27,7 @@ optional arguments:
 
             
 e.g.
-PYTHONPATH=. python src/loaders/workspace_downloader/workspace_downloader.py --workspace_id 39795 --collection PMI --source_version 2023.1 --kb_base_url https://ci.kbase.us/services/ --keep_job_dir
+PYTHONPATH=. python src/loaders/workspace_downloader/workspace_downloader.py --workspace_id 39795 --kbase_collection PMI --source_version 2023.1 --kb_base_url https://ci.kbase.us/services/ --keep_job_dir
 
 NOTE:
 NERSC file structure for WS:
@@ -279,7 +279,7 @@ def main():
 
     # Optional argument
     optional.add_argument(
-        "--kbase_collection",
+        f"--{loader_common_names.KBASE_COLLECTION_ARG_NAME}",
         type=str,
         help="Create a collection and link in data to that collection from the overall workspace source data dir",
     )
@@ -319,25 +319,23 @@ def main():
 
     args = parser.parse_args()
 
-    if (args.kbase_collection and not args.source_verion) or (
-        args.source_verion and not args.kbase_collection
-    ):
-        parser.error(
-            f"if either kbase_collection or source_verion is specified, both are required"
-        )
-    if args.workspace_id <= 0:
-        parser.error(f"workspace_id needs to be > 0")
-    if args.workers < 1 or args.workers > cpu_count():
-        parser.error(f"minimum worker is 1 and maximum worker is {cpu_count()}")
-
     workspace_id = args.workspace_id
-    kbase_collection = args.kbase_collection
-    source_verion = args.source_verion
+    kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
+    source_version = args.source_version
     root_dir = args.root_dir
     kb_base_url = args.kb_base_url
     workers = args.workers
     token_filepath = args.token_filepath
     keep_job_dir = args.keep_job_dir
+
+    if bool(kbase_collection) ^ bool(source_version):
+        parser.error(
+            f"if either kbase_collection or source_verion is specified, both are required"
+        )
+    if workspace_id <= 0:
+        parser.error(f"workspace_id needs to be > 0")
+    if workers < 1 or workers > cpu_count():
+        parser.error(f"minimum worker is 1 and maximum worker is {cpu_count()}")
 
     uid = os.getuid()
     username = os.getlogin()
@@ -346,17 +344,15 @@ def main():
     output_dir = _make_output_dir(
         root_dir, loader_common_names.SOURCE_DATA_DIR, SOURCE, workspace_id
     )
-    collection_source_dir = (
-        _make_collection_source_dir(
+    collection_source_dir = None
+    if kbase_collection:
+        collection_source_dir = _make_collection_source_dir(
             root_dir,
             loader_common_names.COLLECTION_DATA_DIR,
             kbase_collection,
-            source_verion,
+            source_version,
             loader_common_names.SOURCE_DATA_DIR,
         )
-        if (kbase_collection and source_verion)
-        else None
-    )
 
     proc = None
     conf = None
@@ -381,7 +377,13 @@ def main():
         for obj_info in objs:
             upa = "{6}_{0}_{4}".format(*obj_info)
             upa_dir = os.path.join(output_dir, upa)
-            if os.path.isdir(upa_dir) and loader_helper.is_upa_info_complete(upa_dir):
+            if (
+                os.path.isdir(upa_dir)
+                and loader_helper.is_upa_info_complete(upa_dir)
+                and loader_helper.check_linking_status_for_existing_object(
+                    collection_source_dir, upa, upa_dir
+                )
+            ):
                 continue
 
             # remove legacy upa_dir to avoid FileExistsError in hard link
