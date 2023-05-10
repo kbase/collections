@@ -14,10 +14,13 @@ RUN micromamba install -y -n $CONDA_ENV -f /tmp/env_microtrait.yaml && \
 
 ENV PATH=$PATH:/opt/conda/bin/
 
-# Install microTrait
+# Install microTrait dependencies
 RUN Rscript -e 'install.packages("kmed", repos = "https://cloud.r-project.org/")' && \
-    Rscript -e 'devtools::install_github("jlw-ecoevo/gRodon")' && \
-    Rscript -e 'devtools::install_github("ukaraoz/microtrait")'
+    Rscript -e 'devtools::install_github("jlw-ecoevo/gRodon")'
+
+# Install microTrait
+ARG MT_RELEASE_TAG=kb
+RUN Rscript -e "devtools::install_github('ukaraoz/microtrait', ref = '${MT_RELEASE_TAG}')"
 
 # Setup of HMM database
 RUN Rscript -e 'library(microtrait)' && \
@@ -35,7 +38,6 @@ ENV PY_SCRIPT=/app/collections/src/loaders/compute_tools/microtrait/microtrait.p
 RUN chmod -R 777 /app/collections
 
 # Download microtrait repository
-ARG MT_RELEASE_TAG=kb
 ARG MT_REPO_URL=https://github.com/ukaraoz/microtrait
 ARG MT_DOWNLOAD_URL=${MT_REPO_URL}/archive/refs/tags/${MT_RELEASE_TAG}.zip
 RUN curl -L ${MT_DOWNLOAD_URL} -o release.zip \

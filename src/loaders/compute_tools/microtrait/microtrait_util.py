@@ -39,14 +39,18 @@ def create_trait_unwrapped_rules(
 
     # read the ruleunwrapped file and populate unwrapped rule expressions to each trait
     ruleunwrapped_df = pd.read_csv(ruleunwrapped_file, sep='\t', names=_RULEUNWRAPPED_COLS)
+    # create a dictionary of rule names to unwrapped rule expressions
+    rule_dict = dict(zip(ruleunwrapped_df[_RULEUNWRAPPED_RULE_NAME_COL], ruleunwrapped_df[_UNWRAPPED_RULE_COL]))
+
     for trait_name, rule_names in trait_rule_unwrapped_mapping.items():
         for rule_name in rule_names.copy():
-            unwrapped_rule = ruleunwrapped_df.loc[
-                ruleunwrapped_df[_RULEUNWRAPPED_RULE_NAME_COL] == rule_name, _UNWRAPPED_RULE_COL].values
-            if len(unwrapped_rule) > 0:
+            unwrapped_rule = rule_dict.get(rule_name)
+            if unwrapped_rule:
                 # remove the rule name from the set and add the unwrapped rule expression
                 trait_rule_unwrapped_mapping[trait_name].remove(rule_name)
-                trait_rule_unwrapped_mapping[trait_name].add(unwrapped_rule[0])
+                trait_rule_unwrapped_mapping[trait_name].add(unwrapped_rule)
+            else:
+                raise ValueError(f"Rule name {rule_name} not found in ruleunwrapped file")
 
     if trait_unwrapped_rules_file is not None:
         with open(trait_unwrapped_rules_file, 'w') as file:
