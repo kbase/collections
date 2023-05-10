@@ -400,7 +400,7 @@ def main():
             for upa in upas:
                 upa_dir = os.path.join(output_dir, upa)
                 csd_upa_dir = os.path.join(collection_source_dir, upa)
-                if loader_helper._create_softlink(csd_upa_dir, upa_dir):
+                if _create_softlink(csd_upa_dir, upa_dir):
                     os.symlink(upa_dir, csd_upa_dir, target_is_directory=True)
 
     finally:
