@@ -38,6 +38,7 @@ _DATA_ID_COLUMN_HEADER = "genome_id"  # TODO DATA_ID change to data ID for gener
 _META_SOURCE_FILE = "source_file"
 _META_TOOL_IDENTIFIER = "tool_identifier"
 _META_SOURCE_DIR = "source_dir"
+_META_SOURCE_FILE_NAME = "meta_filename"
 
 # Fraction amount of system cores can be utilized
 # (i.e. 0.5 - program will use 50% of total processors,
@@ -358,15 +359,14 @@ def _create_metadata_file(
     # original genome id and source genome file info.
 
     # create tool genome identifier metadata file
-    genome_meta_file = loader_common_names.GENOME_METADATA_FILE
-    genome_meta_file_path = os.path.join(batch_dir, genome_meta_file)
+    genome_meta_file_path = os.path.join(batch_dir, loader_common_names.GENOME_METADATA_FILE)
     with open(genome_meta_file_path, "w") as meta_file:
         for genome_id, genome_meta_info in meta.items():
             meta_file.write(
                 f'{genome_meta_info[_META_TOOL_IDENTIFIER]}\t{genome_id}\t'
                 + f'{genome_meta_info[_META_SOURCE_FILE]}\t'
                 + f'{genome_meta_info[_META_SOURCE_DIR]}\t'
-                + f'{genome_meta_file}\n'
+                + f'{genome_meta_info[_META_SOURCE_FILE_NAME]}\n'
             )
 
 
@@ -391,9 +391,6 @@ def _prepare_tool(
         + f'{len(data_ids)}_node_{node_id}')
     os.makedirs(batch_dir, exist_ok=True)
 
-    # get source_dir from source_data_dir
-    source_dir = source_data_dir.parent.parent.name
-
     # Retrieve genome files and associated metadata for each genome ID
     meta = {}
     for data_id in data_ids:
@@ -406,9 +403,13 @@ def _prepare_tool(
             suffix_ids,
         )
         if data_file:
+
+            meta_filename = data_file.name if data_file.name.endswith(".meta") else ""
+
             meta[data_id] = {_META_TOOL_IDENTIFIER: tool_identifier, 
                              _META_SOURCE_FILE: data_file,
-                             _META_SOURCE_DIR: source_dir}
+                             _META_SOURCE_DIR: data_file.parent,
+                             _META_SOURCE_FILE_NAME: meta_filename}
 
     return batch_dir, meta
 
