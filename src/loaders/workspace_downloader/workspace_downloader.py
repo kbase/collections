@@ -140,7 +140,7 @@ def _make_output_dir(root_dir, source_data_dir, source, workspace_id):
 
 
 def _make_job_dir(root_dir, job_dir, username):
-    """Helper function that create a job_dir for a user under root directory."""
+    """Helper function that creates a job_dir for a user under root directory."""
     job_dir = os.path.join(root_dir, job_dir, username)
     os.makedirs(job_dir, exist_ok=True)
     # only user can cread, write, or execute
@@ -152,7 +152,7 @@ def _make_collection_source_dir(
     root_dir, collection_data_dir, collection, source_verion, source_data_dir
 ):
     """
-    Helper function that create a collection & source_version and link in data
+    Helper function that creates a collection & source_version and link in data
     to that colleciton from the overall workspace source data dir.
     """
     collection_source_dir = os.path.join(
@@ -163,7 +163,7 @@ def _make_collection_source_dir(
 
 
 def _list_objects_params(wsid, min_id, max_id, type_str):
-    """Helper function that creats params needed for list_objects function."""
+    """Helper function that creates params needed for list_objects function."""
     params = {
         "ids": [wsid],
         "minObjectID": min_id,
@@ -171,6 +171,21 @@ def _list_objects_params(wsid, min_id, max_id, type_str):
         "type": type_str,
     }
     return params
+
+
+def _create_softlink(csd_upa_dir, upa_dir):
+    """
+    Helper function that decides if the downloader needs to create a softlink between two directories.
+    """
+    if os.path.isdir(csd_upa_dir):
+        if os.path.islink(csd_upa_dir):
+            if os.readlink(csd_upa_dir) == upa_dir:
+                return False
+            else:
+                os.unlink(csd_upa_dir)
+        else:
+            shutil.rmtree(csd_upa_dir)
+    return True
 
 
 def _process_object_info(obj_info):
@@ -385,14 +400,8 @@ def main():
             for upa in upas:
                 upa_dir = os.path.join(output_dir, upa)
                 csd_upa_dir = os.path.join(collection_source_dir, upa)
-                if os.path.isdir(csd_upa_dir):
-                    # check if it is a symbolic link or regular dir
-                    if os.path.islink(csd_upa_dir):
-                        if os.readlink(csd_upa_dir) != upa_dir:
-                            os.unlink(csd_upa_dir)
-                    else:
-                        shutil.rmtree(csd_upa_dir)
-                os.symlink(upa_dir, csd_upa_dir, target_is_directory=True)
+                if loader_helper._create_softlink(csd_upa_dir, upa_dir):
+                    os.symlink(upa_dir, csd_upa_dir, target_is_directory=True)
 
     finally:
         # stop callback server if it is on
