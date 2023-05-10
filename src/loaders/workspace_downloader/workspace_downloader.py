@@ -149,17 +149,15 @@ def _make_job_dir(root_dir, job_dir, username):
 
 
 def _make_collection_source_dir(
-    root_dir, collection_data_dir, collection, source_verion, source_data_dir
+    root_dir, collection_source_dir, collection, source_verion
 ):
     """
     Helper function that creates a collection & source_version and link in data
     to that colleciton from the overall workspace source data dir.
     """
-    collection_source_dir = os.path.join(
-        root_dir, collection_data_dir, collection, source_verion, source_data_dir
-    )
-    os.makedirs(collection_source_dir, exist_ok=True)
-    return collection_source_dir
+    csd = os.path.join(root_dir, collection_source_dir, collection, source_verion)
+    os.makedirs(csd, exist_ok=True)
+    return csd
 
 
 def _list_objects_params(wsid, min_id, max_id, type_str):
@@ -347,14 +345,13 @@ def main():
     output_dir = _make_output_dir(
         root_dir, loader_common_names.SOURCE_DATA_DIR, SOURCE, workspace_id
     )
-    collection_source_dir = None
+    csd = None
     if kbase_collection:
-        collection_source_dir = _make_collection_source_dir(
+        csd = _make_collection_source_dir(
             root_dir,
-            loader_common_names.COLLECTION_DATA_DIR,
+            loader_common_names.COLLECTION_SOURCE_DIR,
             kbase_collection,
             source_version,
-            loader_common_names.SOURCE_DATA_DIR,
         )
 
     proc = None
@@ -396,10 +393,10 @@ def main():
         conf.pools.join()
 
         # create a softlink from the relevant directory under collectionsdata
-        if collection_source_dir:
+        if csd:
             for upa in upas:
                 upa_dir = os.path.join(output_dir, upa)
-                csd_upa_dir = os.path.join(collection_source_dir, upa)
+                csd_upa_dir = os.path.join(csd, upa)
                 if _create_softlink(csd_upa_dir, upa_dir):
                     os.symlink(upa_dir, csd_upa_dir, target_is_directory=True)
 
