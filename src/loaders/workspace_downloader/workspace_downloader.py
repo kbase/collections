@@ -385,8 +385,14 @@ def main():
             for upa in upas:
                 upa_dir = os.path.join(output_dir, upa)
                 csd_upa_dir = os.path.join(collection_source_dir, upa)
-                if not os.path.islink(csd_upa_dir):
-                    os.symlink(upa_dir, csd_upa_dir, target_is_directory=True)
+                if os.path.isdir(csd_upa_dir):
+                    # check if it is a symbolic link or regular dir
+                    if os.path.islink(csd_upa_dir):
+                        if os.readlink(csd_upa_dir) != upa_dir:
+                            os.unlink(csd_upa_dir)
+                    else:
+                        shutil.rmtree(csd_upa_dir)
+                os.symlink(upa_dir, csd_upa_dir, target_is_directory=True)
 
     finally:
         # stop callback server if it is on
