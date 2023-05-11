@@ -173,17 +173,19 @@ def _list_objects_params(wsid, min_id, max_id, type_str):
 
 def _create_softlink(csd_upa_dir, upa_dir):
     """
-    Helper function that decides if the downloader needs to create a softlink between two directories.
+    Helper function that creates a softlink between two directories.
     """
     if os.path.isdir(csd_upa_dir):
         if os.path.islink(csd_upa_dir):
             if os.readlink(csd_upa_dir) == upa_dir:
-                return False
+                return
             else:
-                os.unlink(csd_upa_dir)
+                raise ValueError(
+                    f"{csd_upa_dir} is currently linked to {os.readlink(csd_upa_dir)}."
+                )
         else:
-            shutil.rmtree(csd_upa_dir)
-    return True
+            raise ValueError(f"existing directory {csd_upa_dir} is not a symbolic link")
+    os.symlink(upa_dir, csd_upa_dir, target_is_directory=True)
 
 
 def _process_object_info(obj_info):
@@ -397,8 +399,7 @@ def main():
             for upa in upas:
                 upa_dir = os.path.join(output_dir, upa)
                 csd_upa_dir = os.path.join(csd, upa)
-                if _create_softlink(csd_upa_dir, upa_dir):
-                    os.symlink(upa_dir, csd_upa_dir, target_is_directory=True)
+                _create_softlink(csd_upa_dir, upa_dir)
 
     finally:
         # stop callback server if it is on
