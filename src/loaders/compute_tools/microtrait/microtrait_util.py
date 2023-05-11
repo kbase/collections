@@ -26,6 +26,7 @@ def create_trait_unwrapped_rules(
 ) -> dict[str, set[str]]:
     """
     Generate a mapping of traits to unwrapped rule expressions.
+
     """
     trait_rule_unwrapped_mapping = defaultdict(set)
 
