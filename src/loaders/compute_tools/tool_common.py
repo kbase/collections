@@ -405,7 +405,7 @@ def _prepare_tool(
         if data_file:
 
             mata_filename_path = os.path.join(data_file.parent, data_file.parent.name + ".meta")
-            meta_filename = os.path.basename(mata_filename_path) if os.path.exists(mata_filename_path) else ""
+            meta_filename = mata_filename_path if os.path.exists(mata_filename_path) else ""
 
             meta[data_id] = {_META_TOOL_IDENTIFIER: tool_identifier, 
                              _META_SOURCE_FILE: data_file,
