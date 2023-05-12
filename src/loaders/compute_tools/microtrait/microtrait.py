@@ -94,9 +94,11 @@ def _run_microtrait(genome_id: str, fna_file: Path, genome_dir: Path, debug: boo
             genes_detected_df = _r_table_to_df(genes_detected_table)
             detected_genes_score = dict(zip(genes_detected_df[_GENE_NAME_COL], genes_detected_df[_GENE_SCORE_COL]))
 
-            trait_counts_df[loader_common_names.DETECTED_GENE_SCORE] = trait_counts_df[
+            trait_counts_df[loader_common_names.DETECTED_GENE_SCORE_COL] = trait_counts_df[
                 loader_common_names.UNWRAPPED_GENE_COL].apply(
                 lambda x: [{gene: gene_score} for gene, gene_score in detected_genes_score.items() if gene in str(x)])
+        else:
+            raise ValueError('Please set environment variable MT_TRAIT_UNWRAPPED_FILE')
 
         trait_counts_df.to_csv(os.path.join(genome_dir, loader_common_names.TRAIT_COUNTS_FILE), index=False)
 
