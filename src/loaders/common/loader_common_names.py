@@ -39,8 +39,10 @@ COLLECTION_DATA_DIR = "collectionsdata"  # subdirectory for collected data (e.g.
 GENOME_METADATA_FILE = "genome_metadata.tsv"
 
 # the name of the CSV file where we store the trait counts
-TRAIT_COUNTS_FILE = "trait_counts.csv"
-
+TRAIT_COUNTS_FILE = 'trait_counts.csv'
+SYS_TRAIT_ID = 'trait_id'  # unique identifier for a trait
+# column name for the trait unique identifier defined in the granularity trait count table
+MICROTRAIT_TRAIT_NAME = 'microtrait_trait-name'
 
 # kbase authentication token
 KB_AUTH_TOKEN = "KB_AUTH_TOKEN"
