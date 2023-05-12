@@ -171,7 +171,7 @@ def _read_tool_result(result_dir, batch_dir, kbase_collection, load_ver, tool_fi
     # retrieve and process the genome metadata file
     metadata_file = os.path.join(batch_result_dir, loader_common_names.GENOME_METADATA_FILE)
     try:
-        meta_df = pd.read_csv(metadata_file, sep='\t', names=['tool_identifier', 'genome_id', 'source_file_path'])
+        meta_df = pd.read_csv(metadata_file, sep='\t')
     except Exception as e:
         raise ValueError('Unable to retrieve the genome metadata file') from e
     tool_genome_map = dict(zip(meta_df.tool_identifier, meta_df.genome_id))
