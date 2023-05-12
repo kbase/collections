@@ -13,6 +13,8 @@ from src.loaders.compute_tools.tool_common import ToolRunner, unpack_gz_file
 
 # the name of the component used for extracting traits from microtrait's 'extract.traits' result
 TRAIT_COUNTS_ATGRANULARITY = 'trait_counts_atgranularity3'
+_GENE_NAME_COL = 'hmm_name'  # column name from the genes_detected_table file that contains the gene name
+_GENE_SCORE_COL = 'gene_score'  # column name from the genes_detected_table file that contains the gene score
 
 
 def _get_r_list_element(r_list, element_name):
@@ -78,6 +80,23 @@ def _run_microtrait(genome_id: str, fna_file: Path, genome_dir: Path, debug: boo
         # Resource Acquisition:Substrate uptake:aromatic acid transport,1,Aromatic acid transport,Resource Acquisition:Substrate uptake:aromatic acid transport,Resource Acquisition,count,3,production,1,1
         # Resource Acquisition:Substrate uptake:biopolymer transport,3,Biopolymer transport,Resource Acquisition:Substrate uptake:biopolymer transport,Resource Acquisition,count,3,production,2,3
         trait_counts_df = _r_table_to_df(trait_counts)
+
+        trait_unwrapped_rules_file = os.environ.get('MT_TRAIT_UNWRAPPED_FILE')
+        if trait_unwrapped_rules_file:
+            trait_unwrapped_rules_df = pd.read_csv(trait_unwrapped_rules_file, sep='\t')
+            trait_counts_df = trait_counts_df.merge(trait_unwrapped_rules_df,
+                                                    left_on=loader_common_names.MICROTRAIT_TRAIT_NAME,
+                                                    right_on=loader_common_names.SYS_TRAIT_ID,
+                                                    how='left')
+            trait_counts_df.drop(columns=[loader_common_names.SYS_TRAIT_ID], inplace=True)
+
+            genes_detected_table = _get_r_list_element(microtrait_result, 'genes_detected_table')
+            genes_detected_df = _r_table_to_df(genes_detected_table)
+            detected_genes_score = dict(zip(genes_detected_df[_GENE_NAME_COL], genes_detected_df[_GENE_SCORE_COL]))
+
+            trait_counts_df[loader_common_names.DETECTED_GENE_SCORE] = trait_counts_df[
+                loader_common_names.UNWRAPPED_GENE_COL].apply(
+                lambda x: [{gene: gene_score} for gene, gene_score in detected_genes_score.items() if gene in str(x)])
 
         trait_counts_df.to_csv(os.path.join(genome_dir, loader_common_names.TRAIT_COUNTS_FILE), index=False)
 
