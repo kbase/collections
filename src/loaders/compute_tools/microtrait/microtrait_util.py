@@ -1,3 +1,4 @@
+import re
 from collections import defaultdict
 from pathlib import Path
 
@@ -47,9 +48,12 @@ def create_trait_unwrapped_rules(
         for rule_name in rule_names.copy():
             unwrapped_rule = rule_dict.get(rule_name)
             if unwrapped_rule:
+                # find and extract gene names from the unwrapped rule expression.
+                # i.e. "('pcbA' | 'pcbB' | 'pcbC' | 'pcbD' | 'pcbE' | 'pcbF' | 'pcbG' | 'pcbH')"
+                gene_names = set(re.findall(r"'(\w+)'", unwrapped_rule))
                 # remove the rule name from the set and add the unwrapped rule expression
                 trait_rule_unwrapped_mapping[trait_name].remove(rule_name)
-                trait_rule_unwrapped_mapping[trait_name].add(unwrapped_rule)
+                trait_rule_unwrapped_mapping[trait_name].update(gene_names)
             else:
                 raise ValueError(f"Rule name {rule_name} not found in ruleunwrapped file")
 

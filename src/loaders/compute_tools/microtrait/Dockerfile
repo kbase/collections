@@ -15,7 +15,7 @@ RUN micromamba install -y -n $CONDA_ENV -f /tmp/env_microtrait.yaml && \
 ENV PATH=$PATH:/opt/conda/bin/
 
 # Install microTrait dependencies
-RUN Rscript -e 'install.packages("kmed", repos = "https://cloud.r-project.org/")' && \
+RUN Rscript -e 'install.packages("kmed", version = "0.4.2", repos = "https://cloud.r-project.org/")' && \
     Rscript -e 'devtools::install_github("jlw-ecoevo/gRodon")'
 
 # Install microTrait
