@@ -10,7 +10,11 @@
 * Add a matcher to the KBase collections service that uses Minhash sketching to match to data
   in the collection.
 * Support the sensitivity cutoff and coverage parameters in the matcher UI
-  * Are we sure we want coverage supported? https://github.com/marbl/Mash/blob/41ddc6145d35344194777dda9861f4751ed1b04e/src/mash/Command.cpp#L180-L181
+  * Standard Mash only supports distance
+  * CMash supports coverage
+* We'll start with supporting Mash for now since the existing infrastructure already suports it
+* Devs ideally don't want to have to use SDK App refdata for minhash sketches since that means
+  going through an app release every time the sketches are updated
 
 ## Nomenclature
 
@@ -23,12 +27,19 @@ UPA - The Unique Permanent Address of a KBase workspace object
 Repo: https://github.com/kbaseapps/kb_mash
 
 * Probably not useful for our purposes, but listed here for completeness.
-* Doesn't accept Minhash paramters like cutoff, coverage, etc.
+* Doesn't accept the minimum distance parameter.
+
+### kb_cmash SDK app
+
+Repo: https://github.com/kbaseapps/kb_cmash
+
+* Probably not useful for our purposes, but listed here for completeness.
+* Doesn't accept Minhash parameters like cutoff, coverage, etc.
 
 ### Homology service
 
 Repo: https://github.com/jgi-kbase/AssemblyHomologyService  
-Host: https://homology.kbase.us/ (not working as of 2023/5/3)
+Host: https://homology.kbase.us/
 
 * Takes a **single** Minhash sketch and queries one of a set of pre loaded databases
 * Loading data is done via running a CLI with DB access and specifying a sketch
@@ -77,7 +88,7 @@ Host: https://ci.kbase.us/services/cache/ (and other environments)
 
 * Caches data for 30 days to prevent long recalculations.
 * No bulk endpoints
-* Potential improvments:
+* Potential improvements:
   * Add bulk cache creation, upload, and retrieval endpoints
     * Otherwise bulk caches will be mostly useless as a change in one input UPA means a cache miss
   * Service has had no maintenance since Feb 2021 and is severely behind on dependencies,
@@ -125,23 +136,25 @@ Host: KBase dynamic service, look up in the KBase Catalog
   * Overwhelming services is also a concern, especially if we don't implement batching
   * Service drive space may also be an issue, esp for the sketch service
 
-## Alternatives
+## Implementation options
 
-* Rather than using the sketch service, run an EE2 job to retrive the data from the WS, create
- the sketch database, and send it to the homology service
-  * Return the job ID with the matcher state
-    * Need to use the user's token for the job
-    * A problem with this approach is that jobs are user specific and matches are not. Might need
-      to use a service token and not provide the job ID to the user.
-  * Sketches are much smaller than the source data, and sketch vs. sketch matching is relatively
-    fast
-  * Could also use the cache service to speed up matches
-    * But if we use the user's token, means caches can't be used by other people
-    * Give the job a special token...? hmm
-      * Maybe add a public cache mode to the Cache service
-        * But then key collisions are possible
-  * A hybrid approach could also work where small input counts go to the service, large to the
-    app
+1. Use the entirety of the existing infrastructure (Sketch, Cache, and Homology services)
+  1. Might have scalability problems
+  2. Updates to services to batch results might help
+2. Skip the Sketch service, download and sketch in an app, and send the results to the Homology
+   service
+  1. Might have scalabilty problems, although less likely than using the sketch service since
+     data downloads are skipped
+  2. Updates to service to batch results might help
+3. Use an SDK app, but store Collection sketches in a (ftp?) server, download to the app and do
+   sequence download, sketching, and distance measurement in the app
+  1. Note sketches are large, the ~100K sequence Refseq sketch currently in the Homology service
+     is 7.7G
+  2. Note that jobs are user specific and matches are not, implying we'll need to use a service
+     token to generate agent tokens per job and submit jobs on behalf of the service
+4. Use an SDK app with refdata for Collections sketches
+  1. This means we have to release the app every time we change a collection or improve our
+     sketches, which is a big time suck for the devs
 
 ## Design
 
@@ -167,5 +180,13 @@ Host: KBase dynamic service, look up in the KBase Catalog
   * Experiment with batch sizes and concatenating the database in the parser script. IIRC,
     concatenation was somewhat expensive and may not be appropriate to run on the Permutter
     login node. OTOH maybe I'm wrong, it's been a while.
+    * Per Shane this is fast, which if so, means we could potentially sketch each genome
+      individually and assemble them all in the parser script.
   * Note that the final product will get loaded into a Homology service namespace, not ArangoDB.
     * The namespace is probably something like `<collection ID>_<load_version>`
+
+## Decision
+
+23/05/09: Stress test the sketch and homology services (without ID mapping) and go from there.
+See how many distance measurements can be done in parallel without breaking things. Also test
+parallelism with `mash`, which would be a really easy change to make in the Homology service.
