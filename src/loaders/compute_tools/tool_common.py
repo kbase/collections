@@ -37,6 +37,8 @@ _DATA_ID_COLUMN_HEADER = "genome_id"  # TODO DATA_ID change to data ID for gener
 #           and parser
 _META_SOURCE_FILE = "source_file"
 _META_TOOL_IDENTIFIER = "tool_identifier"
+_META_SOURCE_DIR = "source_dir"
+_META_SOURCE_FILE_NAME = "meta_filename"
 
 # Fraction amount of system cores can be utilized
 # (i.e. 0.5 - program will use 50% of total processors,
@@ -134,7 +136,7 @@ class ToolRunner:
         self._data_ids = self._get_data_ids()
 
         if not self._threads:
-            threads = max(int(multiprocessing.cpu_count() * min(_SYSTEM_UTILIZATION, 1)), 1)
+            self._threads = max(int(multiprocessing.cpu_count() * min(_SYSTEM_UTILIZATION, 1)), 1)
         self._threads = max(1, self._threads)
 
         self._work_dir = Path(
@@ -362,7 +364,9 @@ def _create_metadata_file(
         for genome_id, genome_meta_info in meta.items():
             meta_file.write(
                 f'{genome_meta_info[_META_TOOL_IDENTIFIER]}\t{genome_id}\t'
-                + f'{genome_meta_info[_META_SOURCE_FILE]}\n'
+                + f'{genome_meta_info[_META_SOURCE_FILE]}\t'
+                + f'{genome_meta_info[_META_SOURCE_DIR]}\t'
+                + f'{genome_meta_info[_META_SOURCE_FILE_NAME]}\n'
             )
 
 
@@ -399,7 +403,14 @@ def _prepare_tool(
             suffix_ids,
         )
         if data_file:
-            meta[data_id] = {_META_TOOL_IDENTIFIER: tool_identifier, _META_SOURCE_FILE: data_file}
+
+            mata_filename_path = os.path.join(data_file.parent, data_file.parent.name + ".meta")
+            metadata_file = mata_filename_path if os.path.exists(mata_filename_path) else ""
+
+            meta[data_id] = {_META_TOOL_IDENTIFIER: tool_identifier, 
+                             _META_SOURCE_FILE: data_file,
+                             _META_SOURCE_DIR: data_file.parent,
+                             _META_SOURCE_FILE_NAME: metadata_file}
 
     return batch_dir, meta
 
