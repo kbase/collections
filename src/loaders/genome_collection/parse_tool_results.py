@@ -342,21 +342,25 @@ def _parse_categories(traits_meta: dict[str, dict[str, str]]) -> list[ColumnCate
             categories[trait_category] = ColumnCategory(category=trait_category, columns=[])
 
         # add the trait to the appropriate category's list of columns
-        categories[trait_category].columns.append(ColumnInformation(id=str(trait[_SYS_TRAIT_INDEX]),
-                                                                    name=trait[_SYS_TRAIT_NAME],
-                                                                    description=trait[_SYS_TRAIT_DESCRIPTION],
-                                                                    type=trait_type))
+        categories[trait_category].columns.append(ColumnInformation(
+            col_id=str(trait[_SYS_TRAIT_INDEX]),
+            name=trait[_SYS_TRAIT_NAME],
+            description=trait[_SYS_TRAIT_DESCRIPTION],
+            type=trait_type
+        ))
 
     # sort columns in each ColumnCategory object by the column id
     for category in categories.values():
-        category.columns = sorted(category.columns, key=lambda column: int(column.id))
+        category.columns = sorted(category.columns, key=lambda column: int(column.col_id))
 
     # sort ColumnCategory objects by the column id of the first column in each ColumnCategory object
-    sorted_categories = sorted(categories.values(), key=lambda category: int(category.columns[0].id))
+    sorted_categories = sorted(
+        categories.values(), key=lambda category: int(category.columns[0].col_id)
+    )
 
     # this is to ensure that the column ids are in ascending order
     # TODO: might need to skip this step for heatmap products other than microtrait
-    column_ids = [column.id for category in sorted_categories for column in category.columns]
+    column_ids = [column.col_id for category in sorted_categories for column in category.columns]
     if not _ensure_list_ordered(column_ids):
         raise ValueError(f'Column ids are not ordered in ascending order: {column_ids}')
 
@@ -408,7 +412,7 @@ def _append_cell(
     else:
         raise ValueError(f'Unknown trait type {trait_type}')
 
-    cell = Cell(celid=str(cell_count), colid=str(trait_idx), val=trait_val)
+    cell = Cell(cell_id=str(cell_count), col_id=str(trait_idx), val=trait_val)
     heatmap_row.cells.append(cell)
 
     return (min(min_value, trait_val),
@@ -472,7 +476,7 @@ def _parse_heatmap_rows(
             cell_count += 1
 
         # sort the cells by column ID to ensure the heatmap is in the correct order
-        heatmap_row.cells = sorted(heatmap_row.cells, key=lambda cell: int(cell.colid))
+        heatmap_row.cells = sorted(heatmap_row.cells, key=lambda cell: int(cell.col_id))
 
         heatmap_rows.append(heatmap_row)
 

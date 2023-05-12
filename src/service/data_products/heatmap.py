@@ -50,17 +50,6 @@ _MATCH_ID_PREFIX = "m_"
 _SELECTION_ID_PREFIX = "s_"
 
 
-# TODO SOON Move fields to heatmap models in common once Tian's PR is merged
-FIELD_HEATMAP_MATCH_STATE = "heatmap_match_state"
-FIELD_HEATMAP_SELECTION_STATE = "heatmap_selection_state"
-FIELD_HEATMAP_DATA = "data"
-FIELD_HEATMAP_MIN_VALUE = "min_value"
-FIELD_HEATMAP_MAX_VALUE = "max_value"
-FIELD_HEATMAP_COUNT = "count"
-FIELD_HEATMAP_CELL_VALUE = "val"
-FIELD_HEATMAP_ROW_CELLS = "cells"
-
-
 def _prefix_id(prefix: str, id_: str | None) -> str | None:
     return prefix + id_ if id_ else None
 
@@ -395,12 +384,12 @@ class HeatMapController:
         max_value: int = None,
     ) -> Response:
         j = {
-            FIELD_HEATMAP_MATCH_STATE: dp_match.state if dp_match else None,
-            FIELD_HEATMAP_SELECTION_STATE: dp_sel.state if dp_sel else None,
-            FIELD_HEATMAP_DATA: data,
-            FIELD_HEATMAP_MIN_VALUE: min_value,
-            FIELD_HEATMAP_MAX_VALUE: max_value,
-            FIELD_HEATMAP_COUNT: count,
+            heatmap_models.FIELD_HEATMAP_MATCH_STATE: dp_match.state if dp_match else None,
+            heatmap_models.FIELD_HEATMAP_SELECTION_STATE: dp_sel.state if dp_sel else None,
+            heatmap_models.FIELD_HEATMAP_DATA: data,
+            heatmap_models.FIELD_HEATMAP_MIN_VALUE: min_value,
+            heatmap_models.FIELD_HEATMAP_MAX_VALUE: max_value,
+            heatmap_models.FIELD_HEATMAP_COUNT: count,
         }
         return Response(content=json.dumps(j), media_type="application/json")
     
@@ -461,7 +450,8 @@ class HeatMapController:
         )
         vals = set()
         for r in data:  # lazy lazy lazy
-            vals |= {c[FIELD_HEATMAP_CELL_VALUE] for c in r[FIELD_HEATMAP_ROW_CELLS]}
+            vals |= {c[heatmap_models.FIELD_HEATMAP_CELL_VALUE]
+                     for c in r[heatmap_models.FIELD_HEATMAP_ROW_CELLS]}
         return self._response(
             dp_match=match_proc,
             dp_sel=selection_proc,
