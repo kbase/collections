@@ -12,6 +12,7 @@ _RULE2TRAIT_RULE_NAME_COL = 'microtrait_rule-name'  # column name from the rule2
 
 # `microtrait_ruleunwrapped.txt` file unfortunately has no header, so we need to specify the column names
 _UNWRAPPED_RULE_COL = 'unwrapped_rule'
+_UNWRAPPED_GENE_COL = 'unwrapped_genes'  # column name that contains parsed gene name from unwrapped rule
 _RULEUNWRAPPED_RULE_NAME_COL = 'rule_name'
 _RULEUNWRAPPED_COLS = [
     _RULEUNWRAPPED_RULE_NAME_COL,
@@ -59,7 +60,7 @@ def create_trait_unwrapped_rules(
 
     if trait_unwrapped_rules_file is not None:
         with open(trait_unwrapped_rules_file, 'w') as file:
-            file.write(f"{SYS_TRAIT_ID}\t{_UNWRAPPED_RULE_COL}\n")
+            file.write(f"{SYS_TRAIT_ID}\t{_UNWRAPPED_GENE_COL}\n")
             for trait, rule_set in trait_rule_unwrapped_mapping.items():
                 # Join the set elements into a single string
                 unwrapped_rules = ';'.join(rule_set)

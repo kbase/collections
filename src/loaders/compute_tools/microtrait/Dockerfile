@@ -16,7 +16,7 @@ ENV PATH=$PATH:/opt/conda/bin/
 
 # Install microTrait dependencies
 RUN Rscript -e 'install.packages("kmed", version = "0.4.2", repos = "https://cloud.r-project.org/")' && \
-    Rscript -e 'devtools::install_github("jlw-ecoevo/gRodon")'
+    Rscript -e 'devtools::install_github("jlw-ecoevo/gRodon@0b7e32e667580e2890b56009de8af208c9029f8b")'
 
 # Install microTrait
 ARG MT_RELEASE_TAG=kb
