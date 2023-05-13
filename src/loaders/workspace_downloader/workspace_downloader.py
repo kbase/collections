@@ -175,16 +175,16 @@ def _create_softlink(csd_upa_dir, upa_dir):
     """
     Helper function that creates a softlink between two directories.
     """
-    if os.path.isdir(csd_upa_dir):
-        if os.path.islink(csd_upa_dir):
-            if os.readlink(csd_upa_dir) == upa_dir:
-                return
-            else:
-                raise ValueError(
-                    f"{csd_upa_dir} is currently linked to {os.readlink(csd_upa_dir)}."
-                )
-        else:
-            raise ValueError(f"existing directory {csd_upa_dir} is not a symbolic link")
+    if os.path.exists(csd_upa_dir):
+        if (
+            os.path.isdir(csd_upa_dir)
+            and os.path.islink(csd_upa_dir)
+            and os.readlink(csd_upa_dir) == upa_dir
+        ):
+            return
+        raise ValueError(
+            f"{csd_upa_dir} already exists and does not link to {upa_dir} as expected"
+        )
     os.symlink(upa_dir, csd_upa_dir, target_is_directory=True)
 
 
