@@ -394,7 +394,7 @@ def main():
         conf.pools.close()
         conf.pools.join()
 
-        # create a softlink from the relevant directory under collectionsdata
+        # create a softlink from the relevant directory under collectionssource
         if csd:
             for upa in upas:
                 upa_dir = os.path.join(output_dir, upa)
