@@ -9,6 +9,7 @@ import sys
 from fastapi import FastAPI, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from http.client import responses
 from pydantic import BaseModel, Field
@@ -72,6 +73,7 @@ def create_app(noop=False):
             "5XX": {"model": models_errors.ServerError}
         }
     )
+    app.add_middleware(GZipMiddleware)
     app.include_router(ROUTER_GENERAL)
     app.include_router(ROUTER_COLLECTIONS)
     app.include_router(ROUTER_MATCHES)
