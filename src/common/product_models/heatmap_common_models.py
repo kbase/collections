@@ -8,6 +8,17 @@ from pydantic import BaseModel, Field
 from src.service import models
 
 
+# these fields need to match the fields in the models below.
+FIELD_HEATMAP_MATCH_STATE = "heatmap_match_state"
+FIELD_HEATMAP_SELECTION_STATE = "heatmap_selection_state"
+FIELD_HEATMAP_DATA = "data"
+FIELD_HEATMAP_MIN_VALUE = "min_value"
+FIELD_HEATMAP_MAX_VALUE = "max_value"
+FIELD_HEATMAP_COUNT = "count"
+FIELD_HEATMAP_CELL_VALUE = "val"
+FIELD_HEATMAP_ROW_CELLS = "cells"
+
+
 _FLD_CELL_ID = Field(
     example="4",
     description="The unique ID of the cell in the heatmap."
@@ -31,7 +42,7 @@ class ColumnInformation(BaseModel):
     """
     Information about a column in the heat map, e.g. its name, ID, description, etc.
     """
-    id: str = Field(
+    col_id: str = Field(
         example="4",
         description="An opaque ID for the column, typically much shorter than the name"
     )
@@ -85,8 +96,8 @@ class Cell(BaseModel):
     """
     Information about an indvidual cell in a heatmap.
     """
-    celid: str = _FLD_CELL_ID
-    colid: str = Field(
+    cell_id: str = _FLD_CELL_ID
+    col_id: str = Field(
         example="8",
         description="The ID of the column in which this cell is located."
     )
@@ -165,7 +176,7 @@ class CellDetailEntry(BaseModel):
         example="spo0A",
         description="The ID of of the cell entry, often a gene name."
     )
-    value: float | bool = Field(
+    val: float | bool = Field(
         example=56.1,
         description="The value of the cell entry."
     )
@@ -177,7 +188,7 @@ class CellDetail(BaseModel):
     """
     Detailed information about a cell in a heatmap.
     """
-    celid: str = _FLD_CELL_ID
+    cell_id: str = _FLD_CELL_ID
     values: list[CellDetailEntry]
 
 
