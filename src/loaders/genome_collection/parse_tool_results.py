@@ -447,7 +447,7 @@ def _append_cell(
 
     cell_detail = _create_cell_detail(cell_id, detected_genes_score)
 
-    if isinstance(trait_val, int):
+    if isinstance(trait_val, (int, float)):
         min_value = min(min_value, trait_val)
         max_value = max(max_value, trait_val)
 
