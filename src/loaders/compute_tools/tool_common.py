@@ -361,7 +361,7 @@ def _create_metadata_file(
     # create tool genome identifier metadata file
     genome_meta_file_path = os.path.join(batch_dir, loader_common_names.GENOME_METADATA_FILE)
     with open(genome_meta_file_path, "w") as meta_file:
-        meta_file.write(f"{_META_TOOL_IDENTIFIER}\t{genome_id}\t{_META_SOURCE_FILE}\t"
+        meta_file.write(f"{_META_TOOL_IDENTIFIER}\t{_DATA_ID_COLUMN_HEADER}\t{_META_SOURCE_FILE}\t"
                         + f"{_META_SOURCE_DIR}\t{_META_SOURCE_FILE_NAME}\n")
         for genome_id, genome_meta_info in meta.items():
             meta_file.write(
