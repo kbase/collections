@@ -111,6 +111,8 @@ PYTHONPATH=. pytest test
     The "real" image should just copy the files into the image and set the entry point. This will
     make GHA builds a lot faster
   * Alternatively use docker's GHA cache feature
+  * Manual push only is probably fine, these images won't change that often
+* JobRunner repo should be updated to push the callback server to a GHA KBase namespace
 * Testing tool containers
   * DO NOT import the tool specific scripts and / or run them directly in tests, as that will
     require all their dependencies to be installed, creating dependency hell.
