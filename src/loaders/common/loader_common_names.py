@@ -45,8 +45,6 @@ TRAIT_COUNTS_FILE = 'trait_counts.csv'
 SYS_TRAIT_ID = 'trait_id'  # unique identifier for a trait
 DETECTED_GENE_SCORE_COL = 'detected_genes_score'  # column name for the detected genes score
 
-CELL_ID = 'cell_id'  # data id field for CellDetail object
-
 # column name for the trait unique identifier defined in the granularity trait count table
 MICROTRAIT_TRAIT_NAME = 'microtrait_trait-name'
 UNWRAPPED_GENE_COL = 'unwrapped_genes'  # column name that contains parsed gene name from unwrapped rule

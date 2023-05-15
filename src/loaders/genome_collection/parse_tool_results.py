@@ -29,8 +29,8 @@ optional arguments:
 
 """
 import argparse
+import ast
 import copy
-import json
 import os
 import sys
 from typing import Any
@@ -47,6 +47,7 @@ from src.common.product_models.heatmap_common_models import (
     ColumnType,
     CellDetail,
     CellDetailEntry,
+    FIELD_HEATMAP_CELL_ID,
 )
 from src.common.storage.db_doc_conversions import collection_data_id_key, collection_load_version_key
 from src.loaders.common import loader_common_names
@@ -236,7 +237,7 @@ def _append_trait_val(
     if data_id not in traits_val:
         traits_val[data_id] = list()
 
-    detected_gene_score = json.loads(detected_gene_score.replace("'", '"'))
+    detected_gene_score = ast.literal_eval(detected_gene_score)
     traits_val[data_id].append({_SYS_TRAIT_INDEX: trait_index,  # used as column index in the heatmap
                                 _SYS_TRAIT_VALUE: trait_value,
                                 loader_common_names.DETECTED_GENE_SCORE_COL: detected_gene_score,
@@ -267,9 +268,8 @@ def _process_heatmap_tools(heatmap_tools: set[str],
         except AttributeError as e:
             raise ValueError(f'Please implement parsing method for: [{tool}]') from e
 
-        (heatmap_meta_dict,
-         heatmap_rows_list,
-         heatmap_cell_details_list) = parse_ops(root_dir, kbase_collection, load_ver)
+        heatmap_meta_dict, heatmap_rows_list, heatmap_cell_details_list = parse_ops(
+            root_dir, kbase_collection, load_ver)
 
         meta_output = f'{kbase_collection}_{load_ver}_{tool}_meta_{HEATMAP_FILE_SUFFIX}'
         rows_output = f'{kbase_collection}_{load_ver}_{tool}_rows_{HEATMAP_FILE_SUFFIX}'
@@ -412,12 +412,14 @@ def _create_cell_detail(
 ) -> CellDetail:
     if not detected_genes_score:
         detected_genes_score = dict()
-    cell_detail = CellDetail(cell_id=cell_id,
-                             values=[CellDetailEntry(id=gene_name,
-                                                     val=gene_score) for gene_name, gene_score in
-                                     detected_genes_score.items()])
 
-    return cell_detail
+    return CellDetail(
+        cell_id=cell_id,
+        values=[
+            CellDetailEntry(id=gene_name, val=gene_score)
+            for gene_name, gene_score in detected_genes_score.items()
+        ]
+    )
 
 
 def _append_cell(
@@ -445,9 +447,11 @@ def _append_cell(
 
     cell_detail = _create_cell_detail(cell_id, detected_genes_score)
 
-    return (min(min_value, trait_val),
-            max(max_value, trait_val),
-            cell_detail) if isinstance(trait_val, int) else (min_value, max_value, cell_detail)
+    if isinstance(trait_val, int):
+        min_value = min(min_value, trait_val)
+        max_value = max(max_value, trait_val)
+
+    return min_value, max_value, cell_detail
 
 
 def _find_trait_by_index(
@@ -587,7 +591,7 @@ def microtrait(root_dir, kbase_collection, load_ver):
     heatmap_cell_details_list = _process_rows_list(heatmap_cell_details_list,
                                                    kbase_collection,
                                                    load_ver,
-                                                   loader_common_names.CELL_ID,
+                                                   FIELD_HEATMAP_CELL_ID,
                                                    collection_data_id_key)
 
     return heatmap_meta_dict, heatmap_rows_list, heatmap_cell_details_list
