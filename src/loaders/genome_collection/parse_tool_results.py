@@ -29,8 +29,8 @@ optional arguments:
 
 """
 import argparse
-import ast
 import copy
+import json
 import os
 import sys
 from typing import Any
@@ -237,7 +237,7 @@ def _append_trait_val(
     if data_id not in traits_val:
         traits_val[data_id] = list()
 
-    detected_gene_score = ast.literal_eval(detected_gene_score)
+    detected_gene_score = json.loads(detected_gene_score)
     traits_val[data_id].append({_SYS_TRAIT_INDEX: trait_index,  # used as column index in the heatmap
                                 _SYS_TRAIT_VALUE: trait_value,
                                 loader_common_names.DETECTED_GENE_SCORE_COL: detected_gene_score,
@@ -500,8 +500,11 @@ def _parse_heatmap_rows(
             visited_traits.add(trait_idx)
             cell_count += 1
 
-        # fill in missing trait values with 0s for all cells
+        # fill in missing trait values with 0s for all cells (happens when a trait is not present for a given data id)
+        # In case of Microtriat, this should never happen.
         missing_trait_idxs = trait_idxs - visited_traits
+        if missing_trait_idxs:
+            print(f'Warning: missing trait values {missing_trait_idxs} for {data_id}')
         for missing_trait_idx in missing_trait_idxs:
             trait = _find_trait_by_index(missing_trait_idx, traits_meta)
             trait_type = trait.get(_SYS_TRAIT_TYPE)
