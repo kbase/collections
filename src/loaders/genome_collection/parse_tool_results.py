@@ -504,7 +504,8 @@ def _parse_heatmap_rows(
         # In case of Microtriat, this should never happen.
         missing_trait_idxs = trait_idxs - visited_traits
         if missing_trait_idxs:
-            print(f'Warning: missing trait values {missing_trait_idxs} for {data_id}')
+            print(f'Warning: missing trait values {missing_trait_idxs} for {data_id}.'
+                  f' Filling in with {_SYS_DEFAULT_TRAIT_VALUE}s for cell value.')
         for missing_trait_idx in missing_trait_idxs:
             trait = _find_trait_by_index(missing_trait_idx, traits_meta)
             trait_type = trait.get(_SYS_TRAIT_TYPE)
