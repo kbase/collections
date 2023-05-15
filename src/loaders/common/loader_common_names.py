@@ -34,6 +34,8 @@ SOURCE_DATA_DIR = (
 )
 COLLECTION_DATA_DIR = "collectionsdata"  # subdirectory for collected data (e.g. computed genome attributes)
 
+COLLECTION_SOURCE_DIR = "collectionssource"  # subdirectory for source collections
+
 # metadata file generated in the tool result folder with tool generated genome identifier,
 # original genome id and source genome file info
 GENOME_METADATA_FILE = "genome_metadata.tsv"
