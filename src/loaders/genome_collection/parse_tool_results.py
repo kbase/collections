@@ -48,7 +48,7 @@ from src.common.product_models.heatmap_common_models import (
 )
 from src.common.storage.db_doc_conversions import collection_data_id_key, collection_load_version_key
 from src.loaders.common import loader_common_names
-from src.loaders.common.loader_helper import convert_to_json, init_genome_atrri_doc, merge_docs
+from src.loaders.common.loader_helper import convert_to_json, init_genome_atrri_doc, is_upa_info_complete, merge_docs
 
 # Default result file name suffix for parsed computed genome attributes data for arango import.
 # Collection, load version and tools name will be prepended to this file name suffix.
@@ -169,11 +169,14 @@ def _row_to_doc(row, kbase_collection, load_version, features, tool_genome_map, 
     return doc
 
 
-def _create_tool_upa_map(tool_identifiers, meta_filenames):
+def _create_tool_upa_map(tool_identifiers, source_dirs, meta_filenames):
+    # Build a hash map between tool identidier and meta file path
     res = dict()
-    for tool_identifier, meta_filename in zip(tool_identifiers, meta_filenames):
+    for tool_identifier, source_dir, meta_filename in zip(tool_identifiers, source_dirs, meta_filenames):
         upa_dict = {}
         if not pd.isna(meta_filename):
+            if not is_upa_info_complete(source_dir):
+                raise ValueError(f"{meta_filename} has incomplete upa info. Needs to be redownloaded")
             with open(meta_filename, "r") as json_file:
                 upa_info = json.load(json_file)
             object_type = upa_info["type"].split("-")[0]
@@ -198,7 +201,7 @@ def _read_tool_result(result_dir, batch_dir, kbase_collection, load_ver, tool_fi
         raise ValueError('Unable to retrieve the genome metadata file') from e
     
     tool_genome_map = dict(zip(meta_df.tool_identifier, meta_df.genome_id))
-    tool_upa_map = _create_tool_upa_map(meta_df.tool_identifier, meta_df.meta_filename)
+    tool_upa_map = _create_tool_upa_map(meta_df.tool_identifier, meta_df.source_dir, meta_df.meta_filename)
 
     tool_file = os.path.join(result_dir, str(batch_dir), tool_file_name)
     docs = dict()
