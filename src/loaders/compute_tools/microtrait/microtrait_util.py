@@ -57,11 +57,11 @@ def _retrieve_genes(
 
 
 def _write_trait_unwrapped_genes(
-        trait_unwrapped_rules_file: Path,
+        trait_unwrapped_genes_file: Path,
         trait_rule_unwrapped_mapping: dict[str, set[str]]
 ) -> None:
     # write the trait to unwrapped rule mapping to a file
-    with open(trait_unwrapped_rules_file, 'w') as file:
+    with open(trait_unwrapped_genes_file, 'w') as file:
         file.write(f"{SYS_TRAIT_ID}\t{UNWRAPPED_GENE_COL}\n")
         for trait, rule_set in trait_rule_unwrapped_mapping.items():
             # Join the set elements into a single string
@@ -76,7 +76,7 @@ def _create_trait_unwrapped_genes_mapping(
     # create a dictionary of trait names to unwrapped gene names
     trait_unwrapped_genes_mapping = defaultdict(set)
     for trait_name, rule_names in trait_rule_unwrapped_mapping.items():
-        for rule_name in rule_names.copy():
+        for rule_name in rule_names:
             unwrapped_rule = rule_dict.get(rule_name)
             if unwrapped_rule:
                 gene_names = _retrieve_genes(unwrapped_rule)
