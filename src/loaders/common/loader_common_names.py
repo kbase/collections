@@ -34,13 +34,20 @@ SOURCE_DATA_DIR = (
 )
 COLLECTION_DATA_DIR = "collectionsdata"  # subdirectory for collected data (e.g. computed genome attributes)
 
+COLLECTION_SOURCE_DIR = "collectionssource"  # subdirectory for source collections
+
 # metadata file generated in the tool result folder with tool generated genome identifier,
 # original genome id and source genome file info
 GENOME_METADATA_FILE = "genome_metadata.tsv"
 
 # the name of the CSV file where we store the trait counts
-TRAIT_COUNTS_FILE = "trait_counts.csv"
+TRAIT_COUNTS_FILE = 'trait_counts.csv'
+SYS_TRAIT_ID = 'trait_id'  # unique identifier for a trait
+DETECTED_GENE_SCORE_COL = 'detected_genes_score'  # column name for the detected genes score
 
+# column name for the trait unique identifier defined in the granularity trait count table
+MICROTRAIT_TRAIT_NAME = 'microtrait_trait-name'
+UNWRAPPED_GENE_COL = 'unwrapped_genes'  # column name that contains parsed gene name from unwrapped rule
 
 # kbase authentication token
 KB_AUTH_TOKEN = "KB_AUTH_TOKEN"

@@ -1,6 +1,7 @@
 """
-usage: workspace_downloader.py [-h] --workspace_id WORKSPACE_ID [--root_dir ROOT_DIR] [--kb_base_url KB_BASE_URL]
-                               [--workers WORKERS] [--token_filepath TOKEN_FILEPATH] [--keep_job_dir]
+usage: workspace_downloader.py [-h] --workspace_id WORKSPACE_ID [--kbase_collection KBASE_COLLECTION] [--source_version SOURCE_VERSION]
+                               [--root_dir ROOT_DIR] [--kb_base_url KB_BASE_URL] [--workers WORKERS] [--token_filepath TOKEN_FILEPATH]
+                               [--keep_job_dir]
 
 PROTOTYPE - Download genome files from the workspace service (WSS).
 
@@ -12,6 +13,10 @@ required named arguments:
                         Workspace addressed by the permanent ID
 
 optional arguments:
+  --kbase_collection KBASE_COLLECTION
+                        Create a collection and link in data to that collection from the overall workspace source data dir
+  --source_version SOURCE_VERSION
+                        Create a source version and link in data to that collection from the overall workspace source data dir
   --root_dir ROOT_DIR   Root directory. (default: /global/cfs/cdirs/kbase/collections)
   --kb_base_url KB_BASE_URL
                         KBase base URL, defaulting to prod (default: https://kbase.us/services/)
@@ -22,7 +27,7 @@ optional arguments:
 
             
 e.g.
-PYTHONPATH=. python src/loaders/workspace_downloader/workspace_downloader.py --workspace_id 39795 --kb_base_url https://ci.kbase.us/services/  --keep_job_dir
+PYTHONPATH=. python src/loaders/workspace_downloader/workspace_downloader.py --workspace_id 39795 --kbase_collection PMI --source_version 2023.1 --kb_base_url https://ci.kbase.us/services/ --keep_job_dir
 
 NOTE:
 NERSC file structure for WS:
@@ -61,7 +66,14 @@ FILTER_OBJECTS_NAME_BY = "KBaseGenomeAnnotations.Assembly"
 
 
 class Conf:
-    def __init__(self, job_dir, output_dir, workers, kb_base_url, token_filepath):
+    def __init__(
+        self,
+        job_dir,
+        output_dir,
+        workers,
+        kb_base_url,
+        token_filepath,
+    ):
         port = loader_helper.find_free_port()
         token = loader_helper.get_token(token_filepath)
 
@@ -128,7 +140,7 @@ def _make_output_dir(root_dir, source_data_dir, source, workspace_id):
 
 
 def _make_job_dir(root_dir, job_dir, username):
-    """Helper function that create a job_dir for a user under root directory."""
+    """Helper function that creates a job_dir for a user under root directory."""
     job_dir = os.path.join(root_dir, job_dir, username)
     os.makedirs(job_dir, exist_ok=True)
     # only user can cread, write, or execute
@@ -136,8 +148,20 @@ def _make_job_dir(root_dir, job_dir, username):
     return job_dir
 
 
+def _make_collection_source_dir(
+    root_dir, collection_source_dir, collection, source_verion
+):
+    """
+    Helper function that creates a collection & source_version and link in data
+    to that colleciton from the overall workspace source data dir.
+    """
+    csd = os.path.join(root_dir, collection_source_dir, collection, source_verion)
+    os.makedirs(csd, exist_ok=True)
+    return csd
+
+
 def _list_objects_params(wsid, min_id, max_id, type_str):
-    """Helper function that creats params needed for list_objects function."""
+    """Helper function that creates params needed for list_objects function."""
     params = {
         "ids": [wsid],
         "minObjectID": min_id,
@@ -145,6 +169,23 @@ def _list_objects_params(wsid, min_id, max_id, type_str):
         "type": type_str,
     }
     return params
+
+
+def _create_softlink(csd_upa_dir, upa_dir):
+    """
+    Helper function that creates a softlink between two directories.
+    """
+    if os.path.exists(csd_upa_dir):
+        if (
+            os.path.isdir(csd_upa_dir)
+            and os.path.islink(csd_upa_dir)
+            and os.readlink(csd_upa_dir) == upa_dir
+        ):
+            return
+        raise ValueError(
+            f"{csd_upa_dir} already exists and does not link to {upa_dir} as expected"
+        )
+    os.symlink(upa_dir, csd_upa_dir, target_is_directory=True)
 
 
 def _process_object_info(obj_info):
@@ -241,6 +282,16 @@ def main():
 
     # Optional argument
     optional.add_argument(
+        f"--{loader_common_names.KBASE_COLLECTION_ARG_NAME}",
+        type=str,
+        help="Create a collection and link in data to that collection from the overall workspace source data dir",
+    )
+    optional.add_argument(
+        "--source_version",
+        type=str,
+        help="Create a source version and link in data to that collection from the overall workspace source data dir",
+    )
+    optional.add_argument(
         "--root_dir",
         type=str,
         default=loader_common_names.ROOT_DIR,
@@ -270,19 +321,24 @@ def main():
     )
 
     args = parser.parse_args()
-    if args.workspace_id <= 0:
-        parser.error(f"workspace_id needs to be > 0")
-    if args.workers < 1 or args.workers > cpu_count():
-        parser.error(f"minimum worker is 1 and maximum worker is {cpu_count()}")
 
-    (workspace_id, root_dir, kb_base_url, workers, token_filepath, keep_job_dir) = (
-        args.workspace_id,
-        args.root_dir,
-        args.kb_base_url,
-        args.workers,
-        args.token_filepath,
-        args.keep_job_dir,
-    )
+    workspace_id = args.workspace_id
+    kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
+    source_version = args.source_version
+    root_dir = args.root_dir
+    kb_base_url = args.kb_base_url
+    workers = args.workers
+    token_filepath = args.token_filepath
+    keep_job_dir = args.keep_job_dir
+
+    if bool(kbase_collection) ^ bool(source_version):
+        parser.error(
+            f"if either kbase_collection or source_verion is specified, both are required"
+        )
+    if workspace_id <= 0:
+        parser.error(f"workspace_id needs to be > 0")
+    if workers < 1 or workers > cpu_count():
+        parser.error(f"minimum worker is 1 and maximum worker is {cpu_count()}")
 
     uid = os.getuid()
     username = os.getlogin()
@@ -291,6 +347,14 @@ def main():
     output_dir = _make_output_dir(
         root_dir, loader_common_names.SOURCE_DATA_DIR, SOURCE, workspace_id
     )
+    csd = None
+    if kbase_collection:
+        csd = _make_collection_source_dir(
+            root_dir,
+            loader_common_names.COLLECTION_SOURCE_DIR,
+            kbase_collection,
+            source_version,
+        )
 
     proc = None
     conf = None
@@ -302,11 +366,19 @@ def main():
         raise Exception("Podman service failed to start") from e
     else:
         # set up conf and start callback server
-        conf = Conf(job_dir, output_dir, workers, kb_base_url, token_filepath)
+        conf = Conf(
+            job_dir,
+            output_dir,
+            workers,
+            kb_base_url,
+            token_filepath,
+        )
         objs = list_objects(workspace_id, conf, FILTER_OBJECTS_NAME_BY)
+        upas = []
 
         for obj_info in objs:
             upa = "{6}_{0}_{4}".format(*obj_info)
+            upas.append(upa)
             upa_dir = os.path.join(output_dir, upa)
             if os.path.isdir(upa_dir) and loader_helper.is_upa_info_complete(upa_dir):
                 continue
@@ -321,6 +393,13 @@ def main():
 
         conf.pools.close()
         conf.pools.join()
+
+        # create a softlink from the relevant directory under collectionssource
+        if csd:
+            for upa in upas:
+                upa_dir = os.path.join(output_dir, upa)
+                csd_upa_dir = os.path.join(csd, upa)
+                _create_softlink(csd_upa_dir, upa_dir)
 
     finally:
         # stop callback server if it is on
