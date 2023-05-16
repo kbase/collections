@@ -17,7 +17,7 @@ FIELD_HEATMAP_MAX_VALUE = "max_value"
 FIELD_HEATMAP_COUNT = "count"
 FIELD_HEATMAP_CELL_VALUE = "val"
 FIELD_HEATMAP_ROW_CELLS = "cells"
-
+FIELD_HEATMAP_CELL_ID = 'cell_id'
 
 _FLD_CELL_ID = Field(
     example="4",
