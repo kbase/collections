@@ -172,13 +172,13 @@ def _row_to_doc(row, kbase_collection, load_version, features, tool_genome_map, 
 def _create_tool_upa_map(tool_identifiers, meta_filenames):
     res = dict()
     for tool_identifier, meta_filename in zip(tool_identifiers, meta_filenames):
-        upa_info = {}
+        upa_dict = {}
         if not pd.isna(meta_filename):
             with open(meta_filename, "r") as json_file:
                 upa_info = json.load(json_file)
             object_type = upa_info["type"].split("-")[0]
-            upa_info[object_type] = upa_info["upa"]
-        res[tool_identifier] = {"_upas": upa_info}
+            upa_dict[object_type] = upa_info["upa"]
+        res[tool_identifier] = {"_upas": upa_dict}
     return res
 
 
