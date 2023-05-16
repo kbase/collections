@@ -174,7 +174,7 @@ def _create_tool_upa_map(tool_identifiers, meta_filenames):
     for tool_identifier, meta_filename in zip(tool_identifiers, meta_filenames):
         upa_info = {}
         if not pd.isna(meta_filename):
-            with open(meta_filename, "w", encoding="utf8") as json_file:
+            with open(meta_filename, "r") as json_file:
                 upa_info = json.load(json_file)
             object_type = upa_info["type"].split("-")[0]
             upa_info[object_type] = upa_info["upa"]
