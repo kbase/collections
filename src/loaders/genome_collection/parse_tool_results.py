@@ -30,6 +30,7 @@ optional arguments:
 """
 import argparse
 import copy
+import json
 import os
 import sys
 from typing import Any
@@ -131,7 +132,7 @@ def _read_tsv_as_df(file_path, features, genome_id_col=None):
     return df
 
 
-def _create_doc(row, kbase_collection, load_version, genome_id, features, prefix):
+def _create_doc(row, kbase_collection, load_version, genome_id, upa_info, features, prefix):
     # Select specific columns and prepare them for import into Arango
 
     # NOTE: The selected column names will have a prefix added to them if pre_fix is not empty.
@@ -143,11 +144,13 @@ def _create_doc(row, kbase_collection, load_version, genome_id, features, prefix
         doc.update(row[list(features)].rename(lambda x: prefix + '_' + x if prefix else x).to_dict())
     else:
         doc.update(row.rename(lambda x: prefix + '_' + x if prefix else x).to_dict())
+    
+    doc.update(upa_info)
 
     return doc
 
 
-def _row_to_doc(row, kbase_collection, load_version, features, tool_genome_map, genome_id_col, prefix):
+def _row_to_doc(row, kbase_collection, load_version, features, tool_genome_map, tool_upa_map, genome_id_col, prefix):
     # Transforms a row from tool result file into ArangoDB collection document
 
     try:
@@ -155,9 +158,28 @@ def _row_to_doc(row, kbase_collection, load_version, features, tool_genome_map, 
     except KeyError as e:
         raise ValueError('Unable to find genome ID') from e
 
-    doc = _create_doc(row, kbase_collection, load_version, genome_id, features, prefix)
+    try:
+        upa_info = tool_upa_map[row[genome_id_col]]
+    except KeyError as e:
+        raise ValueError('Unable to find upa information') from e
+
+
+    doc = _create_doc(row, kbase_collection, load_version, genome_id, upa_info, features, prefix)
 
     return doc
+
+
+def _create_tool_upa_map(tool_identifiers, meta_filenames):
+    res = dict()
+    for tool_identifier, meta_filename in zip(tool_identifiers, meta_filenames):
+        upa_info = {}
+        if not pd.isna(meta_filename):
+            with open(meta_filename, "w", encoding="utf8") as json_file:
+                upa_info = json.load(json_file)
+            object_type = upa_info["type"].split("-")[0]
+            upa_info[object_type] = upa_info["upa"]
+        res[tool_identifier] = {"_upas": upa_info}
+    return res
 
 
 def _read_tool_result(result_dir, batch_dir, kbase_collection, load_ver, tool_file_name, features, genome_id_col,
@@ -174,14 +196,16 @@ def _read_tool_result(result_dir, batch_dir, kbase_collection, load_ver, tool_fi
         meta_df = pd.read_csv(metadata_file, sep='\t')
     except Exception as e:
         raise ValueError('Unable to retrieve the genome metadata file') from e
+    
     tool_genome_map = dict(zip(meta_df.tool_identifier, meta_df.genome_id))
+    tool_upa_map = _create_tool_upa_map(meta_df.tool_identifier, meta_df.meta_filename)
 
     tool_file = os.path.join(result_dir, str(batch_dir), tool_file_name)
     docs = dict()
     if os.path.exists(tool_file):
         df = _read_tsv_as_df(tool_file, features, genome_id_col=genome_id_col)
         docs = df.apply(_row_to_doc, args=(kbase_collection, load_ver, features, tool_genome_map,
-                                           genome_id_col, prefix), axis=1).to_list()
+                                           tool_upa_map, genome_id_col, prefix), axis=1).to_list()
 
     return docs
 
