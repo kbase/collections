@@ -35,7 +35,10 @@ def _retrieve_trait_substrate_mapping(
         substrate_name = row[_SUBSTRATE2RULE_SUBSTRATE_NAME_COL]
         for trait_name_col in _RULE2TRAIT_TRAIT_NAME_COLS:
             trait_name = row[trait_name_col]
-            trait_substrate_mapping[trait_name].add(substrate_name) if pd.notna(trait_name) else None
+            if pd.notna(trait_name):
+                trait_substrate_mapping[trait_name].add(substrate_name)
+            else:
+                raise ValueError(f"Trait name is null for row {index} in {substrate2rule_file}")
 
     return trait_substrate_mapping
 
@@ -95,7 +98,7 @@ def create_trait_unwrapped_genes(
         trait_unwrapped_genes_file: Path = None,
 ) -> dict[str, set[str]]:
     """
-    Generate a mapping of traits to gene.
+    Generate a mapping of traits to associated unwrapped genes.
 
     """
     trait_rule_unwrapped_mapping = defaultdict(set)
