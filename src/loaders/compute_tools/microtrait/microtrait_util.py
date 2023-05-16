@@ -116,6 +116,7 @@ def create_trait_unwrapped_genes(
     # split the rule substrate column into an array of substrates
     # i.e. "trehalose;maltose;sucrose" -> ["trehalose", "maltose", "sucrose"]
     rule_substrate_array = rule2trait_df[_RULE2TRAIT_RULE_SUBSTRATE_COL].str.split(';')
+    # fill the NaN values with empty lists (some rules have NA value for substrate)
     rule_substrate_array = rule_substrate_array.fillna(value=pd.Series([[]] * len(rule_substrate_array)))
 
     # find the rule names associated with the substrate names from the rule2trait file
