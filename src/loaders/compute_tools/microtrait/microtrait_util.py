@@ -26,7 +26,7 @@ _RULEUNWRAPPED_COLS = [
 def _retrieve_trait_substrate_mapping(
         substrate2rule_file: Path
 ) -> dict[str, set[str]]:
-    # find the rule names associated with the specified traits in the substrate2rule mapping file
+    # retrieve the trait to substrate mapping from the substrate2rule file
     substrate2rule_df = pd.read_csv(substrate2rule_file, sep='\t')
 
     # create a dictionary of trait names to substrate names from the substrate2rule file
