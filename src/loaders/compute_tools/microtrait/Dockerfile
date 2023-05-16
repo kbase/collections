@@ -48,10 +48,10 @@ RUN curl -L ${MT_DOWNLOAD_URL} -o release.zip \
 ARG MT_RULE2TRAIT_FILE=/app/microtrait-${MT_RELEASE_TAG}/data-raw/microtrait_rule2trait.txt
 ARG MT_RULEUNWRAPPED_FILE=/app/microtrait-${MT_RELEASE_TAG}/data-raw/microtrait_ruleunwrapped.txt
 ARG MT_SUBSTRATE2RULE_FILE=/app/microtrait-${MT_RELEASE_TAG}/data-raw/microtrait_substrate2rule.txt
-ENV MT_TRAIT_UNWRAPPED_FILE=/app/microtrait_trait2unwrappedrules.txt
+ENV MT_TRAIT_UNWRAPPED_FILE=/app/microtrait_trait2unwrappedgenes.txt
 
 RUN python -c "\
-from src.loaders.compute_tools.microtrait.microtrait_util import create_trait_unwrapped_rules; \
-create_trait_unwrapped_rules('${MT_RULE2TRAIT_FILE}', '${MT_RULEUNWRAPPED_FILE}', '${MT_SUBSTRATE2RULE_FILE}', '${MT_TRAIT_UNWRAPPED_FILE}')"
+from src.loaders.compute_tools.microtrait.microtrait_util import create_trait_unwrapped_genes; \
+create_trait_unwrapped_genes('${MT_RULE2TRAIT_FILE}', '${MT_RULEUNWRAPPED_FILE}', '${MT_SUBSTRATE2RULE_FILE}', '${MT_TRAIT_UNWRAPPED_FILE}')"
 
 ENTRYPOINT ["/app/collections/src/loaders/compute_tools/entrypoint.sh"]

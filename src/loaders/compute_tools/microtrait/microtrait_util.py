@@ -53,7 +53,7 @@ def _retrieve_genes(
     return gene_names
 
 
-def _write_trait_unwrapped_rules(
+def _write_trait_unwrapped_genes(
         trait_unwrapped_rules_file: Path,
         trait_rule_unwrapped_mapping: dict[str, set[str]]
 ) -> None:
@@ -66,14 +66,36 @@ def _write_trait_unwrapped_rules(
             file.write(f"{trait}\t{unwrapped_rules}\n")
 
 
-def create_trait_unwrapped_rules(
+def _create_trait_unwrapped_genes_mapping(
+        trait_rule_unwrapped_mapping: dict[str, set[str]],
+        rule_dict: dict[str, str]
+) -> dict[str, set[str]]:
+    # create a dictionary of trait names to unwrapped gene names
+    trait_unwrapped_genes_mapping = defaultdict(set)
+    for trait_name, rule_names in trait_rule_unwrapped_mapping.items():
+        for rule_name in rule_names.copy():
+            unwrapped_rule = rule_dict.get(rule_name)
+            if unwrapped_rule:
+                gene_names = _retrieve_genes(unwrapped_rule)
+                trait_unwrapped_genes_mapping[trait_name].update(gene_names)
+            else:
+                raise ValueError(f"Rule name {rule_name} not found in ruleunwrapped file")
+
+    keys_with_empty_set = [k for k, v in trait_unwrapped_genes_mapping.items() if len(v) == 0]
+    if keys_with_empty_set:
+        raise ValueError(f"Substrate names not found in substrate2rule file for traits: {keys_with_empty_set}")
+
+    return trait_unwrapped_genes_mapping
+
+
+def create_trait_unwrapped_genes(
         rule2trait_file: Path,
         ruleunwrapped_file: Path,
         substrate2rule_file: Path,
-        trait_unwrapped_rules_file: Path = None,
+        trait_unwrapped_genes_file: Path = None,
 ) -> dict[str, set[str]]:
     """
-    Generate a mapping of traits to unwrapped rule expressions.
+    Generate a mapping of traits to gene.
 
     """
     trait_rule_unwrapped_mapping = defaultdict(set)
@@ -88,14 +110,16 @@ def create_trait_unwrapped_rules(
 
     trait_substrate_mapping = _retrieve_trait_substrate_mapping(substrate2rule_file)
 
+    # split the rule substrate column into an array of substrates
+    # i.e. "trehalose;maltose;sucrose" -> ["trehalose", "maltose", "sucrose"]
+    rule_substrate_array = rule2trait_df[_RULE2TRAIT_RULE_SUBSTRATE_COL].str.split(';')
+    rule_substrate_array = rule_substrate_array.fillna(value=pd.Series([[]] * len(rule_substrate_array)))
+
     # find the rule names associated with the substrate names from the rule2trait file
     for trait_name, substrate_names in trait_substrate_mapping.items():
         for substrate_name in substrate_names:
-            # filter the rule2trait DataFrame to include only rows where the substrate column contains the specified
-            # substrate name (the substrate column can contain multiple substrates i.e. "trehalose;maltose;sucrose")
-            filtered_df = rule2trait_df[
-                rule2trait_df[_RULE2TRAIT_RULE_SUBSTRATE_COL].str.contains(substrate_name, na=False)]
-            rule_names = filtered_df[_RULE2TRAIT_RULE_NAME_COL].unique()
+            substrate_present = rule_substrate_array.apply(lambda arr: substrate_name in arr)
+            rule_names = rule2trait_df[substrate_present][_RULE2TRAIT_RULE_NAME_COL].unique()
             trait_rule_unwrapped_mapping[trait_name].update(set(rule_names))
 
     # read the ruleunwrapped file and populate unwrapped rule expressions to each trait
@@ -103,18 +127,9 @@ def create_trait_unwrapped_rules(
     # create a dictionary of rule names to unwrapped rule expressions
     rule_dict = dict(zip(ruleunwrapped_df[_RULEUNWRAPPED_RULE_NAME_COL], ruleunwrapped_df[_UNWRAPPED_RULE_COL]))
 
-    for trait_name, rule_names in trait_rule_unwrapped_mapping.items():
-        for rule_name in rule_names.copy():
-            unwrapped_rule = rule_dict.get(rule_name)
-            if unwrapped_rule:
-                gene_names = _retrieve_genes(unwrapped_rule)
-                # remove the rule name from the set and add the unwrapped rule expression
-                trait_rule_unwrapped_mapping[trait_name].remove(rule_name)
-                trait_rule_unwrapped_mapping[trait_name].update(gene_names)
-            else:
-                raise ValueError(f"Rule name {rule_name} not found in ruleunwrapped file")
+    trait_unwrapped_genes_mapping = _create_trait_unwrapped_genes_mapping(trait_rule_unwrapped_mapping, rule_dict)
 
-    if trait_unwrapped_rules_file is not None:
-        _write_trait_unwrapped_rules(trait_unwrapped_rules_file, trait_rule_unwrapped_mapping)
+    if trait_unwrapped_genes_file is not None:
+        _write_trait_unwrapped_genes(trait_unwrapped_genes_file, trait_unwrapped_genes_mapping)
 
-    return trait_rule_unwrapped_mapping
+    return trait_unwrapped_genes_mapping
