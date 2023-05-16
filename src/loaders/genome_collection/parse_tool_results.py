@@ -33,6 +33,7 @@ import copy
 import json
 import os
 import sys
+from numbers import Number
 from typing import Any
 
 import pandas as pd
@@ -431,7 +432,7 @@ def _append_cell(
         max_value: float | int,
         trait_val: float | int | bool = _SYS_DEFAULT_TRAIT_VALUE,
         detected_genes_score: dict[str, float] = None,
-) -> (float | int, float | int):
+) -> (float | int, float | int, CellDetail):
     # Append a cell to the heatmap row and return the global min and max values
 
     if trait_type == 'count':
@@ -447,7 +448,7 @@ def _append_cell(
 
     cell_detail = _create_cell_detail(cell_id, detected_genes_score)
 
-    if isinstance(trait_val, (int, float)):
+    if isinstance(trait_val, Number):
         min_value = min(min_value, trait_val)
         max_value = max(max_value, trait_val)
 
