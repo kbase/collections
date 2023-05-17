@@ -1,7 +1,7 @@
 """
 Runs microtrait on a set of assemblies.
 """
-
+import json
 import os
 from pathlib import Path
 
@@ -96,8 +96,8 @@ def _run_microtrait(genome_id: str, fna_file: Path, genome_dir: Path, debug: boo
 
             trait_counts_df[loader_common_names.DETECTED_GENE_SCORE_COL] = trait_counts_df[
                 loader_common_names.UNWRAPPED_GENE_COL].apply(
-                lambda x: [{gene: detected_genes_score.get(gene)} for gene in str(x).split(';') if
-                           gene in detected_genes_score])
+                lambda x: json.dumps({gene: detected_genes_score.get(gene) for gene in str(x).split(';') if
+                                      gene in detected_genes_score}))
         else:
             raise ValueError('Please set environment variable MT_TRAIT_UNWRAPPED_FILE')
 
