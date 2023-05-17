@@ -54,6 +54,7 @@ from src.common.storage.db_doc_conversions import collection_data_id_key, collec
 from src.loaders.common import loader_common_names
 from src.loaders.common.loader_helper import (
     convert_to_json, 
+    init_export_types_doc,
     init_genome_atrri_doc, 
     is_upa_info_complete, 
     merge_docs,
@@ -66,6 +67,10 @@ COMPUTED_GENOME_ATTR_FILE_SUFFIX = "computed_genome_attribs.jsonl"
 # Default result file name suffix for parsed heatmap data for arango import.
 # Collection, load version, tools name and categories (meta, rows, cells etc.) will be prepended to this suffix.
 HEATMAP_FILE_SUFFIX = "heatmap_data.jsonl"
+
+# Default result file name suffix for the kbcoll_export_types collections for arango import.
+# Collection, load version and types will be prepended to this file name suffix.
+KBCALL_EXPORT_TYPES_FILE_SUFFIX = "kbcoll_export_types.jsonl"
 
 # The following features will be extracted from the CheckM2 result quality_report.tsv file as computed genome attributes
 # If empty, select all available fields
@@ -115,6 +120,9 @@ _MICROTRAIT_TO_SYS_TRAIT_MAP = {
 
 # Default directory name for the parsed JSONL files for arango import
 IMPORT_DIR = 'import_files'
+
+# Keep a set of the encountered types for the kbcoll_export_types
+ENCOUNTERED_TYPES = set()
 
 
 def _locate_dir(root_dir, kbase_collection, load_ver, check_exists=False, tool=''):
@@ -189,6 +197,7 @@ def _create_tool_upa_map(tool_identifiers, source_dirs, meta_filenames):
                 upa_info = json.load(json_file)
             object_type = upa_info["type"].split("-")[0]
             upa_dict[object_type] = upa_info["upa"]
+            ENCOUNTERED_TYPES.add(object_type)
         res[tool_identifier] = {"_upas": upa_dict}
     return res
 
@@ -334,6 +343,21 @@ def _process_genome_attri_tools(genome_attr_tools: set[str],
     docs = merge_docs(docs, '_key')
     output = f'{kbase_collection}_{load_ver}_{"_".join(genome_attr_tools)}_{COMPUTED_GENOME_ATTR_FILE_SUFFIX}'
     _create_import_files(root_dir, output, docs)
+
+    export_types_output = f'{kbase_collection}_{load_ver}_{"_".join(ENCOUNTERED_TYPES)}_{KBCALL_EXPORT_TYPES_FILE_SUFFIX}'
+    types_docs = _create_export_types_doc(kbase_collection, loader_common_names.GENOME_ATTRIBS, load_ver, ENCOUNTERED_TYPES)
+    _create_import_files(root_dir, export_types_output, [types_docs])
+
+
+def _create_export_types_doc(kbase_collection: str, 
+                             data_product: str,
+                             load_ver: str,
+                             types: set[str]):
+    # create another doc and prepare to load into the kbcoll_export_types collections 
+    doc = init_export_types_doc(kbase_collection, data_product, load_ver)
+    for i in types:
+        doc[names.FLD_TYPES].append(i)
+    return doc
 
 
 def _append_or_check_trait(

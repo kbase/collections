@@ -61,3 +61,6 @@ KB_BASE_URL_DEFAULT = "https://kbase.us/services/"
 SOURCE_METADATA_FILE_KEYS = ["upa", "name", "type", "timestamp"]
 # callback server docker image name
 CALLBACK_IMAGE_NAME = "scanon/callback"
+
+# genome_attribs
+GENOME_ATTRIBS = "genome_attribs"
