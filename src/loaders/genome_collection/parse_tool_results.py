@@ -610,20 +610,24 @@ def microtrait(root_dir, kbase_collection, load_ver):
 
     heatmap_meta, heatmap_rows, heatmap_cell_details = _create_heatmap_objs(traits_meta, traits_val)
     heatmap_meta_dict = heatmap_meta.dict()
-    heatmap_rows_list = [row.dict() for row in heatmap_rows]
     heatmap_cell_details_list = [cell_detail.dict() for cell_detail in heatmap_cell_details]
 
     # Add _key, collection id and load version to the heatmap metadata and rows
-    heatmap_meta_dict.update({names.FLD_ARANGO_KEY: collection_load_version_key(kbase_collection, load_ver),
-                              names.FLD_COLLECTION_ID: kbase_collection,
-                              names.FLD_LOAD_VERSION: load_ver})
+    heatmap_meta_dict.update({
+        names.FLD_ARANGO_KEY: collection_load_version_key(kbase_collection, load_ver),
+        names.FLD_COLLECTION_ID: kbase_collection,
+        names.FLD_LOAD_VERSION: load_ver
+    })
 
-    heatmap_rows_list = _process_rows_list(heatmap_rows_list,
-                                           kbase_collection,
-                                           load_ver,
-                                           names.FLD_KBASE_ID,
-                                           collection_data_id_key)
-
+    heatmap_rows_list = []
+    for r in heatmap_rows:
+        d = r.dict()
+        d.pop(names.FLD_MATCHED, None)   # inserted by the model but not needed in the DB
+        d.pop(names.FLD_SELECTED, None)  # inserted by the model but not needed in the DB
+        heatmap_rows_list.append(dict(
+            # Needs to have the match and selection field inserted
+            d, **init_genome_atrri_doc(kbase_collection, load_ver, d[names.FLD_KBASE_ID])
+        ))
     heatmap_cell_details_list = _process_rows_list(heatmap_cell_details_list,
                                                    kbase_collection,
                                                    load_ver,
