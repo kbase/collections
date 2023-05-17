@@ -52,7 +52,12 @@ from src.common.product_models.heatmap_common_models import (
 )
 from src.common.storage.db_doc_conversions import collection_data_id_key, collection_load_version_key
 from src.loaders.common import loader_common_names
-from src.loaders.common.loader_helper import convert_to_json, init_genome_atrri_doc, is_upa_info_complete, merge_docs
+from src.loaders.common.loader_helper import (
+    convert_to_json, 
+    init_genome_atrri_doc, 
+    is_upa_info_complete, 
+    merge_docs,
+)
 
 # Default result file name suffix for parsed computed genome attributes data for arango import.
 # Collection, load version and tools name will be prepended to this file name suffix.
@@ -173,7 +178,7 @@ def _row_to_doc(row, kbase_collection, load_version, features, tool_genome_map, 
 
 
 def _create_tool_upa_map(tool_identifiers, source_dirs, meta_filenames):
-    # Build a hash map between tool identidier and meta file path
+    # Build a hash map between tool identifier and meta file path
     res = dict()
     for tool_identifier, source_dir, meta_filename in zip(tool_identifiers, source_dirs, meta_filenames):
         upa_dict = {}
