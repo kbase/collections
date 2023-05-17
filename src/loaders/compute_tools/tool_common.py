@@ -366,8 +366,8 @@ def _create_metadata_file(
         for genome_id, genome_meta_info in meta.items():
             meta_file.write(
                 f'{genome_meta_info[_META_TOOL_IDENTIFIER]}\t{genome_id}\t'
-                + f'{genome_meta_info[_META_SOURCE_FILE]}\t'
                 + f'{genome_meta_info[_META_SOURCE_DIR]}\t'
+                + f'{genome_meta_info[_META_SOURCE_FILE]}\t'
                 + f'{genome_meta_info[_META_SOURCE_FILE_NAME]}\n'
             )
 
@@ -410,8 +410,8 @@ def _prepare_tool(
             metadata_file = mata_filename_path if os.path.exists(mata_filename_path) else ""
 
             meta[data_id] = {_META_TOOL_IDENTIFIER: tool_identifier, 
-                             _META_SOURCE_FILE: data_file,
                              _META_SOURCE_DIR: data_file.parent,
+                             _META_SOURCE_FILE: data_file,
                              _META_SOURCE_FILE_NAME: metadata_file}
 
     return batch_dir, meta
