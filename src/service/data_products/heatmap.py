@@ -42,7 +42,7 @@ from src.service import processing_selections
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
 
-from typing import Annotated, Awaitable, Callable
+from typing import Annotated, Awaitable, Callable, Any
 
 _OPT_AUTH = KBaseHTTPBearer(optional=True)
 
@@ -413,6 +413,12 @@ class HeatMapController:
         )
         return count
 
+    def _remove_doc_keys(self, doc: dict[str, Any]) -> dict[str, Any]:
+        # removes in place
+        doc = remove_arango_keys(remove_collection_keys(doc))
+        doc.pop(names.FLD_MATCHES_SELECTIONS, None)
+        return doc
+
     def _get_complete_internal_id(self, dp_proc: models.DataProductProcess | None) -> str:
         return dp_proc.internal_id if dp_proc and dp_proc.is_complete() else None
 
@@ -435,7 +441,7 @@ class HeatMapController:
         await query_simple_collection_list(
             store,
             self._colname_data,
-            lambda doc: data.append(remove_arango_keys(remove_collection_keys(doc))),
+            lambda doc: data.append(self._remove_doc_keys(doc)),
             collection_id,
             load_ver,
             names.FLD_KBASE_ID,
