@@ -591,11 +591,11 @@ def microtrait(root_dir, kbase_collection, load_ver):
     heatmap_rows_list = []
     for r in heatmap_rows:
         d = r.dict()
-        d.pop(names.FLD_MATCHED, None)   # insertd by the model but not needed in the DB
-        d.pop(names.FLD_SELECTED, None)  # insertd by the model but not needed in the DB
+        d.pop(names.FLD_MATCHED, None)   # inserted by the model but not needed in the DB
+        d.pop(names.FLD_SELECTED, None)  # inserted by the model but not needed in the DB
         heatmap_rows_list.append(dict(
             # Needs to have the match and selection field inserted
-            d, **init_genome_atrri_doc(kbase_collection, load_ver, row[names.FLD_KBASE_ID])
+            d, **init_genome_atrri_doc(kbase_collection, load_ver, d[names.FLD_KBASE_ID])
         ))
     heatmap_cell_details_list = _process_rows_list(heatmap_cell_details_list,
                                                    kbase_collection,
