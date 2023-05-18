@@ -12,7 +12,7 @@
 * Support the sensitivity cutoff and coverage parameters in the matcher UI
   * Standard Mash only supports distance
   * CMash supports coverage
-* We'll start with supporting Mash for now since the existing infrastructure already suports it
+* We'll start with supporting Mash for now since the existing infrastructure already supports it
 * Devs ideally don't want to have to use SDK App refdata for minhash sketches since that means
   going through an app release every time the sketches are updated
 
