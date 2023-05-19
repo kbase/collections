@@ -50,11 +50,14 @@ from src.common.product_models.heatmap_common_models import (
     CellDetailEntry,
     FIELD_HEATMAP_CELL_ID,
 )
-from src.common.storage.db_doc_conversions import collection_data_id_key, collection_load_version_key
+from src.common.storage.db_doc_conversions import (
+    collection_data_id_key, 
+    collection_load_version_key, 
+    data_product_export_types_to_doc,
+)
 from src.loaders.common import loader_common_names
 from src.loaders.common.loader_helper import (
     convert_to_json, 
-    init_export_types_doc,
     init_genome_atrri_doc, 
     is_upa_info_complete, 
     merge_docs,
@@ -354,7 +357,7 @@ def _create_export_types_doc(kbase_collection: str,
                              load_ver: str,
                              types: set[str]):
     # create another doc and prepare to load into the kbcoll_export_types collections 
-    doc = init_export_types_doc(kbase_collection, data_product, load_ver)
+    doc = data_product_export_types_to_doc(kbase_collection, data_product, load_ver, [])
     for i in types:
         doc[names.FLD_TYPES].append(i)
     return doc
