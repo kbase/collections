@@ -550,7 +550,7 @@ async def get_collection_versions(
 
 
 @ROUTER_DANGER.delete(
-    "/matchadmin/{match_id}/",
+    "/admin/matches/{match_id}/",
     response_model=models.MatchVerbose,
     summary="!!! Danger !!! Delete a match",
     description="Delete a match, regardless of state. **BE SURE YOU KNOW WHAT YOU'RE DOING**. "
@@ -571,7 +571,7 @@ async def delete_match(
 
 
 @ROUTER_DANGER.delete(
-    "/selectionadmin/{selection_id}/",
+    "/admin/selections/{selection_id}/",
     response_model=models.SelectionVerbose,
     summary="!!! Danger !!! Delete a selection",
     description="Delete a selection, regardless of state. **BE SURE YOU KNOW WHAT YOU'RE DOING**. "
