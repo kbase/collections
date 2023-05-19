@@ -27,7 +27,7 @@ optional arguments:
 
             
 e.g.
-PYTHONPATH=. python src/loaders/workspace_downloader/workspace_downloader.py --workspace_id 39795 --kbase_collection PMI --source_version 2023.1 --kb_base_url https://ci.kbase.us/services/ --keep_job_dir
+PYTHONPATH=. python src/loaders/workspace_downloader/workspace_downloader.py --workspace_id 39795 --kbase_collection PMI --source_version 2023.01 --kb_base_url https://ci.kbase.us/services/ --keep_job_dir
 
 NOTE:
 NERSC file structure for WS:
@@ -400,6 +400,9 @@ def main():
                 upa_dir = os.path.join(output_dir, upa)
                 csd_upa_dir = os.path.join(csd, upa)
                 _create_softlink(csd_upa_dir, upa_dir)
+            assert len(os.listdir(csd)) == len(
+                objs
+            ), f"directory count in {csd} is not equal to object count"
 
     finally:
         # stop callback server if it is on
