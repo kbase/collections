@@ -19,7 +19,6 @@ import multiprocessing
 import os
 import shutil
 import subprocess
-import sys
 import time
 import uuid
 
@@ -352,8 +351,11 @@ def _create_metadata_file(
     # create tool genome identifier metadata file
     genome_meta_file_path = os.path.join(batch_dir, loader_common_names.GENOME_METADATA_FILE)
     with open(genome_meta_file_path, "w") as meta_file:
-        meta_file.write(f"{loader_common_names.META_TOOL_IDENTIFIER}\t{loader_common_names.DATA_ID_COLUMN_HEADER}\t{loader_common_names.META_SOURCE_DIR}\t"
-                        + f"{loader_common_names.META_SOURCE_FILE}\t{loader_common_names.META_FILE_NAME}\n")
+        meta_file.write(f"{loader_common_names.META_TOOL_IDENTIFIER}\t"
+                        + f"{loader_common_names.DATA_ID_COLUMN_HEADER}\t"
+                        + f"{loader_common_names.META_SOURCE_DIR}\t"
+                        + f"{loader_common_names.META_SOURCE_FILE}\t"
+                        + f"{loader_common_names.META_FILE_NAME}\n")
         for genome_id, genome_meta_info in meta.items():
             meta_file.write(
                 f'{genome_meta_info[loader_common_names.META_TOOL_IDENTIFIER]}\t{genome_id}\t'

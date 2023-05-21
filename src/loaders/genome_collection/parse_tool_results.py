@@ -218,7 +218,7 @@ def _read_tool_result(result_dir, batch_dir, kbase_collection, load_ver, tool_fi
         meta_df = pd.read_csv(metadata_file, sep='\t')
     except Exception as e:
         raise ValueError('Unable to retrieve the genome metadata file') from e
-    tool_genome_map = dict(zip(meta_df.tool_identifier, meta_df.genome_id))
+    tool_genome_map = dict(zip(meta_df[loader_common_names.META_TOOL_IDENTIFIER], meta_df[loader_common_names.DATA_ID_COLUMN_HEADER]))
 
     tool_file = os.path.join(result_dir, str(batch_dir), tool_file_name)
     docs = dict()
@@ -363,7 +363,7 @@ def _add_upa_info(docs, root_dir, kbase_collection, load_ver, tool):
             meta_df = pd.read_csv(metadata_file, sep='\t')
         except Exception as e:
             raise ValueError('Unable to retrieve the genome metadata file') from e
-        meta_dict = dict(zip(meta_df.genome_id, meta_df.meta_filename))
+        meta_dict = dict(zip(meta_df[loader_common_names.DATA_ID_COLUMN_HEADER], meta_df[loader_common_names.META_FILE_NAME]))
         meta_lookup.update(meta_dict)
     docs = _update_docs_with_upa_info(res_dict, meta_lookup)
     return docs

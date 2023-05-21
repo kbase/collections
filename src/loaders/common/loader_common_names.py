@@ -64,3 +64,9 @@ CALLBACK_IMAGE_NAME = "scanon/callback"
 
 # genome_attribs
 GENOME_ATTRIBS = "genome_attribs"
+
+DATA_ID_COLUMN_HEADER = "genome_id"  # TODO DATA_ID change to data ID for generality
+META_SOURCE_FILE = "source_file"
+META_TOOL_IDENTIFIER = "tool_identifier"
+META_SOURCE_DIR = "source_dir"
+META_FILE_NAME = "meta_filename"
