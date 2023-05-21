@@ -151,7 +151,7 @@ def _read_tsv_as_df(file_path, features, genome_id_col=None):
     return df
 
 
-def _create_doc(row, kbase_collection, load_version, genome_id, upa_info, features, prefix):
+def _create_doc(row, kbase_collection, load_version, genome_id, features, prefix):
     # Select specific columns and prepare them for import into Arango
 
     # NOTE: The selected column names will have a prefix added to them if pre_fix is not empty.
@@ -163,13 +163,11 @@ def _create_doc(row, kbase_collection, load_version, genome_id, upa_info, featur
         doc.update(row[list(features)].rename(lambda x: prefix + '_' + x if prefix else x).to_dict())
     else:
         doc.update(row.rename(lambda x: prefix + '_' + x if prefix else x).to_dict())
-    
-    doc.update(upa_info)
 
     return doc
 
 
-def _row_to_doc(row, kbase_collection, load_version, features, tool_genome_map, tool_upa_map, genome_id_col, prefix):
+def _row_to_doc(row, kbase_collection, load_version, features, tool_genome_map, genome_id_col, prefix):
     # Transforms a row from tool result file into ArangoDB collection document
 
     try:
@@ -177,32 +175,33 @@ def _row_to_doc(row, kbase_collection, load_version, features, tool_genome_map, 
     except KeyError as e:
         raise ValueError('Unable to find genome ID') from e
 
-    try:
-        upa_info = tool_upa_map[row[genome_id_col]]
-    except KeyError as e:
-        raise ValueError('Unable to find upa information') from e
-
-
-    doc = _create_doc(row, kbase_collection, load_version, genome_id, upa_info, features, prefix)
+    doc = _create_doc(row, kbase_collection, load_version, genome_id, features, prefix)
 
     return doc
 
 
-def _create_tool_upa_map(tool_identifiers, source_dirs, meta_filenames):
-    # Build a hash map between tool identifier and meta file path
-    res = dict()
-    for tool_identifier, source_dir, meta_filename in zip(tool_identifiers, source_dirs, meta_filenames):
+def _update_docs_with_upa_info(res_dict, meta_lookup):
+    # Update original docs with UPA informathion through a meta hashmap
+    for genome_id in res_dict:
+        try:
+            meta_filename = meta_lookup[genome_id]
+        except KeyError as e:
+            raise ValueError('Unable to find genome ID') from e
+        
         upa_dict = {}
         if not pd.isna(meta_filename):
-            if not is_upa_info_complete(source_dir):
+            if not is_upa_info_complete(os.path.dirname(meta_filename)):
                 raise ValueError(f"{meta_filename} has incomplete upa info. Needs to be redownloaded")
             with open(meta_filename, "r") as json_file:
                 upa_info = json.load(json_file)
             object_type = upa_info["type"].split("-")[0]
             upa_dict[object_type] = upa_info["upa"]
             ENCOUNTERED_TYPES.add(object_type)
-        res[tool_identifier] = {"_upas": upa_dict}
-    return res
+
+        res_dict[genome_id].update({names.FLD_UPA_MAP: upa_dict})
+
+    docs = list(res_dict.values())
+    return docs
 
 
 def _read_tool_result(result_dir, batch_dir, kbase_collection, load_ver, tool_file_name, features, genome_id_col,
@@ -219,16 +218,14 @@ def _read_tool_result(result_dir, batch_dir, kbase_collection, load_ver, tool_fi
         meta_df = pd.read_csv(metadata_file, sep='\t')
     except Exception as e:
         raise ValueError('Unable to retrieve the genome metadata file') from e
-    
     tool_genome_map = dict(zip(meta_df.tool_identifier, meta_df.genome_id))
-    tool_upa_map = _create_tool_upa_map(meta_df.tool_identifier, meta_df.source_dir, meta_df.meta_filename)
 
     tool_file = os.path.join(result_dir, str(batch_dir), tool_file_name)
     docs = dict()
     if os.path.exists(tool_file):
         df = _read_tsv_as_df(tool_file, features, genome_id_col=genome_id_col)
         docs = df.apply(_row_to_doc, args=(kbase_collection, load_ver, features, tool_genome_map,
-                                           tool_upa_map, genome_id_col, prefix), axis=1).to_list()
+                                           genome_id_col, prefix), axis=1).to_list()
 
     return docs
 
@@ -344,12 +341,32 @@ def _process_genome_attri_tools(genome_attr_tools: set[str],
         docs.extend(parse_ops(root_dir, kbase_collection, load_ver))
 
     docs = merge_docs(docs, '_key')
+    docs = _add_upa_info(docs, root_dir, kbase_collection, load_ver, tool)
     output = f'{kbase_collection}_{load_ver}_{"_".join(genome_attr_tools)}_{COMPUTED_GENOME_ATTR_FILE_SUFFIX}'
     _create_import_files(root_dir, output, docs)
 
     export_types_output = f'{kbase_collection}_{load_ver}_{"_".join(ENCOUNTERED_TYPES)}_{KBCALL_EXPORT_TYPES_FILE_SUFFIX}'
     types_docs = _create_export_types_doc(kbase_collection, loader_common_names.GENOME_ATTRIBS, load_ver, ENCOUNTERED_TYPES)
     _create_import_files(root_dir, export_types_output, [types_docs])
+
+
+def _add_upa_info(docs, root_dir, kbase_collection, load_ver, tool):
+    # Load assembly UPA data into genome attributes table, where the tool identifier is irrelevant 
+    meta_lookup = {}
+    res_dict = {row[names.FLD_KBASE_ID]: row for row in docs}
+    result_dir = _locate_dir(root_dir, kbase_collection, load_ver, tool)
+    batch_dirs = _get_batch_dirs(result_dir)
+    for batch_dir in batch_dirs:
+        batch_result_dir = os.path.join(result_dir, batch_dir)
+        metadata_file = os.path.join(batch_result_dir, loader_common_names.GENOME_METADATA_FILE)
+        try:
+            meta_df = pd.read_csv(metadata_file, sep='\t')
+        except Exception as e:
+            raise ValueError('Unable to retrieve the genome metadata file') from e
+        meta_dict = dict(zip(meta_df.genome_id, meta_df.meta_filename))
+        meta_lookup.update(meta_dict)
+    docs = _update_docs_with_upa_info(res_dict, meta_lookup)
+    return docs
 
 
 def _create_export_types_doc(kbase_collection: str, 
