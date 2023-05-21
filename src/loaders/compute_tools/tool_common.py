@@ -31,15 +31,6 @@ from src.loaders.common import loader_common_names
 from typing import Any, Callable, Dict, List, Tuple, Union
 
 
-_DATA_ID_COLUMN_HEADER = "genome_id"  # TODO DATA_ID change to data ID for generality
-
-# TODO CODE add a common module for saving and loading the metadata shared between the compute
-#           and parser
-_META_SOURCE_FILE = "source_file"
-_META_TOOL_IDENTIFIER = "tool_identifier"
-_META_SOURCE_DIR = "source_dir"
-_META_FILE_NAME = "meta_filename"
-
 # Fraction amount of system cores can be utilized
 # (i.e. 0.5 - program will use 50% of total processors,
 #       0.1 - program will use 10% of total processors)
@@ -189,7 +180,7 @@ class ToolRunner:
         optional.add_argument(
             '--data_id_file', type=argparse.FileType('r'),
             help="tab separated file containing data ids for the running job "
-                + f"(requires '{_DATA_ID_COLUMN_HEADER}' as the column name)"
+                + f"(requires '{loader_common_names.DATA_ID_COLUMN_HEADER}' as the column name)"
         )
         optional.add_argument(
             '--source_file_ext', type=str, default='.fa',
@@ -211,10 +202,10 @@ class ToolRunner:
             with self._data_id_file:
                 df = pd.read_csv(self._data_id_file, sep='\t')
                 try:
-                    data_ids = df[_DATA_ID_COLUMN_HEADER]
+                    data_ids = df[loader_common_names.DATA_ID_COLUMN_HEADER]
                 except KeyError:
                     raise ValueError(
-                        f"Please ensure {_DATA_ID_COLUMN_HEADER} column exists in the "
+                        f"Please ensure {loader_common_names.DATA_ID_COLUMN_HEADER} column exists in the "
                         + "data id file.")
 
             if not set(all_data_ids) >= set(data_ids):
@@ -255,7 +246,7 @@ class ToolRunner:
             output_dir = batch_dir / data_id
             os.makedirs(output_dir, exist_ok=True)
             args_list.append(
-                (meta[_META_TOOL_IDENTIFIER], meta[_META_SOURCE_FILE], output_dir, self._debug))
+                (meta[loader_common_names.META_TOOL_IDENTIFIER], meta[loader_common_names.META_SOURCE_FILE], output_dir, self._debug))
         self._execute(self._threads, tool_callable, args_list, start, False)
         _create_metadata_file(genomes_meta, batch_dir)
     
@@ -290,7 +281,7 @@ class ToolRunner:
                 self._suffix_ids,
             )
             metas.append((meta, batch_dir))
-            ids_to_files = {m[_META_TOOL_IDENTIFIER]: m[_META_SOURCE_FILE] for m in meta.values()}
+            ids_to_files = {m[loader_common_names.META_TOOL_IDENTIFIER]: m[loader_common_names.META_SOURCE_FILE] for m in meta.values()}
             batch_input.append((ids_to_files, batch_dir, self._program_threads, self._debug))
         self._execute(num_batches, tool_callable, batch_input, start, True)
         for meta in metas:
@@ -361,14 +352,14 @@ def _create_metadata_file(
     # create tool genome identifier metadata file
     genome_meta_file_path = os.path.join(batch_dir, loader_common_names.GENOME_METADATA_FILE)
     with open(genome_meta_file_path, "w") as meta_file:
-        meta_file.write(f"{_META_TOOL_IDENTIFIER}\t{_DATA_ID_COLUMN_HEADER}\t{_META_SOURCE_DIR}\t"
-                        + f"{_META_SOURCE_FILE}\t{_META_FILE_NAME}\n")
+        meta_file.write(f"{loader_common_names.META_TOOL_IDENTIFIER}\t{loader_common_names.DATA_ID_COLUMN_HEADER}\t{loader_common_names.META_SOURCE_DIR}\t"
+                        + f"{loader_common_names.META_SOURCE_FILE}\t{loader_common_names.META_FILE_NAME}\n")
         for genome_id, genome_meta_info in meta.items():
             meta_file.write(
-                f'{genome_meta_info[_META_TOOL_IDENTIFIER]}\t{genome_id}\t'
-                + f'{genome_meta_info[_META_SOURCE_DIR]}\t'
-                + f'{genome_meta_info[_META_SOURCE_FILE]}\t'
-                + f'{genome_meta_info[_META_FILE_NAME]}\n'
+                f'{genome_meta_info[loader_common_names.META_TOOL_IDENTIFIER]}\t{genome_id}\t'
+                + f'{genome_meta_info[loader_common_names.META_SOURCE_DIR]}\t'
+                + f'{genome_meta_info[loader_common_names.META_SOURCE_FILE]}\t'
+                + f'{genome_meta_info[loader_common_names.META_FILE_NAME]}\n'
             )
 
 
@@ -409,10 +400,10 @@ def _prepare_tool(
             mata_filename_path = os.path.join(data_file.parent, data_file.parent.name + ".meta")
             metadata_file = mata_filename_path if os.path.exists(mata_filename_path) else ""
 
-            meta[data_id] = {_META_TOOL_IDENTIFIER: tool_identifier, 
-                             _META_SOURCE_FILE: data_file,
-                             _META_SOURCE_DIR: data_file.parent,
-                             _META_FILE_NAME: metadata_file}
+            meta[data_id] = {loader_common_names.META_TOOL_IDENTIFIER: tool_identifier, 
+                             loader_common_names.META_SOURCE_FILE: data_file,
+                             loader_common_names.META_SOURCE_DIR: data_file.parent,
+                             loader_common_names.META_FILE_NAME: metadata_file}
 
     return batch_dir, meta
 
