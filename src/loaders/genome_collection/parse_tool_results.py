@@ -182,6 +182,7 @@ def _row_to_doc(row, kbase_collection, load_version, features, tool_genome_map, 
 
 def _update_docs_with_upa_info(res_dict, meta_lookup):
     # Update original docs with UPA informathion through a meta hashmap
+    
     for genome_id in res_dict:
         try:
             meta_filename = meta_lookup[genome_id]
@@ -352,9 +353,10 @@ def _process_genome_attri_tools(genome_attr_tools: set[str],
 
 def _add_upa_info(docs, root_dir, kbase_collection, load_ver, tool):
     # Load assembly UPA data into genome attributes table, where the tool identifier is irrelevant 
+    
     meta_lookup = {}
     res_dict = {row[names.FLD_KBASE_ID]: row for row in docs}
-    result_dir = _locate_dir(root_dir, kbase_collection, load_ver, tool)
+    result_dir = _locate_dir(root_dir, kbase_collection, load_ver, tool=tool)
     batch_dirs = _get_batch_dirs(result_dir)
     for batch_dir in batch_dirs:
         batch_result_dir = os.path.join(result_dir, batch_dir)
@@ -374,6 +376,7 @@ def _create_export_types_doc(kbase_collection: str,
                              load_ver: str,
                              types: set[str]):
     # create another doc and prepare to load into the kbcoll_export_types collections 
+
     doc = data_product_export_types_to_doc(kbase_collection, data_product, load_ver, [])
     for i in types:
         doc[names.FLD_TYPES].append(i)
