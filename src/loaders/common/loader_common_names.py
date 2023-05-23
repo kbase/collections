@@ -68,7 +68,7 @@ GENOME_ATTRIBS = "genome_attribs"
 DATA_ID_COLUMN_HEADER = "genome_id"  # TODO DATA_ID change to data ID for generality
 
 # The following headers are in the meta file written out by the computation script
-META_DATA_ID = "genome_id"
+META_DATA_ID = "data_id"
 META_SOURCE_FILE = "source_file"
 META_TOOL_IDENTIFIER = "tool_identifier"
 META_SOURCE_DIR = "source_dir"
