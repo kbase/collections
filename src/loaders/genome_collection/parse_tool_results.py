@@ -373,18 +373,6 @@ def _create_meta_lookup(root_dir, kbase_collection, load_ver, tool):
     return meta_lookup
 
 
-def _create_export_types_doc(kbase_collection: str, 
-                             data_product: str,
-                             load_ver: str,
-                             types: set[str]):
-    # create another doc and prepare to load into the kbcoll_export_types collections 
-
-    doc = data_product_export_types_to_doc(kbase_collection, data_product, load_ver, [])
-    for i in types:
-        doc[names.FLD_TYPES].append(i)
-    return doc
-
-
 def _append_or_check_trait(
         global_traits_meta: dict[str, dict[str, str]],
         trait_id: str,
