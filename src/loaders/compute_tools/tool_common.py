@@ -30,6 +30,9 @@ from src.loaders.common import loader_common_names
 from typing import Any, Callable, Dict, List, Tuple, Union
 
 
+# TODO CODE add a common module for saving and loading the metadata shared between the compute
+#           and parser
+
 # Fraction amount of system cores can be utilized
 # (i.e. 0.5 - program will use 50% of total processors,
 #       0.1 - program will use 10% of total processors)
@@ -352,13 +355,14 @@ def _create_metadata_file(
     genome_meta_file_path = os.path.join(batch_dir, loader_common_names.GENOME_METADATA_FILE)
     with open(genome_meta_file_path, "w") as meta_file:
         meta_file.write(f"{loader_common_names.META_TOOL_IDENTIFIER}\t"
-                        + f"{loader_common_names.DATA_ID_COLUMN_HEADER}\t"
+                        + f"{loader_common_names.META_DATA_ID}\t"
                         + f"{loader_common_names.META_SOURCE_DIR}\t"
                         + f"{loader_common_names.META_SOURCE_FILE}\t"
                         + f"{loader_common_names.META_FILE_NAME}\n")
         for genome_id, genome_meta_info in meta.items():
             meta_file.write(
-                f'{genome_meta_info[loader_common_names.META_TOOL_IDENTIFIER]}\t{genome_id}\t'
+                f'{genome_meta_info[loader_common_names.META_TOOL_IDENTIFIER]}\t'
+                + f'{genome_id}\t'
                 + f'{genome_meta_info[loader_common_names.META_SOURCE_DIR]}\t'
                 + f'{genome_meta_info[loader_common_names.META_SOURCE_FILE]}\t'
                 + f'{genome_meta_info[loader_common_names.META_FILE_NAME]}\n'

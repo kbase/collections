@@ -124,9 +124,6 @@ _MICROTRAIT_TO_SYS_TRAIT_MAP = {
 # Default directory name for the parsed JSONL files for arango import
 IMPORT_DIR = 'import_files'
 
-# Keep a set of the encountered types for the kbcoll_export_types
-ENCOUNTERED_TYPES = set()
-
 
 def _locate_dir(root_dir, kbase_collection, load_ver, check_exists=False, tool=''):
     result_dir = os.path.join(root_dir, loader_common_names.COLLECTION_DATA_DIR, kbase_collection, load_ver, tool)
@@ -182,6 +179,9 @@ def _row_to_doc(row, kbase_collection, load_version, features, tool_genome_map, 
 
 def _update_docs_with_upa_info(res_dict, meta_lookup):
     # Update original docs with UPA informathion through a meta hashmap
+
+    # Keep a set of the encountered types for the kbcoll_export_types
+    encountered_types = set()
     
     for genome_id in res_dict:
         try:
@@ -197,12 +197,12 @@ def _update_docs_with_upa_info(res_dict, meta_lookup):
                 upa_info = json.load(json_file)
             object_type = upa_info["type"].split("-")[0]
             upa_dict[object_type] = upa_info["upa"]
-            ENCOUNTERED_TYPES.add(object_type)
+            encountered_types.add(object_type)
 
         res_dict[genome_id].update({names.FLD_UPA_MAP: upa_dict})
 
     docs = list(res_dict.values())
-    return docs
+    return docs, encountered_types
 
 
 def _read_tool_result(result_dir, batch_dir, kbase_collection, load_ver, tool_file_name, features, genome_id_col,
@@ -219,7 +219,7 @@ def _read_tool_result(result_dir, batch_dir, kbase_collection, load_ver, tool_fi
         meta_df = pd.read_csv(metadata_file, sep='\t')
     except Exception as e:
         raise ValueError('Unable to retrieve the genome metadata file') from e
-    tool_genome_map = dict(zip(meta_df[loader_common_names.META_TOOL_IDENTIFIER], meta_df[loader_common_names.DATA_ID_COLUMN_HEADER]))
+    tool_genome_map = dict(zip(meta_df[loader_common_names.META_TOOL_IDENTIFIER], meta_df[loader_common_names.META_DATA_ID]))
 
     tool_file = os.path.join(result_dir, str(batch_dir), tool_file_name)
     docs = dict()
@@ -342,20 +342,22 @@ def _process_genome_attri_tools(genome_attr_tools: set[str],
         docs.extend(parse_ops(root_dir, kbase_collection, load_ver))
 
     docs = merge_docs(docs, '_key')
-    docs = _add_upa_info(docs, root_dir, kbase_collection, load_ver, tool)
+    res_dict = {row[names.FLD_KBASE_ID]: row for row in docs}
+    meta_lookup = _create_meta_lookup(root_dir, kbase_collection, load_ver, tool)
+    docs, encountered_types = _update_docs_with_upa_info(res_dict, meta_lookup)
+
     output = f'{kbase_collection}_{load_ver}_{"_".join(genome_attr_tools)}_{COMPUTED_GENOME_ATTR_FILE_SUFFIX}'
     _create_import_files(root_dir, output, docs)
 
-    export_types_output = f'{kbase_collection}_{load_ver}_{"_".join(ENCOUNTERED_TYPES)}_{KBCALL_EXPORT_TYPES_FILE_SUFFIX}'
-    types_docs = _create_export_types_doc(kbase_collection, loader_common_names.GENOME_ATTRIBS, load_ver, ENCOUNTERED_TYPES)
-    _create_import_files(root_dir, export_types_output, [types_docs])
+    export_types_output = f'{kbase_collection}_{load_ver}_{KBCALL_EXPORT_TYPES_FILE_SUFFIX}'
+    types_doc = data_product_export_types_to_doc(kbase_collection, loader_common_names.GENOME_ATTRIBS, load_ver, sorted(encountered_types))
+    _create_import_files(root_dir, export_types_output, [types_doc])
 
 
-def _add_upa_info(docs, root_dir, kbase_collection, load_ver, tool):
-    # Load assembly UPA data into genome attributes table, where the tool identifier is irrelevant 
+def _create_meta_lookup(root_dir, kbase_collection, load_ver, tool):
+    # Create a hashmap with genome id as the key and metafile name as the value
     
     meta_lookup = {}
-    res_dict = {row[names.FLD_KBASE_ID]: row for row in docs}
     result_dir = _locate_dir(root_dir, kbase_collection, load_ver, tool=tool)
     batch_dirs = _get_batch_dirs(result_dir)
     for batch_dir in batch_dirs:
@@ -365,10 +367,10 @@ def _add_upa_info(docs, root_dir, kbase_collection, load_ver, tool):
             meta_df = pd.read_csv(metadata_file, sep='\t')
         except Exception as e:
             raise ValueError('Unable to retrieve the genome metadata file') from e
-        meta_dict = dict(zip(meta_df[loader_common_names.DATA_ID_COLUMN_HEADER], meta_df[loader_common_names.META_FILE_NAME]))
+        meta_dict = dict(zip(meta_df[loader_common_names.META_DATA_ID], meta_df[loader_common_names.META_FILE_NAME]))
         meta_lookup.update(meta_dict)
-    docs = _update_docs_with_upa_info(res_dict, meta_lookup)
-    return docs
+
+    return meta_lookup
 
 
 def _create_export_types_doc(kbase_collection: str, 
