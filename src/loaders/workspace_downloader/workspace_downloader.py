@@ -200,7 +200,7 @@ def _create_softlink(csd_upa_dir, upa_dir):
     os.symlink(upa_dir, csd_upa_dir, target_is_directory=True)
 
 
-def _process_object_info(obj_info, assembly_genome_map):
+def _process_object_info(obj_info, genome_upa):
     """
     "upa", "name", "type", and "timestamp info will be extracted from object info and save as a dict."
     {
@@ -211,12 +211,11 @@ def _process_object_info(obj_info, assembly_genome_map):
     }
     """
     res_dict = {}
-    upa = "{6}/{0}/{4}".format(*obj_info)
-    res_dict["upa"] = upa
+    res_dict["upa"] = "{6}/{0}/{4}".format(*obj_info)
     res_dict["name"] = obj_info[1]
     res_dict["type"] = obj_info[2]
     res_dict["timestamp"] = obj_info[3]
-    res_dict["genome_upa"] = assembly_genome_map[upa]
+    res_dict["genome_upa"] = genome_upa
     return res_dict
 
 
@@ -254,7 +253,7 @@ def process_input(conf):
         if not task:
             print("Stopping")
             break
-        upa, obj_info = task
+        upa, obj_info, genome_upa = task
 
         # cfn points to the assembly file outside of the container
         # get_assembly_as_fasta writes the file to /kb/module/workdir/tmp/<filename> inside the container.
@@ -276,11 +275,7 @@ def process_input(conf):
         metafile = os.path.join(dstd, f"{upa}.meta")
         # save meta file with relevant object_info
         with open(metafile, "w", encoding="utf8") as json_file:
-            json.dump(
-                _process_object_info(obj_info, conf.assembly_genome_map),
-                json_file,
-                indent=2,
-            )
+            json.dump(_process_object_info(obj_info, genome_upa), json_file, indent=2)
 
         print("Completed %s" % (upa))
 
@@ -398,7 +393,7 @@ def main():
 
         genome_objs = list_objects(workspace_id, conf, FILTER_OBJECTS_NAME_BY_GENOME, include_metadata=True)
         assembly_objs = list_objects(workspace_id, conf, FILTER_OBJECTS_NAME_BY_ASSEMBLY, include_metadata=False)
-        conf.assembly_genome_map = _assembly_genome_lookup(genome_objs)
+        assembly_genome_map = _assembly_genome_lookup(genome_objs)
 
         upas = []
         for obj_info in assembly_objs:
@@ -411,7 +406,8 @@ def main():
             # remove legacy upa_dir to avoid FileExistsError in hard link
             if os.path.isdir(upa_dir):
                 shutil.rmtree(upa_dir)
-            conf.queue.put([upa, obj_info])
+            genome_upa = assembly_genome_map[upa.replace("_", "/")]
+            conf.queue.put([upa, obj_info, genome_upa])
 
         for i in range(workers + 1):
             conf.queue.put(None)
