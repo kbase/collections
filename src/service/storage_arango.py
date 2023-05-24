@@ -167,22 +167,33 @@ class ArangoStorage:
                 await _create_collection(db, colname)
             else:
                 await _check_collection_exists(db, colname)
+        
         vercol = db.collection(names.COLL_SRV_VERSIONS)
         await vercol.add_persistent_index([models.FIELD_COLLECTION_ID, models.FIELD_VER_NUM])
+        
         matchcol = db.collection(names.COLL_SRV_MATCHES)
         # find matches ready to be moved to the deleted state
         await matchcol.add_persistent_index([models.FIELD_LAST_ACCESS])
         # find matches by internal match ID
         await matchcol.add_persistent_index([models.FIELD_MATCH_INTERNAL_MATCH_ID])
+        # find matches by collection version
+        await matchcol.add_persistent_index(
+            [models.FIELD_COLLSPEC_COLLECTION_ID, models.FIELD_COLLSPEC_COLLECTION_VER])
+
         selcol = db.collection(names.COLL_SRV_SELECTIONS)
         # find selections ready to be moved to the deleted state
         await selcol.add_persistent_index([models.FIELD_LAST_ACCESS])
         # find selections by internal selection ID
         await selcol.add_persistent_index([models.FIELD_SELECTION_INTERNAL_SELECTION_ID])
+        # find selections by collection version
+        await selcol.add_persistent_index(
+            [models.FIELD_COLLSPEC_COLLECTION_ID, models.FIELD_COLLSPEC_COLLECTION_VER])
+        
         typescol = db.collection(names.COLL_EXPORT_TYPES)
         await typescol.add_persistent_index(
             [names.FLD_COLLECTION_ID, names.FLD_DATA_PRODUCT, names.FLD_LOAD_VERSION]
         )
+        
         for dp in dps:
             for col in dp.db_collections:
                 dbcol = db.collection(col.name)
@@ -755,25 +766,69 @@ class ArangoStorage:
             milliseconds.
         processor - an async callable to which each match will be provided in turn.
         """
-        await self._process_old_subsets(
-            match_max_last_access_ms, processor, names.COLL_SRV_MATCHES, self._to_internal_match)
+        await self._process_subsets(
+            names.COLL_SRV_MATCHES,
+            processor,
+            self._to_internal_match,
+            max_last_access_ms=match_max_last_access_ms
+        )
 
-    async def _process_old_subsets(
+    async def process_collection_matches(
         self,
-        max_last_access_ms: int,
+        collspec: models.CollectionSpec,
         processor: Callable[[models.InternalMatch], Awaitable[None]],
-        coll: str,
-        converter: Callable[[dict[str, Any]], models.InternalMatch | models.InternalSelection],
+        states: set[models.ProcessState] | None = None,
     ):
+        """
+        Process matches in a collection.
+
+        collspec - the collection to process and its version.
+        processor - an async callable to which each match will be provided in turn.
+        states - filter by match processing state (no filtering by default)
+        """
+        await self._process_subsets(
+            names.COLL_SRV_MATCHES,
+            processor,
+            self._to_internal_match,
+            collspec=collspec,
+            states=states,    
+        )
+
+    async def _process_subsets(  # method would be paramterized in Java, meh here
+        self,
+        coll: str,
+        processor: Callable[[models.InternalMatch | models.InternalSelection], Awaitable[None]],
+        converter: Callable[[dict[str, Any]], models.InternalMatch | models.InternalSelection],
+        collspec: models.CollectionSpec | None = None,
+        states: set[models.ProcessState] | None = None,
+        max_last_access_ms: int | None = None,
+    ):
+        bind_vars = {f"@{_FLD_COLLECTION}": coll}
         aql = f"""
             FOR d IN @@{_FLD_COLLECTION}
+            """
+        if max_last_access_ms is not None:
+            aql += f"""
                 FILTER d.{models.FIELD_LAST_ACCESS} < @max_last_access
+                """
+            bind_vars["max_last_access"] = max_last_access_ms
+        if states:
+            aql += f"""
+                FILTER d.{models.FIELD_PROCESS_STATE} IN @states
+                """
+            bind_vars["states"] = [s.value for s in states]
+        if collspec:
+            aql += f"""
+                FILTER d.{models.FIELD_COLLSPEC_COLLECTION_ID} == @collection_id
+                FILTER d.{models.FIELD_COLLSPEC_COLLECTION_VER} == @collection_ver
+                """
+            bind_vars.update({
+                "collection_id": collspec.collection_id,
+                "collection_ver": collspec.collection_ver
+            })
+        aql += """
                 RETURN d
             """
-        bind_vars = {
-            f"@{_FLD_COLLECTION}": coll,
-            "max_last_access": max_last_access_ms,
-        }
         cur = await self._db.aql.execute(aql, bind_vars=bind_vars)
         try:
             async for d in cur:
@@ -1108,11 +1163,32 @@ class ArangoStorage:
             in epoch milliseconds.
         processor - an async callable to which each selection will be provided in turn.
         """
-        await self._process_old_subsets(
-            selection_max_last_access_ms,
-            processor,
+        await self._process_subsets(
             names.COLL_SRV_SELECTIONS,
-            self._to_internal_selection
+            processor,
+            self._to_internal_selection,
+            max_last_access_ms=selection_max_last_access_ms,
+        )
+    
+    async def process_collection_selections(
+        self,
+        collspec: models.CollectionSpec,
+        processor: Callable[[models.InternalSelection], Awaitable[None]],
+        states: set[models.ProcessState] | None = None,
+    ):
+        """
+        Process selections in a collection.
+
+        collspec - the collection to process and its version.
+        processor - an async callable to which each selection will be provided in turn.
+        states - filter by selection processing state (no filtering by default)
+        """
+        await self._process_subsets(
+            names.COLL_SRV_SELECTIONS,
+            processor,
+            self._to_internal_selection,
+            collspec=collspec,
+            states=states,    
         )
 
     async def add_deleted_selection(self, selection: models.DeletedSelection):
