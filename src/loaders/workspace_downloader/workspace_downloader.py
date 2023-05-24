@@ -62,7 +62,8 @@ from src.loaders.common import loader_common_names, loader_helper
 # supported source of data
 SOURCE = "WS"
 # filtering applied to list objects
-FILTER_OBJECTS_NAME_BY = "KBaseGenomeAnnotations.Assembly"
+FILTER_OBJECTS_NAME_BY_ASSEMBLY = "KBaseGenomeAnnotations.Assembly"
+FILTER_OBJECTS_NAME_BY_GENOME = "KBaseGenomes.Genome"
 
 
 class Conf:
@@ -160,15 +161,26 @@ def _make_collection_source_dir(
     return csd
 
 
-def _list_objects_params(wsid, min_id, max_id, type_str):
+def _list_objects_params(wsid, min_id, max_id, type_str, include_metadata):
     """Helper function that creates params needed for list_objects function."""
     params = {
         "ids": [wsid],
         "minObjectID": min_id,
         "maxObjectID": max_id,
         "type": type_str,
+        "includeMetadata": int(include_metadata),
     }
     return params
+
+
+def _assembly_genome_lookup(genome_objs):
+    """Helper function that creates a hashmap for the genome and its assembly reference"""
+    hashmap = {}
+    for obj_info in genome_objs:
+        genome_upa = "{6}/{0}/{4}".format(*obj_info)
+        assembly_upa = obj_info[-1]["Assembly Object"]
+        hashmap[assembly_upa] = genome_upa
+    return hashmap
 
 
 def _create_softlink(csd_upa_dir, upa_dir):
@@ -188,7 +200,7 @@ def _create_softlink(csd_upa_dir, upa_dir):
     os.symlink(upa_dir, csd_upa_dir, target_is_directory=True)
 
 
-def _process_object_info(obj_info):
+def _process_object_info(obj_info, assembly_genome_map):
     """
     "upa", "name", "type", and "timestamp info will be extracted from object info and save as a dict."
     {
@@ -199,14 +211,18 @@ def _process_object_info(obj_info):
     }
     """
     res_dict = {}
-    res_dict["upa"] = "{6}/{0}/{4}".format(*obj_info)
+    upa = "{6}/{0}/{4}".format(*obj_info)
+    res_dict["upa"] = upa
     res_dict["name"] = obj_info[1]
     res_dict["type"] = obj_info[2]
     res_dict["timestamp"] = obj_info[3]
+    res_dict["genome_upa"] = assembly_genome_map[upa]
     return res_dict
 
 
-def list_objects(wsid, conf, filter_objects_name_by, batch_size=10000):
+def list_objects(
+    wsid, conf, filter_objects_name_by, include_metadata, batch_size=10000
+):
     """
     List all objects information given a workspace ID.
     """
@@ -219,7 +235,9 @@ def list_objects(wsid, conf, filter_objects_name_by, batch_size=10000):
     ]
     objs = [
         conf.ws.list_objects(
-            _list_objects_params(wsid, min_id, max_id, filter_objects_name_by)
+            _list_objects_params(
+                wsid, min_id, max_id, filter_objects_name_by, include_metadata
+            )
         )
         for min_id, max_id in batch_input
     ]
@@ -258,7 +276,11 @@ def process_input(conf):
         metafile = os.path.join(dstd, f"{upa}.meta")
         # save meta file with relevant object_info
         with open(metafile, "w", encoding="utf8") as json_file:
-            json.dump(_process_object_info(obj_info), json_file, indent=2)
+            json.dump(
+                _process_object_info(obj_info, conf.assembly_genome_map),
+                json_file,
+                indent=2,
+            )
 
         print("Completed %s" % (upa))
 
@@ -373,10 +395,13 @@ def main():
             kb_base_url,
             token_filepath,
         )
-        objs = list_objects(workspace_id, conf, FILTER_OBJECTS_NAME_BY)
-        upas = []
 
-        for obj_info in objs:
+        genome_objs = list_objects(workspace_id, conf, FILTER_OBJECTS_NAME_BY_GENOME, include_metadata=True)
+        assembly_objs = list_objects(workspace_id, conf, FILTER_OBJECTS_NAME_BY_ASSEMBLY, include_metadata=False)
+        conf.assembly_genome_map = _assembly_genome_lookup(genome_objs)
+
+        upas = []
+        for obj_info in assembly_objs:
             upa = "{6}_{0}_{4}".format(*obj_info)
             upas.append(upa)
             upa_dir = os.path.join(output_dir, upa)
@@ -401,7 +426,7 @@ def main():
                 csd_upa_dir = os.path.join(csd, upa)
                 _create_softlink(csd_upa_dir, upa_dir)
             assert len(os.listdir(csd)) == len(
-                objs
+                assembly_objs
             ), f"directory count in {csd} is not equal to object count"
 
     finally:
