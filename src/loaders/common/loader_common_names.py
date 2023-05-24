@@ -61,3 +61,15 @@ KB_BASE_URL_DEFAULT = "https://kbase.us/services/"
 SOURCE_METADATA_FILE_KEYS = ["upa", "name", "type", "timestamp"]
 # callback server docker image name
 CALLBACK_IMAGE_NAME = "scanon/callback"
+
+# genome_attribs
+GENOME_ATTRIBS = "genome_attribs"
+# a list of IDs provided to the computation script
+DATA_ID_COLUMN_HEADER = "genome_id"  # TODO DATA_ID change to data ID for generality
+
+# The following headers are in the meta file written out by the computation script
+META_DATA_ID = "data_id"
+META_SOURCE_FILE = "source_file"
+META_TOOL_IDENTIFIER = "tool_identifier"
+META_SOURCE_DIR = "source_dir"
+META_FILE_NAME = "meta_filename"
