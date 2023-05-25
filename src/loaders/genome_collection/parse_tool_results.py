@@ -199,6 +199,10 @@ def _update_docs_with_upa_info(res_dict, meta_lookup):
             upa_dict[object_type] = upa_info["upa"]
             encountered_types.add(object_type)
 
+            # add genome_upa info into _upas dict
+            if upa_info.get("genome_upa"):
+                upa_dict[loader_common_names.OBJECTS_NAME_GENOME] = upa_info["genome_upa"]
+
         res_dict[genome_id].update({names.FLD_UPA_MAP: upa_dict})
 
     docs = list(res_dict.values())
