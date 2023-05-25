@@ -375,6 +375,28 @@ async def delete_match(appstate: CollectionsState, match_id: str, verbose: bool 
     return match
 
 
+async def delete_matches_from_collection(
+    appstate: CollectionsState, collspec: models.CollectionSpec, force: bool = False
+) -> list[str]:
+    """
+    Moves match records for a particular collection version to the deleted state if they're no 
+    longer processing and returns the IDs of the matches.
+
+    appstate - the application state.
+    collspec - the collection to process.
+    force - remove matches that are in the processing state as well, although this is not
+        advised and may cause unexpected behavior
+    """
+    store = appstate.arangostorage
+    ids = []
+    async def _proc(match: models.InternalMatch):
+        ids.append(match.match_id)
+        await deletion.move_match_to_deleted_state(store, match, appstate.get_epoch_ms())
+    states = [] if force else set(models.ProcessState) - set([models.ProcessState.PROCESSING])
+    await store.process_collection_matches(collspec, _proc, states=states)
+    return ids
+
+
 async def get_or_create_data_product_match_process(
     appstate: CollectionsState,
     coll: models.SavedCollection,

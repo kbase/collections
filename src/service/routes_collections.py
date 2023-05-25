@@ -2,10 +2,11 @@
 Routes for general collections endpoints, as opposed to endpoint for a particular data product.
 """
 
+import asyncio
 import jsonschema
 
 from fastapi import APIRouter, Request, Depends, Path, Query, Body
-from typing import Any
+from typing import Any, Annotated
 from pydantic import BaseModel, Field
 from src.common.git_commit import GIT_COMMIT
 from src.common.version import VERSION
@@ -224,6 +225,14 @@ class CollectionVersions(BaseModel):
              + "maximum version that could possibly exist"
     )
     data: list[models.SavedCollection]
+
+
+class DeletedSubsets(BaseModel):
+    """
+    IDs of the matches and selections that were moved to the deleted state.
+    """
+    match_ids: list[str] = Field(description="The match IDs")
+    selection_ids: list[str] = Field(description="The selection IDs")
 
 
 @ROUTER_GENERAL.get("/", response_model=Root)
@@ -589,3 +598,38 @@ async def delete_selection(
     _ensure_admin(user, "Only collections service admins can delete selections")
     appstate = app_state.get_app_state(r)
     return await processing_selections.delete_selection(appstate, selection_id, verbose)
+
+
+@ROUTER_DANGER.delete(
+    "/collections/{collection_id}/versions/num/{ver_num}/matchesandselections",
+    response_model=DeletedSubsets,
+    summary="!!! Danger !!! Delete matches and selections for a collection",
+    description="Delete matches and selections for a paticular collection version. "
+        + "**BE SURE YOU KNOW WHAT YOU'RE DOING**. "
+        + "Deleting matches and selections when the processes are running can leave the "
+        + "database in an inconsistent state and cause user errors or corrupted results. "
+        + "Even if processes are not running, a recent request by a user can result in "
+        + "an error or corrupted results if a deletion occurs at the same time."
+)
+async def delete_matches_and_selections(
+    r: Request,
+    collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
+    ver_num: int = _PATH_VER_NUM,
+    force: Annotated[bool, Query(
+        example=False,
+        description="Delete matches and selections in the processing state as well; "
+            + "by default matches and selections in the processing state are ignored. "
+            + "This is very dangerous indeed, young hobbit."
+        )
+    ] = False,
+    user: kb_auth.KBaseUser=Depends(_AUTH),
+) -> DeletedSubsets:
+    _ensure_admin(user, "Only collections service admins can delete matches and selections")
+    appstate = app_state.get_app_state(r)
+    collspec = models.CollectionSpec(collection_id=collection_id, collection_ver=ver_num)
+    async with asyncio.TaskGroup() as tg:
+        mtask = tg.create_task(processing_matches.delete_matches_from_collection(
+            appstate, collspec, force))
+        stask = tg.create_task(processing_selections.delete_selections_from_collection(
+            appstate, collspec, force))
+    return DeletedSubsets(match_ids=mtask.result(), selection_ids=stask.result())

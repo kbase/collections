@@ -301,6 +301,28 @@ async def delete_selection(appstate: CollectionsState, selection_id: str, verbos
     return sel
 
 
+async def delete_selections_from_collection(
+    appstate: CollectionsState, collspec: models.CollectionSpec, force: bool = False
+) -> list[str]:
+    """
+    Moves selection records for a particular collection version to the deleted state if they're no 
+    longer processing and returns the IDs of the matches.
+
+    appstate - the application state.
+    collspec - the collection to process.
+    force - remove selections that are in the processing state as well, although this is not
+        advised and may cause unexpected behavior
+    """
+    store = appstate.arangostorage
+    ids = []
+    async def _proc(sel: models.InternalSelection):
+        ids.append(sel.selection_id)
+        await deletion.move_selection_to_deleted_state(store, sel, appstate.get_epoch_ms())
+    states = [] if force else set(models.ProcessState) - set([models.ProcessState.PROCESSING])
+    await store.process_collection_selections(collspec, _proc, states=states)
+    return ids
+
+
 async def get_or_create_data_product_selection_process(
     appstate: CollectionsState,
     coll: models.SavedCollection,
