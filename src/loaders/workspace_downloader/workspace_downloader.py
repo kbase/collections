@@ -175,7 +175,12 @@ def _assembly_genome_lookup(genome_objs):
     hashmap = {}
     for obj_info in genome_objs:
         genome_upa = "{6}/{0}/{4}".format(*obj_info)
-        assembly_upa = obj_info[-1]["Assembly Object"]
+        try:
+            assembly_upa = obj_info[-1]["Assembly Object"]
+        except (TypeError, KeyError) as e:
+            raise ValueError(
+                f"Unbale to find 'Assembly Object' from {genome_upa}'s metadata"
+            ) from e
 
         if not assembly_upa:
             raise ValueError(f"{genome_upa} does not have an assembly reference")
