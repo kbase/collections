@@ -61,9 +61,6 @@ from src.loaders.common import loader_common_names, loader_helper
 
 # supported source of data
 SOURCE = "WS"
-# filtering applied to list objects
-FILTER_OBJECTS_NAME_BY_ASSEMBLY = "KBaseGenomeAnnotations.Assembly"
-FILTER_OBJECTS_NAME_BY_GENOME = "KBaseGenomes.Genome"
 
 
 class Conf:
@@ -182,10 +179,12 @@ def _assembly_genome_lookup(genome_objs):
 
         if not assembly_upa:
             raise ValueError(f"{genome_upa} does not have an assembly reference")
-        
+
         if hashmap.get(assembly_upa):
-            raise ValueError(f"Multiple genomes match to assembly {assembly_upa}")
-        
+            raise ValueError(
+                f"Multiple genomes match to the assembly upa {assembly_upa}"
+            )
+
         hashmap[assembly_upa] = genome_upa
     return hashmap
 
@@ -211,10 +210,11 @@ def _process_object_info(obj_info, genome_upa):
     """
     "upa", "name", "type", and "timestamp info will be extracted from object info and save as a dict."
     {
-        "upa": "790541/67/2",
+        "upa": "68981/9/1"
         "name": <copy object name from object info>
         "type": <copy object type from object info>
         "timestamp": <copy timestamp from object info>
+        "genome_upa": "68981/507/1"
     }
     """
     res_dict = {}
@@ -398,8 +398,18 @@ def main():
             token_filepath,
         )
 
-        genome_objs = list_objects(workspace_id, conf, FILTER_OBJECTS_NAME_BY_GENOME, include_metadata=True)
-        assembly_objs = list_objects(workspace_id, conf, FILTER_OBJECTS_NAME_BY_ASSEMBLY, include_metadata=False)
+        genome_objs = list_objects(
+            workspace_id,
+            conf,
+            loader_common_names.OBJECTS_NAME_GENOME,
+            include_metadata=True,
+        )
+        assembly_objs = list_objects(
+            workspace_id,
+            conf,
+            loader_common_names.OBJECTS_NAME_ASSEMBLY,
+            include_metadata=False,
+        )
         assembly_genome_map = _assembly_genome_lookup(genome_objs)
 
         upas = []
