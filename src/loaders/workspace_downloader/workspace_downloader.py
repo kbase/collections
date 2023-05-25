@@ -178,12 +178,11 @@ def _assembly_genome_lookup(genome_objs):
     hashmap = {}
     for obj_info in genome_objs:
         genome_upa = "{6}/{0}/{4}".format(*obj_info)
-        meta_data = obj_info[-1]
+        assembly_upa = obj_info[-1]["Assembly Object"]
 
-        if not meta_data["Assembly Object"]:
+        if not assembly_upa:
             raise ValueError(f"{genome_upa} does not have an assembly reference")
         
-        assembly_upa = meta_data["Assembly Object"]
         if hashmap.get(assembly_upa):
             raise ValueError(f"Multiple genomes match to assembly {assembly_upa}")
         
