@@ -232,7 +232,7 @@ def _process_object_info(obj_info, genome_upa):
 
 
 def list_objects(
-    wsid, conf, filter_objects_name_by, include_metadata, batch_size=10000
+    wsid, conf, filter_objects_name_by, include_metadata=False, batch_size=10000
 ):
     """
     List all objects information given a workspace ID.
@@ -413,7 +413,6 @@ def main():
             workspace_id,
             conf,
             loader_common_names.OBJECTS_NAME_ASSEMBLY,
-            include_metadata=False,
         )
         assembly_genome_map = _assembly_genome_lookup(genome_objs)
 
