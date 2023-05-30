@@ -61,8 +61,6 @@ from src.loaders.common import loader_common_names, loader_helper
 
 # supported source of data
 SOURCE = "WS"
-# filtering applied to list objects
-FILTER_OBJECTS_NAME_BY = "KBaseGenomeAnnotations.Assembly"
 
 
 class Conf:
@@ -160,15 +158,40 @@ def _make_collection_source_dir(
     return csd
 
 
-def _list_objects_params(wsid, min_id, max_id, type_str):
+def _list_objects_params(wsid, min_id, max_id, type_str, include_metadata):
     """Helper function that creates params needed for list_objects function."""
     params = {
         "ids": [wsid],
         "minObjectID": min_id,
         "maxObjectID": max_id,
         "type": type_str,
+        "includeMetadata": int(include_metadata),
     }
     return params
+
+
+def _assembly_genome_lookup(genome_objs):
+    """Helper function that creates a hashmap for the genome and its assembly reference"""
+    hashmap = {}
+    for obj_info in genome_objs:
+        genome_upa = "{6}/{0}/{4}".format(*obj_info)
+        try:
+            assembly_upa = obj_info[-1]["Assembly Object"]
+        except (TypeError, KeyError) as e:
+            raise ValueError(
+                f"Unbale to find 'Assembly Object' from {genome_upa}'s metadata"
+            ) from e
+
+        if not assembly_upa:
+            raise ValueError(f"{genome_upa} does not have an assembly reference")
+
+        if hashmap.get(assembly_upa):
+            raise ValueError(
+                f"Multiple genomes match to the assembly upa {assembly_upa}"
+            )
+
+        hashmap[assembly_upa] = genome_upa
+    return hashmap
 
 
 def _create_softlink(csd_upa_dir, upa_dir):
@@ -188,14 +211,15 @@ def _create_softlink(csd_upa_dir, upa_dir):
     os.symlink(upa_dir, csd_upa_dir, target_is_directory=True)
 
 
-def _process_object_info(obj_info):
+def _process_object_info(obj_info, genome_upa):
     """
     "upa", "name", "type", and "timestamp info will be extracted from object info and save as a dict."
     {
-        "upa": "790541/67/2",
+        "upa": "68981/9/1"
         "name": <copy object name from object info>
         "type": <copy object type from object info>
         "timestamp": <copy timestamp from object info>
+        "genome_upa": "68981/507/1"
     }
     """
     res_dict = {}
@@ -203,10 +227,13 @@ def _process_object_info(obj_info):
     res_dict["name"] = obj_info[1]
     res_dict["type"] = obj_info[2]
     res_dict["timestamp"] = obj_info[3]
+    res_dict["genome_upa"] = genome_upa
     return res_dict
 
 
-def list_objects(wsid, conf, filter_objects_name_by, batch_size=10000):
+def list_objects(
+    wsid, conf, filter_objects_name_by, include_metadata=False, batch_size=10000
+):
     """
     List all objects information given a workspace ID.
     """
@@ -219,7 +246,9 @@ def list_objects(wsid, conf, filter_objects_name_by, batch_size=10000):
     ]
     objs = [
         conf.ws.list_objects(
-            _list_objects_params(wsid, min_id, max_id, filter_objects_name_by)
+            _list_objects_params(
+                wsid, min_id, max_id, filter_objects_name_by, include_metadata
+            )
         )
         for min_id, max_id in batch_input
     ]
@@ -236,7 +265,7 @@ def process_input(conf):
         if not task:
             print("Stopping")
             break
-        upa, obj_info = task
+        upa, obj_info, genome_upa = task
 
         # cfn points to the assembly file outside of the container
         # get_assembly_as_fasta writes the file to /kb/module/workdir/tmp/<filename> inside the container.
@@ -258,7 +287,7 @@ def process_input(conf):
         metafile = os.path.join(dstd, f"{upa}.meta")
         # save meta file with relevant object_info
         with open(metafile, "w", encoding="utf8") as json_file:
-            json.dump(_process_object_info(obj_info), json_file, indent=2)
+            json.dump(_process_object_info(obj_info, genome_upa), json_file, indent=2)
 
         print("Completed %s" % (upa))
 
@@ -373,10 +402,22 @@ def main():
             kb_base_url,
             token_filepath,
         )
-        objs = list_objects(workspace_id, conf, FILTER_OBJECTS_NAME_BY)
-        upas = []
 
-        for obj_info in objs:
+        genome_objs = list_objects(
+            workspace_id,
+            conf,
+            loader_common_names.OBJECTS_NAME_GENOME,
+            include_metadata=True,
+        )
+        assembly_objs = list_objects(
+            workspace_id,
+            conf,
+            loader_common_names.OBJECTS_NAME_ASSEMBLY,
+        )
+        assembly_genome_map = _assembly_genome_lookup(genome_objs)
+
+        upas = []
+        for obj_info in assembly_objs:
             upa = "{6}_{0}_{4}".format(*obj_info)
             upas.append(upa)
             upa_dir = os.path.join(output_dir, upa)
@@ -386,7 +427,8 @@ def main():
             # remove legacy upa_dir to avoid FileExistsError in hard link
             if os.path.isdir(upa_dir):
                 shutil.rmtree(upa_dir)
-            conf.queue.put([upa, obj_info])
+            genome_upa = assembly_genome_map[upa.replace("_", "/")]
+            conf.queue.put([upa, obj_info, genome_upa])
 
         for i in range(workers + 1):
             conf.queue.put(None)
@@ -401,7 +443,7 @@ def main():
                 csd_upa_dir = os.path.join(csd, upa)
                 _create_softlink(csd_upa_dir, upa_dir)
             assert len(os.listdir(csd)) == len(
-                objs
+                assembly_objs
             ), f"directory count in {csd} is not equal to object count"
 
     finally:

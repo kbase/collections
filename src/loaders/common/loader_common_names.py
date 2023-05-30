@@ -73,3 +73,7 @@ META_SOURCE_FILE = "source_file"
 META_TOOL_IDENTIFIER = "tool_identifier"
 META_SOURCE_DIR = "source_dir"
 META_FILE_NAME = "meta_filename"
+
+# filtering applied to list objects
+OBJECTS_NAME_ASSEMBLY = "KBaseGenomeAnnotations.Assembly"
+OBJECTS_NAME_GENOME = "KBaseGenomes.Genome"
