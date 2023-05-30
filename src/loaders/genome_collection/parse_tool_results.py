@@ -203,9 +203,8 @@ def _update_docs_with_upa_info(res_dict, meta_lookup, check_genome):
             if upa_info.get("genome_upa"):
                 upa_dict[loader_common_names.OBJECTS_NAME_GENOME] = upa_info["genome_upa"]
                 encountered_types.add(loader_common_names.OBJECTS_NAME_GENOME)
-            else:
-                if check_genome:
-                    raise ValueError(f'There is no genome_upa for assembly {upa_info["upa"]}')
+            elif check_genome:
+                raise ValueError(f'There is no genome_upa for assembly {upa_info["upa"]}')
             
         res_dict[genome_id].update({names.FLD_UPA_MAP: upa_dict})
 
