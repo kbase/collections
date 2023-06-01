@@ -171,6 +171,9 @@ The 524 errors are Cloudflare timeout errors, so similar to Bad Gateway errors.
   * We should test how long it takes to sketch 10k genomes against Refseq. If that's fast
     making a batch endpoint in the assembly homology service and calling it with an app that does
     the downloads might make sense.
+    * In 1 hour 10M of 1B distances were calculated (single threaded) on the Perlmutter login node,
+      meaning 100 CPU hours to do the full computation. That's not something we can support
+      at all, service or app, presumably.
 * We could investigate using another `mash` implementation that isn't abandonware.
 
 
