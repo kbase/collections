@@ -4,6 +4,7 @@ RUN apt-get update && \
     apt-get install -y wget
 
 # Set the Mash version argument
+# using version 2.0 to maintain compatibility with the homology service
 ARG MASH_VER=2.0
 ENV CONDA_ENV mash-$MASH_VER
 
