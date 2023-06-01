@@ -2,12 +2,12 @@
 Run Mash on a set of assemblies.
 """
 import json
-import threading
-import time
 from pathlib import Path
-from typing import Dict
 
 from src.loaders.compute_tools.tool_common import ToolRunner, run_command
+
+KMER_SIZE = 19
+SKETCH_SIZE = 10000
 
 
 def _run_mash_single(
@@ -15,12 +15,12 @@ def _run_mash_single(
         source_file: Path,
         output_dir: Path,
         debug: bool,
-        kmer_size: int = 19,
-        sketch_size: int = 10000) -> None:
+        kmer_size: int = KMER_SIZE,
+        sketch_size: int = SKETCH_SIZE) -> None:
     # RUN mash sketch for a single genome
     command = ['mash', 'sketch',
                '-o', source_file,  # Output prefix.
-                                   # Save result file to source file directory. The suffix '.msh' will be appended.
+               # Save result file to source file directory. The suffix '.msh' will be appended.
                '-k', f'{kmer_size}',
                '-s', f'{sketch_size}',
                source_file]
@@ -34,35 +34,9 @@ def _run_mash_single(
         json.dump(metadata, f, indent=4)
 
 
-def _run_mash(
-        ids_to_files: Dict[str, Path],
-        output_dir: Path,
-        threads_num: int,
-        debug: bool) -> None:
-    size = len(ids_to_files)
-    print(f'Start executing Mash for {size} genomes')
-    start = time.time()
-    semaphore = threading.BoundedSemaphore(max(1, threads_num))
-    threads = []
-
-    for genome_id, source_file in ids_to_files.items():
-        semaphore.acquire()  # Acquire a semaphore to limit the number of concurrent threads
-        thread = threading.Thread(target=_run_mash_single, args=(genome_id, source_file, output_dir, debug))
-        thread.start()
-        threads.append(thread)
-
-    for thread in threads:
-        thread.join()
-
-    end_time = time.time()
-    print(
-        f'Used {round((end_time - start) / 60, 2)} minutes to execute mash for '
-        f'{len(ids_to_files)} genomes')
-
-
 def main():
     runner = ToolRunner("mash")
-    runner.run_batched(_run_mash)
+    runner.run_single(_run_mash_single)
 
 
 if __name__ == "__main__":
