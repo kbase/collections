@@ -33,6 +33,7 @@ import copy
 import json
 import os
 import sys
+import tempfile
 from numbers import Number
 from pathlib import Path
 from typing import Any
@@ -324,8 +325,8 @@ def _process_mash_tool(root_dir: str,
             data_dir = Path(result_dir, batch_dir, data_id)
             with open(data_dir / loader_common_names.MASH_METADATA, 'r') as file:
                 metadata = json.load(file)
-            # Append '.msh' to the source file name to generate the sketch file name (default by Mash sketch)
-            sketch_file = metadata['source_file'] + '.msh'
+
+            sketch_file = metadata['sketch_file']
             if not os.path.exists(sketch_file):
                 raise ValueError(f'Unable to locate the sketch file: {sketch_file} for genome: {data_id}')
             sketch_files.append(sketch_file)
@@ -334,10 +335,15 @@ def _process_mash_tool(root_dir: str,
     os.makedirs(import_dir, exist_ok=True)
     mash_output_prefix = import_dir / f'{kbase_collection}_{load_ver}_merged_sketch'
 
-    # run mash paste
-    command = ['mash', 'paste', mash_output_prefix] + sketch_files
-    print(f'Running mash paste: {command}')
-    run_command(command)
+    # write the lines from sketch_files into a temporary file
+    with tempfile.NamedTemporaryFile(mode='w', delete=True) as temp_file:
+        temp_file.write('\n'.join(sketch_files))
+        temp_file_path = temp_file.name
+
+        # run mash paste
+        command = ['mash', 'paste', mash_output_prefix, '-l', temp_file_path]
+        print(f'Running mash paste: {command}')
+        run_command(command)
 
 
 def _process_heatmap_tools(heatmap_tools: set[str],
