@@ -191,11 +191,16 @@ def _assembly_genome_lookup(genome_objs):
             raise ValueError(f"{genome_upa} does not have an assembly reference")
 
         genome_old = hashmap.get(assembly_upa)
-        if genome_old and save_date < genome_old[1]:
-            duplicate[assembly_upa].append([genome_upa, save_date])
+        id_and_date = [genome_upa, save_date]
+        if not genome_old:
+            hashmap[assembly_upa] = id_and_date
             continue
 
-        hashmap[assembly_upa] = [genome_upa, save_date]
+        if genome_old[1] > save_date:
+            duplicate[assembly_upa].append(id_and_date)
+        else:
+            duplicate[assembly_upa].append(genome_old)
+            hashmap[assembly_upa] = [id_and_date]
 
     # keep only genome_upa as value
     for assembly_upa in hashmap:
