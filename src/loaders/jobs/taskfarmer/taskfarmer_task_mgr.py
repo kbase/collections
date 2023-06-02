@@ -83,7 +83,7 @@ class TFTaskManager:
         The file name is retrieved from TASK_INFO_FILE.
         """
 
-        # create the task info file if it does not exist
+        # create the taskfarmer job dir if it does not exist
         task_info_dir = os.path.join(self.root_dir, TASKFARMER_JOB_DIR)
         os.makedirs(task_info_dir, exist_ok=True)
 
