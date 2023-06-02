@@ -50,7 +50,7 @@ class WorkspaceWrapper:
         token - a user's KBase token, if any.
         """
         self._cli = sdk_cli
-        self._token = token
+        self.token = token
 
     def _get_type(self, obj_info) -> str:
         return obj_info[2].split('-')[0]
@@ -88,7 +88,7 @@ class WorkspaceWrapper:
             res = await self._cli.call(
                 "Workspace.get_objects2", 
                 [{"objects": [{'ref': p} for p in paths], "no_data": 1, 'ignoreErrors': 1}],
-                token=self._token,
+                token=self.token,
             )
             res = res['data']
             set_upas = set()
@@ -117,7 +117,7 @@ class WorkspaceWrapper:
         res = await self._cli.call(
             "Workspace.get_object_info3",
             [{ "objects": refs, "ignoreErrors": 1, "includeMetadata": 1}],
-            token=self._token,
+            token=self.token,
         )
         set_objs = []
         std_objs = []
@@ -149,7 +149,7 @@ class WorkspaceWrapper:
         for wsi in workspace_ids:
             try:
                 await self._cli.call(
-                    "Workspace.get_workspace_info", [{"id": wsi}], token=self._token
+                    "Workspace.get_workspace_info", [{"id": wsi}], token=self.token
                 )
             except ServerError as e:
                 self._check_err(wsi, e)
@@ -202,7 +202,7 @@ class WorkspaceWrapper:
             res = await self._cli.call(
                 "Workspace.save_objects",
                 [{"id": wsid, "objects": objs}],
-                token=self._token,
+                token=self.token,
             )
             return {self._obj_info_to_upa(o): o[2] for o in res}
         except ServerError as e:

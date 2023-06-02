@@ -10,6 +10,7 @@ as implement the method:
         metadata: dict[str, dict[str, Any]],
         user_parameters: dict[str, Any],
         collection_parameters: dict[str, Any],
+        token: str,
     ) -> CollectionProcess:
         
 The method checks that input metadata allows for calculating the match and throws an exception
@@ -22,6 +23,7 @@ user_parameters - the parameters for this match supplied by the user. It it expe
 collection_parameters - the parameters for this match from the collection specification.
     It it expected that the parameters have been validated against the matcher schema
     for said parameters.
+token - the user's token.
 """
 # TODO MATCHERS maybe the matcher should do the schema validation
 
@@ -32,10 +34,12 @@ collection_parameters - the parameters for this match from the collection specif
 # could add an actual registry method at some point, but seems like overkill for now
 
 from src.service.matchers.common_models import Matcher
-from src.service.matchers import lineage_matcher
-from src.service.matchers import test_matcher
+from src.service.matchers import (
+    lineage_matcher,
+    minhash_homology_matcher,
+)
 
 MATCHERS: dict[str, Matcher] = {
     lineage_matcher.MATCHER.id: lineage_matcher.MATCHER,
-    test_matcher.MATCHER.id: test_matcher.MATCHER
+    minhash_homology_matcher.MATCHER.id: minhash_homology_matcher.MATCHER,
 }

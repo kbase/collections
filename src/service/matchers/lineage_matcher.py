@@ -16,7 +16,6 @@ from src.service.processing import CollectionProcess, Heartbeat, HEARTBEAT_INTER
 from src.service.data_products import genome_attributes
 from src.service.matchers.common_models import Matcher
 from src.service.storage_arango import ArangoStorage
-from src.service.timestamp import now_epoch_millis
 
 
 # See the workspace specs for the types listed in the matcher
@@ -70,7 +69,7 @@ async def _process_match(
             internal_match_id, storage, lineages, truncated)
     except Exception as e:
         logging.getLogger(__name__).exception(
-            f"Matching process for match with internal ID{internal_match_id} failed")
+            f"Matching process for match with internal ID {internal_match_id} failed")
         await storage.update_match_state(
             internal_match_id, models.ProcessState.FAILED, deps.get_epoch_ms())
     finally:
@@ -88,6 +87,7 @@ class GTDBLineageMatcher(Matcher):
         metadata: dict[str, dict[str, Any]],
         user_parameters: dict[str, Any],
         collection_parameters: dict[str, Any],
+        token: str,
     ) -> CollectionProcess:
         """
         The method checks that input metadata allows for calculating the match and throws
@@ -96,9 +96,12 @@ class GTDBLineageMatcher(Matcher):
 
         internal_match_id - the internal ID of the match.
         metadata - the workspace metadata of the objects to match against, mapped by its UPA.
+        user_parameters - the parameters for this match provided by the user. It is expected that
+           the parameters have been validated against the matcher schema for said parameters.
         collection_parameters - the parameters for this match from the collection specification.
             It it expected that the parameters have been validated against the matcher schema
             for said parameters.
+        token - the user's token.
         """
         lineages = set()  # remove duplicates
         rank = user_parameters.get("gtdb_rank") if user_parameters else None
@@ -146,7 +149,7 @@ MATCHER = GTDBLineageMatcher(
         "KBaseSearch.GenomeSet",  # eventually supposed to be replaced by the KBaseSets version
         "KBaseSets.GenomeSet",
         "KBaseSets.AssemblySet",
-        ],
+    ],
     required_data_products=[genome_attributes.ID],
     user_parameters=GTDBLineageMatcherUserParameters.schema(),
     collection_parameters=GTDBLineageMatcherCollectionParameters.schema()

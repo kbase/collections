@@ -3,6 +3,7 @@ The genome_attribs data product, which provides geneome attributes for a collect
 """
 
 from collections import defaultdict
+import logging
 
 from fastapi import APIRouter, Request, Depends, Query
 from pydantic import BaseModel, Field, Extra
@@ -72,6 +73,42 @@ class GenomeAttribsSpec(DataProductSpec):
         """
         await remove_marked_subset(
             storage, names.COLL_GENOME_ATTRIBS, _SELECTION_ID_PREFIX + internal_selection_id)
+
+    async def apply_match(self,
+        deps: PickleableDependencies,
+        storage: ArangoStorage,
+        collection: models.SavedCollection,
+        internal_match_id: str,
+        kbase_ids: list[str],
+    ):
+        """
+        Mark matches in genome attribute data and update the match state to complete.
+        If any `kbase_ids` don't exist in the data, the match state is marked as failed.
+
+        deps - the system dependencies
+        storage - the storage system.
+        collection - the collection to which the selection is attached.
+        internal_match_id - the internal ID of the match
+        kbase_ids - the matching kbase IDs.
+        """
+        load_ver = {dp.product: dp.version for dp in collection.data_products}[ID]
+        missed = await mark_data_by_kbase_id(
+            storage,
+            names.COLL_GENOME_ATTRIBS,
+            collection.id,
+            load_ver,
+            kbase_ids,
+            _MATCH_ID_PREFIX + internal_match_id,
+        )
+        if missed:
+            logging.getLogger(__name__).warn(
+                f"Matching process for match with internal ID {internal_match_id} failed due to "
+                + f"{len(missed)} input IDs that did not match kbase IDs. First 10: "
+                + f"{missed[0:10]}"
+        )
+        state = models.ProcessState.FAILED if missed else models.ProcessState.COMPLETE
+        await storage.update_match_state(
+            internal_match_id, state, deps.get_epoch_ms(), None if missed else kbase_ids)
 
     async def apply_selection(self,
         deps: PickleableDependencies,
