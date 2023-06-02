@@ -82,7 +82,12 @@ class TFTaskManager:
         The task info file is located under the TASKFARMER_JOB_DIR directory.
         The file name is retrieved from TASK_INFO_FILE.
         """
-        task_info_file = os.path.join(self.root_dir, TASKFARMER_JOB_DIR, TASK_INFO_FILE)
+
+        # create the task info file if it does not exist
+        task_info_dir = os.path.join(self.root_dir, TASKFARMER_JOB_DIR)
+        os.makedirs(task_info_dir, exist_ok=True)
+
+        task_info_file = os.path.join(task_info_dir, TASK_INFO_FILE)
 
         pathlib.Path(task_info_file).touch(exist_ok=True)
 
