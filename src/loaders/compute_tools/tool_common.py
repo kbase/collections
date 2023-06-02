@@ -268,8 +268,9 @@ class ToolRunner:
         Data IDs are divided into batches, and each batch is processed in parallel. The tool execution results can
         be consolidated into individual files for each batch
 
-        Use case: checkm2 - concurrently execute checkm2 on a batch of genomes, and one result file (quality_report.tsv)
-                  is produced per batch.
+        Use case: gtdb-tk - concurrently execute gtdb_tk on a batch of genomes, and one result file
+                  (gtdbtk.ar53.summary.tsv) is produced per batch.
+                  Batching genomes for gtdb_tk execution improves overall throughput.
 
         tool_callable - the callable for the tool that takes 4 arguments:
             * A dictionary of the data_id to the source file path
