@@ -37,7 +37,7 @@ def _run_gtdb_tk(ids_to_files: Dict[Path, str], output_dir: Path, threads: int, 
 
 def main():
     runner = ToolRunner("gtdb_tk", suffix_ids=True)
-    runner.run_batched(_run_gtdb_tk)
+    runner.parallel_batch_execution(_run_gtdb_tk)
 
 
 if __name__ == "__main__":
