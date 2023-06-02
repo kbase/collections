@@ -34,7 +34,7 @@ def _run_checkm2(ids_to_files: Dict[str, Path], output_dir: Path, threads: int, 
 
 def main():
     runner = ToolRunner("checkm2", tool_data_id_from_filename=True)
-    runner.run_batched(_run_checkm2)
+    runner.parallel_batch_execution(_run_checkm2)
 
 
 if __name__ == "__main__":

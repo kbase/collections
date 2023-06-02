@@ -218,10 +218,18 @@ class ToolRunner:
             data_ids = all_data_ids
         return list(set(data_ids))
 
-    def run_single(self, tool_callable: Callable[[str, Path, Path, bool], None]):
+    def parallel_single_execution(self, tool_callable: Callable[[str, Path, Path, bool], None]):
         """
-        Run a tool data file by data file, storing the results in a single batch directory with
+        Run a tool by a single data file, storing the results in a single batch directory with
         the individual runs stored in directories by the data ID.
+
+        One tool execution per data ID. Tool execution is parallelized by the number of threads
+        specified in the constructor.
+        Results from execution need to be processed/parsed individually.
+
+        Use case: microtrait - execute microtrait logic on each individual genome file. The result file is stored in
+                  each individual genome directory. Parser program will parse the result file in each individual genome
+                  directory.
 
         tool_callable - the callable for the tool that takes four arguments:
             * The data ID
@@ -252,10 +260,17 @@ class ToolRunner:
         self._execute(self._threads, tool_callable, args_list, start, False)
         _create_metadata_file(genomes_meta, batch_dir)
     
-    def run_batched(self, tool_callable: Callable[[Dict[str, Path], Path, int, bool], None]):
+    def parallel_batch_execution(self, tool_callable: Callable[[Dict[str, Path], Path, int, bool], None]):
         """
         Run a tool in batched mode, where > 1 data file is processed by the tool in one
         call. Each batch gets its own batch directory.
+
+        Data IDs are divided into batches, and each batch is processed in parallel. The tool execution results can
+        be consolidated into individual files for each batch
+
+        Use case: gtdb-tk - concurrently execute gtdb_tk on a batch of genomes, and one result file
+                  (gtdbtk.ar53.summary.tsv) is produced per batch.
+                  Batching genomes for gtdb_tk execution improves overall throughput.
 
         tool_callable - the callable for the tool that takes 4 arguments:
             * A dictionary of the data_id to the source file path

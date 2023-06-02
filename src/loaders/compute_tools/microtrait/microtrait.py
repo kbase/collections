@@ -114,7 +114,7 @@ def _run_microtrait(genome_id: str, fna_file: Path, genome_dir: Path, debug: boo
 
 def main():
     runner = ToolRunner("microtrait")
-    runner.run_single(_run_microtrait)
+    runner.parallel_single_execution(_run_microtrait)
 
 
 if __name__ == "__main__":

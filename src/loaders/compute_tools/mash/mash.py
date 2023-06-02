@@ -36,7 +36,7 @@ def _run_mash_single(
 
 def main():
     runner = ToolRunner("mash")
-    runner.run_single(_run_mash_single)
+    runner.parallel_single_execution(_run_mash_single)
 
 
 if __name__ == "__main__":
