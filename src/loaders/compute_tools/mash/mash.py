@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 
+from src.loaders.common.loader_common_names import MASH_METADATA
 from src.loaders.compute_tools.tool_common import ToolRunner, run_command, unpack_gz_file
 
 KMER_SIZE = 19
@@ -37,7 +38,7 @@ def _run_mash_single(
         run_command(command, output_dir if debug else None)
 
         # Save run info to a metadata file in the output directory for parsing later
-        metadata_file = output_dir / f'mash_run_metadata.json'
+        metadata_file = output_dir / MASH_METADATA
         metadata = {'source_file': str(source_file), 'kmer_size': kmer_size, 'sketch_size': sketch_size}
         with open(metadata_file, 'w') as f:
             json.dump(metadata, f, indent=4)

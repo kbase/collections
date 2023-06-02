@@ -126,9 +126,6 @@ _MICROTRAIT_TO_SYS_TRAIT_MAP = {
 # Default directory name for the parsed JSONL files for arango import
 IMPORT_DIR = 'import_files'
 
-# The metadata file name created during the Mash run
-MASH_METADATA = 'mash_run_metadata.json'
-
 
 def _locate_dir(root_dir, kbase_collection, load_ver, check_exists=False, tool=''):
     result_dir = os.path.join(root_dir, loader_common_names.COLLECTION_DATA_DIR, kbase_collection, load_ver, tool)
@@ -325,7 +322,7 @@ def _process_mash_tool(root_dir: str,
                     os.path.isdir(os.path.join(result_dir, batch_dir, item))]
         for data_id in data_ids:
             data_dir = Path(result_dir, batch_dir, data_id)
-            with open(data_dir / MASH_METADATA, 'r') as file:
+            with open(data_dir / loader_common_names.MASH_METADATA, 'r') as file:
                 metadata = json.load(file)
             # Append '.msh' to the source file name to generate the sketch file name (default by Mash sketch)
             sketch_file = metadata['source_file'] + '.msh'
