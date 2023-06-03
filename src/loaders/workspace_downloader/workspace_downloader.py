@@ -437,7 +437,8 @@ def main():
                 json.dump(duplicate_map, outfile)
 
             print(
-                f"Duplicates were found, only the latest was kept, and the duplicates are in a file at {duplicate_path}"
+                f"Multiple genomes pointing to the same assembly were found, only the latest was kept, "
+                f"and the duplicates are in a file at {duplicate_path}"
             )
 
         upas = []
