@@ -5,14 +5,13 @@ of the KBase collections service.
 
 # NOTE: This must be compatible with py3.8, since as of this writing checkm2 requires <3.9:
 # https://github.com/chklovski/CheckM2/blob/89004c928537a1515a9fb3d276ce2dc0b5ffdadd/checkm2.yml#L6
-# Hence the old fasioned type annotations.
+# Hence the old fashioned type annotations.
 
 # TODO COMPUTE_CONFIG if this is only going to be run from inside a docker file via the
 #                     entrypoint script, maybe ditch the argparse stuff and read settings from
 #                     a config file instead.
 
 import argparse
-import copy
 import datetime
 import gzip
 import math
@@ -410,6 +409,9 @@ def _create_metadata_file(
         meta: Dict[str, Dict[str, Union[str, Path]]],
         batch_dir: Path
 ):
+    # NOTE: source_file in the input meta object might be the result of unzipping the original source file. This file
+    # is deleted after the tool has been run. The original source file is still available in the source directory.
+
     # create tab separated metadata file with tool generated genome identifier,
     # original genome id and source genome file info.
 
