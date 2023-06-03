@@ -194,9 +194,7 @@ def _assembly_genome_lookup(genome_objs):
         id_and_date = [genome_upa, save_date]
         if not genome_old:
             hashmap[assembly_upa] = id_and_date
-            continue
-
-        if genome_old[1] > save_date:
+        elif genome_old[1] > save_date:
             duplicate[assembly_upa].append(id_and_date)
         else:
             duplicate[assembly_upa].append(genome_old)
@@ -431,8 +429,16 @@ def main():
         )
         assembly_genome_map, duplicate_map = _assembly_genome_lookup(genome_objs)
         if duplicate_map:
-            with open(os.path.join(output_dir, GENOME_DUPLICATE_FILE), "w") as outfile:
+            for assembly_upa, id_and_date in duplicate_map.items():
+                duplicate_map[assembly_upa] = sorted(id_and_date, key=lambda x: x[1])
+
+            duplicate_path = os.path.join(output_dir, GENOME_DUPLICATE_FILE)
+            with open(duplicate_path, "w") as outfile:
                 json.dump(duplicate_map, outfile)
+
+            print(
+                f"Duplicates were found, only the latest was kept, and the duplicates are in a file at {duplicate_path}"
+            )
 
         upas = []
         for obj_info in assembly_objs:
