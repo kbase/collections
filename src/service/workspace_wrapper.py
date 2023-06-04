@@ -40,7 +40,12 @@ class SetSpec(BaseModel):
 
 
 class WorkspaceWrapper:
-    """ A wrapper for a workspace client for the collections service. """
+    """
+    A wrapper for a workspace client for the collections service.
+    
+    Instance Variables:
+    token - the user's token, if any.
+    """
 
     def __init__(self, sdk_cli: SDKAsyncClient, token: str = None):
         """
