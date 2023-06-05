@@ -259,9 +259,12 @@ class ToolRunner:
         for data_id, meta in genomes_meta.items():
             output_dir = batch_dir / data_id
             os.makedirs(output_dir, exist_ok=True)
+
             args_list.append(
                 (meta[loader_common_names.META_TOOL_IDENTIFIER],
-                 meta[loader_common_names.META_SOURCE_FILE],
+                 # use the uncompressed file if it exists, otherwise use the source file
+                 meta.get(loader_common_names.META_UNCOMPRESSED_FILE,
+                          meta[loader_common_names.META_SOURCE_FILE]),
                  output_dir,
                  self._debug))
         try:
@@ -317,8 +320,13 @@ class ToolRunner:
                 unzipped_files_to_delete.extend(_unzip_files(meta))
 
             metas.append((meta, batch_dir))
-            ids_to_files = {m[loader_common_names.META_TOOL_IDENTIFIER]: m[loader_common_names.META_SOURCE_FILE] for m
-                            in meta.values()}
+            ids_to_files = dict()
+            for m in meta.values():
+                # use the uncompressed file if it exists, otherwise use the source file
+                source_file = m.get(loader_common_names.META_UNCOMPRESSED_FILE,
+                                    m[loader_common_names.META_SOURCE_FILE])
+                ids_to_files[m[loader_common_names.META_TOOL_IDENTIFIER]] = source_file
+
             batch_input.append((ids_to_files, batch_dir, self._program_threads, self._debug))
 
         try:
@@ -363,7 +371,7 @@ def _unzip_files(
         if source_file.suffix == '.gz':
             unpacked_file = unpack_gz_file(source_file)
             unzipped_files_to_delete.append(unpacked_file)
-            meta[loader_common_names.META_SOURCE_FILE] = unpacked_file
+            meta[loader_common_names.META_UNCOMPRESSED_FILE] = unpacked_file
 
     return unzipped_files_to_delete
 
@@ -409,9 +417,6 @@ def _create_metadata_file(
         meta: Dict[str, Dict[str, Union[str, Path]]],
         batch_dir: Path
 ):
-    # NOTE: source_file in the input meta object might be the result of unzipping the original source file. This file
-    # is deleted after the tool has been run. The original source file is still available in the source directory.
-
     # create tab separated metadata file with tool generated genome identifier,
     # original genome id and source genome file info.
 
@@ -422,6 +427,7 @@ def _create_metadata_file(
                         + f"{loader_common_names.META_DATA_ID}\t"
                         + f"{loader_common_names.META_SOURCE_DIR}\t"
                         + f"{loader_common_names.META_SOURCE_FILE}\t"
+                        + f"{loader_common_names.META_UNCOMPRESSED_FILE}\t"
                         + f"{loader_common_names.META_FILE_NAME}\n")
         for genome_id, genome_meta_info in meta.items():
             meta_file.write(
@@ -429,6 +435,7 @@ def _create_metadata_file(
                 + f'{genome_id}\t'
                 + f'{genome_meta_info[loader_common_names.META_SOURCE_DIR]}\t'
                 + f'{genome_meta_info[loader_common_names.META_SOURCE_FILE]}\t'
+                + f'{genome_meta_info.get(loader_common_names.META_UNCOMPRESSED_FILE, "")}\t'
                 + f'{genome_meta_info[loader_common_names.META_FILE_NAME]}\n'
             )
 
