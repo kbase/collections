@@ -357,7 +357,7 @@ def _process_mash_tool(root_dir: str,
                 raise ValueError(f'Unable to locate the sketch file: {sketch_file} for genome: {data_id}')
             sketch_files.append(sketch_file)
 
-    _create_import_files(root_dir, SEQ_METADATA, seq_meta)
+    _create_import_files(root_dir, f'{kbase_collection}_{load_ver}_{SEQ_METADATA}', seq_meta)
 
     import_dir = Path(root_dir, IMPORT_DIR)
     os.makedirs(import_dir, exist_ok=True)
