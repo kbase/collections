@@ -127,6 +127,9 @@ _MICROTRAIT_TO_SYS_TRAIT_MAP = {
 # Default directory name for the parsed JSONL files for arango import
 IMPORT_DIR = 'import_files'
 
+# The sequence metadata file name for Assembly Homology service (https://github.com/jgi-kbase/AssemblyHomologyService#sequence-metadata-file)
+SEQ_METADATA = 'seq_metadata.jsonl'
+
 
 def _locate_dir(root_dir, kbase_collection, load_ver, check_exists=False, tool=''):
     result_dir = os.path.join(root_dir, loader_common_names.COLLECTION_DATA_DIR, kbase_collection, load_ver, tool)
@@ -309,6 +312,23 @@ def _create_import_files(root_dir: str, file_name: str, docs: list[dict[str, Any
         convert_to_json(docs, f)
 
 
+def _read_sketch(sketch_file: Path) -> dict:
+    # run mash info on the sketch file and return the JSON output
+
+    temp_dir = Path(tempfile.mkdtemp())
+
+    # Dump sketches in JSON format
+    command = ['mash', 'info', sketch_file, '-d']
+    print(f'Running mash info: {" ".join(command)}')
+    run_command(command, log_dir=temp_dir)
+
+    # Read the mash info output from the stdout file
+    with open(temp_dir / 'stdout', 'r') as file:
+        json_data = json.load(file)
+
+    return json_data
+
+
 def _process_mash_tool(root_dir: str,
                        kbase_collection: str,
                        load_ver: str):
@@ -317,7 +337,7 @@ def _process_mash_tool(root_dir: str,
     result_dir = _locate_dir(root_dir, kbase_collection, load_ver, tool='mash')
     batch_dirs = _get_batch_dirs(result_dir)
 
-    sketch_files = list()
+    sketch_files, seq_meta = list(), list()
     for batch_dir in batch_dirs:
         data_ids = [item for item in os.listdir(os.path.join(result_dir, batch_dir)) if
                     os.path.isdir(os.path.join(result_dir, batch_dir, item))]
@@ -327,23 +347,32 @@ def _process_mash_tool(root_dir: str,
                 metadata = json.load(file)
 
             sketch_file = metadata['sketch_file']
+            sketch_data = _read_sketch(sketch_file)
+            sketches = sketch_data['sketches']
+            if len(sketches) != 1:
+                raise ValueError(f'Expected only one sketch in the mash info output for genome: {data_id}')
+            sketch_id = sketches[0]['name']
+            seq_meta.append({'sourceid': data_id, 'id': sketch_id})
             if not os.path.exists(sketch_file):
                 raise ValueError(f'Unable to locate the sketch file: {sketch_file} for genome: {data_id}')
             sketch_files.append(sketch_file)
+
+    _create_import_files(root_dir, SEQ_METADATA, seq_meta)
 
     import_dir = Path(root_dir, IMPORT_DIR)
     os.makedirs(import_dir, exist_ok=True)
     mash_output_prefix = import_dir / f'{kbase_collection}_{load_ver}_merged_sketch'
 
     # write the lines from sketch_files into a temporary file
-    with tempfile.NamedTemporaryFile(mode='w', delete=True) as temp_file:
+    with tempfile.NamedTemporaryFile(mode='w', delete=False) as temp_file:
         temp_file.write('\n'.join(sketch_files))
         temp_file_path = temp_file.name
 
-        # run mash paste
-        command = ['mash', 'paste', mash_output_prefix, '-l', temp_file_path]
-        print(f'Running mash paste: {command}')
-        run_command(command)
+    # run mash paste
+    command = ['mash', 'paste', str(mash_output_prefix), '-l', temp_file_path]
+    print(f'Running mash paste: {" ".join(command)}')
+    run_command(command)
+    os.remove(temp_file_path)
 
 
 def _process_heatmap_tools(heatmap_tools: set[str],
