@@ -55,6 +55,18 @@ the reader is familiar with
     * When called, this method must delete any selection data associated with the given internal
       selection ID.
     ```python
+    async def apply_match(self,
+        deps: PickleableDependencies,
+        storage: ArangoStorage,
+        collection: models.SavedCollection,
+        internal_match_id: str,
+        kbase_ids: list[str],
+    ):
+    ```
+    * When called, this method must apply the given match to the data. See the `genome_attribs`
+      data product for an example. Only data products that are expected to be set as the primary
+      match target need to implement this method.
+    ```python
     async def apply_selection(
         self,
         deps: PickleableDependencies,

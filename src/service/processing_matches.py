@@ -295,7 +295,7 @@ async def _create_match_process(
             + "this limit was violated after set expansion")
     upa2meta = {u: upa2meta[u] for u in upas}
     return matcher.generate_match_process(
-        internal_match_id, upa2meta, user_parameters, collection_parameters
+        internal_match_id, upa2meta, user_parameters, collection_parameters, ww.token
     ), upas, wsids
 
 

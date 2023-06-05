@@ -2,7 +2,6 @@
 The taxa_count data product, which provides taxa counts for a collection at each taxonomy rank.
 """
 
-import logging
 from fastapi import APIRouter, Request, Depends, Path, Query
 from pydantic import BaseModel, Field
 from src.common.hash import md5_string
