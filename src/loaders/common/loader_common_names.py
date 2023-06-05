@@ -70,6 +70,7 @@ DATA_ID_COLUMN_HEADER = "genome_id"  # TODO DATA_ID change to data ID for genera
 # The following headers are in the meta file written out by the computation script
 META_DATA_ID = "data_id"
 META_SOURCE_FILE = "source_file"
+META_UNCOMPRESSED_FILE = "uncompressed_source_file"  # result of unzipping the original source file (deleted after use)
 META_TOOL_IDENTIFIER = "tool_identifier"
 META_SOURCE_DIR = "source_dir"
 META_FILE_NAME = "meta_filename"
@@ -77,3 +78,6 @@ META_FILE_NAME = "meta_filename"
 # filtering applied to list objects
 OBJECTS_NAME_ASSEMBLY = "KBaseGenomeAnnotations.Assembly"
 OBJECTS_NAME_GENOME = "KBaseGenomes.Genome"
+
+# The metadata file name created during the Mash run
+MASH_METADATA = 'mash_run_metadata.json'
