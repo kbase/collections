@@ -48,6 +48,7 @@ import shutil
 import stat
 import time
 import uuid
+from collections import defaultdict
 from multiprocessing import Pool, Queue, cpu_count
 
 import docker
@@ -61,6 +62,8 @@ from src.loaders.common import loader_common_names, loader_helper
 
 # supported source of data
 SOURCE = "WS"
+# filename that logs genome duplicates for each assembly
+GENOME_DUPLICATE_FILE = "duplicate_genomes.json"
 
 
 class Conf:
@@ -173,8 +176,10 @@ def _list_objects_params(wsid, min_id, max_id, type_str, include_metadata):
 def _assembly_genome_lookup(genome_objs):
     """Helper function that creates a hashmap for the genome and its assembly reference"""
     hashmap = {}
+    duplicate = defaultdict(list)
     for obj_info in genome_objs:
         genome_upa = "{6}/{0}/{4}".format(*obj_info)
+        save_date = obj_info[3]
         try:
             assembly_upa = obj_info[-1]["Assembly Object"]
         except (TypeError, KeyError) as e:
@@ -185,13 +190,21 @@ def _assembly_genome_lookup(genome_objs):
         if not assembly_upa:
             raise ValueError(f"{genome_upa} does not have an assembly reference")
 
-        if hashmap.get(assembly_upa):
-            raise ValueError(
-                f"Multiple genomes match to the assembly upa {assembly_upa}"
-            )
+        genome_old = hashmap.get(assembly_upa)
+        id_and_date = [genome_upa, save_date]
+        if not genome_old:
+            hashmap[assembly_upa] = id_and_date
+        elif genome_old[1] > save_date:
+            duplicate[assembly_upa].append(id_and_date)
+        else:
+            duplicate[assembly_upa].append(genome_old)
+            hashmap[assembly_upa] = [id_and_date]
 
-        hashmap[assembly_upa] = genome_upa
-    return hashmap
+    # keep only genome_upa as value
+    for assembly_upa in hashmap:
+        hashmap[assembly_upa] = hashmap[assembly_upa][0]
+
+    return hashmap, duplicate
 
 
 def _create_softlink(csd_upa_dir, upa_dir):
@@ -414,7 +427,19 @@ def main():
             conf,
             loader_common_names.OBJECTS_NAME_ASSEMBLY,
         )
-        assembly_genome_map = _assembly_genome_lookup(genome_objs)
+        assembly_genome_map, duplicate_map = _assembly_genome_lookup(genome_objs)
+        if duplicate_map:
+            for assembly_upa, id_and_date in duplicate_map.items():
+                duplicate_map[assembly_upa] = sorted(id_and_date, key=lambda x: x[1])
+
+            duplicate_path = os.path.join(output_dir, GENOME_DUPLICATE_FILE)
+            with open(duplicate_path, "w") as outfile:
+                json.dump(duplicate_map, outfile)
+
+            print(
+                f"Multiple genomes pointing to the same assembly were found, only the latest was kept, "
+                f"and the duplicates are in a file at {duplicate_path}"
+            )
 
         upas = []
         for obj_info in assembly_objs:

@@ -5,7 +5,7 @@ of the KBase collections service.
 
 # NOTE: This must be compatible with py3.8, since as of this writing checkm2 requires <3.9:
 # https://github.com/chklovski/CheckM2/blob/89004c928537a1515a9fb3d276ce2dc0b5ffdadd/checkm2.yml#L6
-# Hence the old fasioned type annotations.
+# Hence the old fashioned type annotations.
 
 # TODO COMPUTE_CONFIG if this is only going to be run from inside a docker file via the
 #                     entrypoint script, maybe ditch the argparse stuff and read settings from
@@ -21,14 +21,12 @@ import shutil
 import subprocess
 import time
 import uuid
-
-import pandas as pd
 from pathlib import Path
-
-from src.loaders.common import loader_common_names
-
 from typing import Any, Callable, Dict, List, Tuple, Union
 
+import pandas as pd
+
+from src.loaders.common import loader_common_names
 
 # TODO CODE add a common module for saving and loading the metadata shared between the compute
 #           and parser
@@ -53,10 +51,10 @@ _ID_MUNGING_SUFFIX = "_kbase"
 class ToolRunner:
 
     def __init__(
-        self,
-        tool_name: str,
-        suffix_ids: bool = False,
-        tool_data_id_from_filename: bool = False,
+            self,
+            tool_name: str,
+            suffix_ids: bool = False,
+            tool_data_id_from_filename: bool = False,
     ):
         """
         Create the runner.
@@ -148,13 +146,13 @@ class ToolRunner:
 
         # Required flag arguments
         required.add_argument(
-            f'--{loader_common_names.LOAD_VER_ARG_NAME}', required=True,type=str,
+            f'--{loader_common_names.LOAD_VER_ARG_NAME}', required=True, type=str,
             help=loader_common_names.LOAD_VER_DESCR
         )
         required.add_argument(
             '--source_data_dir', required=True, type=str,
             help='Source data (e.g. genome files) directory. '
-                + '(e.g. /global/cfs/cdirs/kbase/collections/sourcedata/GTDB/r207'
+                 + '(e.g. /global/cfs/cdirs/kbase/collections/sourcedata/GTDB/r207'
         )
 
         # Optional arguments
@@ -173,7 +171,7 @@ class ToolRunner:
         optional.add_argument(
             '--program_threads', type=int, default=32,
             help='Number of threads to execute a single tool command. '
-                + 'threads / program_threads determines the number of batches. (default: 32)'
+                 + 'threads / program_threads determines the number of batches. (default: 32)'
         )
         optional.add_argument(
             '--node_id', type=str, default=str(uuid.uuid4()), help='node ID for running job'
@@ -182,7 +180,7 @@ class ToolRunner:
         optional.add_argument(
             '--data_id_file', type=argparse.FileType('r'),
             help="tab separated file containing data ids for the running job "
-                + f"(requires '{loader_common_names.DATA_ID_COLUMN_HEADER}' as the column name)"
+                 + f"(requires '{loader_common_names.DATA_ID_COLUMN_HEADER}' as the column name)"
         )
         optional.add_argument(
             '--source_file_ext', type=str, default='.fa',
@@ -218,7 +216,7 @@ class ToolRunner:
             data_ids = all_data_ids
         return list(set(data_ids))
 
-    def parallel_single_execution(self, tool_callable: Callable[[str, Path, Path, bool], None]):
+    def parallel_single_execution(self, tool_callable: Callable[[str, Path, Path, bool], None], unzip=False):
         """
         Run a tool by a single data file, storing the results in a single batch directory with
         the individual runs stored in directories by the data ID.
@@ -236,6 +234,8 @@ class ToolRunner:
             * The input file
             * The output directory
             * A debug boolean
+
+        unzip - if True, unzip the input file before passing it to the tool callable. (unzipped file will be deleted)
         """
         start = time.time()
         batch_dir, genomes_meta = _prepare_tool(
@@ -250,17 +250,34 @@ class ToolRunner:
             self._suffix_ids,
         )
 
+        unzipped_files_to_delete = list()
+        if unzip:
+            unzipped_files_to_delete = _unzip_files(genomes_meta)
+
         # RUN tool in parallel with multiprocessing
         args_list = []
         for data_id, meta in genomes_meta.items():
             output_dir = batch_dir / data_id
             os.makedirs(output_dir, exist_ok=True)
+
             args_list.append(
-                (meta[loader_common_names.META_TOOL_IDENTIFIER], meta[loader_common_names.META_SOURCE_FILE], output_dir, self._debug))
-        self._execute(self._threads, tool_callable, args_list, start, False)
+                (meta[loader_common_names.META_TOOL_IDENTIFIER],
+                 # use the uncompressed file if it exists, otherwise use the source file
+                 meta.get(loader_common_names.META_UNCOMPRESSED_FILE,
+                          meta[loader_common_names.META_SOURCE_FILE]),
+                 output_dir,
+                 self._debug))
+        try:
+            self._execute(self._threads, tool_callable, args_list, start, False)
+        finally:
+            if unzipped_files_to_delete:
+                print(f"Deleting {len(unzipped_files_to_delete)} unzipped files: {unzipped_files_to_delete[:5]}...")
+                for file in unzipped_files_to_delete:
+                    os.remove(file)
+
         _create_metadata_file(genomes_meta, batch_dir)
-    
-    def parallel_batch_execution(self, tool_callable: Callable[[Dict[str, Path], Path, int, bool], None]):
+
+    def parallel_batch_execution(self, tool_callable: Callable[[Dict[str, Path], Path, int, bool], None], unzip=False):
         """
         Run a tool in batched mode, where > 1 data file is processed by the tool in one
         call. Each batch gets its own batch directory.
@@ -284,6 +301,7 @@ class ToolRunner:
         chunk_size = math.ceil(len(self._data_ids) / num_batches)
         batch_input = []
         metas = []
+        unzipped_files_to_delete = list()
         for batch_number, i in enumerate(range(0, len(self._data_ids), chunk_size)):
             data_ids = self._data_ids[i: i + chunk_size]
             batch_dir, meta = _prepare_tool(
@@ -297,20 +315,38 @@ class ToolRunner:
                 self._tool_data_id_from_filename,
                 self._suffix_ids,
             )
+
+            if unzip:
+                unzipped_files_to_delete.extend(_unzip_files(meta))
+
             metas.append((meta, batch_dir))
-            ids_to_files = {m[loader_common_names.META_TOOL_IDENTIFIER]: m[loader_common_names.META_SOURCE_FILE] for m in meta.values()}
+            ids_to_files = dict()
+            for m in meta.values():
+                # use the uncompressed file if it exists, otherwise use the source file
+                source_file = m.get(loader_common_names.META_UNCOMPRESSED_FILE,
+                                    m[loader_common_names.META_SOURCE_FILE])
+                ids_to_files[m[loader_common_names.META_TOOL_IDENTIFIER]] = source_file
+
             batch_input.append((ids_to_files, batch_dir, self._program_threads, self._debug))
-        self._execute(num_batches, tool_callable, batch_input, start, True)
+
+        try:
+            self._execute(num_batches, tool_callable, batch_input, start, True)
+        finally:
+            if unzipped_files_to_delete:
+                print(f"Deleting {len(unzipped_files_to_delete)} unzipped files: {unzipped_files_to_delete[:5]}...")
+                for file in unzipped_files_to_delete:
+                    os.remove(file)
+
         for meta in metas:
             _create_metadata_file(*meta)
 
     def _execute(
-        self,
-        threads: int,
-        tool_callable: Callable[..., None],
-        args: List[Tuple[Any]],
-        start: datetime.datetime,
-        total: bool,
+            self,
+            threads: int,
+            tool_callable: Callable[..., None],
+            args: List[Tuple[Any]],
+            start: datetime.datetime,
+            total: bool,
     ):
         pool = multiprocessing.Pool(processes=threads)
         pool.starmap(tool_callable, args)
@@ -318,8 +354,26 @@ class ToolRunner:
         pool.join()
         prefix = "In total used" if total else "Used"
         print(f"{prefix} {round((time.time() - start) / 60, 2)} minutes to "
-            + f"execute {self._tool} for {len(self._data_ids)} data units"
-        )
+              + f"execute {self._tool} for {len(self._data_ids)} data units"
+              )
+
+
+def _unzip_files(
+        genomes_meta: Dict[str, Dict[str, Union[str, Path]]]
+) -> List[Path]:
+    """
+    Unzip all files in the genomes_meta dictionary that have a '.gz' extension.
+    """
+    unzipped_files_to_delete = list()
+    for data_id, meta in genomes_meta.items():
+        source_file = meta[loader_common_names.META_SOURCE_FILE]
+
+        if source_file.suffix == '.gz':
+            unpacked_file = unpack_gz_file(source_file)
+            unzipped_files_to_delete.append(unpacked_file)
+            meta[loader_common_names.META_UNCOMPRESSED_FILE] = unpacked_file
+
+    return unzipped_files_to_delete
 
 
 def unpack_gz_file(gz_file: Path):
@@ -360,8 +414,8 @@ def run_command(command: List[str], log_dir: Path = None):
 
 
 def _create_metadata_file(
-    meta: Dict[str, Dict[str, Union[str, Path]]],
-    batch_dir: Path
+        meta: Dict[str, Dict[str, Union[str, Path]]],
+        batch_dir: Path
 ):
     # create tab separated metadata file with tool generated genome identifier,
     # original genome id and source genome file info.
@@ -373,6 +427,7 @@ def _create_metadata_file(
                         + f"{loader_common_names.META_DATA_ID}\t"
                         + f"{loader_common_names.META_SOURCE_DIR}\t"
                         + f"{loader_common_names.META_SOURCE_FILE}\t"
+                        + f"{loader_common_names.META_UNCOMPRESSED_FILE}\t"
                         + f"{loader_common_names.META_FILE_NAME}\n")
         for genome_id, genome_meta_info in meta.items():
             meta_file.write(
@@ -380,6 +435,7 @@ def _create_metadata_file(
                 + f'{genome_id}\t'
                 + f'{genome_meta_info[loader_common_names.META_SOURCE_DIR]}\t'
                 + f'{genome_meta_info[loader_common_names.META_SOURCE_FILE]}\t'
+                + f'{genome_meta_info.get(loader_common_names.META_UNCOMPRESSED_FILE, "")}\t'
                 + f'{genome_meta_info[loader_common_names.META_FILE_NAME]}\n'
             )
 
@@ -387,22 +443,22 @@ def _create_metadata_file(
 # Might be cleaner to add to the class, but making it strictly procedural is simpler in
 # other ways. Meh
 def _prepare_tool(
-    work_dir: Path,
-    batch_id: str,
-    node_id: str,
-    data_ids: List[str],
-    source_data_dir: Path,
-    source_file_ext: str,
-    allow_missing_files: bool,
-    data_id_from_filename: bool,
-    suffix_ids: bool,
+        work_dir: Path,
+        batch_id: str,
+        node_id: str,
+        data_ids: List[str],
+        source_data_dir: Path,
+        source_file_ext: str,
+        allow_missing_files: bool,
+        data_id_from_filename: bool,
+        suffix_ids: bool,
 ) -> Tuple[Path, Dict[str, Dict[str, Union[str, Path]]]]:
     # Prepares for tool execution by creating a batch directory and retrieving data
     # files with associated metadata.
 
     # create working directory for each batch
     batch_dir = work_dir / (f'{loader_common_names.COMPUTE_OUTPUT_PREFIX}{batch_id}_size_'
-        + f'{len(data_ids)}_node_{node_id}')
+                            + f'{len(data_ids)}_node_{node_id}')
     os.makedirs(batch_dir, exist_ok=True)
 
     # Retrieve genome files and associated metadata for each genome ID
@@ -417,11 +473,10 @@ def _prepare_tool(
             suffix_ids,
         )
         if data_file:
-
             mata_filename_path = os.path.join(data_file.parent, data_file.parent.name + ".meta")
             metadata_file = mata_filename_path if os.path.exists(mata_filename_path) else ""
 
-            meta[data_id] = {loader_common_names.META_TOOL_IDENTIFIER: tool_identifier, 
+            meta[data_id] = {loader_common_names.META_TOOL_IDENTIFIER: tool_identifier,
                              loader_common_names.META_SOURCE_FILE: data_file,
                              loader_common_names.META_SOURCE_DIR: data_file.parent,
                              loader_common_names.META_FILE_NAME: metadata_file}
@@ -430,12 +485,12 @@ def _prepare_tool(
 
 
 def _retrieve_data_file(
-    data_id: str,
-    source_data_dir: Path,
-    source_file_ext: str,
-    allow_missing_files: bool,
-    data_id_from_filename: bool,
-    suffix_ids: bool,
+        data_id: str,
+        source_data_dir: Path,
+        source_file_ext: str,
+        allow_missing_files: bool,
+        data_id_from_filename: bool,
+        suffix_ids: bool,
 ) -> Tuple[Path, str]:
     # retrieve the data file associated with data_id
     # return the data file path if it exists, otherwise raise an error unless missing files are
@@ -462,10 +517,10 @@ def _retrieve_data_file(
 
 
 def _find_data_file(
-    data_id: str,
-    file_ext: str,
-    source_data_dir: Path,
-    allow_missing_files: bool,
+        data_id: str,
+        file_ext: str,
+        source_data_dir: Path,
+        allow_missing_files: bool,
 ) -> Path:
     # Finds genome file(s) for a given genome ID in a source data directory,
     # excluding files whose name contains specified substrings.
