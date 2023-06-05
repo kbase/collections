@@ -319,16 +319,17 @@ def _read_sketch(sketch_file: Path) -> dict:
 
     temp_dir = Path(tempfile.mkdtemp())
 
-    # Dump sketches in JSON format
-    command = ['mash', 'info', sketch_file, '-d']
-    print(f'Running mash info: {" ".join(command)}')
-    run_command(command, log_dir=temp_dir)
+    try:
+        # Dump sketches in JSON format
+        command = ['mash', 'info', sketch_file, '-d']
+        print(f'Running mash info: {" ".join(command)}')
+        run_command(command, log_dir=temp_dir)
 
-    # Read the mash info output from the stdout file
-    with open(temp_dir / 'stdout', 'r') as file:
-        json_data = json.load(file)
-
-    shutil.rmtree(temp_dir)
+        # Read the mash info output from the stdout file
+        with open(temp_dir / 'stdout', 'r') as file:
+            json_data = json.load(file)
+    finally:
+        shutil.rmtree(temp_dir)
 
     return json_data
 
