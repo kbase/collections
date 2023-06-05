@@ -32,6 +32,7 @@ import argparse
 import copy
 import json
 import os
+import shutil
 import sys
 import tempfile
 from numbers import Number
@@ -127,7 +128,8 @@ _MICROTRAIT_TO_SYS_TRAIT_MAP = {
 # Default directory name for the parsed JSONL files for arango import
 IMPORT_DIR = 'import_files'
 
-# The sequence metadata file name for Assembly Homology service (https://github.com/jgi-kbase/AssemblyHomologyService#sequence-metadata-file)
+# The suffix for the sequence metadata file name for Assembly Homology service
+# (https://github.com/jgi-kbase/AssemblyHomologyService#sequence-metadata-file)
 SEQ_METADATA = 'seq_metadata.jsonl'
 
 
@@ -326,6 +328,8 @@ def _read_sketch(sketch_file: Path) -> dict:
     with open(temp_dir / 'stdout', 'r') as file:
         json_data = json.load(file)
 
+    shutil.rmtree(temp_dir)
+
     return json_data
 
 
@@ -352,6 +356,9 @@ def _process_mash_tool(root_dir: str,
             if len(sketches) != 1:
                 raise ValueError(f'Expected only one sketch in the mash info output for genome: {data_id}')
             sketch_id = sketches[0]['name']
+            if sketch_id != metadata['source_file']:
+                raise ValueError(f'Expected the sketch name to be the same as the source file name for genome: '
+                                 f'{data_id}')
             seq_meta.append({'sourceid': data_id, 'id': sketch_id})
             if not os.path.exists(sketch_file):
                 raise ValueError(f'Unable to locate the sketch file: {sketch_file} for genome: {data_id}')
@@ -368,11 +375,13 @@ def _process_mash_tool(root_dir: str,
         temp_file.write('\n'.join(sketch_files))
         temp_file_path = temp_file.name
 
-    # run mash paste
-    command = ['mash', 'paste', str(mash_output_prefix), '-l', temp_file_path]
-    print(f'Running mash paste: {" ".join(command)}')
-    run_command(command)
-    os.remove(temp_file_path)
+    try:
+        # run mash paste
+        command = ['mash', 'paste', str(mash_output_prefix), '-l', temp_file_path]
+        print(f'Running mash paste: {" ".join(command)}')
+        run_command(command)
+    finally:
+        os.remove(temp_file_path)
 
 
 def _process_heatmap_tools(heatmap_tools: set[str],
