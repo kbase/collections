@@ -371,18 +371,18 @@ def _process_mash_tool(root_dir: str,
     os.makedirs(import_dir, exist_ok=True)
     mash_output_prefix = import_dir / f'{kbase_collection}_{load_ver}_merged_sketch'
 
-    # write the lines from sketch_files into a temporary file
-    with tempfile.NamedTemporaryFile(mode='w', delete=False) as temp_file:
-        temp_file.write('\n'.join(sketch_files))
-        temp_file_path = temp_file.name
-
     try:
+        # write the lines from sketch_files into a temporary file
+        with tempfile.NamedTemporaryFile(mode='w', delete=False) as temp_file:
+            temp_file.write('\n'.join(sketch_files))
+            temp_file_path = temp_file.name
+
         # run mash paste
         command = ['mash', 'paste', str(mash_output_prefix), '-l', temp_file_path]
         print(f'Running mash paste: {" ".join(command)}')
         run_command(command)
     finally:
-        os.remove(temp_file_path)
+        os.remove(temp_file_path) if os.path.exists(temp_file_path) else None
 
 
 def _process_heatmap_tools(heatmap_tools: set[str],
