@@ -725,12 +725,13 @@ def microtrait(root_dir, kbase_collection, load_ver):
                     os.path.isdir(os.path.join(result_dir, batch_dir, item))]
         for data_id in data_ids:
             data_dir = os.path.join(result_dir, batch_dir, data_id)
-            trait_count_file = os.path.join(data_dir, loader_common_names.TRAIT_COUNTS_FILE)
-            selected_cols = _MICROTRAIT_TO_SYS_TRAIT_MAP.keys()
             trait_count_error = os.path.join(data_dir, loader_common_names.TRAIT_COUNTS_ERROR)
-            if not os.path.exists(trait_count_file) and os.path.exists(trait_count_error):
+            if os.path.exists(trait_count_error):
                 bad_data_id.append(data_id)
                 continue
+            
+            trait_count_file = os.path.join(data_dir, loader_common_names.TRAIT_COUNTS_FILE)
+            selected_cols = _MICROTRAIT_TO_SYS_TRAIT_MAP.keys()
             trait_df = pd.read_csv(trait_count_file, usecols=selected_cols)
 
             # Check if the trait index column has non-unique values
