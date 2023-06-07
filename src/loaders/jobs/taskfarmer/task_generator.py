@@ -51,12 +51,11 @@ running 4 batches in parallel per NERSC node resulted in optimal performance, de
 256 cores.
 '''
 
-TOOLS_AVAILABLE = ['gtdb_tk', 'checkm2', 'microtrait']
+TOOLS_AVAILABLE = ['gtdb_tk', 'checkm2', 'microtrait', 'mash']
 
 # estimated execution time (in minutes) for each tool to process a chunk of data
-TASK_META = {'checkm2': {'chunk_size': 5000, 'exe_time': 60},
-             'gtdb_tk': {'chunk_size': 1000, 'exe_time': 65},
-             'microtrait': {'chunk_size': 5000, 'exe_time': 60}}
+TASK_META = {'gtdb_tk': {'chunk_size': 1000, 'exe_time': 65},
+             'default': {'chunk_size': 5000, 'exe_time': 60}}
 NODE_TIME_LIMIT = 5  # hours  # TODO: automatically calculate this based on tool execution time and NODE_THREADS
 MAX_NODE_NUM = 100  # maximum number of nodes to use
 # The THREADS variable controls the number of parallel tasks per node
@@ -199,7 +198,7 @@ def _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper
     genome_ids = [path for path in os.listdir(source_data_dir) if
                   os.path.isdir(os.path.join(source_data_dir, path))]
 
-    chunk_size = TASK_META[tool]['chunk_size']
+    chunk_size = TASK_META.get(tool, TASK_META['default'])['chunk_size']
     genome_ids_chunks = [genome_ids[i: i + chunk_size] for i in range(0, len(genome_ids), chunk_size)]
 
     vol_mounts = TOOL_VOLUME_MAP.get(tool, {})
@@ -235,7 +234,7 @@ def _cal_node_num(tool, n_jobs):
     Calculate the number of nodes required for the task
     """
 
-    tool_exe_time = TASK_META[tool]['exe_time']
+    tool_exe_time = TASK_META.get(tool, TASK_META['default'])['exe_time']
     jobs_per_node = NODE_TIME_LIMIT * 60 // tool_exe_time
 
     num_nodes = math.ceil(n_jobs / jobs_per_node)
