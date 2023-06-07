@@ -11,8 +11,8 @@ Currently collections only contain KBase staff curated data.
 ## Usage
 
 OpenAPI documentation is provided at the `/docs` endpoint of the server (in KBase, this is
-at `<host>/service/collectionsservice/docs`, for example
-[https://ci.kbase.us/services/collectionsservice/docs](https://ci.kbase.us/services/collectionsservice/docs)).
+at `<host>/service/collections/docs`, for example
+[https://ci.kbase.us/services/collections/docs](https://ci.kbase.us/services/collections/docs)).
 
 ### Error codes
 
