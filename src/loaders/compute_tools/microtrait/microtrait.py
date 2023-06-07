@@ -69,8 +69,10 @@ def _run_microtrait(genome_id: str, fna_file: Path, genome_dir: Path, debug: boo
 
     try:
         trait_counts = _get_r_list_element(microtrait_result, TRAIT_COUNTS_ATGRANULARITY)
-    except Exception as e:
-        return
+    except ValueError as e:
+        with open(os.path.join(genome_dir, loader_common_names.TRAIT_COUNTS_ERROR), 'w') as f:
+            f.write(e)
+        return 
     # example trait_counts_df from trait_counts_atgranularity3
     # microtrait_trait-name,microtrait_trait-value,microtrait_trait-displaynameshort,microtrait_trait-displaynamelong,microtrait_trait-strategy,microtrait_trait-type,microtrait_trait-granularity,microtrait_trait-version,microtrait_trait-displayorder,microtrait_trait-value1
     # Resource Acquisition:Substrate uptake:aromatic acid transport,1,Aromatic acid transport,Resource Acquisition:Substrate uptake:aromatic acid transport,Resource Acquisition,count,3,production,1,1

@@ -409,7 +409,7 @@ def _process_heatmap_tools(heatmap_tools: set[str],
         _create_import_files(root_dir, rows_output, heatmap_rows_list)
         _create_import_files(root_dir, cell_details_output, heatmap_cell_details_list)
 
-        result_dir = _locate_dir(root_dir, kbase_collection, load_ver, tool='microtrait')
+        result_dir = _locate_dir(root_dir, kbase_collection, load_ver, tool=tool)
         with open(os.path.join(result_dir, BAD_DATA_IDS), "w") as outfile:
             json.dump(bad_data_id, outfile)
 
@@ -727,7 +727,8 @@ def microtrait(root_dir, kbase_collection, load_ver):
             data_dir = os.path.join(result_dir, batch_dir, data_id)
             trait_count_file = os.path.join(data_dir, loader_common_names.TRAIT_COUNTS_FILE)
             selected_cols = _MICROTRAIT_TO_SYS_TRAIT_MAP.keys()
-            if not os.path.exists(trait_count_file):
+            trait_count_error = os.path.join(data_dir, loader_common_names.TRAIT_COUNTS_ERROR)
+            if not os.path.exists(trait_count_file) and os.path.exists(trait_count_error):
                 bad_data_id.append(data_id)
                 continue
             trait_df = pd.read_csv(trait_count_file, usecols=selected_cols)
