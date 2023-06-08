@@ -398,7 +398,7 @@ def _process_heatmap_tools(heatmap_tools: set[str],
         except AttributeError as e:
             raise ValueError(f'Please implement parsing method for: [{tool}]') from e
 
-        heatmap_meta_dict, heatmap_rows_list, heatmap_cell_details_list, bad_data_id = parse_ops(
+        heatmap_meta_dict, heatmap_rows_list, heatmap_cell_details_list, bad_data_ids = parse_ops(
             root_dir, kbase_collection, load_ver)
 
         meta_output = f'{kbase_collection}_{load_ver}_{tool}_meta_{HEATMAP_FILE_SUFFIX}'
@@ -409,10 +409,10 @@ def _process_heatmap_tools(heatmap_tools: set[str],
         _create_import_files(root_dir, rows_output, heatmap_rows_list)
         _create_import_files(root_dir, cell_details_output, heatmap_cell_details_list)
 
-        if bad_data_id:
+        if bad_data_ids:
             result_dir = _locate_dir(root_dir, kbase_collection, load_ver, tool=tool)
             with open(os.path.join(result_dir, BAD_DATA_IDS), "w") as outfile:
-                json.dump(bad_data_id, outfile)
+                json.dump(bad_data_ids, outfile)
 
 
 def _process_genome_attri_tools(genome_attr_tools: set[str],
@@ -719,7 +719,7 @@ def microtrait(root_dir, kbase_collection, load_ver):
     result_dir = _locate_dir(root_dir, kbase_collection, load_ver, tool='microtrait')
     batch_dirs = _get_batch_dirs(result_dir)
 
-    bad_data_id = []
+    bad_data_ids = []
     traits_meta, traits_val = dict(), dict()
     for batch_dir in batch_dirs:
         data_ids = [item for item in os.listdir(os.path.join(result_dir, batch_dir)) if
@@ -728,7 +728,7 @@ def microtrait(root_dir, kbase_collection, load_ver):
             data_dir = os.path.join(result_dir, batch_dir, data_id)
             fatal_error = os.path.join(data_dir, loader_common_names.FATAL_ERROR_FILE)
             if os.path.exists(fatal_error):
-                bad_data_id.append(data_id)
+                bad_data_ids.append(data_id)
                 continue
             
             trait_count_file = os.path.join(data_dir, loader_common_names.TRAIT_COUNTS_FILE)
@@ -772,7 +772,7 @@ def microtrait(root_dir, kbase_collection, load_ver):
                                                    FIELD_HEATMAP_CELL_ID,
                                                    collection_data_id_key)
 
-    return heatmap_meta_dict, heatmap_rows_list, heatmap_cell_details_list, bad_data_id
+    return heatmap_meta_dict, heatmap_rows_list, heatmap_cell_details_list, bad_data_ids
 
 
 def gtdb_tk(root_dir, kbase_collection, load_ver):
