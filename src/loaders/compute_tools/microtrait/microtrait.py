@@ -20,9 +20,10 @@ _GENE_SCORE_COL = 'gene_score'  # column name from the genes_detected_table file
 def _get_r_list_element(r_list, element_name):
     # retrieve the element from the R list
     exist = True
-    if element_name not in r_list.names:
-        return None, False
-    pos = r_list.names.index(element_name)
+    try:
+        pos = r_list.names.index(element_name)
+    except ValueError as e:
+        return e, False
     return r_list[pos], exist
 
 
@@ -72,9 +73,8 @@ def _run_microtrait(genome_id: str, fna_file: Path, genome_dir: Path, debug: boo
 
     trait_counts, exist = _get_r_list_element(microtrait_result, TRAIT_COUNTS_ATGRANULARITY)
     if not exist:
-        fatal_dict = {fna_file: f"ValueError: Error running microtrait on {fna_file}"}
         with open(os.path.join(genome_dir, loader_common_names.FATAL_ERROR_FILE), 'w') as outfile:
-            json.dump(fatal_dict, outfile)
+            json.dump({"ValueError": trait_counts}, outfile)
         return 
     # example trait_counts_df from trait_counts_atgranularity3
     # microtrait_trait-name,microtrait_trait-value,microtrait_trait-displaynameshort,microtrait_trait-displaynamelong,microtrait_trait-strategy,microtrait_trait-type,microtrait_trait-granularity,microtrait_trait-version,microtrait_trait-displayorder,microtrait_trait-value1
