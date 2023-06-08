@@ -5,7 +5,12 @@ Service-exclusive collection names are also listed here to prevent name collisio
 
 In text, a capitalized Collections refers to the Collections service and loaders, while lowercase
 refers to the database collections. However, all collection names are lowercase.
+
+Variables holding ArangoDB collection names must be annotated appropriately - see the collection
+variables below for examples.
 """
+
+from typing import Annotated
 
 # collection variables should be prefixed with COLL_, fields prefixed with FLD_.
 
@@ -61,6 +66,24 @@ filtering on a selection.
 
 # Collections
 
+COLL_ANNOTATION = "ArangoDB collection name"
+"""
+ArangoDB collection name constants are annotated with this value in index 0 and metadata about
+the collection in index 1.
+See examples below.
+"""
+
+COLL_ANNOKEY_DESCRIPTION = "desc"
+"""
+A collection metadata key. The value should be the description of the metadata.
+"""
+
+
+COLL_ANNOKEY_SUGGESTED_SHARDS = "suggshards"
+"""
+A collection metadata key. The value should be the suggested number of shards for the collection.
+"""
+
 COLLECTION_PREFIX = "kbcoll_"
 """
 The prefix for all Collections database collection names. Since the service and loaders
@@ -73,44 +96,113 @@ provides a namespace for the exclusive use of the Collections code.
 _SRV_PREFIX = COLLECTION_PREFIX + "coll_"
 # The namespace for service exclusive collections
 
-COLL_SRV_COUNTERS = _SRV_PREFIX + "counters"
-""" A collection holding counters for Collection versions. """
+COLL_SRV_COUNTERS: Annotated[
+    str,
+    COLL_ANNOTATION,
+    {
+        COLL_ANNOKEY_DESCRIPTION: "A collection holding counters for Collection versions.",
+        COLL_ANNOKEY_SUGGESTED_SHARDS: 1,
+    }
+] = _SRV_PREFIX + "counters"
 
-COLL_SRV_VERSIONS = _SRV_PREFIX + "versions"
-""" A collection holding Collection versions. """
+COLL_SRV_VERSIONS: Annotated[
+    str,
+    COLL_ANNOTATION,
+    {
+        COLL_ANNOKEY_DESCRIPTION: "A collection holding Collection versions.",
+        COLL_ANNOKEY_SUGGESTED_SHARDS: 1,
+    }
+] = _SRV_PREFIX + "versions"
 
-COLL_SRV_ACTIVE = _SRV_PREFIX + "active"
-""" A collection holding active Collections. """
+COLL_SRV_ACTIVE: Annotated[
+    str,
+    COLL_ANNOTATION,
+    {
+        COLL_ANNOKEY_DESCRIPTION: "A collection holding active Collections.",
+        COLL_ANNOKEY_SUGGESTED_SHARDS: 1,
+    }
 
-COLL_SRV_MATCHES = _SRV_PREFIX + "matches"
-""" A collection holding matches to Collections. """
+] = _SRV_PREFIX + "active"
 
-COLL_SRV_MATCHES_DELETED = COLL_SRV_MATCHES + "_deleted"
-""" A collection holding matches in the deleted state. """
+COLL_SRV_MATCHES: Annotated[
+    str,
+    COLL_ANNOTATION,
+    {
+        COLL_ANNOKEY_DESCRIPTION: "A collection holding matches to Collections.",
+        COLL_ANNOKEY_SUGGESTED_SHARDS: 3,
+    }
+] = _SRV_PREFIX + "matches"
 
-COLL_SRV_DATA_PRODUCT_PROCESSES = _SRV_PREFIX + "data_prod_proc"
-""" A collection holding the status of calculating secondary data products for matches. """
+COLL_SRV_MATCHES_DELETED: Annotated[
+    str,
+    COLL_ANNOTATION,
+    {
+        COLL_ANNOKEY_DESCRIPTION: "A collection holding matches in the deleted state.",
+        COLL_ANNOKEY_SUGGESTED_SHARDS: 1,
+    }
+] = COLL_SRV_MATCHES + "_deleted"
 
-COLL_SRV_SELECTIONS = _SRV_PREFIX + "selections"
-""" A collection holding selections for Collections. """
+COLL_SRV_DATA_PRODUCT_PROCESSES: Annotated[
+    str,
+    COLL_ANNOTATION,
+    {
+        COLL_ANNOKEY_DESCRIPTION:
+            "A collection holding the status of calculating matches and selections.",
+        COLL_ANNOKEY_SUGGESTED_SHARDS: 3,
+    }
+] = _SRV_PREFIX + "data_prod_proc"
 
-COLL_SRV_SELECTIONS_DELETED = COLL_SRV_SELECTIONS + "_deleted"
-""" A collection holding selections in the deleted state. """
+COLL_SRV_SELECTIONS: Annotated[
+    str,
+    COLL_ANNOTATION,
+    {
+        COLL_ANNOKEY_DESCRIPTION: "A collection holding selections for Collections.",
+        COLL_ANNOKEY_SUGGESTED_SHARDS: 3,
+    }
+] = _SRV_PREFIX + "selections"
+
+COLL_SRV_SELECTIONS_DELETED: Annotated[
+    str,
+    COLL_ANNOTATION,
+    {
+        COLL_ANNOKEY_DESCRIPTION: "A collection holding selections in the deleted state.",
+        COLL_ANNOKEY_SUGGESTED_SHARDS: 1,
+    }
+] = COLL_SRV_SELECTIONS + "_deleted"
 
 ## Non-data product specific collection shared between loaders and service
 
-# Types available for export from specific data products
-COLL_EXPORT_TYPES = COLLECTION_PREFIX + "export_types"
+COLL_EXPORT_TYPES: Annotated[
+    str,
+    COLL_ANNOTATION,
+    {
+        COLL_ANNOKEY_DESCRIPTION:
+            "A collection holding types available for export from specific data products",
+        COLL_ANNOKEY_SUGGESTED_SHARDS: 1,
+    }
+] = COLLECTION_PREFIX + "export_types"
 
 ## Data product collections
 
 ### Taxa counts
 
-COLL_TAXA_COUNT_RANKS = COLLECTION_PREFIX + "taxa_count_ranks"
-""" A collection holding taxa count rank data. """
+COLL_TAXA_COUNT_RANKS: Annotated[
+    str,
+    COLL_ANNOTATION,
+    {
+        COLL_ANNOKEY_DESCRIPTION: "A collection holding taxa count rank data.",
+        COLL_ANNOKEY_SUGGESTED_SHARDS: 1,
+    }
+] = COLLECTION_PREFIX + "taxa_count_ranks"
 
-COLL_TAXA_COUNT = COLLECTION_PREFIX + "taxa_count"
-""" A collection holding taxa count data. """
+COLL_TAXA_COUNT: Annotated[
+    str,
+    COLL_ANNOTATION,
+    {
+        COLL_ANNOKEY_DESCRIPTION: "A collection holding taxa count data.",
+        COLL_ANNOKEY_SUGGESTED_SHARDS: 3,
+    }
+] = COLLECTION_PREFIX + "taxa_count"
 
 #### Taxa count document fields
 FLD_TAXA_COUNT_RANK = "rank"
@@ -120,7 +212,14 @@ FLD_TAXA_COUNT_COUNT = "count"
 
 ### Genome attributes
 
-COLL_GENOME_ATTRIBS = COLLECTION_PREFIX + "genome_attribs"
+COLL_GENOME_ATTRIBS: Annotated[
+    str,
+    COLL_ANNOTATION,
+    {
+        COLL_ANNOKEY_DESCRIPTION: "A collection holding genome attributes data.",
+        COLL_ANNOKEY_SUGGESTED_SHARDS: 3,
+    }
+] = COLLECTION_PREFIX + "genome_attribs"
 
 #### Genome attribute document fields
 
@@ -145,18 +244,36 @@ are unlimited.
 
 FLD_HEATMAP_COLUMN_CATEGORIES = "categories"
 # the categories field for the column data document. The structure of the document is defined
-# in /src/service/data_products/heatmap_common_models.py
-# Maybe that should live in /src/common and we should use it in the loaders...?
+# in /src/common/product_models/heatmap_common_models.py
 
 ### microTrait
 
 _MICROTRAIT_COLL_PREFIX = COLLECTION_PREFIX + "microtrait_"
 
-# Stores metadata about the microtrait heatmap
-COLL_MICROTRAIT_META = _MICROTRAIT_COLL_PREFIX  + "meta"
+COLL_MICROTRAIT_META: Annotated[
+    str,
+    COLL_ANNOTATION,
+    {
+        COLL_ANNOKEY_DESCRIPTION: "A collection holding microtrait heatmap metadata.",
+        COLL_ANNOKEY_SUGGESTED_SHARDS: 1,
+    }
+    
+] = _MICROTRAIT_COLL_PREFIX  + "meta"
 
-# Stores the core microtrait data
-COLL_MICROTRAIT_DATA = _MICROTRAIT_COLL_PREFIX + "data"
+COLL_MICROTRAIT_DATA: Annotated[
+    str,
+    COLL_ANNOTATION,
+    {
+        COLL_ANNOKEY_DESCRIPTION: "A collection holding microtrait heatmap data.",
+        COLL_ANNOKEY_SUGGESTED_SHARDS: 3,
+    }
+] = _MICROTRAIT_COLL_PREFIX + "data"
 
-# Stores cell detail information for the heatmap
-COLL_MICROTRAIT_CELLS = _MICROTRAIT_COLL_PREFIX + "cells"
+COLL_MICROTRAIT_CELLS: Annotated[
+    str,
+    COLL_ANNOTATION,
+    {
+        COLL_ANNOKEY_DESCRIPTION: "A collection holding microtrait heatmap cell detail data.",
+        COLL_ANNOKEY_SUGGESTED_SHARDS: 3,
+    }
+] = _MICROTRAIT_COLL_PREFIX + "cells"
