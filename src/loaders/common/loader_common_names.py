@@ -82,5 +82,5 @@ OBJECTS_NAME_GENOME = "KBaseGenomes.Genome"
 # The metadata file name created during the Mash run
 MASH_METADATA = 'mash_run_metadata.json'
 
-# The trait counts error file created if trait_counts.csv is not sucessfully generated
-TRAIT_COUNTS_ERROR = "trait_counts_error.txt"
+# The fatal error file created if trait_counts.csv is not sucessfully generated
+FATAL_ERROR_FILE = "fatal_error.json"

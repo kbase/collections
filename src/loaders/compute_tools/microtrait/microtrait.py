@@ -19,8 +19,11 @@ _GENE_SCORE_COL = 'gene_score'  # column name from the genes_detected_table file
 
 def _get_r_list_element(r_list, element_name):
     # retrieve the element from the R list
+    exist = True
+    if element_name not in r_list.names:
+        return None, False
     pos = r_list.names.index(element_name)
-    return r_list[pos]
+    return r_list[pos], exist
 
 
 def _r_table_to_df(r_table):
@@ -65,13 +68,13 @@ def _run_microtrait(genome_id: str, fna_file: Path, genome_dir: Path, debug: boo
     r_func = robjects.r(r_script)
     r_result = r_func(str(fna_file), str(genome_dir))
 
-    microtrait_result = _get_r_list_element(r_result, 'microtrait_result')
+    microtrait_result, exist = _get_r_list_element(r_result, 'microtrait_result')
 
-    try:
-        trait_counts = _get_r_list_element(microtrait_result, TRAIT_COUNTS_ATGRANULARITY)
-    except ValueError as e:
-        with open(os.path.join(genome_dir, loader_common_names.TRAIT_COUNTS_ERROR), 'w') as f:
-            f.write(e)
+    trait_counts, exist = _get_r_list_element(microtrait_result, TRAIT_COUNTS_ATGRANULARITY)
+    if not exist:
+        fatal_dict = {fna_file: f"ValueError: Error running microtrait on {fna_file}"}
+        with open(os.path.join(genome_dir, loader_common_names.FATAL_ERROR_FILE), 'w') as outfile:
+            json.dump(fatal_dict, outfile)
         return 
     # example trait_counts_df from trait_counts_atgranularity3
     # microtrait_trait-name,microtrait_trait-value,microtrait_trait-displaynameshort,microtrait_trait-displaynamelong,microtrait_trait-strategy,microtrait_trait-type,microtrait_trait-granularity,microtrait_trait-version,microtrait_trait-displayorder,microtrait_trait-value1
@@ -88,7 +91,7 @@ def _run_microtrait(genome_id: str, fna_file: Path, genome_dir: Path, debug: boo
                                                 how='left')
         trait_counts_df.drop(columns=[loader_common_names.SYS_TRAIT_ID], inplace=True)
 
-        genes_detected_table = _get_r_list_element(microtrait_result, 'genes_detected_table')
+        genes_detected_table, exist = _get_r_list_element(microtrait_result, 'genes_detected_table')
         genes_detected_df = _r_table_to_df(genes_detected_table)
         detected_genes_score = dict(zip(genes_detected_df[_GENE_NAME_COL], genes_detected_df[_GENE_SCORE_COL]))
 
