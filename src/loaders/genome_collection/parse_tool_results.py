@@ -132,6 +132,9 @@ IMPORT_DIR = 'import_files'
 # (https://github.com/jgi-kbase/AssemblyHomologyService#sequence-metadata-file)
 SEQ_METADATA = 'seq_metadata.jsonl'
 
+# Log data ids have missing trait_counts.csv file
+BAD_DATA_IDS = 'bad_data_ids.json'
+
 
 def _locate_dir(root_dir, kbase_collection, load_ver, check_exists=False, tool=''):
     result_dir = os.path.join(root_dir, loader_common_names.COLLECTION_DATA_DIR, kbase_collection, load_ver, tool)
@@ -395,7 +398,7 @@ def _process_heatmap_tools(heatmap_tools: set[str],
         except AttributeError as e:
             raise ValueError(f'Please implement parsing method for: [{tool}]') from e
 
-        heatmap_meta_dict, heatmap_rows_list, heatmap_cell_details_list = parse_ops(
+        heatmap_meta_dict, heatmap_rows_list, heatmap_cell_details_list, bad_data_ids = parse_ops(
             root_dir, kbase_collection, load_ver)
 
         meta_output = f'{kbase_collection}_{load_ver}_{tool}_meta_{HEATMAP_FILE_SUFFIX}'
@@ -405,6 +408,11 @@ def _process_heatmap_tools(heatmap_tools: set[str],
         _create_import_files(root_dir, meta_output, [heatmap_meta_dict])
         _create_import_files(root_dir, rows_output, heatmap_rows_list)
         _create_import_files(root_dir, cell_details_output, heatmap_cell_details_list)
+
+        if bad_data_ids:
+            result_dir = _locate_dir(root_dir, kbase_collection, load_ver, tool=tool)
+            with open(os.path.join(result_dir, BAD_DATA_IDS), "w") as outfile:
+                json.dump(bad_data_ids, outfile)
 
 
 def _process_genome_attri_tools(genome_attr_tools: set[str],
@@ -711,12 +719,18 @@ def microtrait(root_dir, kbase_collection, load_ver):
     result_dir = _locate_dir(root_dir, kbase_collection, load_ver, tool='microtrait')
     batch_dirs = _get_batch_dirs(result_dir)
 
+    bad_data_ids = []
     traits_meta, traits_val = dict(), dict()
     for batch_dir in batch_dirs:
         data_ids = [item for item in os.listdir(os.path.join(result_dir, batch_dir)) if
                     os.path.isdir(os.path.join(result_dir, batch_dir, item))]
         for data_id in data_ids:
             data_dir = os.path.join(result_dir, batch_dir, data_id)
+            fatal_error = os.path.join(data_dir, loader_common_names.FATAL_ERROR_FILE)
+            if os.path.exists(fatal_error):
+                bad_data_ids.append(data_id)
+                continue
+            
             trait_count_file = os.path.join(data_dir, loader_common_names.TRAIT_COUNTS_FILE)
             selected_cols = _MICROTRAIT_TO_SYS_TRAIT_MAP.keys()
             trait_df = pd.read_csv(trait_count_file, usecols=selected_cols)
@@ -758,7 +772,7 @@ def microtrait(root_dir, kbase_collection, load_ver):
                                                    FIELD_HEATMAP_CELL_ID,
                                                    collection_data_id_key)
 
-    return heatmap_meta_dict, heatmap_rows_list, heatmap_cell_details_list
+    return heatmap_meta_dict, heatmap_rows_list, heatmap_cell_details_list, bad_data_ids
 
 
 def gtdb_tk(root_dir, kbase_collection, load_ver):
