@@ -350,7 +350,7 @@ def _download_sample_data(conf, upa):
                                       conf.sample_url,
                                       "get_sample",
                                       {"id": sample_id})
-    
+
     with open(sample_file, "w", encoding="utf8") as json_file:
         json.dump(sample_ret, json_file, indent=2)
 
@@ -503,7 +503,7 @@ def main():
             workspace_id,
             conf,
             loader_common_names.OBJECTS_NAME_ASSEMBLY,
-        )[:5]
+        )
         assembly_genome_map, duplicate_map = _assembly_genome_lookup(genome_objs)
         if duplicate_map:
             for assembly_upa, id_and_date in duplicate_map.items():
