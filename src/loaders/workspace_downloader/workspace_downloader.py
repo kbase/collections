@@ -1,7 +1,7 @@
 """
 usage: workspace_downloader.py [-h] --workspace_id WORKSPACE_ID [--kbase_collection KBASE_COLLECTION] [--source_version SOURCE_VERSION]
                                [--root_dir ROOT_DIR] [--kb_base_url KB_BASE_URL] [--workers WORKERS] [--token_filepath TOKEN_FILEPATH]
-                               [--keep_job_dir] [--retrieve_sample]
+                               [--keep_job_dir] [--retrieve_sample] [--ignore_no_sample_error]
 
 PROTOTYPE - Download genome files from the workspace service (WSS).
 
@@ -25,6 +25,8 @@ optional arguments:
                         A file path that stores KBase token
   --keep_job_dir        Keep SDK job directory after download task is completed
   --retrieve_sample     Retrieve sample for each genome object
+  --ignore_no_sample_error
+                        Ignore error when no sample data is found for an object
 
             
 e.g.
@@ -51,6 +53,7 @@ import time
 import uuid
 from collections import defaultdict
 from multiprocessing import Pool, Queue, cpu_count
+from pathlib import Path
 
 import docker
 import requests
@@ -67,6 +70,9 @@ SOURCE = "WS"
 # filename that logs genome duplicates for each assembly
 GENOME_DUPLICATE_FILE = "duplicate_genomes.json"
 
+# key name for sample file in metadata file
+SAMPLE_FILE_KEY = "sample_file"
+
 
 class Conf:
     def __init__(
@@ -76,10 +82,13 @@ class Conf:
             workers,
             kb_base_url,
             token_filepath,
+            retrieve_sample,
+            ignore_no_sample_error
     ):
         port = loader_helper.find_free_port()
         self.token = loader_helper.get_token(token_filepath)
-
+        self.retrieve_sample = retrieve_sample
+        self.ignore_no_sample_error = ignore_no_sample_error
         self.start_callback_server(
             docker.from_env(), uuid.uuid4().hex, job_dir, kb_base_url, self.token, port
         )
@@ -281,9 +290,10 @@ def process_input(conf):
         if not task:
             print("Stopping")
             break
-        upa, obj_info, genome_upa, retrieve_sample = task
+        upa, obj_info, genome_upa = task
 
         upa_dir = os.path.join(conf.pth, upa)
+        metafile = os.path.join(upa_dir, f"{upa}.meta")
         if not os.path.isdir(upa_dir) or not loader_helper.is_upa_info_complete(upa_dir):
 
             # remove legacy upa_dir to avoid FileExistsError in hard link
@@ -299,14 +309,12 @@ def process_input(conf):
             conf.asu.get_assembly_as_fasta({"ref": upa.replace("_", "/"), "filename": upa})
 
             # each upa in output_dir as a separate directory
-            dstd = os.path.join(conf.pth, upa)
-            os.makedirs(dstd, exist_ok=True)
+            os.makedirs(upa_dir, exist_ok=True)
 
-            dst = os.path.join(dstd, f"{upa}.fa")
+            dst = os.path.join(upa_dir, f"{upa}.fa")
             # Hard link .fa file from job_dir to output_dir in WS
             os.link(cfn, dst)
 
-            metafile = os.path.join(dstd, f"{upa}.meta")
             # save meta file with relevant object_info
             with open(metafile, "w", encoding="utf8") as json_file:
                 json.dump(_process_object_info(obj_info, genome_upa), json_file, indent=2)
@@ -315,18 +323,23 @@ def process_input(conf):
         else:
             print(f"Skip downloading {upa} as it already exists")
 
-        if retrieve_sample:
-            _download_sample_data(conf, upa)
+        if conf.retrieve_sample:
+            _download_sample_data(conf, upa, metafile)
 
 
-def _download_sample_data(conf, upa):
+def _download_sample_data(conf, upa, metafile):
     # retrieve sample data from sample service and save to file
 
-    dstd = os.path.join(conf.pth, upa)
-    os.makedirs(dstd, exist_ok=True)
-    sample_file = os.path.join(dstd, f"{upa}.sample")
+    with open(metafile, "r", encoding="utf8") as json_file:
+        meta = json.load(json_file)
 
-    if os.path.isfile(sample_file):
+    upa_dir = Path(metafile).parent
+    sample_file_name = f"{upa}.sample"
+    sample_file = os.path.join(upa_dir, sample_file_name)
+
+    if (SAMPLE_FILE_KEY in meta and
+            meta[SAMPLE_FILE_KEY] == sample_file_name and
+            os.path.isfile(sample_file)):
         print(f"Skip downloading sample for {upa} as it already exists")
         return
 
@@ -336,7 +349,7 @@ def _download_sample_data(conf, upa):
                                      "get_data_links_from_data",
                                      {"upa": upa.replace("_", "/")})
     data_links = links_ret['links']
-    if not data_links:
+    if not data_links and conf.ignore_no_sample_error:
         print(f"No sample data links found for {upa}")
         return
 
@@ -348,11 +361,17 @@ def _download_sample_data(conf, upa):
     sample_id = data_links[0]['id']
     sample_ret = _post_sample_service(conf.token,
                                       conf.sample_url,
-                                      "get_sample",
-                                      {"id": sample_id})
+                                      "get_sample_via_data",
+                                      {"upa": upa.replace("_", "/"),
+                                       "id": sample_id,
+                                       "version": data_links[0]["version"]})
 
     with open(sample_file, "w", encoding="utf8") as json_file:
         json.dump(sample_ret, json_file, indent=2)
+
+    meta[SAMPLE_FILE_KEY] = sample_file_name
+    with open(metafile, "w", encoding="utf8") as json_file:
+        json.dump(meta, json_file, indent=2)
 
 
 def _post_sample_service(token, sample_url, method, params):
@@ -437,6 +456,11 @@ def main():
         action="store_true",
         help="Retrieve sample for each genome object",
     )
+    optional.add_argument(
+        "--ignore_no_sample_error",
+        action="store_true",
+        help="Ignore error when no sample data is found for an object",
+    )
 
     args = parser.parse_args()
 
@@ -449,6 +473,7 @@ def main():
     token_filepath = args.token_filepath
     keep_job_dir = args.keep_job_dir
     retrieve_sample = args.retrieve_sample
+    ignore_no_sample_error = args.ignore_no_sample_error
 
     if bool(kbase_collection) ^ bool(source_version):
         parser.error(
@@ -491,6 +516,8 @@ def main():
             workers,
             kb_base_url,
             token_filepath,
+            retrieve_sample,
+            ignore_no_sample_error
         )
 
         genome_objs = list_objects(
@@ -523,7 +550,7 @@ def main():
             upa = "{6}_{0}_{4}".format(*obj_info)
             upas.append(upa)
             genome_upa = assembly_genome_map[upa.replace("_", "/")]
-            conf.queue.put([upa, obj_info, genome_upa, retrieve_sample])
+            conf.queue.put([upa, obj_info, genome_upa])
 
         for i in range(workers + 1):
             conf.queue.put(None)
