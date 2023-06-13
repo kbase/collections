@@ -338,7 +338,7 @@ def _download_sample_data(conf: Conf, upa: str, metafile: str) -> None:
         meta = json.load(json_file)
 
     upa_dir = Path(metafile).parent
-    sample_file_name = f"{upa}.sample"
+    sample_file_name = f"{upa}.{loader_common_names.SAMPLE_FILE_EXT}"
     sample_file = os.path.join(upa_dir, sample_file_name)
 
     if (loader_common_names.SAMPLE_FILE_KEY in meta and
@@ -372,7 +372,7 @@ def _download_sample_data(conf: Conf, upa: str, metafile: str) -> None:
     with open(metafile, "w", encoding="utf8") as json_file:
         json.dump(meta, json_file, indent=2)
 
-    sample_node_name = f"{upa}.node_tree.sample"
+    sample_node_name = f"{upa}.{loader_common_names.SAMPLE_NODE_FILE_EXT}"
     sample_node_file = os.path.join(upa_dir, sample_node_name)
     if os.path.isfile(sample_node_file):
         print(f"Skip generating sample node tree for {upa} as it already exists")

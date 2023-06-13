@@ -87,3 +87,7 @@ FATAL_ERROR_FILE = "fatal_error.json"
 
 # key name for sample file in the metadata file for downloaded workspace objects
 SAMPLE_FILE_KEY = "sample_file"
+
+# extension for source sample data file and sample node data file for downloaded workspace objects
+SAMPLE_FILE_EXT = "sample"
+SAMPLE_NODE_FILE_EXT = "node_tree.sample"
