@@ -167,21 +167,7 @@ def find_free_port():
         s.bind(("", 0))
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         return s.getsockname()[1]
-
-
-def create_fatal_dict_doc(error_message, source_file_path, stacktrace=None):
-    doc = {ERROR: error_message,
-           FILE: source_file_path,
-           STACKTRACE: stacktrace}
-    return doc
-
-
-def create_global_fatal_dict_doc(tool, error_message, stacktrace=None):
-    doc = {TOOL: tool,
-           ERROR: error_message,
-           STACKTRACE: stacktrace}
-    return doc
-
+    
 
 class ExplicitDefaultsHelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
     def _get_help_string(self, action):

@@ -58,14 +58,14 @@ from src.common.storage.db_doc_conversions import (
     collection_load_version_key,
     data_product_export_types_to_doc,
 )
-from src.loaders.common import loader_common_names, loader_helper
+from src.loaders.common import loader_common_names
 from src.loaders.common.loader_helper import (
     convert_to_json,
     init_genome_atrri_doc,
     is_upa_info_complete,
     merge_docs,
 )
-from src.loaders.compute_tools.tool_common import run_command
+from src.loaders.compute_tools.tool_common import create_global_fatal_dict_doc, run_command
 
 # Default result file name suffix for parsed computed genome attributes data for arango import.
 # Collection, load version and tools name will be prepended to this file name suffix.
@@ -439,7 +439,7 @@ def _process_fatal_error_tools(check_fatal_error_tools: set[str],
                 raise ValueError(f"{fatal_error_file} exists, but unable to retrive") from e
             
             for kbase_id in fatal_errors:
-                fatal_dict_info = loader_helper.create_global_fatal_dict_doc(
+                fatal_dict_info = create_global_fatal_dict_doc(
                     tool, fatal_errors[kbase_id][loader_common_names.ERROR], fatal_errors[kbase_id][loader_common_names.STACKTRACE])
                 if fatal_dict.get(kbase_id):
                     fatal_dict[kbase_id][loader_common_names.ERRORS].append(

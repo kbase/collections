@@ -551,6 +551,20 @@ def _find_data_file(
     return genome_files[0]
 
 
+def create_fatal_dict_doc(error_message, source_file_path, stacktrace=None):
+    doc = {loader_common_names.ERROR: error_message,
+           loader_common_names.FILE: source_file_path,
+           loader_common_names.STACKTRACE: stacktrace}
+    return doc
+
+
+def create_global_fatal_dict_doc(tool, error_message, stacktrace=None):
+    doc = {loader_common_names.TOOL: tool,
+           loader_common_names.ERROR: error_message,
+           loader_common_names.STACKTRACE: stacktrace}
+    return doc
+
+
 if __name__ == "__main__":
     # mostly just here to allow easily getting the help info with --help:
     ToolRunner("fake_tool")

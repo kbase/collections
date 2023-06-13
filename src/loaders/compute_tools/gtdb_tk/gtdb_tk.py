@@ -3,13 +3,16 @@ Run the gtdb_tk tool on a set of assemblies.
 """
 
 import os
-import pandas as pd
 import time
 from pathlib import Path
 from typing import Dict
 
-from src.loaders.common import loader_common_names, loader_helper
-from src.loaders.compute_tools.tool_common import ToolRunner, run_command
+import pandas as pd
+
+from src.loaders.common import loader_common_names
+from src.loaders.compute_tools.tool_common import (ToolRunner,
+                                                   create_fatal_dict_doc,
+                                                   run_command)
 
 
 def _run_gtdb_tk(ids_to_files: Dict[Path, str], output_dir: Path, threads: int, debug: bool):
@@ -59,8 +62,7 @@ def _run_gtdb_tk(ids_to_files: Dict[Path, str], output_dir: Path, threads: int, 
                 kbase_id = genome_id[:genome_id.index(loader_common_names.GENOME_ID_SUFFIX)]
                 source_file_path = ids_to_files[genome_id]
                 error_message = f"GTDB_tk classification failed: {classfiy_res}"
-                fatal_dict[kbase_id] = loader_helper.create_fatal_dict_doc(
-                    error_message, str(source_file_path))
+                fatal_dict[kbase_id] = create_fatal_dict_doc(error_message, str(source_file_path))
 
     if not summary_file_exists:
         raise ValueError(f"Unable to process the summary files for gtdb-tk in the specified "
