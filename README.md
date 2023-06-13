@@ -27,6 +27,10 @@ To start the service Docker container:
   created in ArangoDB. The collections are not created automatically to allow service admins
   to specify sharding to their liking. Indexes are created automatically, assuming the collections
   exist.
+* A script is provided for assistance in setting up the collections. For more info, run
+```
+$ PYTHONPATH=. python src/common/storage/init_storage.py -h
+```
 * The environment variables listed in
   [collections_config.toml.jinja](collections_config.toml.jinja)
   must be provided to the Docker container, unless their default values are acceptable.

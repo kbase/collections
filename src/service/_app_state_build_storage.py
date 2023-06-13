@@ -7,13 +7,11 @@ from src.service.data_products.common_models import DataProductSpec
 from src.service.storage_arango import ArangoStorage, ARANGO_ERR_NAME_EXISTS
 
 
-async def build_storage(
-    cfg: CollectionsServiceConfig,
-    data_products: list[DataProductSpec],
-) -> tuple[aioarango.ArangoClient, ArangoStorage]:
+async def build_arango_db(cfg: CollectionsServiceConfig, create_database: bool = False
+) -> tuple[aioarango.ArangoClient, aioarango.database.StandardDatabase]:
     cli = aioarango.ArangoClient(hosts=cfg.arango_url)
     try:
-        if cfg.create_db_on_startup:
+        if create_database:
             sysdb = await _get_arango_db(cli, "_system", cfg)
             try:
                 await sysdb.create_database(cfg.arango_db)
@@ -21,6 +19,18 @@ async def build_storage(
                 if e.error_code != ARANGO_ERR_NAME_EXISTS:  # ignore, db exists
                     raise
         db = await _get_arango_db(cli, cfg.arango_db, cfg)
+        return cli, db
+    except:
+        await cli.close()
+        raise
+
+
+async def build_storage(
+    cfg: CollectionsServiceConfig,
+    data_products: list[DataProductSpec],
+) -> tuple[aioarango.ArangoClient, ArangoStorage]:
+    cli, db = build_arango_db(cfg, cfg.create_db_on_startup)
+    try:
         storage = await ArangoStorage.create(
             db,
             data_products=data_products,
