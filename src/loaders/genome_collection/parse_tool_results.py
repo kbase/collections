@@ -450,7 +450,8 @@ def _process_fatal_error_tools(check_fatal_error_tools: set[str],
     
     import_dir = os.path.join(root_dir, IMPORT_DIR)
     os.makedirs(import_dir, exist_ok=True)
-    fatal_error_path = os.path.join(import_dir, loader_common_names.FATAL_ERROR_FILE)
+    fatal_output = f"{kbase_collection}_{load_ver}_{loader_common_names.FATAL_ERROR_FILE}"
+    fatal_error_path = os.path.join(import_dir, fatal_output)
     print(f"Creating a merged {loader_common_names.FATAL_ERROR_FILE}: {fatal_error_path}")
     with open(fatal_error_path, "w") as outfile:
         outfile.dump(fatal_dict, outfile)
