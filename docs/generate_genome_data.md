@@ -53,10 +53,10 @@ Note:
 * For usage instructions for each script, please refer to the help option (-h) of the script.
 * Default directory layout at NERSC
     * source genome files: `/global/cfs/cdirs/kbase/collections/sourcedata/[kbase_collection]/[load_ver]`
-    * computed genome
-      files: `/global/cfs/cdirs/kbase/collections/collectionsdata/[kbase_collection]/[load_ver]/[tool_name]`
+    * collections source genome files: `/global/cfs/cdirs/kbase/collections/collectionssource/[kbase_collection]/[load_ver]`
+    * computed genome files: `/global/cfs/cdirs/kbase/collections/collectionsdata/[kbase_collection]/[load_ver]/[tool_name]`
 * Under common use, all tools should be run at the same time in the script [parse_tool_results.py](../src/loaders/genome_collection/parse_tool_results.py) so that errors can be handled consistently
-    * Running less than a full set of tools is generally for developmen only
+    * Running less than a full set of tools is generally for development only
     * It’s safe to run less than a full set of tools if none of the tools in the load set reported any errors
 
 ## Generate Genome Taxonomy Ranks
