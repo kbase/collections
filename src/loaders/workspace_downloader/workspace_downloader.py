@@ -54,6 +54,7 @@ import uuid
 from collections import defaultdict
 from multiprocessing import Pool, Queue, cpu_count
 from pathlib import Path
+from typing import Any
 
 import docker
 
@@ -69,6 +70,10 @@ from src.loaders.common import loader_common_names, loader_helper
 SOURCE = "WS"
 # filename that logs genome duplicates for each assembly
 GENOME_DUPLICATE_FILE = "duplicate_genomes.json"
+
+
+class BadNodeTreeError(Exception):
+    pass
 
 
 class Conf:
@@ -279,7 +284,7 @@ def list_objects(
     return res_objs
 
 
-def process_input(conf):
+def process_input(conf: Conf):
     """
     Download .fa and .meta files from workspace and save a copy under output_dir.
     """
@@ -325,8 +330,9 @@ def process_input(conf):
             _download_sample_data(conf, upa, metafile)
 
 
-def _download_sample_data(conf, upa, metafile):
+def _download_sample_data(conf: Conf, upa: str, metafile: str) -> None:
     # retrieve sample data from sample service and save to file
+    # additionally, retrieve node data from the sample data and save it to a file
 
     with open(metafile, "r", encoding="utf8") as json_file:
         meta = json.load(json_file)
@@ -365,6 +371,43 @@ def _download_sample_data(conf, upa, metafile):
     meta[loader_common_names.SAMPLE_FILE_KEY] = sample_file_name
     with open(metafile, "w", encoding="utf8") as json_file:
         json.dump(meta, json_file, indent=2)
+
+    sample_node_name = f"{upa}.node_tree.sample"
+    sample_node_file = os.path.join(upa_dir, sample_node_name)
+    if os.path.isfile(sample_node_file):
+        print(f"Skip generating sample node tree for {upa} as it already exists")
+        return
+
+    try:
+        node_data = _retrieve_node_data(sample_ret['node_tree'])
+    except BadNodeTreeError as e:
+        raise ValueError(f"Error retrieving node data for {upa}") from e
+
+    with open(sample_node_file, "w", encoding="utf8") as json_file:
+        json.dump(node_data, json_file, indent=2)
+
+
+def _retrieve_node_data(
+        node_tree: list[dict[str, Any]]
+) -> dict[str, str | int | float]:
+    # retrieve the meta_controlled node data from node tree
+
+    node_data = dict()
+
+    if len(node_tree) != 1:
+        raise BadNodeTreeError(f"Expected 1 node in node tree, got {len(node_tree)}")
+
+    sample_node = node_tree[0]
+
+    meta_controlled = sample_node['meta_controlled']
+    for key, meta_value in meta_controlled.items():
+
+        if 'value' not in meta_value:
+            raise BadNodeTreeError(f"Expected 'value' key in meta_value, got {meta_value}")
+
+        node_data[key] = meta_value['value']
+
+    return node_data
 
 
 def main():
