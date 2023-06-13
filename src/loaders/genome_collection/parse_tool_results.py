@@ -489,7 +489,8 @@ def _process_genome_attri_tools(genome_attr_tools: set[str],
         docs.extend(parse_ops(root_dir, kbase_collection, load_ver))
 
     docs = merge_docs(docs, '_key')
-    docs = _remove_docs_with_fatal_ids(docs, fatal_ids)
+    if fatal_ids:
+        docs = _remove_docs_with_fatal_ids(docs, fatal_ids)
     res_dict = {row[names.FLD_KBASE_ID]: row for row in docs}
     meta_lookup = _create_meta_lookup(root_dir, kbase_collection, load_ver, tool)
     docs, encountered_types = _update_docs_with_upa_info(res_dict, meta_lookup, check_genome)
