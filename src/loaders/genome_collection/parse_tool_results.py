@@ -418,7 +418,7 @@ def _process_fatal_error_tools(check_fatal_error_tools: set[str],
                                 kbase_collection: str,
                                 load_ver: str):
     if not check_fatal_error_tools:
-        return
+        return set()
     
     fatal_dict = dict()
     for tool in check_fatal_error_tools:
