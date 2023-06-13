@@ -8,8 +8,8 @@ from pathlib import Path
 import pandas as pd
 from rpy2 import robjects
 
-from src.loaders.common import loader_common_names
-from src.loaders.compute_tools.tool_common import ToolRunner, unpack_gz_file
+from src.loaders.common import loader_common_names, loader_helper
+from src.loaders.compute_tools.tool_common import ToolRunner
 
 # the name of the component used for extracting traits from microtrait's 'extract.traits' result
 TRAIT_COUNTS_ATGRANULARITY = 'trait_counts_atgranularity3'
@@ -71,8 +71,10 @@ def _run_microtrait(genome_id: str, fna_file: Path, genome_dir: Path, debug: boo
 
     trait_counts, exist = _get_r_list_element(microtrait_result, TRAIT_COUNTS_ATGRANULARITY)
     if not exist:
-        fatal_dict = {"error": "Microtrait output no data", "input_file": str(fna_file), "stacktrace": None}
-        with open(os.path.join(genome_dir, loader_common_names.FATAL_ERROR_FILE), 'w') as outfile:
+        error_message = "Microtrait output no data"
+        fatal_dict = {genome_id: loader_helper.create_fatal_dict_doc(error_message, str(fna_file))}
+        fatal_error_path = os.path.join(genome_dir, loader_common_names.FATAL_ERROR_FILE)
+        with open(fatal_error_path, "w") as outfile:
             json.dump(fatal_dict, outfile)
         return 
     # example trait_counts_df from trait_counts_atgranularity3
