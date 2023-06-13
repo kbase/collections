@@ -56,9 +56,9 @@ from multiprocessing import Pool, Queue, cpu_count
 from pathlib import Path
 
 import docker
-import requests
 
 from src.clients.AssemblyUtilClient import AssemblyUtil
+from src.clients.SampleServiceClient import SampleService
 from src.clients.workspaceClient import Workspace
 from src.loaders.common import loader_common_names, loader_helper
 
@@ -69,9 +69,6 @@ from src.loaders.common import loader_common_names, loader_helper
 SOURCE = "WS"
 # filename that logs genome duplicates for each assembly
 GENOME_DUPLICATE_FILE = "duplicate_genomes.json"
-
-# key name for sample file in metadata file
-SAMPLE_FILE_KEY = "sample_file"
 
 
 class Conf:
@@ -100,6 +97,7 @@ class Conf:
 
         self.ws = Workspace(ws_url, token=self.token)
         self.asu = AssemblyUtil(callback_url, token=self.token)
+        self.ss = SampleService(self.sample_url, token=self.token)
         self.queue = Queue()
         self.pth = output_dir
         self.job_dir = job_dir
@@ -337,17 +335,15 @@ def _download_sample_data(conf, upa, metafile):
     sample_file_name = f"{upa}.sample"
     sample_file = os.path.join(upa_dir, sample_file_name)
 
-    if (SAMPLE_FILE_KEY in meta and
-            meta[SAMPLE_FILE_KEY] == sample_file_name and
+    if (loader_common_names.SAMPLE_FILE_KEY in meta and
+            meta[loader_common_names.SAMPLE_FILE_KEY] == sample_file_name and
             os.path.isfile(sample_file)):
         print(f"Skip downloading sample for {upa} as it already exists")
         return
 
     # retrieve data links associated with upa
-    links_ret = _post_sample_service(conf.token,
-                                     conf.sample_url,
-                                     "get_data_links_from_data",
-                                     {"upa": upa.replace("_", "/")})
+    links_ret = conf.ss.get_data_links_from_data({"upa": upa.replace("_", "/")})
+
     data_links = links_ret['links']
     if not data_links and conf.ignore_no_sample_error:
         print(f"No sample data links found for {upa}")
@@ -359,40 +355,16 @@ def _download_sample_data(conf, upa, metafile):
 
     # retrieve sample data and save to file
     sample_id = data_links[0]['id']
-    sample_ret = _post_sample_service(conf.token,
-                                      conf.sample_url,
-                                      "get_sample_via_data",
-                                      {"upa": upa.replace("_", "/"),
-                                       "id": sample_id,
-                                       "version": data_links[0]["version"]})
+    sample_ret = conf.ss.get_sample_via_data({"upa": upa.replace("_", "/"),
+                                              "id": sample_id,
+                                              "version": data_links[0]["version"]})
 
     with open(sample_file, "w", encoding="utf8") as json_file:
         json.dump(sample_ret, json_file, indent=2)
 
-    meta[SAMPLE_FILE_KEY] = sample_file_name
+    meta[loader_common_names.SAMPLE_FILE_KEY] = sample_file_name
     with open(metafile, "w", encoding="utf8") as json_file:
         json.dump(meta, json_file, indent=2)
-
-
-def _post_sample_service(token, sample_url, method, params):
-    # Sends a POST request to the sample service API.
-
-    headers = {
-        "Authorization": token,
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "method": f"SampleService.{method}",
-        "id": str(uuid.uuid4()),
-        "params": [params]
-    }
-    resp = requests.post(url=sample_url, headers=headers, json=payload)
-    resp_json = resp.json()
-    if resp_json.get('error'):
-        raise RuntimeError(f"Error from SampleService - {resp_json['error']}")
-    result = resp_json['result'][0]
-
-    return result
 
 
 def main():

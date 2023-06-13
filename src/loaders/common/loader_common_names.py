@@ -84,3 +84,6 @@ MASH_METADATA = 'mash_run_metadata.json'
 
 # The fatal error file created if a data file cannot be successfully processed
 FATAL_ERROR_FILE = "fatal_error.json"
+
+# key name for sample file in the metadata file for downloaded workspace objects
+SAMPLE_FILE_KEY = "sample_file"
