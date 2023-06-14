@@ -440,7 +440,9 @@ def _process_fatal_error_tools(check_fatal_error_tools: set[str],
             
             for kbase_id in fatal_errors:
                 fatal_dict_info = create_global_fatal_dict_doc(
-                    tool, fatal_errors[kbase_id][loader_common_names.ERROR], fatal_errors[kbase_id][loader_common_names.STACKTRACE])
+                    tool, 
+                    fatal_errors[kbase_id][loader_common_names.ERROR], 
+                    fatal_errors[kbase_id][loader_common_names.STACKTRACE])
                 if fatal_dict.get(kbase_id):
                     fatal_dict[kbase_id][loader_common_names.ERRORS].append(
                         fatal_dict_info)
