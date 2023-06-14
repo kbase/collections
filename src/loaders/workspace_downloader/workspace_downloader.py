@@ -327,7 +327,7 @@ def process_input(conf: Conf):
             print(f"Skip downloading {upa} as it already exists")
 
         if conf.retrieve_sample:
-            _download_sample_data(conf, upa, metafile)
+            _download_sample_data(conf, genome_upa, metafile)
 
 
 def _download_sample_data(conf: Conf, upa: str, metafile: str) -> None:
