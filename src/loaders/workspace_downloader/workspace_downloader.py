@@ -340,12 +340,52 @@ def _download_sample_data(conf: Conf, upa: str, metafile: str) -> None:
     upa_dir = Path(metafile).parent
     sample_file_name = f"{upa}.{loader_common_names.SAMPLE_FILE_EXT}"
     sample_file = os.path.join(upa_dir, sample_file_name)
-
-    if (loader_common_names.SAMPLE_FILE_KEY in meta and
-            meta[loader_common_names.SAMPLE_FILE_KEY] == sample_file_name and
-            os.path.isfile(sample_file)):
+    if _check_file_exists(loader_common_names.SAMPLE_FILE_KEY, meta, sample_file):
         print(f"Skip downloading sample for {upa} as it already exists")
         return
+
+    sample_ret = _retrieve_sample(conf, upa)
+    if not sample_ret:
+        return
+
+    with open(sample_file, "w", encoding="utf8") as json_file:
+        json.dump(sample_ret, json_file, indent=2)
+
+    sample_prepared_name = f"{upa}.{loader_common_names.SAMPLE_PREPARED_EXT}"
+    sample_prepared_file = os.path.join(upa_dir, sample_prepared_name)
+    if _check_file_exists(loader_common_names.SAMPLE_PREPARED_KEY, meta, sample_prepared_file):
+        print(f"Skip generating sample node tree for {upa} as it already exists")
+        return
+
+    try:
+        node_data = _retrieve_node_data(sample_ret['node_tree'])
+    except BadNodeTreeError as e:
+        raise ValueError(f"Error retrieving node data for {upa}") from e
+
+    with open(sample_prepared_file, "w", encoding="utf8") as json_file:
+        json.dump(node_data, json_file, indent=2)
+
+    # write sample file and prepared sample node file name back to the meta file
+    meta[loader_common_names.SAMPLE_FILE_KEY] = sample_file_name
+    meta[loader_common_names.SAMPLE_PREPARED_KEY] = sample_prepared_name
+    with open(metafile, "w", encoding="utf8") as json_file:
+        json.dump(meta, json_file, indent=2)
+
+
+def _check_file_exists(
+        file_key_name: str,
+        metadata: dict[str, Any],
+        file_path: str
+) -> bool:
+    # check if file exists and if the metadata matches the file name
+
+    return (file_key_name in metadata and
+            metadata[file_key_name] == Path(file_path).name and
+            os.path.isfile(file_path))
+
+
+def _retrieve_sample(conf: Conf, upa: str) -> dict[str, Any] | None:
+    # retrieve sample data from sample service
 
     # retrieve data links associated with upa
     links_ret = conf.ss.get_data_links_from_data({"upa": upa.replace("_", "/")})
@@ -364,27 +404,10 @@ def _download_sample_data(conf: Conf, upa: str, metafile: str) -> None:
     sample_ret = conf.ss.get_sample_via_data({"upa": upa.replace("_", "/"),
                                               "id": sample_id,
                                               "version": data_links[0]["version"]})
+    if not sample_ret:
+        raise ValueError(f"Retrieved empty sample data for {upa}")
 
-    with open(sample_file, "w", encoding="utf8") as json_file:
-        json.dump(sample_ret, json_file, indent=2)
-
-    meta[loader_common_names.SAMPLE_FILE_KEY] = sample_file_name
-    with open(metafile, "w", encoding="utf8") as json_file:
-        json.dump(meta, json_file, indent=2)
-
-    sample_node_name = f"{upa}.{loader_common_names.SAMPLE_NODE_FILE_EXT}"
-    sample_node_file = os.path.join(upa_dir, sample_node_name)
-    if os.path.isfile(sample_node_file):
-        print(f"Skip generating sample node tree for {upa} as it already exists")
-        return
-
-    try:
-        node_data = _retrieve_node_data(sample_ret['node_tree'])
-    except BadNodeTreeError as e:
-        raise ValueError(f"Error retrieving node data for {upa}") from e
-
-    with open(sample_node_file, "w", encoding="utf8") as json_file:
-        json.dump(node_data, json_file, indent=2)
+    return sample_ret
 
 
 def _retrieve_node_data(
@@ -400,14 +423,44 @@ def _retrieve_node_data(
     sample_node = node_tree[0]
 
     meta_controlled = sample_node['meta_controlled']
+    _check_dict_contains(meta_controlled, [loader_common_names.SAMPLE_LATITUDE, loader_common_names.SAMPLE_LONGITUDE])
     for key, meta_value in meta_controlled.items():
-
-        if 'value' not in meta_value:
-            raise BadNodeTreeError(f"Expected 'value' key in meta_value, got {meta_value}")
-
+        _validate_node_data(key, meta_value)
         node_data[key] = meta_value['value']
 
+    # create and add geo-spatial data in the format of [latitude, longitude]
+    node_data[loader_common_names.SAMPLE_GEO] = [meta_controlled[loader_common_names.SAMPLE_LATITUDE]['value'],
+                                                 meta_controlled[loader_common_names.SAMPLE_LONGITUDE]['value']]
+
     return node_data
+
+
+def _validate_node_data(key, meta_value):
+    # validate meta_value for a given key
+
+    # validate latitude and longitude sample data
+    if key in [loader_common_names.SAMPLE_LATITUDE, loader_common_names.SAMPLE_LONGITUDE]:
+        expected_keys = ['value', 'units']
+        _check_dict_keys(meta_value, expected_keys)
+
+        if meta_value['units'] != 'degrees':
+            raise BadNodeTreeError(f"Expected 'units' to be 'degrees', got {meta_value['units']}")
+    # validate other general sample data
+    else:
+        expected_keys = ['value']
+        _check_dict_keys(meta_value, expected_keys)
+
+
+def _check_dict_keys(dictionary: dict[Any, Any], key_list: list[Any]):
+    # check if dictionary keys match key list
+    if not sorted(dictionary.keys()) == sorted(key_list):
+        raise BadNodeTreeError(f"Expected only {key_list} keys in node data, got {dictionary}")
+
+
+def _check_dict_contains(dictionary: dict[Any, Any], key_list: list[Any]):
+    # check if dictionary contains all keys in key list
+    if not set(key_list).issubset(dictionary.keys()):
+        raise BadNodeTreeError(f"Expected all keys in {key_list} in node data, got {dictionary}")
 
 
 def main():
