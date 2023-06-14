@@ -13,8 +13,11 @@ import src.common.storage.collection_and_field_names as names
 from src.common.storage.db_doc_conversions import collection_data_id_key
 from src.loaders.common.loader_common_names import (
     DOCKER_HOST, 
+    ERROR,
     KB_AUTH_TOKEN,
     SOURCE_METADATA_FILE_KEYS,
+    STACKTRACE,
+    TOOL, 
 )
 
 """
@@ -168,6 +171,13 @@ def find_free_port():
         s.bind(("", 0))
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         return s.getsockname()[1]
+
+
+def create_global_fatal_dict_doc(tool, error_message, stacktrace=None):
+    doc = {TOOL: tool,
+           ERROR: error_message,
+           STACKTRACE: stacktrace}
+    return doc
     
 
 class ExplicitDefaultsHelpFormatter(argparse.ArgumentDefaultsHelpFormatter):

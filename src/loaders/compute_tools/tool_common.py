@@ -558,13 +558,6 @@ def create_fatal_dict_doc(error_message, source_file_path, stacktrace=None):
     return doc
 
 
-def create_global_fatal_dict_doc(tool, error_message, stacktrace=None):
-    doc = {loader_common_names.TOOL: tool,
-           loader_common_names.ERROR: error_message,
-           loader_common_names.STACKTRACE: stacktrace}
-    return doc
-
-
 if __name__ == "__main__":
     # mostly just here to allow easily getting the help info with --help:
     ToolRunner("fake_tool")
