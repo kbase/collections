@@ -327,12 +327,13 @@ def process_input(conf: Conf):
             print(f"Skip downloading {upa} as it already exists")
 
         if conf.retrieve_sample:
-            _download_sample_data(conf, genome_upa, metafile)
+            _download_sample_data(conf, genome_upa.replace("/", "_"), metafile)
 
 
 def _download_sample_data(conf: Conf, upa: str, metafile: str) -> None:
     # retrieve sample data from sample service and save to file
     # additionally, retrieve node data from the sample data and save it to a file
+    # NOTE: upa is in the format of "A_B_C"
 
     with open(metafile, "r", encoding="utf8") as json_file:
         meta = json.load(json_file)
