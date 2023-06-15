@@ -350,23 +350,26 @@ def _download_sample_data(
     with open(metafile, "r", encoding="utf8") as json_file:
         meta = json.load(json_file)
 
-    upa_dir = Path(metafile).parent
-    sample_file_name = f"{sample_upa}.{loader_common_names.SAMPLE_FILE_EXT}"
+    upa_dir, sample_file_prefix = Path(metafile).parent, sample_upa.replace("/", "_")
+    sample_file_name = f"{sample_file_prefix}.{loader_common_names.SAMPLE_FILE_EXT}"
     sample_file = os.path.join(upa_dir, sample_file_name)
-    sample_prepared_name = f"{sample_upa}.{loader_common_names.SAMPLE_PREPARED_EXT}"
+    sample_prepared_name = f"{sample_file_prefix}.{loader_common_names.SAMPLE_PREPARED_EXT}"
     sample_prepared_file = os.path.join(upa_dir, sample_prepared_name)
+    update_meta = False
 
     if not _check_file_exists(loader_common_names.SAMPLE_FILE_KEY, meta, sample_file):
         _dump_json_to_file(sample_file, sample_ret)
+        meta[loader_common_names.SAMPLE_FILE_KEY] = sample_file_name
+        update_meta = True
 
     if not _check_file_exists(loader_common_names.SAMPLE_PREPARED_KEY, meta, sample_prepared_file):
         node_data = _retrieve_node_data(sample_ret['node_tree'])
         _dump_json_to_file(sample_prepared_file, node_data)
+        meta[loader_common_names.SAMPLE_PREPARED_KEY] = sample_prepared_name
+        update_meta = True
 
-    # write sample file and prepared sample node file name back to the meta file
-    meta[loader_common_names.SAMPLE_FILE_KEY] = sample_file_name
-    meta[loader_common_names.SAMPLE_PREPARED_KEY] = sample_prepared_name
-    _dump_json_to_file(metafile, meta)
+    if update_meta:
+        _dump_json_to_file(metafile, meta)
 
 
 def _dump_json_to_file(json_file_path: str, json_data: dict[str, Any]) -> None:
