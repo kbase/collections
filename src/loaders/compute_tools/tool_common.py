@@ -17,6 +17,7 @@ import gzip
 import math
 import multiprocessing
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -575,6 +576,12 @@ def write_out_tuple_to_dict(fatal_tuples: List[FatalTuple], output_dir: Path):
     fatal_error_path = os.path.join(output_dir, loader_common_names.FATAL_ERROR_FILE)
     with open(fatal_error_path, "w") as outfile:
         outfile.dump(fatal_dict, outfile)
+
+
+def find_gtdbtk_summary_files(output_dir: Path):
+    summary_files = [file_name for file_name in os.listdir(output_dir) if 
+                     re.search(loader_common_names.GTDB_SUMMARY_FILE_PATTERN, file_name)]
+    return summary_files
 
 
 if __name__ == "__main__":

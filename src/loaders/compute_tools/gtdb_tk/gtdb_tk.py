@@ -14,6 +14,7 @@ from src.loaders.common import loader_common_names
 from src.loaders.compute_tools.tool_common import (
     FatalTuple, 
     ToolRunner,
+    find_gtdbtk_summary_files,
     run_command,
     write_out_tuple_to_dict,
 )
@@ -48,8 +49,7 @@ def _run_gtdb_tk(ids_to_files: Dict[Path, str], output_dir: Path, threads: int, 
     
     fatal_tuples = []
     summary_file_exists = False
-    summary_files = [file_name for file_name in os.listdir(output_dir) if 
-                     re.search(loader_common_names.GTDB_SUMMARY_FILE_PATTERN, file_name)]
+    summary_files = find_gtdbtk_summary_files(output_dir)
     selected_cols = [loader_common_names.GTDB_GENOME_ID_COL,
                      loader_common_names.GTDB_CLASSIFICATION_COL]
 

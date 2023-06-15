@@ -67,7 +67,7 @@ from src.loaders.common.loader_helper import (
     is_upa_info_complete,
     merge_docs,
 )
-from src.loaders.compute_tools.tool_common import run_command
+from src.loaders.compute_tools.tool_common import run_command, find_gtdbtk_summary_files
 
 # Default result file name suffix for parsed computed genome attributes data for arango import.
 # Collection, load version and tools name will be prepended to this file name suffix.
@@ -95,7 +95,7 @@ GENOME_ATTR_TOOLS = ['checkm2', 'gtdb_tk']
 # tool result will be parsed as heatmap data
 HEATMAP_TOOLS = ['microtrait']
 # tools result will be checked for fatal error files
-CHECK_FATAL_ERROE_TOOLS = ["checkm2", "gtdb_tk", "microtrait", "mash"]
+ALL_TOOLS = GENOME_ATTR_TOOLS + HEATMAP_TOOLS + ["mash"]
 
 # The following features will be extracted from the MicroTrait result file as heatmap data
 _MICROTRAIT_TRAIT_DISPLAYNAME_SHORT = 'microtrait_trait-displaynameshort'  # used as column name of the trait
@@ -837,9 +837,8 @@ def gtdb_tk(root_dir, kbase_collection, load_ver, fatal_ids):
     genome_id_col = loader_common_names.GENOME_ID_COL
     for batch_dir in batch_dirs:
 
-        summary_files = [file_name for file_name in os.listdir(os.path.join(result_dir, batch_dir)) if 
-                         re.search(loader_common_names.GTDB_SUMMARY_FILE_PATTERN, file_name)]
-        
+        summary_files = find_gtdbtk_summary_files(Path(result_dir, batch_dir))
+
         summary_file_exists = False
         for tool_file_name in summary_files:
             docs = _read_tool_result(result_dir, batch_dir, kbase_collection, load_ver,
@@ -921,7 +920,7 @@ def main():
         raise ValueError(f'Please ensure that all tools have been successfully executed. '
                          f'Only the following tools have already been run: {executed_tools}')
     
-    fatal_ids = _process_fatal_error_tools(set(CHECK_FATAL_ERROE_TOOLS).intersection(tools), root_dir, kbase_collection, load_ver)
+    fatal_ids = _process_fatal_error_tools(set(ALL_TOOLS).intersection(tools), root_dir, kbase_collection, load_ver)
 
     _process_genome_attri_tools(set(GENOME_ATTR_TOOLS).intersection(tools), root_dir, kbase_collection, load_ver,
                                 check_genome, fatal_ids)

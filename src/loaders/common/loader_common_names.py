@@ -86,10 +86,6 @@ MASH_METADATA = 'mash_run_metadata.json'
 # The fatal error file created if a data file cannot be successfully processed
 FATAL_ERROR_FILE = "fatal_error.json"
 
-# The summary files for gtdb_tk tool
-GTDBTK_AR53_SUMMARY_FILE = "gtdbtk.ar53.summary.tsv"
-GTDBTK_BAC120_SUMMARY_FILE = "gtdbtk.bac120.summary.tsv"
-
 # Used by gtdb output summary files
 GTDB_GENOME_ID_COL = "user_genome"
 GTDB_CLASSIFICATION_COL = "classification"
