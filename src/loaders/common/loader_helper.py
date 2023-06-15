@@ -13,11 +13,11 @@ import src.common.storage.collection_and_field_names as names
 from src.common.storage.db_doc_conversions import collection_data_id_key
 from src.loaders.common.loader_common_names import (
     DOCKER_HOST, 
-    ERROR,
+    FATAL_ERROR,
+    FATAL_STACKTRACE,
+    FATAL_TOOL, 
     KB_AUTH_TOKEN,
     SOURCE_METADATA_FILE_KEYS,
-    STACKTRACE,
-    TOOL, 
 )
 
 """
@@ -174,9 +174,9 @@ def find_free_port():
 
 
 def create_global_fatal_dict_doc(tool, error_message, stacktrace=None):
-    doc = {TOOL: tool,
-           ERROR: error_message,
-           STACKTRACE: stacktrace}
+    doc = {FATAL_TOOL: tool,
+           FATAL_ERROR: error_message,
+           FATAL_STACKTRACE: stacktrace}
     return doc
     
 

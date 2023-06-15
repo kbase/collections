@@ -421,9 +421,11 @@ def _process_heatmap_tools(heatmap_tools: set[str],
 
 
 def _process_fatal_error_tools(check_fatal_error_tools: set[str],
-                                root_dir: str,
-                                kbase_collection: str,
-                                load_ver: str):
+                               root_dir: str,
+                               kbase_collection: str,
+                               load_ver: str):
+    # process fatal error files from a set of check tools and write it to merged file
+
     if not check_fatal_error_tools:
         return set()
     
