@@ -340,38 +340,38 @@ def _download_sample_data(
     # retrieve sample data from sample service and save to file for one and only one upa from input upas
     # additionally, retrieve node data from the sample data and save it to a file
 
-    sample_ret, sample_upa, sample_effective_time = _find_sample_upa(conf, upas)
+    # check if sample information already exists in the metadata file
+    with open(metafile, "r", encoding="utf8") as json_file:
+        meta = json.load(json_file)
 
+    sample_keys = [loader_common_names.SAMPLE_FILE_KEY,
+                   loader_common_names.SAMPLE_PREPARED_KEY,
+                   loader_common_names.SAMPLE_EFFECTIVE_TIME]
+    if all(key in meta for key in sample_keys):
+        print(f"Skip downloading sample data for {upas} as it already exists")
+        return
+
+    sample_ret, sample_upa, sample_effective_time = _find_sample_upa(conf, upas)
     if not sample_ret:
         if not conf.ignore_no_sample_error:
             raise ValueError(f"Sample data not found for {upas}")
         return
+    node_data = _retrieve_node_data(sample_ret['node_tree'])
 
-    with open(metafile, "r", encoding="utf8") as json_file:
-        meta = json.load(json_file)
-
+    # save sample data and parsed key-value node data to file
     upa_dir, sample_file_prefix = Path(metafile).parent, sample_upa.replace("/", "_")
     sample_file_name = f"{sample_file_prefix}.{loader_common_names.SAMPLE_FILE_EXT}"
     sample_file = os.path.join(upa_dir, sample_file_name)
     sample_prepared_name = f"{sample_file_prefix}.{loader_common_names.SAMPLE_PREPARED_EXT}"
     sample_prepared_file = os.path.join(upa_dir, sample_prepared_name)
-    update_meta = False
+    _dump_json_to_file(sample_file, sample_ret)
+    _dump_json_to_file(sample_prepared_file, node_data)
 
-    try:
-        if not _check_file_exists(loader_common_names.SAMPLE_FILE_KEY, meta, sample_file):
-            _dump_json_to_file(sample_file, sample_ret)
-            meta[loader_common_names.SAMPLE_EFFECTIVE_TIME] = sample_effective_time
-            meta[loader_common_names.SAMPLE_FILE_KEY] = sample_file_name
-            update_meta = True
-
-        if not _check_file_exists(loader_common_names.SAMPLE_PREPARED_KEY, meta, sample_prepared_file):
-            node_data = _retrieve_node_data(sample_ret['node_tree'])
-            _dump_json_to_file(sample_prepared_file, node_data)
-            meta[loader_common_names.SAMPLE_PREPARED_KEY] = sample_prepared_name
-            update_meta = True
-    finally:
-        if update_meta:
-            _dump_json_to_file(metafile, meta)
+    # update metadata file with sample information
+    meta[loader_common_names.SAMPLE_FILE_KEY] = sample_file_name
+    meta[loader_common_names.SAMPLE_PREPARED_KEY] = sample_prepared_name
+    meta[loader_common_names.SAMPLE_EFFECTIVE_TIME] = sample_effective_time
+    _dump_json_to_file(metafile, meta)
 
 
 def _dump_json_to_file(json_file_path: str, json_data: dict[str, Any]) -> None:
@@ -400,19 +400,10 @@ def _find_sample_upa(
     return sample_ret, sample_upa, sample_effective_time
 
 
-def _check_file_exists(
-        file_key_name: str,
-        metadata: dict[str, Any],
-        file_path: str
-) -> bool:
-    # check if file exists and if the metadata matches the file name
-
-    return (file_key_name in metadata and
-            metadata[file_key_name] == Path(file_path).name and
-            os.path.isfile(file_path))
-
-
-def _retrieve_sample(conf: Conf, upa: str) -> (dict[str, Any] | None, int):
+def _retrieve_sample(
+        conf: Conf,
+        upa: str
+) -> (dict[str, Any] | None, int):
     # retrieve sample data from sample service
 
     # retrieve data links associated with upa

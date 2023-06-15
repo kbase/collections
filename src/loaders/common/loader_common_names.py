@@ -90,11 +90,11 @@ FATAL_ERROR_FILE = "fatal_error.json"
 SAMPLE_FILE_KEY = "sample_file"
 # prepared sample file contains key-value pairs of parsed meta_controlled from node tree of the sample
 SAMPLE_PREPARED_KEY = "sample_prepared_file"
+SAMPLE_EFFECTIVE_TIME = "sample_effective_time"
 
 # extension for source sample data file and prepared sample node data file for downloaded workspace objects
 SAMPLE_FILE_EXT = "sample"
 SAMPLE_PREPARED_EXT = "prepared.sample"
-SAMPLE_EFFECTIVE_TIME = "sample_effective_time"
 
 # key name for latitude and longitude data from sample's meta_controlled
 SAMPLE_LATITUDE = "latitude"
