@@ -360,6 +360,7 @@ def _download_sample_data(
     try:
         if not _check_file_exists(loader_common_names.SAMPLE_FILE_KEY, meta, sample_file):
             _dump_json_to_file(sample_file, sample_ret)
+            meta[loader_common_names.SAMPLE_RETRIEVED_TIME] = time.time()
             meta[loader_common_names.SAMPLE_FILE_KEY] = sample_file_name
             update_meta = True
 
