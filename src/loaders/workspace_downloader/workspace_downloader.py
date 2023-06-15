@@ -76,6 +76,10 @@ class BadNodeTreeError(Exception):
     pass
 
 
+class NoDataLinkError(Exception):
+    pass
+
+
 class Conf:
     def __init__(
             self,
@@ -319,58 +323,76 @@ def process_input(conf: Conf):
             os.link(cfn, dst)
 
             # save meta file with relevant object_info
-            with open(metafile, "w", encoding="utf8") as json_file:
-                json.dump(_process_object_info(obj_info, genome_upa), json_file, indent=2)
+            _dump_json_to_file(metafile, _process_object_info(obj_info, genome_upa))
 
             print("Completed %s" % (upa))
         else:
             print(f"Skip downloading {upa} as it already exists")
 
         if conf.retrieve_sample:
-            _download_sample_data(conf, genome_upa.replace("/", "_"), metafile)
+            _download_sample_data(conf, [upa.replace("_", "/"), genome_upa], metafile)
 
 
-def _download_sample_data(conf: Conf, upa: str, metafile: str) -> None:
-    # retrieve sample data from sample service and save to file
+def _download_sample_data(
+        conf: Conf,
+        upas: list[str],
+        metafile: str) -> None:
+    # retrieve sample data from sample service and save to file for one and only one upa from input upas
     # additionally, retrieve node data from the sample data and save it to a file
-    # NOTE: upa is in the format of "A_B_C"
+
+    sample_ret, sample_upa = _find_sample_upa(conf, upas)
+
+    if not sample_ret:
+        if not conf.ignore_no_sample_error:
+            raise ValueError(f"Sample data not found for {upas}")
+        return
 
     with open(metafile, "r", encoding="utf8") as json_file:
         meta = json.load(json_file)
 
     upa_dir = Path(metafile).parent
-    sample_file_name = f"{upa}.{loader_common_names.SAMPLE_FILE_EXT}"
+    sample_file_name = f"{sample_upa}.{loader_common_names.SAMPLE_FILE_EXT}"
     sample_file = os.path.join(upa_dir, sample_file_name)
-    if _check_file_exists(loader_common_names.SAMPLE_FILE_KEY, meta, sample_file):
-        print(f"Skip downloading sample for {upa} as it already exists")
-        return
-
-    sample_ret = _retrieve_sample(conf, upa)
-    if not sample_ret:
-        return
-
-    with open(sample_file, "w", encoding="utf8") as json_file:
-        json.dump(sample_ret, json_file, indent=2)
-
-    sample_prepared_name = f"{upa}.{loader_common_names.SAMPLE_PREPARED_EXT}"
+    sample_prepared_name = f"{sample_upa}.{loader_common_names.SAMPLE_PREPARED_EXT}"
     sample_prepared_file = os.path.join(upa_dir, sample_prepared_name)
-    if _check_file_exists(loader_common_names.SAMPLE_PREPARED_KEY, meta, sample_prepared_file):
-        print(f"Skip generating sample node tree for {upa} as it already exists")
-        return
 
-    try:
+    if not _check_file_exists(loader_common_names.SAMPLE_FILE_KEY, meta, sample_file):
+        _dump_json_to_file(sample_file, sample_ret)
+
+    if not _check_file_exists(loader_common_names.SAMPLE_PREPARED_KEY, meta, sample_prepared_file):
         node_data = _retrieve_node_data(sample_ret['node_tree'])
-    except BadNodeTreeError as e:
-        raise ValueError(f"Error retrieving node data for {upa}") from e
-
-    with open(sample_prepared_file, "w", encoding="utf8") as json_file:
-        json.dump(node_data, json_file, indent=2)
+        _dump_json_to_file(sample_prepared_file, node_data)
 
     # write sample file and prepared sample node file name back to the meta file
     meta[loader_common_names.SAMPLE_FILE_KEY] = sample_file_name
     meta[loader_common_names.SAMPLE_PREPARED_KEY] = sample_prepared_name
-    with open(metafile, "w", encoding="utf8") as json_file:
-        json.dump(meta, json_file, indent=2)
+    _dump_json_to_file(metafile, meta)
+
+
+def _dump_json_to_file(json_file_path: str, json_data: dict[str, Any]) -> None:
+    with open(json_file_path, "w", encoding="utf8") as json_file:
+        json.dump(json_data, json_file, indent=2)
+
+
+def _find_sample_upa(
+        conf: Conf,
+        upas: list[str]
+) -> (dict[str, Any], str):
+    # find one and only one sample associated upa from input upas and retrieve the sample data
+    # raise error if multiple samples are found
+
+    found_sample, sample_ret, sample_upa = False, None, None
+
+    for upa in upas:
+        try:
+            sample_ret, sample_upa = _retrieve_sample(conf, upa), upa
+            if found_sample:
+                raise ValueError(f"Found multiple samples in input {upas}")
+            found_sample = True
+        except NoDataLinkError:
+            pass
+
+    return sample_ret, sample_upa
 
 
 def _check_file_exists(
@@ -389,12 +411,11 @@ def _retrieve_sample(conf: Conf, upa: str) -> dict[str, Any] | None:
     # retrieve sample data from sample service
 
     # retrieve data links associated with upa
-    links_ret = conf.ss.get_data_links_from_data({"upa": upa.replace("_", "/")})
+    links_ret = conf.ss.get_data_links_from_data({"upa": upa})
 
     data_links = links_ret['links']
-    if not data_links and conf.ignore_no_sample_error:
-        print(f"No sample data links found for {upa}")
-        return
+    if not data_links:
+        raise NoDataLinkError(f"Expected at least 1 data link for {upa}")
 
     # there should only be one data link for each upa
     if len(data_links) != 1:
@@ -402,11 +423,9 @@ def _retrieve_sample(conf: Conf, upa: str) -> dict[str, Any] | None:
 
     # retrieve sample data and save to file
     sample_id = data_links[0]['id']
-    sample_ret = conf.ss.get_sample_via_data({"upa": upa.replace("_", "/"),
+    sample_ret = conf.ss.get_sample_via_data({"upa": upa,
                                               "id": sample_id,
                                               "version": data_links[0]["version"]})
-    if not sample_ret:
-        raise ValueError(f"Retrieved empty sample data for {upa}")
 
     return sample_ret
 

@@ -86,7 +86,9 @@ MASH_METADATA = 'mash_run_metadata.json'
 FATAL_ERROR_FILE = "fatal_error.json"
 
 # key name for sample file and prepared sample file in the metadata file for downloaded workspace objects
+# sample file contains raw sample information
 SAMPLE_FILE_KEY = "sample_file"
+# prepared sample file contains key-value pairs of parsed meta_controlled from node tree of the sample
 SAMPLE_PREPARED_KEY = "sample_prepared_file"
 
 # extension for source sample data file and prepared sample node data file for downloaded workspace objects
@@ -97,4 +99,4 @@ SAMPLE_PREPARED_EXT = "prepared.sample"
 SAMPLE_LATITUDE = "latitude"
 SAMPLE_LONGITUDE = "longitude"
 # key name for created sample geo-spatial data in format of [longitude, latitude]
-SAMPLE_GEO = 'geo_spatial'
+SAMPLE_GEO = '_geo_spatial'
