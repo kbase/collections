@@ -3,6 +3,7 @@ Run the gtdb_tk tool on a set of assemblies.
 """
 
 import os
+import re
 import time
 from pathlib import Path
 from typing import Dict
@@ -47,8 +48,8 @@ def _run_gtdb_tk(ids_to_files: Dict[Path, str], output_dir: Path, threads: int, 
     
     fatal_tuples = []
     summary_file_exists = False
-    summary_files = [loader_common_names.GTDBTK_AR53_SUMMARY_FILE,
-                     loader_common_names.GTDBTK_BAC120_SUMMARY_FILE]
+    summary_files = [file_name for file_name in os.listdir(output_dir) if 
+                     re.search(loader_common_names.GTDB_SUMMARY_FILE_PATTERN, file_name)]
     selected_cols = [loader_common_names.GTDB_GENOME_ID_COL,
                      loader_common_names.GTDB_CLASSIFICATION_COL]
 

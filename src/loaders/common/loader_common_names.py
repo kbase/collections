@@ -90,10 +90,11 @@ FATAL_ERROR_FILE = "fatal_error.json"
 GTDBTK_AR53_SUMMARY_FILE = "gtdbtk.ar53.summary.tsv"
 GTDBTK_BAC120_SUMMARY_FILE = "gtdbtk.bac120.summary.tsv"
 
-# Used by gtdb summary files
+# Used by gtdb output summary files
 GTDB_GENOME_ID_COL = "user_genome"
 GTDB_CLASSIFICATION_COL = "classification"
 GTDB_UNCLASSIFIED = "Unclassified"
+GTDB_SUMMARY_FILE_PATTERN = "gtdbtk.*.summary.tsv"
 
 # Used by the global fatal error file and nametuple 
 FATAL_ID = "kbase_id"

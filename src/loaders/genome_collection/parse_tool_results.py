@@ -32,6 +32,7 @@ import argparse
 import copy
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -833,11 +834,13 @@ def gtdb_tk(root_dir, kbase_collection, load_ver, fatal_ids):
     result_dir = _locate_dir(root_dir, kbase_collection, load_ver, tool='gtdb_tk')
     batch_dirs = _get_batch_dirs(result_dir)
 
-    summary_files = [loader_common_names.GTDBTK_AR53_SUMMARY_FILE, loader_common_names.GTDBTK_BAC120_SUMMARY_FILE]
     genome_id_col = loader_common_names.GENOME_ID_COL
     for batch_dir in batch_dirs:
-        summary_file_exists = False
 
+        summary_files = [file_name for file_name in os.listdir(os.path.join(result_dir, batch_dir)) if 
+                         re.search(loader_common_names.GTDB_SUMMARY_FILE_PATTERN, file_name)]
+        
+        summary_file_exists = False
         for tool_file_name in summary_files:
             docs = _read_tool_result(result_dir, batch_dir, kbase_collection, load_ver,
                                      tool_file_name, SELECTED_GTDBTK_SUMMARY_FEATURES, genome_id_col, fatal_ids)
