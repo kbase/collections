@@ -553,10 +553,13 @@ def _find_data_file(
 
 
 FatalTuple = namedtuple(
-    loader_common_names.FATAL_ID, 
-    loader_common_names.FATAL_ERROR,
-    loader_common_names.FATAL_FILE,
-    loader_common_names.FATAL_STACKTRACE,
+    "FatalTuple",
+    [
+        loader_common_names.FATAL_ID, 
+        loader_common_names.FATAL_ERROR,
+        loader_common_names.FATAL_FILE,
+        loader_common_names.FATAL_STACKTRACE,
+    ]
 )
 
 
