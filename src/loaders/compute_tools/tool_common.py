@@ -242,7 +242,7 @@ class ToolRunner:
         start = time.time()
         batch_dir, genomes_meta = _prepare_tool(
             self._work_dir,
-            "no_batch",
+            loader_common_names.COMPUTE_OUTPUT_NO_BATCH,
             self._node_id,
             self._data_ids,
             self._source_data_dir,
@@ -564,13 +564,13 @@ FatalTuple = namedtuple(
 )
 
 
-def write_out_tuple_to_dict(fatal_tuples: List[FatalTuple], output_dir: Path):
+def write_fatal_tuples_to_dict(fatal_tuples: List[FatalTuple], output_dir: Path):
     fatal_dict = {}
     for fatal_tuple in fatal_tuples:
-        fatal_dict[fatal_tuple.loader_common_names.FATAL_ID] = {
-            loader_common_names.FATAL_ERROR: fatal_tuple.loader_common_names.FATAL_ERROR,
-            loader_common_names.FATAL_FILE: fatal_tuple.loader_common_names.FATAL_FILE,
-            loader_common_names.FATAL_STACKTRACE: fatal_tuple.loader_common_names.FATAL_STACKTRACE,
+        fatal_dict[getattr(fatal_tuple, loader_common_names.FATAL_ID)] = {
+            loader_common_names.FATAL_ERROR: getattr(fatal_tuple, loader_common_names.FATAL_ERROR),
+            loader_common_names.FATAL_FILE: getattr(fatal_tuple, loader_common_names.FATAL_FILE),
+            loader_common_names.FATAL_STACKTRACE: getattr(fatal_tuple, loader_common_names.FATAL_STACKTRACE),
         }
 
     fatal_error_path = os.path.join(output_dir, loader_common_names.FATAL_ERROR_FILE)

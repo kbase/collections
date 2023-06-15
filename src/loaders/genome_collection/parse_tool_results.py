@@ -434,7 +434,8 @@ def _process_fatal_error_tools(check_fatal_error_tools: set[str],
     for tool in check_fatal_error_tools:
         result_dir = _locate_dir(root_dir, kbase_collection, load_ver, tool=tool)
         batch_dirs = _get_batch_dirs(result_dir)
-        if len(batch_dirs) == 1 and batch_dirs[0].startswith(loader_common_names.COMPUTE_OUTPUT_NO_BATCH_PREFIX):
+        batch_no_batch_prefix = loader_common_names.COMPUTE_OUTPUT_PREFIX + loader_common_names.COMPUTE_OUTPUT_NO_BATCH
+        if len(batch_dirs) == 1 and batch_dirs[0].startswith(batch_no_batch_prefix):
             batch_dirs = [os.path.join(batch_dirs[0], d) for d in os.listdir(batch_dirs[0])
                           if os.path.isdir(os.path.join(result_dir, batch_dirs[0], d))]
         for batch_dir in batch_dirs:
@@ -460,9 +461,13 @@ def _process_fatal_error_tools(check_fatal_error_tools: set[str],
                     fatal_dict[kbase_id] = {loader_common_names.FATAL_FILE: fatal_errors[kbase_id][loader_common_names.FATAL_FILE],
                                             loader_common_names.FATAL_ERRORS: [fatal_dict_info]}
     
-    docs = [{key:value} for key, value in fatal_dict.items()]
-    output = f"{kbase_collection}_{load_ver}_{FATAL_ERROR_FILE_SUFFIX}"
-    _create_import_files(root_dir, output, docs)
+    import_dir = os.path.join(root_dir, IMPORT_DIR)
+    os.makedirs(import_dir, exist_ok=True)
+    fatal_output = f"{kbase_collection}_{load_ver}_{loader_common_names.FATAL_ERROR_FILE}"
+    fatal_error_path = os.path.join(import_dir, fatal_output)
+    print(f"Creating a merged {loader_common_names.FATAL_ERROR_FILE}: {fatal_error_path}")
+    with open(fatal_error_path, "w") as outfile:
+        outfile.dump(fatal_dict, outfile)
     
     return set(fatal_dict.keys())
 
@@ -839,18 +844,16 @@ def gtdb_tk(root_dir, kbase_collection, load_ver, fatal_ids):
 
         summary_files = find_gtdbtk_summary_files(Path(result_dir, batch_dir))
 
-        summary_file_exists = False
+        if not summary_files:
+            raise ValueError(f'No summary files exist for gtdb-tk in the specified '
+                             f'batch directory {batch_dir}.')
+        
         for tool_file_name in summary_files:
             docs = _read_tool_result(result_dir, batch_dir, kbase_collection, load_ver,
                                      tool_file_name, SELECTED_GTDBTK_SUMMARY_FEATURES, genome_id_col, fatal_ids)
 
             if docs:
-                summary_file_exists = True
                 gtdb_tk_docs.extend(docs)
-
-        if not summary_file_exists:
-            raise ValueError(f'Unable to process the computed genome attributes for gtdb-tk in the specified '
-                             f'directory {batch_dir}.')
 
     return gtdb_tk_docs
 

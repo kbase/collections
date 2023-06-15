@@ -16,7 +16,7 @@ from src.loaders.compute_tools.tool_common import (
     ToolRunner,
     find_gtdbtk_summary_files,
     run_command,
-    write_out_tuple_to_dict,
+    write_fatal_tuples_to_dict,
 )
 
 
@@ -46,10 +46,12 @@ def _run_gtdb_tk(ids_to_files: Dict[Path, str], output_dir: Path, threads: int, 
         f'Used {round((end_time - start) / 60, 2)} minutes to execute gtdbtk classify_wf for '
         f'{len(ids_to_files)} genomes')
     
-    
-    fatal_tuples = []
-    summary_file_exists = False
+
     summary_files = find_gtdbtk_summary_files(output_dir)
+    if not summary_files:
+        raise ValueError(f"No summary files exist for gtdb-tk in the specified "
+                         f"batch output directory {output_dir}.")
+
     selected_cols = [loader_common_names.GTDB_GENOME_ID_COL,
                      loader_common_names.GTDB_CLASSIFICATION_COL]
 
@@ -61,28 +63,23 @@ def _run_gtdb_tk(ids_to_files: Dict[Path, str], output_dir: Path, threads: int, 
     meta_dict = dict(zip(meta_df[loader_common_names.META_TOOL_IDENTIFIER], 
                          meta_df[loader_common_names.META_DATA_ID]))
     
+    fatal_tuples = []
     for summary_file in summary_files:
         summary_file_path = os.path.join(output_dir, summary_file)
-        if not os.path.exists(summary_file_path):
-            continue
         try:
             summary_df = pd.read_csv(summary_file_path, sep='\t', usecols=selected_cols)
         except Exception as e:
             raise ValueError(f"{summary_file} exists, but unable to retrive") from e
-        summary_file_exists = True
-        for genome_id, classfiy_res in zip(summary_df[loader_common_names.GTDB_GENOME_ID_COL],
+
+        for genome_id, classify_res in zip(summary_df[loader_common_names.GTDB_GENOME_ID_COL],
                                            summary_df[loader_common_names.GTDB_CLASSIFICATION_COL]):
-            if classfiy_res.startswith(loader_common_names.GTDB_UNCLASSIFIED):
+            if classify_res.startswith(loader_common_names.GTDB_UNCLASSIFIED):
                 kbase_id = meta_dict[genome_id]
                 source_file_path = ids_to_files[genome_id]
-                error_message = f"GTDB_tk classification failed: {classfiy_res}"
+                error_message = f"GTDB_tk classification failed: {classify_res}"
                 fatal_tuples.append(FatalTuple(kbase_id, error_message, str(source_file_path), None))
-
-    if not summary_file_exists:
-        raise ValueError(f"No summary files exist for gtdb-tk in the specified "
-                         f"batch output directory {output_dir}.")
     
-    write_out_tuple_to_dict(fatal_tuples, output_dir)
+    write_fatal_tuples_to_dict(fatal_tuples, output_dir)
   
 
 def main():
