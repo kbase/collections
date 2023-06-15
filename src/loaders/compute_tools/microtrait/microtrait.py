@@ -9,7 +9,11 @@ import pandas as pd
 from rpy2 import robjects
 
 from src.loaders.common import loader_common_names
-from src.loaders.compute_tools.tool_common import ToolRunner, create_fatal_dict_doc
+from src.loaders.compute_tools.tool_common import (
+    FatalTuple, 
+    ToolRunner,
+    write_out_tuple_to_dict,
+)
 
 # the name of the component used for extracting traits from microtrait's 'extract.traits' result
 TRAIT_COUNTS_ATGRANULARITY = 'trait_counts_atgranularity3'
@@ -72,10 +76,8 @@ def _run_microtrait(genome_id: str, fna_file: Path, genome_dir: Path, debug: boo
     trait_counts, exist = _get_r_list_element(microtrait_result, TRAIT_COUNTS_ATGRANULARITY)
     if not exist:
         error_message = "Microtrait output no data"
-        fatal_dict = {genome_id: create_fatal_dict_doc(error_message, str(fna_file))}
-        fatal_error_path = os.path.join(genome_dir, loader_common_names.FATAL_ERROR_FILE)
-        with open(fatal_error_path, "w") as outfile:
-            json.dump(fatal_dict, outfile)
+        fatal_tuples = [FatalTuple(genome_id, error_message, str(fna_file), None)]
+        write_out_tuple_to_dict(fatal_tuples, genome_dir)
         return 
     # example trait_counts_df from trait_counts_atgranularity3
     # microtrait_trait-name,microtrait_trait-value,microtrait_trait-displaynameshort,microtrait_trait-displaynamelong,microtrait_trait-strategy,microtrait_trait-type,microtrait_trait-granularity,microtrait_trait-version,microtrait_trait-displayorder,microtrait_trait-value1

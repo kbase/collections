@@ -95,9 +95,10 @@ GTDB_GENOME_ID_COL = "user_genome"
 GTDB_CLASSIFICATION_COL = "classification"
 GTDB_UNCLASSIFIED = "Unclassified"
 
-# Used by the global fatal error file
-ERROR = "error"
-ERRORS = "errors"
-FILE = "file"
-TOOL = "tool"
-STACKTRACE = "stacktrace"
+# Used by the global fatal error file and nametuple 
+FATAL_ID = "kbase_id"
+FATAL_ERROR = "error"
+FATAL_ERRORS = "errors"
+FATAL_FILE = "file"
+FATAL_TOOL = "tool"
+FATAL_STACKTRACE = "stacktrace"

@@ -10,9 +10,12 @@ from typing import Dict
 import pandas as pd
 
 from src.loaders.common import loader_common_names
-from src.loaders.compute_tools.tool_common import (ToolRunner,
-                                                   create_fatal_dict_doc,
-                                                   run_command)
+from src.loaders.compute_tools.tool_common import (
+    FatalTuple, 
+    ToolRunner,
+    run_command,
+    write_out_tuple_to_dict,
+)
 
 
 def _run_gtdb_tk(ids_to_files: Dict[Path, str], output_dir: Path, threads: int, debug: bool):
@@ -42,7 +45,7 @@ def _run_gtdb_tk(ids_to_files: Dict[Path, str], output_dir: Path, threads: int, 
         f'{len(ids_to_files)} genomes')
     
     
-    fatal_dict = {}
+    fatal_tuples = []
     summary_file_exists = False
     summary_files = [loader_common_names.GTDBTK_AR53_SUMMARY_FILE,
                      loader_common_names.GTDBTK_BAC120_SUMMARY_FILE]
@@ -72,16 +75,14 @@ def _run_gtdb_tk(ids_to_files: Dict[Path, str], output_dir: Path, threads: int, 
                 kbase_id = meta_dict[genome_id]
                 source_file_path = ids_to_files[genome_id]
                 error_message = f"GTDB_tk classification failed: {classfiy_res}"
-                fatal_dict[kbase_id] = create_fatal_dict_doc(error_message, str(source_file_path))
+                fatal_tuples.append(FatalTuple(kbase_id, error_message, str(source_file_path), None))
 
     if not summary_file_exists:
         raise ValueError(f"No summary files exist for gtdb-tk in the specified "
                          f"batch output directory {output_dir}.")
-
-    fatal_error_path = os.path.join(output_dir, loader_common_names.FATAL_ERROR_FILE)
-    with open(fatal_error_path, "w") as outfile:
-        outfile.dump(fatal_dict, outfile)
-
+    
+    write_out_tuple_to_dict(fatal_tuples, output_dir)
+  
 
 def main():
     runner = ToolRunner("gtdb_tk", suffix_ids=True)

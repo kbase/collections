@@ -135,8 +135,8 @@ IMPORT_DIR = 'import_files'
 # (https://github.com/jgi-kbase/AssemblyHomologyService#sequence-metadata-file)
 SEQ_METADATA = 'seq_metadata.jsonl'
 
-# Log data ids have missing trait_counts.csv file
-BAD_DATA_IDS = 'bad_data_ids.json'
+# Merged FATAL_ERROR_FILE
+FATAL_ERROR_FILE_SUFFIX = 'fatal_error.jsonl'
 
 
 def _locate_dir(root_dir, kbase_collection, load_ver, check_exists=False, tool=''):
@@ -448,22 +448,18 @@ def _process_fatal_error_tools(check_fatal_error_tools: set[str],
             for kbase_id in fatal_errors:
                 fatal_dict_info = create_global_fatal_dict_doc(
                     tool, 
-                    fatal_errors[kbase_id][loader_common_names.ERROR], 
-                    fatal_errors[kbase_id][loader_common_names.STACKTRACE])
+                    fatal_errors[kbase_id][loader_common_names.FATAL_ERROR], 
+                    fatal_errors[kbase_id][loader_common_names.FATAL_STACKTRACE])
                 if fatal_dict.get(kbase_id):
-                    fatal_dict[kbase_id][loader_common_names.ERRORS].append(
+                    fatal_dict[kbase_id][loader_common_names.FATAL_ERRORS].append(
                         fatal_dict_info)
                 else:
-                    fatal_dict[kbase_id] = {loader_common_names.FILE: fatal_errors[kbase_id][loader_common_names.FILE],
-                                            loader_common_names.ERRORS: [fatal_dict_info]}
+                    fatal_dict[kbase_id] = {loader_common_names.FATAL_FILE: fatal_errors[kbase_id][loader_common_names.FATAL_FILE],
+                                            loader_common_names.FATAL_ERRORS: [fatal_dict_info]}
     
-    import_dir = os.path.join(root_dir, IMPORT_DIR)
-    os.makedirs(import_dir, exist_ok=True)
-    fatal_output = f"{kbase_collection}_{load_ver}_{loader_common_names.FATAL_ERROR_FILE}"
-    fatal_error_path = os.path.join(import_dir, fatal_output)
-    print(f"Creating a merged {loader_common_names.FATAL_ERROR_FILE}: {fatal_error_path}")
-    with open(fatal_error_path, "w") as outfile:
-        outfile.dump(fatal_dict, outfile)
+    docs = [{key:value} for key, value in fatal_dict.items()]
+    output = f"{kbase_collection}_{load_ver}_{FATAL_ERROR_FILE_SUFFIX}"
+    _create_import_files(root_dir, output, docs)
     
     return set(fatal_dict.keys())
 

@@ -21,6 +21,7 @@ import shutil
 import subprocess
 import time
 import uuid
+from collections import namedtuple
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Tuple, Union
 
@@ -551,11 +552,26 @@ def _find_data_file(
     return genome_files[0]
 
 
-def create_fatal_dict_doc(error_message, source_file_path, stacktrace=None):
-    doc = {loader_common_names.ERROR: error_message,
-           loader_common_names.FILE: source_file_path,
-           loader_common_names.STACKTRACE: stacktrace}
-    return doc
+FatalTuple = namedtuple(
+    loader_common_names.FATAL_ID, 
+    loader_common_names.FATAL_ERROR,
+    loader_common_names.FATAL_FILE,
+    loader_common_names.FATAL_STACKTRACE,
+)
+
+
+def write_out_tuple_to_dict(fatal_tuples: List[FatalTuple], output_dir: Path):
+    fatal_dict = {}
+    for fatal_tuple in fatal_tuples:
+        fatal_dict[fatal_tuple.loader_common_names.FATAL_ID] = {
+            loader_common_names.FATAL_ERROR: fatal_tuple.loader_common_names.FATAL_ERROR,
+            loader_common_names.FATAL_FILE: fatal_tuple.loader_common_names.FATAL_FILE,
+            loader_common_names.FATAL_STACKTRACE: fatal_tuple.loader_common_names.FATAL_STACKTRACE,
+        }
+
+    fatal_error_path = os.path.join(output_dir, loader_common_names.FATAL_ERROR_FILE)
+    with open(fatal_error_path, "w") as outfile:
+        outfile.dump(fatal_dict, outfile)
 
 
 if __name__ == "__main__":
