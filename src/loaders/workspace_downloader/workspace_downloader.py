@@ -62,6 +62,7 @@ from src.clients.AssemblyUtilClient import AssemblyUtil
 from src.clients.SampleServiceClient import SampleService
 from src.clients.workspaceClient import Workspace
 from src.loaders.common import loader_common_names, loader_helper
+from src.service.timestamp import timestamp
 
 # setup KB_AUTH_TOKEN as env or provide a token_filepath in --token_filepath
 # export KB_AUTH_TOKEN="your-kb-auth-token"
@@ -360,7 +361,7 @@ def _download_sample_data(
     try:
         if not _check_file_exists(loader_common_names.SAMPLE_FILE_KEY, meta, sample_file):
             _dump_json_to_file(sample_file, sample_ret)
-            meta[loader_common_names.SAMPLE_RETRIEVED_TIME] = time.time()
+            meta[loader_common_names.SAMPLE_RETRIEVED_TIME] = timestamp()
             meta[loader_common_names.SAMPLE_FILE_KEY] = sample_file_name
             update_meta = True
 
