@@ -62,7 +62,6 @@ from src.clients.AssemblyUtilClient import AssemblyUtil
 from src.clients.SampleServiceClient import SampleService
 from src.clients.workspaceClient import Workspace
 from src.loaders.common import loader_common_names, loader_helper
-from src.service.timestamp import timestamp
 
 # setup KB_AUTH_TOKEN as env or provide a token_filepath in --token_filepath
 # export KB_AUTH_TOKEN="your-kb-auth-token"
@@ -341,7 +340,7 @@ def _download_sample_data(
     # retrieve sample data from sample service and save to file for one and only one upa from input upas
     # additionally, retrieve node data from the sample data and save it to a file
 
-    sample_ret, sample_upa = _find_sample_upa(conf, upas)
+    sample_ret, sample_upa, sample_effective_time = _find_sample_upa(conf, upas)
 
     if not sample_ret:
         if not conf.ignore_no_sample_error:
@@ -361,7 +360,7 @@ def _download_sample_data(
     try:
         if not _check_file_exists(loader_common_names.SAMPLE_FILE_KEY, meta, sample_file):
             _dump_json_to_file(sample_file, sample_ret)
-            meta[loader_common_names.SAMPLE_RETRIEVED_TIME] = timestamp()
+            meta[loader_common_names.SAMPLE_EFFECTIVE_TIME] = sample_effective_time
             meta[loader_common_names.SAMPLE_FILE_KEY] = sample_file_name
             update_meta = True
 
@@ -387,18 +386,18 @@ def _find_sample_upa(
     # find one and only one sample associated upa from input upas and retrieve the sample data
     # raise error if multiple samples are found
 
-    found_sample, sample_ret, sample_upa = False, None, None
+    found_sample, sample_ret, sample_upa, sample_effective_time = False, None, None, None
 
     for upa in upas:
         try:
-            sample_ret, sample_upa = _retrieve_sample(conf, upa), upa
+            sample_ret, sample_effective_time = _retrieve_sample(conf, upa)
             if found_sample:
                 raise ValueError(f"Found multiple samples in input {upas}")
-            found_sample = True
+            found_sample, sample_upa = True, upa
         except NoDataLinkError:
             pass
 
-    return sample_ret, sample_upa
+    return sample_ret, sample_upa, sample_effective_time
 
 
 def _check_file_exists(
@@ -413,13 +412,13 @@ def _check_file_exists(
             os.path.isfile(file_path))
 
 
-def _retrieve_sample(conf: Conf, upa: str) -> dict[str, Any] | None:
+def _retrieve_sample(conf: Conf, upa: str) -> (dict[str, Any] | None, int):
     # retrieve sample data from sample service
 
     # retrieve data links associated with upa
     links_ret = conf.ss.get_data_links_from_data({"upa": upa})
 
-    data_links = links_ret['links']
+    data_links, effective_time = links_ret['links'], links_ret['effective_time']
     if not data_links:
         raise NoDataLinkError(f"Expected at least 1 data link for {upa}")
 
@@ -433,7 +432,7 @@ def _retrieve_sample(conf: Conf, upa: str) -> dict[str, Any] | None:
                                               "id": sample_id,
                                               "version": data_links[0]["version"]})
 
-    return sample_ret
+    return sample_ret, effective_time
 
 
 def _retrieve_node_data(

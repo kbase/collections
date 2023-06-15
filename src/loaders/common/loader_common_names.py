@@ -94,7 +94,7 @@ SAMPLE_PREPARED_KEY = "sample_prepared_file"
 # extension for source sample data file and prepared sample node data file for downloaded workspace objects
 SAMPLE_FILE_EXT = "sample"
 SAMPLE_PREPARED_EXT = "prepared.sample"
-SAMPLE_RETRIEVED_TIME = "sample_retrieved_time"
+SAMPLE_EFFECTIVE_TIME = "sample_effective_time"
 
 # key name for latitude and longitude data from sample's meta_controlled
 SAMPLE_LATITUDE = "latitude"
