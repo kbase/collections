@@ -351,6 +351,7 @@ def _download_sample_data(
         print(f"Skip downloading sample data for {upas} as it already exists")
         return
 
+    # retrieve sample data from sample service and parse key-value node data
     sample_ret, sample_upa, sample_effective_time = _find_sample_upa(conf, upas)
     if not sample_ret:
         if not conf.ignore_no_sample_error:
@@ -375,6 +376,7 @@ def _download_sample_data(
 
 
 def _dump_json_to_file(json_file_path: str, json_data: dict[str, Any]) -> None:
+    # dump json data to file
     with open(json_file_path, "w", encoding="utf8") as json_file:
         json.dump(json_data, json_file, indent=2)
 
