@@ -17,10 +17,12 @@ import gzip
 import math
 import multiprocessing
 import os
+import re
 import shutil
 import subprocess
 import time
 import uuid
+from collections import namedtuple
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Tuple, Union
 
@@ -240,7 +242,7 @@ class ToolRunner:
         start = time.time()
         batch_dir, genomes_meta = _prepare_tool(
             self._work_dir,
-            "no_batch",
+            loader_common_names.COMPUTE_OUTPUT_NO_BATCH,
             self._node_id,
             self._data_ids,
             self._source_data_dir,
@@ -549,6 +551,37 @@ def _find_data_file(
         raise ValueError(f'Found {len(genome_files)} files for {data_id} but expected 1')
 
     return genome_files[0]
+
+
+FatalTuple = namedtuple(
+    "FatalTuple",
+    [
+        loader_common_names.FATAL_ID, 
+        loader_common_names.FATAL_ERROR,
+        loader_common_names.FATAL_FILE,
+        loader_common_names.FATAL_STACKTRACE,
+    ]
+)
+
+
+def write_fatal_tuples_to_dict(fatal_tuples: List[FatalTuple], output_dir: Path):
+    fatal_dict = {}
+    for fatal_tuple in fatal_tuples:
+        fatal_dict[getattr(fatal_tuple, loader_common_names.FATAL_ID)] = {
+            loader_common_names.FATAL_ERROR: getattr(fatal_tuple, loader_common_names.FATAL_ERROR),
+            loader_common_names.FATAL_FILE: getattr(fatal_tuple, loader_common_names.FATAL_FILE),
+            loader_common_names.FATAL_STACKTRACE: getattr(fatal_tuple, loader_common_names.FATAL_STACKTRACE),
+        }
+
+    fatal_error_path = os.path.join(output_dir, loader_common_names.FATAL_ERROR_FILE)
+    with open(fatal_error_path, "w") as outfile:
+        outfile.dump(fatal_dict, outfile)
+
+
+def find_gtdbtk_summary_files(output_dir: Path):
+    summary_files = [file_name for file_name in os.listdir(output_dir) if 
+                     re.search(loader_common_names.GTDB_SUMMARY_FILE_PATTERN, file_name)]
+    return summary_files
 
 
 if __name__ == "__main__":

@@ -12,7 +12,10 @@ import jsonlines
 import src.common.storage.collection_and_field_names as names
 from src.common.storage.db_doc_conversions import collection_data_id_key
 from src.loaders.common.loader_common_names import (
-    DOCKER_HOST,
+    DOCKER_HOST, 
+    FATAL_ERROR,
+    FATAL_STACKTRACE,
+    FATAL_TOOL, 
     KB_AUTH_TOKEN,
     SOURCE_METADATA_FILE_KEYS,
 )
@@ -169,6 +172,13 @@ def find_free_port():
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         return s.getsockname()[1]
 
+
+def create_global_fatal_dict_doc(tool, error_message, stacktrace=None):
+    doc = {FATAL_TOOL: tool,
+           FATAL_ERROR: error_message,
+           FATAL_STACKTRACE: stacktrace}
+    return doc
+    
 
 class ExplicitDefaultsHelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
     def _get_help_string(self, action):
