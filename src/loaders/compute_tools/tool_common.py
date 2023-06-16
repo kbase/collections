@@ -14,6 +14,7 @@ of the KBase collections service.
 import argparse
 import datetime
 import gzip
+import json
 import math
 import multiprocessing
 import os
@@ -269,6 +270,9 @@ class ToolRunner:
                           meta[loader_common_names.META_SOURCE_FILE]),
                  output_dir,
                  self._debug))
+        
+        _create_metadata_file(genomes_meta, batch_dir)
+
         try:
             self._execute(self._threads, tool_callable, args_list, start, False)
         finally:
@@ -277,7 +281,6 @@ class ToolRunner:
                 for file in unzipped_files_to_delete:
                     os.remove(file)
 
-        _create_metadata_file(genomes_meta, batch_dir)
 
     def parallel_batch_execution(self, tool_callable: Callable[[Dict[str, Path], Path, int, bool], None], unzip=False):
         """
@@ -331,6 +334,9 @@ class ToolRunner:
 
             batch_input.append((ids_to_files, batch_dir, self._program_threads, self._debug))
 
+        for meta in metas:
+            _create_metadata_file(*meta)
+            
         try:
             self._execute(num_batches, tool_callable, batch_input, start, True)
         finally:
@@ -339,8 +345,6 @@ class ToolRunner:
                 for file in unzipped_files_to_delete:
                     os.remove(file)
 
-        for meta in metas:
-            _create_metadata_file(*meta)
 
     def _execute(
             self,
@@ -575,7 +579,7 @@ def write_fatal_tuples_to_dict(fatal_tuples: List[FatalTuple], output_dir: Path)
 
     fatal_error_path = os.path.join(output_dir, loader_common_names.FATAL_ERROR_FILE)
     with open(fatal_error_path, "w") as outfile:
-        outfile.dump(fatal_dict, outfile)
+        json.dump(fatal_dict, outfile)
 
 
 def find_gtdbtk_summary_files(output_dir: Path):
