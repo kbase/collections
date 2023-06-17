@@ -839,7 +839,7 @@ def gtdb_tk(root_dir, kbase_collection, load_ver, fatal_ids):
     result_dir = _locate_dir(root_dir, kbase_collection, load_ver, tool='gtdb_tk')
     batch_dirs = _get_batch_dirs(result_dir)
 
-    genome_id_col = loader_common_names.GENOME_ID_COL
+    genome_id_col = loader_common_names.GTDB_GENOME_ID_COL
     for batch_dir in batch_dirs:
 
         summary_files = find_gtdbtk_summary_files(Path(result_dir, batch_dir))
