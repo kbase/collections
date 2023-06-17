@@ -436,7 +436,7 @@ def _process_fatal_error_tools(check_fatal_error_tools: set[str],
         batch_dirs = _get_batch_dirs(result_dir)
         batch_no_batch_prefix = loader_common_names.COMPUTE_OUTPUT_PREFIX + loader_common_names.COMPUTE_OUTPUT_NO_BATCH
         if len(batch_dirs) == 1 and batch_dirs[0].startswith(batch_no_batch_prefix):
-            batch_dirs = [os.path.join(batch_dirs[0], d) for d in os.listdir(batch_dirs[0])
+            batch_dirs = [os.path.join(batch_dirs[0], d) for d in os.listdir(os.path.join(result_dir, batch_dirs[0]))
                           if os.path.isdir(os.path.join(result_dir, batch_dirs[0], d))]
         for batch_dir in batch_dirs:
             data_dir = os.path.join(result_dir, batch_dir)
