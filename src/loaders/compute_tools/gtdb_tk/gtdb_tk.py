@@ -64,6 +64,7 @@ def _run_gtdb_tk(ids_to_files: Dict[Path, str], output_dir: Path, threads: int, 
                          meta_df[loader_common_names.META_DATA_ID]))
     
     fatal_tuples = []
+    genome_ids = set()
     for summary_file in summary_files:
         summary_file_path = os.path.join(output_dir, summary_file)
         try:
@@ -73,12 +74,21 @@ def _run_gtdb_tk(ids_to_files: Dict[Path, str], output_dir: Path, threads: int, 
 
         for genome_id, classify_res in zip(summary_df[loader_common_names.GTDB_GENOME_ID_COL],
                                            summary_df[loader_common_names.GTDB_CLASSIFICATION_COL]):
+            genome_ids.add(genome_id)
             if classify_res.startswith(loader_common_names.GTDB_UNCLASSIFIED):
                 kbase_id = meta_dict[genome_id]
                 source_file_path = ids_to_files[genome_id]
                 error_message = f"GTDB_tk classification failed: {classify_res}"
                 fatal_tuples.append(FatalTuple(kbase_id, error_message, str(source_file_path), None))
     
+    miss_genome_ids = set(meta_dict.keys()) - genome_ids
+    if miss_genome_ids:
+        for miss_genome_id in miss_genome_ids:
+            kbase_id = meta_dict[miss_genome_id]
+            source_file_path = ids_to_files[miss_genome_id]
+            error_message = f"Missing classification attribute from {miss_genome_id}"
+            fatal_tuples.append(FatalTuple(kbase_id, error_message, str(source_file_path), None))
+
     write_fatal_tuples_to_dict(fatal_tuples, output_dir)
   
 
