@@ -90,7 +90,7 @@ def _run_gtdb_tk(ids_to_files: Dict[Path, str], output_dir: Path, threads: int, 
             fatal_tuples.append(FatalTuple(kbase_id, error_message, str(source_file_path), None))
 
     write_fatal_tuples_to_dict(fatal_tuples, output_dir)
-  
+
 
 def main():
     runner = ToolRunner("gtdb_tk", suffix_ids=True)
