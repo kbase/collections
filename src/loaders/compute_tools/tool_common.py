@@ -588,6 +588,17 @@ def find_gtdbtk_summary_files(output_dir: Path):
     return summary_files
 
 
+def create_gtdbtk_fatal_tuple(genome_id: str, 
+                              meta_dict: Dict[str, str], 
+                              ids_to_files: Dict[str, Path], 
+                              error_message: str,
+                              stacktrace: str | None):
+     kbase_id = meta_dict[genome_id]
+     source_file_path = ids_to_files[genome_id]
+     fatal_tuple = FatalTuple(kbase_id, error_message, str(source_file_path), stacktrace)
+     return fatal_tuple
+    
+
 if __name__ == "__main__":
     # mostly just here to allow easily getting the help info with --help:
     ToolRunner("fake_tool")

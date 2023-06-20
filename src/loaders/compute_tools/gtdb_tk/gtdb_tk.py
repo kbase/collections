@@ -3,7 +3,6 @@ Run the gtdb_tk tool on a set of assemblies.
 """
 
 import os
-import re
 import time
 from pathlib import Path
 from typing import Dict
@@ -12,8 +11,8 @@ import pandas as pd
 
 from src.loaders.common import loader_common_names
 from src.loaders.compute_tools.tool_common import (
-    FatalTuple, 
     ToolRunner,
+    create_gtdbtk_fatal_tuple,
     find_gtdbtk_summary_files,
     run_command,
     write_fatal_tuples_to_dict,
@@ -76,18 +75,15 @@ def _run_gtdb_tk(ids_to_files: Dict[Path, str], output_dir: Path, threads: int, 
                                            summary_df[loader_common_names.GTDB_CLASSIFICATION_COL]):
             genome_ids.add(genome_id)
             if classify_res.startswith(loader_common_names.GTDB_UNCLASSIFIED):
-                kbase_id = meta_dict[genome_id]
-                source_file_path = ids_to_files[genome_id]
                 error_message = f"GTDB_tk classification failed: {classify_res}"
-                fatal_tuples.append(FatalTuple(kbase_id, error_message, str(source_file_path), None))
+                fatal_tuple = create_gtdbtk_fatal_tuple(genome_id, meta_dict, ids_to_files, error_message, None)
+                fatal_tuples.append(fatal_tuple)
     
     miss_genome_ids = set(meta_dict.keys()) - genome_ids
-    if miss_genome_ids:
-        for miss_genome_id in miss_genome_ids:
-            kbase_id = meta_dict[miss_genome_id]
-            source_file_path = ids_to_files[miss_genome_id]
-            error_message = f"Missing classification attribute from {miss_genome_id}"
-            fatal_tuples.append(FatalTuple(kbase_id, error_message, str(source_file_path), None))
+    for miss_genome_id in miss_genome_ids:
+        error_message = f"Missing classification attribute from {miss_genome_id}"
+        fatal_tuple = create_gtdbtk_fatal_tuple(miss_genome_id, meta_dict, ids_to_files, error_message, None)
+        fatal_tuples.append(fatal_tuple)
 
     write_fatal_tuples_to_dict(fatal_tuples, output_dir)
 
