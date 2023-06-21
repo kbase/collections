@@ -467,7 +467,7 @@ def _process_fatal_error_tools(check_fatal_error_tools: set[str],
     fatal_error_path = os.path.join(import_dir, fatal_output)
     print(f"Creating a merged {loader_common_names.FATAL_ERROR_FILE}: {fatal_error_path}")
     with open(fatal_error_path, "w") as outfile:
-        json.dump(fatal_dict, outfile)
+        json.dump(fatal_dict, outfile, indent=4)
     
     return set(fatal_dict.keys())
 

@@ -579,7 +579,7 @@ def write_fatal_tuples_to_dict(fatal_tuples: List[FatalTuple], output_dir: Path)
 
     fatal_error_path = os.path.join(output_dir, loader_common_names.FATAL_ERROR_FILE)
     with open(fatal_error_path, "w") as outfile:
-        json.dump(fatal_dict, outfile)
+        json.dump(fatal_dict, outfile, indent=4)
 
 
 def find_gtdbtk_summary_files(output_dir: Path):
@@ -588,15 +588,17 @@ def find_gtdbtk_summary_files(output_dir: Path):
     return summary_files
 
 
-def create_gtdbtk_fatal_tuple(genome_id: str, 
-                              meta_dict: Dict[str, str], 
-                              ids_to_files: Dict[str, Path], 
-                              error_message: str,
-                              stacktrace: str | None):
-     kbase_id = meta_dict[genome_id]
-     source_file_path = ids_to_files[genome_id]
-     fatal_tuple = FatalTuple(kbase_id, error_message, str(source_file_path), stacktrace)
-     return fatal_tuple
+def create_gtdbtk_fatal_tuple(
+        genome_id: str,
+        meta_dict: Dict[str, str],
+        ids_to_files: Dict[str, Path],
+        error_message: str,
+        stacktrace: str | None,
+):
+    kbase_id = meta_dict[genome_id]
+    source_file_path = ids_to_files[genome_id]
+    fatal_tuple = FatalTuple(kbase_id, error_message, str(source_file_path), stacktrace)
+    return fatal_tuple
     
 
 if __name__ == "__main__":
