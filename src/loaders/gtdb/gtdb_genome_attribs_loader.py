@@ -95,7 +95,7 @@ def _row_to_doc(row, kbase_collection, load_version):
     """
     # parse genome id
     genome_id = loader_helper.parse_genome_id(row.accession)
-    doc = loader_helper.init_genome_atrri_doc(kbase_collection, load_version, genome_id)
+    doc = loader_helper.init_row_doc(kbase_collection, load_version, genome_id)
 
     doc.update(row.to_dict())
 
