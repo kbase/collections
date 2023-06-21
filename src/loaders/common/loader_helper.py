@@ -77,7 +77,6 @@ def merge_docs(docs, key_name):
     return merged.values()
 
 
-# TODO CODE rename to init_row_doc or something
 def init_row_doc(kbase_collection, load_version, data_id):
     """
     Initialize a dictionary with a single field, '_key',
