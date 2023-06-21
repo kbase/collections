@@ -588,6 +588,34 @@ def find_gtdbtk_summary_files(output_dir: Path):
     return summary_files
 
 
+def get_filtered_or_failed_genome_ids(output_dir: Path):
+    genome_ids = list()
+
+    # process filtered.tsv files
+    align_dir = output_dir / "align"
+    filter_files = [file_name for file_name in os.listdir(align_dir) if 
+                    re.search(loader_common_names.GTDB_FILTER_FILE_PATTERN, file_name)]
+    if not filter_files or len(filter_files) > 2:
+        raise ValueError("Parsed unexpected filterd.tsv files {filter_files}.")
+    for filter_file in filter_files:
+        filter_file_path = os.path.join(align_dir, filter_file)
+        genome_ids.extend(_get_genome_ids_from_tsv_file(filter_file_path))
+    
+    # process failed.tsv file
+    identify_dir = output_dir / "identify"
+    fail_file_path = os.path.join(identify_dir, loader_common_names.GTDB_FAIL_GENOME_FILE)
+    genome_ids.extend(_get_genome_ids_from_tsv_file(fail_file_path))
+
+    return set(genome_ids)
+
+
+def _get_genome_ids_from_tsv_file(file_path: str):
+    res = []
+    with open(file_path, "r") as f:
+        res = [line.strip().split("\t")[0] for line in f]
+    return res
+
+
 def create_gtdbtk_fatal_tuple(
         genome_id: str,
         meta_dict: Dict[str, str],

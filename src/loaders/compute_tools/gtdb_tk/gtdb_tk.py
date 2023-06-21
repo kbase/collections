@@ -14,6 +14,7 @@ from src.loaders.compute_tools.tool_common import (
     ToolRunner,
     create_gtdbtk_fatal_tuple,
     find_gtdbtk_summary_files,
+    get_filtered_or_failed_genome_ids,
     run_command,
     write_fatal_tuples_to_dict,
 )
@@ -80,8 +81,18 @@ def _run_gtdb_tk(ids_to_files: Dict[Path, str], output_dir: Path, threads: int, 
                 fatal_tuples.append(fatal_tuple)
     
     miss_genome_ids = set(meta_dict.keys()) - genome_ids
+    filtered_or_failed_genome_ids = get_filtered_or_failed_genome_ids(output_dir)
+    error_genome_ids = miss_genome_ids - filtered_or_failed_genome_ids
+
+    if error_genome_ids:
+        raise ValueError(
+            f"Miss {error_genome_ids} that are not found in either "
+            f"{loader_common_names.GTDB_FILTER_FILE_PATTERN} or "
+            f"{loader_common_names.GTDB_FAIL_GENOME_FILE}"
+        )
+    
     for miss_genome_id in miss_genome_ids:
-        error_message = f"Missing classification attribute from {miss_genome_id}"
+        error_message = f"No result for the genome {miss_genome_id}"
         fatal_tuple = create_gtdbtk_fatal_tuple(miss_genome_id, meta_dict, ids_to_files, error_message, None)
         fatal_tuples.append(fatal_tuple)
 

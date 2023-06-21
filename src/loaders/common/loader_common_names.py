@@ -91,6 +91,8 @@ GTDB_GENOME_ID_COL = "user_genome"
 GTDB_CLASSIFICATION_COL = "classification"
 GTDB_UNCLASSIFIED = "Unclassified"
 GTDB_SUMMARY_FILE_PATTERN = "gtdbtk.*.summary.tsv"
+GTDB_FILTER_FILE_PATTERN = "gtdbtk.*.filtered.tsv"
+GTDB_FAIL_GENOME_FILE = "gtdbtk.failed_genomes.tsv"
 
 # Used by the global fatal error file and nametuple 
 FATAL_ID = "kbase_id"
