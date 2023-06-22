@@ -610,7 +610,6 @@ def get_filtered_or_failed_genome_ids(output_dir: Path):
 
 
 def _get_genome_ids_from_tsv_file(file_path: str):
-    res = []
     with open(file_path, "r") as f:
         res = [line.strip().split("\t")[0] for line in f]
     return res
