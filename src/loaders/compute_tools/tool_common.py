@@ -232,8 +232,8 @@ class ToolRunner:
                   each individual genome directory. Parser program will parse the result file in each individual genome
                   directory.
 
-        tool_callable - the callable for the tool that takes four arguments:
-            * The data ID
+        tool_callable - the callable for the tool that takes 4 arguments:
+            * The kbase ID
             * The input file
             * The output directory
             * A debug boolean
@@ -264,14 +264,12 @@ class ToolRunner:
             os.makedirs(output_dir, exist_ok=True)
 
             args_list.append(
-                (meta[loader_common_names.META_TOOL_IDENTIFIER],
+                (meta[loader_common_names.META_DATA_ID],
                  # use the uncompressed file if it exists, otherwise use the source file
                  meta.get(loader_common_names.META_UNCOMPRESSED_FILE,
                           meta[loader_common_names.META_SOURCE_FILE]),
                  output_dir,
                  self._debug))
-        
-        _create_metadata_file(genomes_meta, batch_dir)
 
         try:
             self._execute(self._threads, tool_callable, args_list, start, False)
@@ -280,9 +278,10 @@ class ToolRunner:
                 print(f"Deleting {len(unzipped_files_to_delete)} unzipped files: {unzipped_files_to_delete[:5]}...")
                 for file in unzipped_files_to_delete:
                     os.remove(file)
+        
+        _create_metadata_file(genomes_meta, batch_dir)
 
-
-    def parallel_batch_execution(self, tool_callable: Callable[[Dict[str, Path], Path, int, bool], None], unzip=False):
+    def parallel_batch_execution(self, tool_callable: Callable[[Dict[str, Path], Path, int, bool, Dict[str, str]], None], unzip=False):
         """
         Run a tool in batched mode, where > 1 data file is processed by the tool in one
         call. Each batch gets its own batch directory.
@@ -294,11 +293,12 @@ class ToolRunner:
                   (gtdbtk.ar53.summary.tsv) is produced per batch.
                   Batching genomes for gtdb_tk execution improves overall throughput.
 
-        tool_callable - the callable for the tool that takes 4 arguments:
-            * A dictionary of the data_id to the source file path
+        tool_callable - the callable for the tool that takes 5 arguments:
+            * A dictionary of the data ID to the source file path
             * The output directory for results
             * The number of threads to use for the batch
             * A debug boolean
+            * A dictionary of the data ID to the kbase ID
         """
         start = time.time()
         num_batches = max(math.floor(self._threads / self._program_threads), 1)
@@ -326,16 +326,15 @@ class ToolRunner:
 
             metas.append((meta, batch_dir))
             ids_to_files = dict()
+            gemome_id_mapping = dict()
             for m in meta.values():
                 # use the uncompressed file if it exists, otherwise use the source file
                 source_file = m.get(loader_common_names.META_UNCOMPRESSED_FILE,
                                     m[loader_common_names.META_SOURCE_FILE])
                 ids_to_files[m[loader_common_names.META_TOOL_IDENTIFIER]] = source_file
+                gemome_id_mapping[m[loader_common_names.META_TOOL_IDENTIFIER]] = m[loader_common_names.META_DATA_ID]
 
-            batch_input.append((ids_to_files, batch_dir, self._program_threads, self._debug))
-
-        for meta in metas:
-            _create_metadata_file(*meta)
+            batch_input.append((ids_to_files, batch_dir, self._program_threads, self._debug, gemome_id_mapping))
             
         try:
             self._execute(num_batches, tool_callable, batch_input, start, True)
@@ -344,7 +343,9 @@ class ToolRunner:
                 print(f"Deleting {len(unzipped_files_to_delete)} unzipped files: {unzipped_files_to_delete[:5]}...")
                 for file in unzipped_files_to_delete:
                     os.remove(file)
-
+        
+        for meta in metas:
+            _create_metadata_file(*meta)
 
     def _execute(
             self,
@@ -617,12 +618,12 @@ def _get_genome_ids_from_tsv_file(file_path: str):
 
 def create_gtdbtk_fatal_tuple(
         genome_id: str,
-        meta_dict: Dict[str, str],
+        gemome_id_mapping: Dict[str, str],
         ids_to_files: Dict[str, Path],
         error_message: str,
         stacktrace: str | None,
 ):
-    kbase_id = meta_dict[genome_id]
+    kbase_id = gemome_id_mapping[genome_id]
     source_file_path = ids_to_files[genome_id]
     fatal_tuple = FatalTuple(kbase_id, error_message, str(source_file_path), stacktrace)
     return fatal_tuple

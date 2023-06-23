@@ -8,7 +8,13 @@ from src.loaders.compute_tools.tool_common import ToolRunner, run_command
 from typing import Dict
 
 
-def _run_checkm2(ids_to_files: Dict[str, Path], output_dir: Path, threads: int, debug: bool):
+def _run_checkm2(
+        ids_to_files: Dict[str, Path],
+        output_dir: Path,
+        threads: int,
+        debug: bool,
+        gemome_id_mapping: Dict[str, str],
+):
     size = len(ids_to_files)
     print(f'Start executing checkM2 for {size} genomes')
     start = time.time()
@@ -29,7 +35,6 @@ def _run_checkm2(ids_to_files: Dict[str, Path], output_dir: Path, threads: int, 
     print(f"Used {round((end_time - start) / 60, 2)} minutes to execute checkM2 predict "
         + f"for {size} genomes"
     )
-    import os
 
 
 def main():

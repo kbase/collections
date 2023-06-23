@@ -13,7 +13,7 @@ SKETCH_SIZE = 10000
 
 
 def _run_mash_single(
-        genome_id: str,
+        kbase_id: str,
         source_file: Path,
         output_dir: Path,
         debug: bool,
