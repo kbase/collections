@@ -29,7 +29,7 @@ async def build_storage(
     cfg: CollectionsServiceConfig,
     data_products: list[DataProductSpec],
 ) -> tuple[aioarango.ArangoClient, ArangoStorage]:
-    cli, db = build_arango_db(cfg, cfg.create_db_on_startup)
+    cli, db = await build_arango_db(cfg, cfg.create_db_on_startup)
     try:
         storage = await ArangoStorage.create(
             db,
