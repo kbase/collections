@@ -508,8 +508,12 @@ def _process_genome_attri_tools(genome_attr_tools: set[str],
     _create_import_files(root_dir, output, docs)
 
     export_types_output = f'{kbase_collection}_{load_ver}_{KBCALL_EXPORT_TYPES_FILE_SUFFIX}'
-    types_doc = data_product_export_types_to_doc(kbase_collection, loader_common_names.GENOME_ATTRIBS, load_ver,
-                                                 sorted(encountered_types))
+    types_doc = data_product_export_types_to_doc(
+        kbase_collection,
+        names.GENOME_ATTRIBS_PRODUCT_ID,
+        load_ver,
+        sorted(encountered_types)
+    )
     _create_import_files(root_dir, export_types_output, [types_doc])
 
 
