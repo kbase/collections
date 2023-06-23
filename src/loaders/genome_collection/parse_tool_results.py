@@ -11,7 +11,8 @@ Note: If the ArangoDB collection has been previously created using a JSON file g
       loader script in order to ensure that the same key is generated for the corresponding Arango document.
 
 usage: parse_tool_results.py [-h] --load_ver LOAD_VER --kbase_collection KBASE_COLLECTION
-                                        [--tools TOOLS [TOOLS ...]] [--root_dir ROOT_DIR] [-o OUTPUT]
+                             [--tools TOOLS [TOOLS ...]] [--root_dir ROOT_DIR] [--check_genome]
+                             [--skip_retrieve_sample]
 
 options:
   -h, --help            show this help message and exit
@@ -26,7 +27,9 @@ optional arguments:
                         Extract results from tools. (default: retrieve all available sub-directories in the [load_ver]
                         directory)
   --root_dir ROOT_DIR   Root directory for the collections project. (default: /global/cfs/cdirs/kbase/collections)
-
+  --check_genome        Ensure a corresponding genome exists for every assembly
+  --skip_retrieve_sample
+                        Skip parsing associated sample data for each genome object
 """
 import argparse
 import copy
@@ -939,9 +942,9 @@ def main():
     optional.add_argument('--check_genome', action="store_true",
                           help='Ensure a corresponding genome exists for every assembly')
     optional.add_argument(
-        "--retrieve_sample",
+        "--skip_retrieve_sample",
         action="store_true",
-        help="Parse associated sample data for each genome object",
+        help="Skip parsing associated sample data for each genome object",
     )
     args = parser.parse_args()
 
@@ -951,7 +954,7 @@ def main():
     root_dir = args.root_dir
     check_genome = args.check_genome
 
-    if args.retrieve_sample:
+    if not args.skip_retrieve_sample:
         _retrieve_sample(root_dir, kbase_collection, load_ver)
 
     result_dir = _locate_dir(root_dir, kbase_collection, load_ver, check_exists=True)
