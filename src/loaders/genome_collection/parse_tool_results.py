@@ -11,7 +11,8 @@ Note: If the ArangoDB collection has been previously created using a JSON file g
       loader script in order to ensure that the same key is generated for the corresponding Arango document.
 
 usage: parse_tool_results.py [-h] --load_ver LOAD_VER --kbase_collection KBASE_COLLECTION
-                                        [--tools TOOLS [TOOLS ...]] [--root_dir ROOT_DIR] [-o OUTPUT]
+                             [--tools TOOLS [TOOLS ...]] [--root_dir ROOT_DIR] [--check_genome]
+                             [--skip_retrieve_sample]
 
 options:
   -h, --help            show this help message and exit
@@ -26,13 +27,14 @@ optional arguments:
                         Extract results from tools. (default: retrieve all available sub-directories in the [load_ver]
                         directory)
   --root_dir ROOT_DIR   Root directory for the collections project. (default: /global/cfs/cdirs/kbase/collections)
-
+  --check_genome        Ensure a corresponding genome exists for every assembly
+  --skip_retrieve_sample
+                        Skip parsing associated sample data for each genome object
 """
 import argparse
 import copy
 import json
 import os
-import re
 import shutil
 import sys
 import tempfile
@@ -63,7 +65,7 @@ from src.loaders.common import loader_common_names
 from src.loaders.common.loader_helper import (
     convert_to_json,
     create_global_fatal_dict_doc,
-    init_genome_atrri_doc,
+    init_row_doc,
     is_upa_info_complete,
     merge_docs,
 )
@@ -136,6 +138,9 @@ IMPORT_DIR = 'import_files'
 # (https://github.com/jgi-kbase/AssemblyHomologyService#sequence-metadata-file)
 SEQ_METADATA = 'seq_metadata.jsonl'
 
+# The suffix for prepared samples data
+_PREPARED_SAMPLES = 'samples.jsonl'
+
 # Merged FATAL_ERROR_FILE
 FATAL_ERROR_FILE_SUFFIX = 'fatal_error.jsonl'
 
@@ -168,7 +173,7 @@ def _create_doc(row, kbase_collection, load_version, genome_id, features, prefix
 
     # NOTE: The selected column names will have a prefix added to them if pre_fix is not empty.
 
-    doc = init_genome_atrri_doc(kbase_collection, load_version, genome_id)
+    doc = init_row_doc(kbase_collection, load_version, genome_id)
 
     # distinguish the selected fields from the original metadata by adding a common prefix to their names
     if features:
@@ -187,7 +192,7 @@ def _row_to_doc(row, kbase_collection, load_version, features, tool_genome_map, 
     except KeyError as e:
         raise ValueError('Unable to find genome ID') from e
 
-    doc = None 
+    doc = None
     if genome_id not in fatal_ids:
         doc = _create_doc(row, kbase_collection, load_version, genome_id, features, prefix)
 
@@ -429,7 +434,7 @@ def _process_fatal_error_tools(check_fatal_error_tools: set[str],
 
     if not check_fatal_error_tools:
         return set()
-    
+
     fatal_dict = dict()
     for tool in check_fatal_error_tools:
         result_dir = _locate_dir(root_dir, kbase_collection, load_ver, tool=tool)
@@ -448,19 +453,20 @@ def _process_fatal_error_tools(check_fatal_error_tools: set[str],
                     fatal_errors = json.load(json_file)
             except Exception as e:
                 raise ValueError(f"{fatal_error_file} exists, but unable to retrive") from e
-            
+
             for kbase_id in fatal_errors:
                 fatal_dict_info = create_global_fatal_dict_doc(
-                    tool, 
-                    fatal_errors[kbase_id][loader_common_names.FATAL_ERROR], 
+                    tool,
+                    fatal_errors[kbase_id][loader_common_names.FATAL_ERROR],
                     fatal_errors[kbase_id][loader_common_names.FATAL_STACKTRACE])
                 if fatal_dict.get(kbase_id):
                     fatal_dict[kbase_id][loader_common_names.FATAL_ERRORS].append(
                         fatal_dict_info)
                 else:
-                    fatal_dict[kbase_id] = {loader_common_names.FATAL_FILE: fatal_errors[kbase_id][loader_common_names.FATAL_FILE],
-                                            loader_common_names.FATAL_ERRORS: [fatal_dict_info]}
-    
+                    fatal_dict[kbase_id] = {
+                        loader_common_names.FATAL_FILE: fatal_errors[kbase_id][loader_common_names.FATAL_FILE],
+                        loader_common_names.FATAL_ERRORS: [fatal_dict_info]}
+
     import_dir = os.path.join(root_dir, IMPORT_DIR)
     os.makedirs(import_dir, exist_ok=True)
     fatal_output = f"{kbase_collection}_{load_ver}_{loader_common_names.FATAL_ERROR_FILE}"
@@ -468,7 +474,7 @@ def _process_fatal_error_tools(check_fatal_error_tools: set[str],
     print(f"Creating a merged {loader_common_names.FATAL_ERROR_FILE}: {fatal_error_path}")
     with open(fatal_error_path, "w") as outfile:
         outfile.dump(fatal_dict, outfile)
-    
+
     return set(fatal_dict.keys())
 
 
@@ -785,7 +791,7 @@ def microtrait(root_dir, kbase_collection, load_ver, fatal_ids):
             data_dir = os.path.join(result_dir, batch_dir, data_id)
             if data_id in fatal_ids:
                 continue
-            
+
             trait_count_file = os.path.join(data_dir, loader_common_names.TRAIT_COUNTS_FILE)
             selected_cols = _MICROTRAIT_TO_SYS_TRAIT_MAP.keys()
             trait_df = pd.read_csv(trait_count_file, usecols=selected_cols)
@@ -819,7 +825,7 @@ def microtrait(root_dir, kbase_collection, load_ver, fatal_ids):
         d.pop(names.FLD_SELECTED, None)  # inserted by the model but not needed in the DB
         heatmap_rows_list.append(dict(
             # Needs to have the match and selection field inserted
-            d, **init_genome_atrri_doc(kbase_collection, load_ver, d[names.FLD_KBASE_ID])
+            d, **init_row_doc(kbase_collection, load_ver, d[names.FLD_KBASE_ID])
         ))
     heatmap_cell_details_list = _process_rows_list(heatmap_cell_details_list,
                                                    kbase_collection,
@@ -847,7 +853,7 @@ def gtdb_tk(root_dir, kbase_collection, load_ver, fatal_ids):
         if not summary_files:
             raise ValueError(f'No summary files exist for gtdb-tk in the specified '
                              f'batch directory {batch_dir}.')
-        
+
         for tool_file_name in summary_files:
             docs = _read_tool_result(result_dir, batch_dir, kbase_collection, load_ver,
                                      tool_file_name, SELECTED_GTDBTK_SUMMARY_FEATURES, genome_id_col, fatal_ids)
@@ -881,6 +887,37 @@ def checkm2(root_dir, kbase_collection, load_ver, fatal_ids):
     return checkm2_docs
 
 
+def _retrieve_sample(root_dir, kbase_collection, load_ver):
+    print(f'Parsing sample data for {kbase_collection} collection, version {load_ver}.')
+
+    source_dir = os.path.join(root_dir, loader_common_names.COLLECTION_SOURCE_DIR, kbase_collection, load_ver)
+    if not os.path.exists(source_dir):
+        raise ValueError(f'The source directory {source_dir} does not exist.')
+
+    data_ids = [data_dir for data_dir in os.listdir(source_dir) if os.path.isdir(os.path.join(source_dir, data_dir))]
+    prepared_samples_data = list()
+    for data_id in data_ids:
+        data_dir = os.path.join(source_dir, data_id)
+        prepared_sample_files = [file for file in os.listdir(data_dir) if
+                                 file.endswith(loader_common_names.SAMPLE_PREPARED_EXT)]
+
+        if len(prepared_sample_files) != 1:
+            raise ValueError(
+                f'Expected to find one prepared sample file in {data_dir} but found {prepared_sample_files}.')
+
+        prepared_sample_file = os.path.join(data_dir, prepared_sample_files[0])
+
+        with open(prepared_sample_file, 'r') as file:
+            sample_data = json.load(file)
+
+        doc = init_row_doc(kbase_collection, load_ver, data_id)
+        doc.update(sample_data)
+
+        prepared_samples_data.append(doc)
+
+    _create_import_files(root_dir, f'{kbase_collection}_{load_ver}_{_PREPARED_SAMPLES}', prepared_samples_data)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='PROTOTYPE - Generate a JSON file for importing into ArangoDB by parsing computed '
@@ -904,6 +941,11 @@ def main():
                           help=f'Root directory for the collections project. (default: {loader_common_names.ROOT_DIR})')
     optional.add_argument('--check_genome', action="store_true",
                           help='Ensure a corresponding genome exists for every assembly')
+    optional.add_argument(
+        "--skip_retrieve_sample",
+        action="store_true",
+        help="Skip parsing associated sample data for each genome object",
+    )
     args = parser.parse_args()
 
     tools = [tool.lower() for tool in args.tools] if args.tools else None
@@ -911,6 +953,9 @@ def main():
     kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
     root_dir = args.root_dir
     check_genome = args.check_genome
+
+    if not args.skip_retrieve_sample:
+        _retrieve_sample(root_dir, kbase_collection, load_ver)
 
     result_dir = _locate_dir(root_dir, kbase_collection, load_ver, check_exists=True)
 
@@ -922,12 +967,12 @@ def main():
     if set(tools) - set(executed_tools):
         raise ValueError(f'Please ensure that all tools have been successfully executed. '
                          f'Only the following tools have already been run: {executed_tools}')
-    
+
     fatal_ids = _process_fatal_error_tools(set(ALL_TOOLS).intersection(tools), root_dir, kbase_collection, load_ver)
 
     _process_genome_attri_tools(set(GENOME_ATTR_TOOLS).intersection(tools), root_dir, kbase_collection, load_ver,
                                 check_genome, fatal_ids)
-    
+
     _process_heatmap_tools(set(HEATMAP_TOOLS).intersection(tools), root_dir, kbase_collection, load_ver, fatal_ids)
 
     if 'mash' in tools:
