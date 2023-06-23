@@ -31,10 +31,9 @@ from src.service.data_products.common_models import (
     QUERY_VALIDATOR_LIMIT,
     QUERY_COUNT,
     QUERY_MATCH_ID,
-    QUERY_MATCH_MARK,
     QUERY_SELECTION_ID,
-    QUERY_SELECTION_MARK,
 )
+from src.service.data_products.table_models import TableAttributes
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
@@ -222,43 +221,6 @@ def _remove_keys(doc):
     return doc
 
 
-class AttributeName(BaseModel):
-    name: str = Field(
-        example=names.FLD_KBASE_ID,
-        description="The name of an attribute"
-    )
-
-class GenomeAttributes(BaseModel, extra=Extra.allow):
-    """
-    Attributes for a set of genomes. Either `fields` and `table` are returned, `data` is
-    returned, or `count` is returned.
-    The set of available attributes may be different for different collections.
-    """
-    skip: int = Field(example=0, description="The number of records that were skipped.")
-    limit: int = Field(
-        example=1000,
-        description="The maximum number of results that could be returned. "
-            + "0 and meaningless if `count` is specified"
-    )
-    # may need to return fields with data in the future if we add more info to fields
-    fields: list[AttributeName] | None = Field(
-        description="The name for each column in the attribute table."
-    )
-    table: list[list[Any]] | None = Field(
-        example=[["my_genome_name"]],
-        description="The attributes in an NxM table. Each column's name is available at the "
-            + "corresponding index in the fields parameter. Each inner list is a row in the "
-            + "table with each entry being the entry for that column."
-    )
-    data: list[dict[str, Any]] | None = Field(
-        example=[{names.FLD_KBASE_ID: "assigned_kbase_genome_id"}],
-        description="The attributes as a list of dictionaries."
-    )
-    count: int | None = Field(
-        example=42,
-        description="The number of attribute records that match the query.",
-    )
-
 _FLD_COL_ID = "colid"
 _FLD_COL_NAME = "colname"
 _FLD_COL_LV = "colload"
@@ -273,7 +235,7 @@ _FLD_LIMIT = "limit"
 # in the collection and check the fields 
 @_ROUTER.get(
     "/",
-    response_model=GenomeAttributes,
+    response_model=TableAttributes,
     description="Get genome attributes for each genome in the collection, which may differ from "
         + "collection to collection.\n\n "
         + "Authentication is not required unless submitting a match ID or overriding the load "
@@ -299,13 +261,13 @@ async def get_genome_attributes(
         example=1000,
         description="The number of records to skip"
     ),
-    limit: int = QUERY_VALIDATOR_LIMIT,
+    limit: QUERY_VALIDATOR_LIMIT = 1000,
     output_table: bool = Query(
         default=True,
         description="Whether to return the data in table form or dictionary list form"
     ),
-    count: bool = QUERY_COUNT,
-    match_id: str | None = QUERY_MATCH_ID,
+    count: QUERY_COUNT = False,
+    match_id: QUERY_MATCH_ID = None,
     # TODO FEATURE support a choice of AND or OR for matches & selections
     match_mark: bool = Query(
         default=False,
@@ -313,14 +275,14 @@ async def get_genome_attributes(
             + "Matched rows will be indicated by a true value in the special field "
             + f"`{names.FLD_GENOME_ATTRIBS_MATCHED}`."
     ),
-    selection_id: str | None = QUERY_SELECTION_ID,
+    selection_id: QUERY_SELECTION_ID = None,
     selection_mark: bool = Query(
         default=False,
         description="Whether to mark selected rows rather than filter based on the selection ID. "
             + "Selected rows will be indicated by a true value in the special field "
             + f"`{names.FLD_GENOME_ATTRIBS_SELECTED}`."
     ),
-    load_ver_override: Annotated[str | None, QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE] = None,
+    load_ver_override: QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
 ):
     # sorting only works here since we expect the largest collection to be ~300K records and
@@ -362,7 +324,7 @@ async def get_genome_attributes(
             match_mark,
             internal_selection_id,
             selection_mark,
-        ) 
+        )
 
 
 async def _get_internal_match_id(
