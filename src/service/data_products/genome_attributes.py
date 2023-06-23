@@ -1,5 +1,5 @@
 """
-The genome_attribs data product, which provides geneome attributes for a collection.
+The genome_attribs data product, which provides genome attributes for a collection.
 """
 
 from collections import defaultdict
@@ -44,7 +44,7 @@ from typing import Any, Callable, Annotated
 # Implementation note - we know FLD_KBASE_ID is unique per collection id /
 # load version combination since the loader uses those 3 fields as the arango _key
 
-ID = "genome_attribs"
+ID = names.GENOME_ATTRIBS_PRODUCT_ID
 
 _ROUTER = APIRouter(tags=["Genome Attributes"], prefix=f"/{ID}")
 

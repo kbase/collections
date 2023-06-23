@@ -58,6 +58,7 @@ from typing import Any
 
 import docker
 
+import src.common.storage.collection_and_field_names as names
 from src.clients.AssemblyUtilClient import AssemblyUtil
 from src.clients.SampleServiceClient import SampleService
 from src.clients.workspaceClient import Workspace
@@ -441,14 +442,14 @@ def _retrieve_node_data(
     sample_node = node_tree[0]
 
     meta_controlled = sample_node['meta_controlled']
-    _check_dict_contains(meta_controlled, [loader_common_names.SAMPLE_LATITUDE, loader_common_names.SAMPLE_LONGITUDE])
+    _check_dict_contains(meta_controlled, [names.SAMPLE_LATITUDE, names.SAMPLE_LONGITUDE])
     for key, meta_value in meta_controlled.items():
         _validate_node_data(key, meta_value)
         node_data[key] = meta_value['value']
 
     # create and add geo-spatial data in the format of [latitude, longitude]
-    node_data[loader_common_names.SAMPLE_GEO] = [meta_controlled[loader_common_names.SAMPLE_LATITUDE]['value'],
-                                                 meta_controlled[loader_common_names.SAMPLE_LONGITUDE]['value']]
+    node_data[names.SAMPLE_GEO] = [meta_controlled[names.SAMPLE_LATITUDE]['value'],
+                                   meta_controlled[names.SAMPLE_LONGITUDE]['value']]
 
     return node_data
 
@@ -457,7 +458,7 @@ def _validate_node_data(key, meta_value):
     # validate meta_value for a given key
 
     # validate latitude and longitude sample data
-    if key in [loader_common_names.SAMPLE_LATITUDE, loader_common_names.SAMPLE_LONGITUDE]:
+    if key in [names.SAMPLE_LATITUDE, names.SAMPLE_LONGITUDE]:
         expected_keys = ['value', 'units']
         _check_dict_keys(meta_value, expected_keys)
 

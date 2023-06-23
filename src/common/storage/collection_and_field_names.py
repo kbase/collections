@@ -212,6 +212,8 @@ FLD_TAXA_COUNT_COUNT = "count"
 
 ### Genome attributes
 
+GENOME_ATTRIBS_PRODUCT_ID = "genome_attribs"
+
 COLL_GENOME_ATTRIBS: Annotated[
     str,
     COLL_ANNOTATION,
@@ -219,7 +221,7 @@ COLL_GENOME_ATTRIBS: Annotated[
         COLL_ANNOKEY_DESCRIPTION: "A collection holding genome attributes data.",
         COLL_ANNOKEY_SUGGESTED_SHARDS: 3,
     }
-] = COLLECTION_PREFIX + "genome_attribs"
+] = COLLECTION_PREFIX + GENOME_ATTRIBS_PRODUCT_ID
 
 #### Genome attribute document fields
 
@@ -277,3 +279,25 @@ COLL_MICROTRAIT_CELLS: Annotated[
         COLL_ANNOKEY_SUGGESTED_SHARDS: 3,
     }
 ] = _MICROTRAIT_COLL_PREFIX + "cells"
+
+
+### samples
+
+COLL_SAMPLES: Annotated[
+    str,
+    COLL_ANNOTATION,
+    {
+        COLL_ANNOKEY_DESCRIPTION: "A collection holding sample data.",
+        COLL_ANNOKEY_SUGGESTED_SHARDS: 3,
+    }
+    
+] = COLLECTION_PREFIX + "samples"
+
+SAMPLE_LATITUDE = "latitude"
+""" Key name for latitude data in degrees"""
+
+SAMPLE_LONGITUDE = "longitude"
+""" Key name for longitude data in degrees"""
+
+SAMPLE_GEO = '_geo_spatial'
+""" Key name for sample geo-spatial data in format of [longitude, latitude] """
