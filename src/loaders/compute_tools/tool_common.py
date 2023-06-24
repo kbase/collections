@@ -327,12 +327,12 @@ class ToolRunner:
             metas.append((meta, batch_dir))
             ids_to_files = dict()
             gemome_id_mapping = dict()
-            for m in meta.values():
+            for data_id, m in meta.items():
                 # use the uncompressed file if it exists, otherwise use the source file
                 source_file = m.get(loader_common_names.META_UNCOMPRESSED_FILE,
                                     m[loader_common_names.META_SOURCE_FILE])
                 ids_to_files[m[loader_common_names.META_TOOL_IDENTIFIER]] = source_file
-                gemome_id_mapping[m[loader_common_names.META_TOOL_IDENTIFIER]] = m[loader_common_names.META_DATA_ID]
+                gemome_id_mapping[m[loader_common_names.META_TOOL_IDENTIFIER]] = data_id
 
             batch_input.append((ids_to_files, batch_dir, self._program_threads, self._debug, gemome_id_mapping))
             
