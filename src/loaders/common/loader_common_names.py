@@ -63,8 +63,6 @@ SOURCE_METADATA_FILE_KEYS = ["upa", "name", "type", "timestamp"]
 # callback server docker image name
 CALLBACK_IMAGE_NAME = "scanon/callback"
 
-# genome_attribs
-GENOME_ATTRIBS = "genome_attribs"
 # a list of IDs provided to the computation script
 DATA_ID_COLUMN_HEADER = "genome_id"  # TODO DATA_ID change to data ID for generality
 
@@ -112,9 +110,3 @@ SAMPLE_EFFECTIVE_TIME = "sample_effective_time"
 # extension for source sample data file and prepared sample node data file for downloaded workspace objects
 SAMPLE_FILE_EXT = "sample"
 SAMPLE_PREPARED_EXT = "prepared.sample"
-
-# key name for latitude and longitude data from sample's meta_controlled
-SAMPLE_LATITUDE = "latitude"
-SAMPLE_LONGITUDE = "longitude"
-# key name for created sample geo-spatial data in format of [longitude, latitude]
-SAMPLE_GEO = '_geo_spatial'
