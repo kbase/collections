@@ -233,7 +233,7 @@ class ToolRunner:
                   directory.
 
         tool_callable - the callable for the tool that takes 4 arguments:
-            * The kbase ID
+            * The data ID
             * The input file
             * The output directory
             * A debug boolean
@@ -264,7 +264,7 @@ class ToolRunner:
             os.makedirs(output_dir, exist_ok=True)
 
             args_list.append(
-                (meta[loader_common_names.META_DATA_ID],
+                (data_id,
                  # use the uncompressed file if it exists, otherwise use the source file
                  meta.get(loader_common_names.META_UNCOMPRESSED_FILE,
                           meta[loader_common_names.META_SOURCE_FILE]),
@@ -294,11 +294,11 @@ class ToolRunner:
                   Batching genomes for gtdb_tk execution improves overall throughput.
 
         tool_callable - the callable for the tool that takes 5 arguments:
-            * A dictionary of the data ID to the source file path
+            * A dictionary of the tool_identifier to the source file path
             * The output directory for results
             * The number of threads to use for the batch
             * A debug boolean
-            * A dictionary of the data ID to the kbase ID
+            * A dictionary of the tool_identifier to the data ID
         """
         start = time.time()
         num_batches = max(math.floor(self._threads / self._program_threads), 1)
@@ -621,7 +621,7 @@ def create_gtdbtk_fatal_tuple(
         gemome_id_mapping: Dict[str, str],
         ids_to_files: Dict[str, Path],
         error_message: str,
-        stacktrace: str | None,
+        stacktrace: str = None,
 ):
     kbase_id = gemome_id_mapping[genome_id]
     source_file_path = ids_to_files[genome_id]

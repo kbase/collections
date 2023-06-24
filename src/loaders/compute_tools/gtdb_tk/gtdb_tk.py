@@ -75,7 +75,7 @@ def _run_gtdb_tk(
             genome_ids.add(genome_id)
             if classify_res.startswith(loader_common_names.GTDB_UNCLASSIFIED):
                 error_message = f"GTDB_tk classification failed: {classify_res}"
-                fatal_tuple = create_gtdbtk_fatal_tuple(genome_id, gemome_id_mapping, ids_to_files, error_message, None)
+                fatal_tuple = create_gtdbtk_fatal_tuple(genome_id, gemome_id_mapping, ids_to_files, error_message)
                 fatal_tuples.append(fatal_tuple)
     
     miss_genome_ids = set(gemome_id_mapping.keys()) - genome_ids
@@ -91,7 +91,7 @@ def _run_gtdb_tk(
     
     for miss_genome_id in miss_genome_ids:
         error_message = f"No result for the genome {miss_genome_id}"
-        fatal_tuple = create_gtdbtk_fatal_tuple(miss_genome_id, gemome_id_mapping, ids_to_files, error_message, None)
+        fatal_tuple = create_gtdbtk_fatal_tuple(miss_genome_id, gemome_id_mapping, ids_to_files, error_message)
         fatal_tuples.append(fatal_tuple)
 
     write_fatal_tuples_to_dict(fatal_tuples, output_dir)

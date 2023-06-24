@@ -13,7 +13,7 @@ SKETCH_SIZE = 10000
 
 
 def _run_mash_single(
-        kbase_id: str,
+        data_id: str,
         source_file: Path,
         output_dir: Path,
         debug: bool,
