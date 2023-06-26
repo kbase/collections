@@ -293,11 +293,11 @@ COLL_SAMPLES: Annotated[
     
 ] = COLLECTION_PREFIX + "samples"
 
-SAMPLE_LATITUDE = "latitude"
+FLD_SAMPLE_LATITUDE = "latitude"
 """ Key name for latitude data in degrees"""
 
-SAMPLE_LONGITUDE = "longitude"
+FLD_SAMPLE_LONGITUDE = "longitude"
 """ Key name for longitude data in degrees"""
 
-SAMPLE_GEO = '_geo_spatial'
+FLD_SAMPLE_GEO = '_geo_spatial'
 """ Key name for sample geo-spatial data in format of [longitude, latitude] """
