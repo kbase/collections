@@ -11,6 +11,7 @@ import pandas as pd
 
 from src.loaders.common import loader_common_names
 from src.loaders.compute_tools.tool_common import (
+    GenomeTuple,
     ToolRunner,
     create_gtdbtk_fatal_tuple,
     find_gtdbtk_summary_files,
@@ -21,11 +22,10 @@ from src.loaders.compute_tools.tool_common import (
 
 
 def _run_gtdb_tk(
-        ids_to_files: Dict[str, Path],
+        ids_to_files: Dict[str, GenomeTuple],
         output_dir: Path,
         threads: int,
         debug: bool,
-        gemome_id_mapping: Dict[str, str],
 ):
     size = len(ids_to_files)
     print(f'Start executing GTDB-TK for {size} genomes')
@@ -35,8 +35,8 @@ def _run_gtdb_tk(
     # tab separated in 2 columns (FASTA file, genome ID)
     batch_file_path = output_dir / f'genome.fasta.list'
     with open(batch_file_path, "w") as batch_file:
-        for genome_id, source_file in ids_to_files.items():
-            batch_file.write(f'{source_file}\t{genome_id}\n')
+        for genome_id, genome_tuple in ids_to_files.items():
+            batch_file.write(f'{getattr(genome_tuple, loader_common_names.META_SOURCE_FILE)}\t{genome_id}\n')
     command = ['gtdbtk', 'classify_wf',
                '--batchfile', str(batch_file_path),
                '--out_dir', str(output_dir),
@@ -75,10 +75,10 @@ def _run_gtdb_tk(
             genome_ids.add(genome_id)
             if classify_res.startswith(loader_common_names.GTDB_UNCLASSIFIED):
                 error_message = f"GTDB_tk classification failed: {classify_res}"
-                fatal_tuple = create_gtdbtk_fatal_tuple(genome_id, gemome_id_mapping, ids_to_files, error_message)
+                fatal_tuple = create_gtdbtk_fatal_tuple(genome_id, ids_to_files, error_message)
                 fatal_tuples.append(fatal_tuple)
     
-    miss_genome_ids = set(gemome_id_mapping.keys()) - genome_ids
+    miss_genome_ids = set(ids_to_files.keys()) - genome_ids
     filtered_or_failed_genome_ids = get_filtered_or_failed_genome_ids(output_dir)
     error_genome_ids = miss_genome_ids - filtered_or_failed_genome_ids
 
@@ -91,7 +91,7 @@ def _run_gtdb_tk(
     
     for miss_genome_id in miss_genome_ids:
         error_message = f"No result for the genome {miss_genome_id}"
-        fatal_tuple = create_gtdbtk_fatal_tuple(miss_genome_id, gemome_id_mapping, ids_to_files, error_message)
+        fatal_tuple = create_gtdbtk_fatal_tuple(miss_genome_id, ids_to_files, error_message)
         fatal_tuples.append(fatal_tuple)
 
     write_fatal_tuples_to_dict(fatal_tuples, output_dir)

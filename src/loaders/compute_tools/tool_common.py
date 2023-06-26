@@ -50,6 +50,24 @@ _STANDARD_FILE_EXCLUDE_SUBSTRINGS = ['cds_from', 'rna_from', 'ERR']
 
 _ID_MUNGING_SUFFIX = "_kbase"
 
+FatalTuple = namedtuple(
+    "FatalTuple",
+    [
+        loader_common_names.FATAL_ID,
+        loader_common_names.FATAL_ERROR,
+        loader_common_names.FATAL_FILE,
+        loader_common_names.FATAL_STACKTRACE,
+    ]
+)
+
+GenomeTuple = namedtuple(
+    "GenomeTuple",
+    [
+        loader_common_names.META_SOURCE_FILE,
+        loader_common_names.META_DATA_ID,
+    ]
+)
+
 
 class ToolRunner:
 
@@ -219,7 +237,7 @@ class ToolRunner:
             data_ids = all_data_ids
         return list(set(data_ids))
 
-    def parallel_single_execution(self, tool_callable: Callable[[str, Path, Path, bool], None], unzip=False):
+    def parallel_single_execution(self, tool_callable: Callable[[str, Path, Path, bool, str], None], unzip=False):
         """
         Run a tool by a single data file, storing the results in a single batch directory with
         the individual runs stored in directories by the data ID.
@@ -233,10 +251,11 @@ class ToolRunner:
                   directory.
 
         tool_callable - the callable for the tool that takes 4 arguments:
-            * The data ID
+            * The tool identifier
             * The input file
             * The output directory
             * A debug boolean
+            * The data ID
 
         unzip - if True, unzip the input file before passing it to the tool callable. (unzipped file will be deleted)
         """
@@ -264,12 +283,13 @@ class ToolRunner:
             os.makedirs(output_dir, exist_ok=True)
 
             args_list.append(
-                (data_id,
+                (meta[loader_common_names.META_TOOL_IDENTIFIER],
                  # use the uncompressed file if it exists, otherwise use the source file
                  meta.get(loader_common_names.META_UNCOMPRESSED_FILE,
                           meta[loader_common_names.META_SOURCE_FILE]),
                  output_dir,
-                 self._debug))
+                 self._debug,
+                 data_id))
 
         try:
             self._execute(self._threads, tool_callable, args_list, start, False)
@@ -281,7 +301,7 @@ class ToolRunner:
         
         _create_metadata_file(genomes_meta, batch_dir)
 
-    def parallel_batch_execution(self, tool_callable: Callable[[Dict[str, Path], Path, int, bool, Dict[str, str]], None], unzip=False):
+    def parallel_batch_execution(self, tool_callable: Callable[[Dict[str, GenomeTuple], Path, int, bool], None], unzip=False):
         """
         Run a tool in batched mode, where > 1 data file is processed by the tool in one
         call. Each batch gets its own batch directory.
@@ -293,12 +313,11 @@ class ToolRunner:
                   (gtdbtk.ar53.summary.tsv) is produced per batch.
                   Batching genomes for gtdb_tk execution improves overall throughput.
 
-        tool_callable - the callable for the tool that takes 5 arguments:
-            * A dictionary of the tool_identifier to the source file path
+        tool_callable - the callable for the tool that takes 4 arguments:
+            * A dictionary of the tool identifier to the GenomeTuple
             * The output directory for results
             * The number of threads to use for the batch
             * A debug boolean
-            * A dictionary of the tool_identifier to the data ID
         """
         start = time.time()
         num_batches = max(math.floor(self._threads / self._program_threads), 1)
@@ -326,15 +345,13 @@ class ToolRunner:
 
             metas.append((meta, batch_dir))
             ids_to_files = dict()
-            gemome_id_mapping = dict()
             for data_id, m in meta.items():
                 # use the uncompressed file if it exists, otherwise use the source file
                 source_file = m.get(loader_common_names.META_UNCOMPRESSED_FILE,
                                     m[loader_common_names.META_SOURCE_FILE])
-                ids_to_files[m[loader_common_names.META_TOOL_IDENTIFIER]] = source_file
-                gemome_id_mapping[m[loader_common_names.META_TOOL_IDENTIFIER]] = data_id
+                ids_to_files[m[loader_common_names.META_TOOL_IDENTIFIER]] = GenomeTuple(source_file, data_id)
 
-            batch_input.append((ids_to_files, batch_dir, self._program_threads, self._debug, gemome_id_mapping))
+            batch_input.append((ids_to_files, batch_dir, self._program_threads, self._debug))
             
         try:
             self._execute(num_batches, tool_callable, batch_input, start, True)
@@ -558,17 +575,6 @@ def _find_data_file(
     return genome_files[0]
 
 
-FatalTuple = namedtuple(
-    "FatalTuple",
-    [
-        loader_common_names.FATAL_ID, 
-        loader_common_names.FATAL_ERROR,
-        loader_common_names.FATAL_FILE,
-        loader_common_names.FATAL_STACKTRACE,
-    ]
-)
-
-
 def write_fatal_tuples_to_dict(fatal_tuples: List[FatalTuple], output_dir: Path):
     fatal_dict = {}
     for fatal_tuple in fatal_tuples:
@@ -618,16 +624,16 @@ def _get_genome_ids_from_tsv_file(file_path: str):
 
 def create_gtdbtk_fatal_tuple(
         genome_id: str,
-        gemome_id_mapping: Dict[str, str],
-        ids_to_files: Dict[str, Path],
+        ids_to_files: Dict[str, GenomeTuple],
         error_message: str,
         stacktrace: str = None,
 ):
-    kbase_id = gemome_id_mapping[genome_id]
-    source_file_path = ids_to_files[genome_id]
+    genome_tuple = ids_to_files[genome_id]
+    kbase_id = getattr(genome_tuple, loader_common_names.META_DATA_ID)
+    source_file_path = getattr(genome_tuple, loader_common_names.META_SOURCE_FILE)
     fatal_tuple = FatalTuple(kbase_id, error_message, str(source_file_path), stacktrace)
     return fatal_tuple
-    
+
 
 if __name__ == "__main__":
     # mostly just here to allow easily getting the help info with --help:

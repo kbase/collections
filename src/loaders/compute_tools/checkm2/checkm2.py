@@ -2,18 +2,23 @@
 Run checkm2 on a set of assemblies.
 """
 
-from pathlib import Path
 import time
-from src.loaders.compute_tools.tool_common import ToolRunner, run_command
+from pathlib import Path
 from typing import Dict
+
+from src.loaders.common import loader_common_names
+from src.loaders.compute_tools.tool_common import (
+    GenomeTuple,
+    ToolRunner,
+    run_command,
+)
 
 
 def _run_checkm2(
-        ids_to_files: Dict[str, Path],
+        ids_to_files: Dict[str, GenomeTuple],
         output_dir: Path,
         threads: int,
         debug: bool,
-        gemome_id_mapping: Dict[str, str],
 ):
     size = len(ids_to_files)
     print(f'Start executing checkM2 for {size} genomes')
@@ -24,7 +29,8 @@ def _run_checkm2(
                '--output-directory', str(output_dir),
                '--threads', str(threads),
                '--force',  # will overwrite output directory contents
-               '--input'] + [str(v) for v in ids_to_files.values()]
+               '--input'] + [str(getattr(v, loader_common_names.META_SOURCE_FILE))
+                             for v in ids_to_files.values()]
 
     command.append('--debug') if debug else None
     print(f'running {" ".join(command)}')

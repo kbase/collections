@@ -6,17 +6,18 @@ import os
 from pathlib import Path
 
 from src.loaders.common.loader_common_names import MASH_METADATA
-from src.loaders.compute_tools.tool_common import ToolRunner, run_command, unpack_gz_file
+from src.loaders.compute_tools.tool_common import ToolRunner, run_command
 
 KMER_SIZE = 19
 SKETCH_SIZE = 10000
 
 
 def _run_mash_single(
-        data_id: str,
+        genome_id: str,
         source_file: Path,
         output_dir: Path,
         debug: bool,
+        kbase_id: str,
         kmer_size: int = KMER_SIZE,
         sketch_size: int = SKETCH_SIZE) -> None:
     # RUN mash sketch for a single genome

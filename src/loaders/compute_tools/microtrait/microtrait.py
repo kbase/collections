@@ -47,7 +47,7 @@ def _r_table_to_df(r_table):
     return df
 
 
-def _run_microtrait(data_id: str, fna_file: Path, genome_dir: Path, debug: bool):
+def _run_microtrait(genome_id: str, fna_file: Path, genome_dir: Path, debug: bool, kbase_id: str):
     # run microtrait.extract_traits on the genome file
     # https://github.com/ukaraoz/microtrait
 
@@ -76,7 +76,7 @@ def _run_microtrait(data_id: str, fna_file: Path, genome_dir: Path, debug: bool)
     trait_counts, exist = _get_r_list_element(microtrait_result, TRAIT_COUNTS_ATGRANULARITY)
     if not exist:
         error_message = "Microtrait output no data"
-        fatal_tuples = [FatalTuple(data_id, error_message, str(fna_file), None)]
+        fatal_tuples = [FatalTuple(kbase_id, error_message, str(fna_file), None)]
         write_fatal_tuples_to_dict(fatal_tuples, genome_dir)
         return 
     # example trait_counts_df from trait_counts_atgranularity3
