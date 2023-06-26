@@ -525,7 +525,7 @@ def main():
     optional.add_argument(
         "--env",
         type=str,
-        choices=loader_common_names.KB_BASE_ENV,
+        choices=loader_common_names.KB_ENV,
         default='PROD',
         help="KBase base URL, defaulting to prod",
     )
