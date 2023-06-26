@@ -197,7 +197,7 @@ class HeatMapController:
         self,
         r: Request,
         collection_id: Annotated[str, PATH_VALIDATOR_COLLECTION_ID],
-        load_ver_override: Annotated[str | None, QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE] = None,
+        load_ver_override: QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
         user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
     ) -> heatmap_models.HeatMapMeta:
         storage = app_state.get_app_state(r).arangostorage
@@ -215,7 +215,7 @@ class HeatMapController:
             example="4",
             description="The ID of the cell in the heatmap."
         ),
-        load_ver_override: Annotated[str | None, QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE] = None,
+        load_ver_override: QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
         user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
     ) -> heatmap_models.CellDetail:
         storage = app_state.get_app_state(r).arangostorage
@@ -237,15 +237,15 @@ class HeatMapController:
                 + "parameter can be used to page through the data by providing the ID from "
                 + "the last row in the previous set of data."
         ),
-        limit: int = QUERY_VALIDATOR_LIMIT,
-        count: bool = QUERY_COUNT,
-        match_id: str | None = QUERY_MATCH_ID,
+        limit: QUERY_VALIDATOR_LIMIT = 1000,
+        count: QUERY_COUNT = False,
+        match_id: QUERY_MATCH_ID = None,
         # TODO FEATURE support a choice of AND or OR for matches & selections
-        match_mark: bool = QUERY_MATCH_MARK,
-        selection_id: str | None = QUERY_SELECTION_ID,
-        selection_mark: bool = QUERY_SELECTION_MARK,
-        status_only: bool = QUERY_STATUS_ONLY,
-        load_ver_override: Annotated[str | None, QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE] = None,
+        match_mark: QUERY_MATCH_MARK = False,
+        selection_id: QUERY_SELECTION_ID = None,
+        selection_mark: QUERY_SELECTION_MARK = False,
+        status_only: QUERY_STATUS_ONLY = False,
+        load_ver_override: QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
         user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
     ) -> Response:
         # For some reason returning the data as a model slows down the endpoint by ~10x.
