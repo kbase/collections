@@ -25,7 +25,7 @@ from src.service.data_products.common_models import (
     DataProductSpec,
     DBCollection,
     QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
-    QUERY_STATUS_ONLY,
+    QUERY_VALIDATOR_STATUS_ONLY,
 )
 from src.service.data_products import genome_attributes
 from src.service.http_bearer import KBaseHTTPBearer
@@ -214,7 +214,7 @@ async def get_taxa_counts(
         default = None,
         description="A selection ID to include the selection count in the taxa count data. "
             + "Note that if a selection ID is set, any load version override is ignored."),
-    status_only: QUERY_STATUS_ONLY = False,
+    status_only: QUERY_VALIDATOR_STATUS_ONLY = False,
     load_ver_override: QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
 ):

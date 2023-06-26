@@ -26,12 +26,12 @@ from src.service.data_products.common_models import (
     DBCollection,
     QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
     QUERY_VALIDATOR_LIMIT,
-    QUERY_COUNT,
-    QUERY_MATCH_ID,
-    QUERY_MATCH_MARK,
-    QUERY_SELECTION_ID,
-    QUERY_SELECTION_MARK,
-    QUERY_STATUS_ONLY,
+    QUERY_VALIDATOR_COUNT,
+    QUERY_VALIDATOR_MATCH_ID,
+    QUERY_VALIDATOR_MATCH_MARK,
+    QUERY_VALIDATOR_SELECTION_ID,
+    QUERY_VALIDATOR_SELECTION_MARK,
+    QUERY_VALIDATOR_STATUS_ONLY,
 )
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service import errors
@@ -238,13 +238,13 @@ class HeatMapController:
                 + "the last row in the previous set of data."
         ),
         limit: QUERY_VALIDATOR_LIMIT = 1000,
-        count: QUERY_COUNT = False,
-        match_id: QUERY_MATCH_ID = None,
+        count: QUERY_VALIDATOR_COUNT = False,
+        match_id: QUERY_VALIDATOR_MATCH_ID = None,
         # TODO FEATURE support a choice of AND or OR for matches & selections
-        match_mark: QUERY_MATCH_MARK = False,
-        selection_id: QUERY_SELECTION_ID = None,
-        selection_mark: QUERY_SELECTION_MARK = False,
-        status_only: QUERY_STATUS_ONLY = False,
+        match_mark: QUERY_VALIDATOR_MATCH_MARK = False,
+        selection_id: QUERY_VALIDATOR_SELECTION_ID = None,
+        selection_mark: QUERY_VALIDATOR_SELECTION_MARK = False,
+        status_only: QUERY_VALIDATOR_STATUS_ONLY = False,
         load_ver_override: QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
         user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
     ) -> Response:
