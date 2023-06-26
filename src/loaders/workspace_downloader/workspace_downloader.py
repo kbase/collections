@@ -1,7 +1,6 @@
 """
-usage: workspace_downloader.py [-h] --workspace_id WORKSPACE_ID [--kbase_collection KBASE_COLLECTION] [--source_version SOURCE_VERSION]
-                               [--root_dir ROOT_DIR] [--kb_base_url KB_BASE_URL] [--workers WORKERS] [--token_filepath TOKEN_FILEPATH]
-                               [--keep_job_dir] [--retrieve_sample] [--ignore_no_sample_error]
+usage: workspace_downloader.py [-h] --workspace_id WORKSPACE_ID [--kbase_collection KBASE_COLLECTION] [--source_version SOURCE_VERSION] [--root_dir ROOT_DIR]
+                               [--env {CI,NEXT,APPDEV,PROD}] [--workers WORKERS] [--token_filepath TOKEN_FILEPATH] [--keep_job_dir] [--retrieve_sample] [--ignore_no_sample_error]
 
 PROTOTYPE - Download genome files from the workspace service (WSS).
 
@@ -18,8 +17,8 @@ optional arguments:
   --source_version SOURCE_VERSION
                         Create a source version and link in data to that collection from the overall workspace source data dir
   --root_dir ROOT_DIR   Root directory. (default: /global/cfs/cdirs/kbase/collections)
-  --kb_base_url KB_BASE_URL
-                        KBase base URL, defaulting to prod (default: https://kbase.us/services/)
+  --env {CI,NEXT,APPDEV,PROD}
+                        KBase base URL, defaulting to prod (default: PROD)
   --workers WORKERS     Number of workers for multiprocessing (default: 5)
   --token_filepath TOKEN_FILEPATH
                         A file path that stores KBase token
@@ -30,18 +29,20 @@ optional arguments:
 
             
 e.g.
-PYTHONPATH=. python src/loaders/workspace_downloader/workspace_downloader.py --workspace_id 39795 --kbase_collection PMI --source_version 2023.01 --kb_base_url https://ci.kbase.us/services/ --keep_job_dir
+PYTHONPATH=. python src/loaders/workspace_downloader/workspace_downloader.py --workspace_id 39795 --kbase_collection PMI --source_version 2023.01 --env CI --keep_job_dir
 
 NOTE:
 NERSC file structure for WS:
-/global/cfs/cdirs/kbase/collections/sourcedata/ -> WS -> workspace ID -> UPA -> .fa && .meta files 
+/global/cfs/cdirs/kbase/collections/sourcedata/ -> WS -> ENV -> workspace ID -> UPA -> .fa && .meta files
 
 e.g.
-/global/cfs/cdirs/kbase/collections/sourcedata/WS -> 39795 -> 39795_10_1 -> 39795_10_1.fa 
-                                                                         -> 39795_10_1.meta
-                                                              39795_22_1 -> 39795_22_1.fa 
-                                                                         -> 39795_22_1.meta
-                                                     
+/global/cfs/cdirs/kbase/collections/sourcedata/WS -> CI -> 39795 -> 39795_10_1 -> 39795_10_1.fa
+                                                                               -> 39795_10_1.meta
+                                                                    39795_22_1 -> 39795_22_1.fa
+                                                                               -> 39795_22_1.meta
+
+If kbase_collection and source_version are provided, the data will be linked to the collections source directory:
+e.g. /global/cfs/cdirs/kbase/collectionssource/ -> kbase_collection -> source_version -> ENV -> UPA -> .fa && .meta files
 """
 import argparse
 import itertools
@@ -71,6 +72,11 @@ from src.loaders.common import loader_common_names, loader_helper
 SOURCE = "WS"
 # filename that logs genome duplicates for each assembly
 GENOME_DUPLICATE_FILE = "duplicate_genomes.json"
+
+KB_BASE_URL_MAP = {'CI': 'https://ci.kbase.us/services/',
+                   'NEXT': 'https://next.kbase.us/services/',
+                   'APPDEV': 'https://appdev.kbase.us/services/',
+                   'PROD': 'https://kbase.us/services/'}
 
 
 class BadNodeTreeError(Exception):
@@ -153,9 +159,9 @@ class Conf:
         self.container.remove()
 
 
-def _make_output_dir(root_dir, source_data_dir, source, workspace_id):
+def _make_output_dir(root_dir, source_data_dir, source, env, workspace_id):
     """Helper function that makes output directory for a specific collection under root directory."""
-    output_dir = os.path.join(root_dir, source_data_dir, source, str(workspace_id))
+    output_dir = os.path.join(root_dir, source_data_dir, source, env, str(workspace_id))
     os.makedirs(output_dir, exist_ok=True)
     return output_dir
 
@@ -170,13 +176,13 @@ def _make_job_dir(root_dir, job_dir, username):
 
 
 def _make_collection_source_dir(
-        root_dir, collection_source_dir, collection, source_verion
+        root_dir, collection_source_dir, collection, source_verion, env
 ):
     """
     Helper function that creates a collection & source_version and link in data
     to that colleciton from the overall workspace source data dir.
     """
-    csd = os.path.join(root_dir, collection_source_dir, collection, source_verion)
+    csd = os.path.join(root_dir, collection_source_dir, collection, source_verion, env)
     os.makedirs(csd, exist_ok=True)
     return csd
 
@@ -517,9 +523,10 @@ def main():
         help="Root directory.",
     )
     optional.add_argument(
-        "--kb_base_url",
+        "--env",
         type=str,
-        default=loader_common_names.KB_BASE_URL_DEFAULT,
+        choices=loader_common_names.KB_BASE_ENV,
+        default='PROD',
         help="KBase base URL, defaulting to prod",
     )
     optional.add_argument(
@@ -555,12 +562,14 @@ def main():
     kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
     source_version = args.source_version
     root_dir = args.root_dir
-    kb_base_url = args.kb_base_url
+    env = args.env
     workers = args.workers
     token_filepath = args.token_filepath
     keep_job_dir = args.keep_job_dir
     retrieve_sample = args.retrieve_sample
     ignore_no_sample_error = args.ignore_no_sample_error
+
+    kb_base_url = KB_BASE_URL_MAP[env]
 
     if bool(kbase_collection) ^ bool(source_version):
         parser.error(
@@ -576,7 +585,7 @@ def main():
 
     job_dir = _make_job_dir(root_dir, loader_common_names.SDK_JOB_DIR, username)
     output_dir = _make_output_dir(
-        root_dir, loader_common_names.SOURCE_DATA_DIR, SOURCE, workspace_id
+        root_dir, loader_common_names.SOURCE_DATA_DIR, SOURCE, env, workspace_id
     )
     csd = None
     if kbase_collection:
@@ -585,6 +594,7 @@ def main():
             loader_common_names.COLLECTION_SOURCE_DIR,
             kbase_collection,
             source_version,
+            env,
         )
 
     proc = None
