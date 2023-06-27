@@ -58,10 +58,24 @@ Used for marking matches when returning data to the user and they request match 
 filtering on a match.
 """
 
+FLD_MATCHED_SAFE = "__match__"
+"""
+Used for marking matches when returning data to the user and they request match marking vs.
+filtering on a match, and the standard match field can't be used since the keys in the
+returned data are undefined.
+"""
+
 FLD_SELECTED = "sel"
 """
 Used for marking selections when returning data to the user and they request selection marking vs.
 filtering on a selection.
+"""
+
+FLD_SELECTED_SAFE = "__sel__"
+"""
+Used for marking selections when returning data to the user and they request selection marking vs.
+filtering on a selection, and the standard selection field can't be used since the keys in the
+returned data are undefined.
 """
 
 # Collections
@@ -227,20 +241,6 @@ COLL_GENOME_ATTRIBS: Annotated[
 
 # Used for lineage matchers
 FLD_GENOME_ATTRIBS_GTDB_LINEAGE = "classification"
-
-FLD_GENOME_ATTRIBS_MATCHED = "__match__"
-"""
-Used for marking matches when returning data to the user and they request match marking vs.
-filtering on a match. Can't use the standard match field since genome attribute column names
-are unlimited.
-"""
-
-FLD_GENOME_ATTRIBS_SELECTED = "__sel__"
-"""
-Used for marking selections when returning data to the user and they request selection marking vs.
-filtering on a selection. Can't use the standard match field since genome attribute column names
-are unlimited.
-"""
 
 ### Heatmap general fields for heat map data products (e.g. microTrait)
 
