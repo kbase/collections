@@ -47,7 +47,7 @@ def _get_id_and_error_message_mapping_from_tsv_files(output_dir: Path):
 
 def _get_id_and_error_message_mapping(file_path: str):
     data = pd.read_csv(file_path, sep="\t", header=None)
-    res = {genome_id:error_message for genome_id, error_message in zip(data[0], data[1])}
+    res = {tool_safe_data_id:error_message for tool_safe_data_id, error_message in zip(data[0], data[1])}
     return res
 
 
