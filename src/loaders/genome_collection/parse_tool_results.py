@@ -141,9 +141,6 @@ SEQ_METADATA = 'seq_metadata.jsonl'
 # The suffix for prepared samples data
 _PREPARED_SAMPLES = 'samples.jsonl'
 
-# Merged FATAL_ERROR_FILE
-FATAL_ERROR_FILE_SUFFIX = 'fatal_error.jsonl'
-
 
 def _locate_dir(root_dir, kbase_collection, load_ver, check_exists=False, tool=''):
     result_dir = os.path.join(root_dir, loader_common_names.COLLECTION_DATA_DIR, kbase_collection, load_ver, tool)
