@@ -9,7 +9,9 @@ from src.service.storage_arango import ArangoStorage, ARANGO_ERR_NAME_EXISTS
 
 async def build_arango_db(cfg: CollectionsServiceConfig, create_database: bool = False
 ) -> tuple[aioarango.ArangoClient, aioarango.database.StandardDatabase]:
+    print("build db")
     cli = aioarango.ArangoClient(hosts=cfg.arango_url)
+    print("got cli")
     try:
         if create_database:
             sysdb = await _get_arango_db(cli, "_system", cfg)
@@ -29,7 +31,9 @@ async def build_storage(
     cfg: CollectionsServiceConfig,
     data_products: list[DataProductSpec],
 ) -> tuple[aioarango.ArangoClient, ArangoStorage]:
+    print("build storage")
     cli, db = await build_arango_db(cfg, cfg.create_db_on_startup)
+    print("build storage got db")
     try:
         storage = await ArangoStorage.create(
             db,
@@ -44,13 +48,16 @@ async def build_storage(
 
 async def _get_arango_db(cli: aioarango.ArangoClient, db: str, cfg: CollectionsServiceConfig
 ) -> aioarango.database.StandardDatabase:
+    print("get arango db")
     err = None
     for t in [1, 2, 5, 10, 30]:
         try:
             if cfg.arango_user:
+                print("get arango db user")
                 rdb = await cli.db(
                     db, verify=True, username=cfg.arango_user, password=cfg.arango_pwd)
             else:
+                print("get arango db no user")
                 rdb = await cli.db(db, verify=True)
             return rdb
         except aioarango.exceptions.ServerConnectionError as e:
