@@ -119,9 +119,9 @@ def _run_gtdb_tk(
             f"{loader_common_names.GTDB_FAIL_GENOME_FILE}"
         )
     
-    for error_tool_safe_data_id in error_tool_safe_data_ids:
-        error_message = filtered_or_failed_genome_id_mapping[error_tool_safe_data_id]
-        fatal_tuple = create_fatal_tuple(error_tool_safe_data_id, ids_to_files, error_message)
+    for miss_tool_safe_data_id in miss_tool_safe_data_ids:
+        error_message = filtered_or_failed_genome_id_mapping[miss_tool_safe_data_id]
+        fatal_tuple = create_fatal_tuple(miss_tool_safe_data_id, ids_to_files, error_message)
         fatal_tuples.append(fatal_tuple)
 
     write_fatal_tuples_to_dict(fatal_tuples, output_dir)
