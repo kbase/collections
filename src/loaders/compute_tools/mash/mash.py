@@ -13,11 +13,11 @@ SKETCH_SIZE = 10000
 
 
 def _run_mash_single(
-        genome_id: str,
+        tool_safe_data_id: str,
+        data_id: str,
         source_file: Path,
         output_dir: Path,
         debug: bool,
-        kbase_id: str,
         kmer_size: int = KMER_SIZE,
         sketch_size: int = SKETCH_SIZE) -> None:
     # RUN mash sketch for a single genome

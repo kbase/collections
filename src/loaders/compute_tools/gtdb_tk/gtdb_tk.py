@@ -3,6 +3,7 @@ Run the gtdb_tk tool on a set of assemblies.
 """
 
 import os
+import re
 import time
 from pathlib import Path
 from typing import Dict
@@ -13,12 +14,41 @@ from src.loaders.common import loader_common_names
 from src.loaders.compute_tools.tool_common import (
     GenomeTuple,
     ToolRunner,
-    create_gtdbtk_fatal_tuple,
+    create_fatal_tuple,
     find_gtdbtk_summary_files,
-    get_filtered_or_failed_genome_ids,
     run_command,
     write_fatal_tuples_to_dict,
 )
+
+
+def _get_id_and_error_message_mapping_from_tsv_files(output_dir: Path):
+    genome_dict = dict()
+
+    # process filtered.tsv files
+    align_dir = output_dir / "align"
+    filter_files = [file_name for file_name in os.listdir(align_dir) if 
+                    re.search(loader_common_names.GTDB_FILTER_FILE_PATTERN, file_name)]
+    
+    if not filter_files or len(filter_files) > 2:
+        raise ValueError(f"Either or both gtdbtk.ar53.filtered.tsv and "
+                         f"gtdbtk.bac120.filtered.tsv files must exist.")
+    
+    for filter_file in filter_files:
+        filter_file_path = os.path.join(align_dir, filter_file)
+        genome_dict.update(_get_id_and_error_message_mapping(filter_file_path))
+    
+    # process failed.tsv file
+    identify_dir = output_dir / "identify"
+    fail_file_path = os.path.join(identify_dir, loader_common_names.GTDB_FAIL_GENOME_FILE)
+    genome_dict.update(_get_id_and_error_message_mapping(fail_file_path))
+
+    return genome_dict
+
+
+def _get_id_and_error_message_mapping(file_path: str):
+    data = pd.read_csv(file_path, sep="\t", header=None)
+    res = {genome_id:error_message for genome_id, error_message in zip(data[0], data[1])}
+    return res
 
 
 def _run_gtdb_tk(
@@ -35,8 +65,8 @@ def _run_gtdb_tk(
     # tab separated in 2 columns (FASTA file, genome ID)
     batch_file_path = output_dir / f'genome.fasta.list'
     with open(batch_file_path, "w") as batch_file:
-        for genome_id, genome_tuple in ids_to_files.items():
-            batch_file.write(f'{getattr(genome_tuple, loader_common_names.META_SOURCE_FILE)}\t{genome_id}\n')
+        for tool_safe_data_id, genome_tuple in ids_to_files.items():
+            batch_file.write(f'{genome_tuple.source_file}\t{tool_safe_data_id}\n')
     command = ['gtdbtk', 'classify_wf',
                '--batchfile', str(batch_file_path),
                '--out_dir', str(output_dir),
@@ -62,7 +92,7 @@ def _run_gtdb_tk(
                      loader_common_names.GTDB_CLASSIFICATION_COL]
     
     fatal_tuples = []
-    genome_ids = set()
+    tool_safe_data_ids = set()
     for summary_file in summary_files:
         summary_file_path = os.path.join(output_dir, summary_file)
         try:
@@ -70,28 +100,28 @@ def _run_gtdb_tk(
         except Exception as e:
             raise ValueError(f"{summary_file} exists, but unable to retrive") from e
 
-        for genome_id, classify_res in zip(summary_df[loader_common_names.GTDB_GENOME_ID_COL],
-                                           summary_df[loader_common_names.GTDB_CLASSIFICATION_COL]):
-            genome_ids.add(genome_id)
+        for tool_safe_data_id, classify_res in zip(summary_df[loader_common_names.GTDB_GENOME_ID_COL],
+                                                   summary_df[loader_common_names.GTDB_CLASSIFICATION_COL]):
+            tool_safe_data_ids.add(tool_safe_data_id)
             if classify_res.startswith(loader_common_names.GTDB_UNCLASSIFIED):
                 error_message = f"GTDB_tk classification failed: {classify_res}"
-                fatal_tuple = create_gtdbtk_fatal_tuple(genome_id, ids_to_files, error_message)
+                fatal_tuple = create_fatal_tuple(tool_safe_data_id, ids_to_files, error_message)
                 fatal_tuples.append(fatal_tuple)
     
-    miss_genome_ids = set(ids_to_files.keys()) - genome_ids
-    filtered_or_failed_genome_ids = get_filtered_or_failed_genome_ids(output_dir)
-    error_genome_ids = miss_genome_ids - filtered_or_failed_genome_ids
+    miss_tool_safe_data_ids = set(ids_to_files.keys()) - tool_safe_data_ids
+    filtered_or_failed_genome_id_mapping = _get_id_and_error_message_mapping_from_tsv_files(output_dir)
+    error_tool_safe_data_ids = miss_tool_safe_data_ids - set(filtered_or_failed_genome_id_mapping.keys())
 
-    if error_genome_ids:
+    if error_tool_safe_data_ids:
         raise ValueError(
-            f"Miss {error_genome_ids} that are not found in either "
+            f"Miss {error_tool_safe_data_ids} that are not found in either "
             f"{loader_common_names.GTDB_FILTER_FILE_PATTERN} or "
             f"{loader_common_names.GTDB_FAIL_GENOME_FILE}"
         )
     
-    for miss_genome_id in miss_genome_ids:
-        error_message = f"No result for the genome {miss_genome_id}"
-        fatal_tuple = create_gtdbtk_fatal_tuple(miss_genome_id, ids_to_files, error_message)
+    for error_tool_safe_data_id in error_tool_safe_data_ids:
+        error_message = filtered_or_failed_genome_id_mapping[error_tool_safe_data_id]
+        fatal_tuple = create_fatal_tuple(error_tool_safe_data_id, ids_to_files, error_message)
         fatal_tuples.append(fatal_tuple)
 
     write_fatal_tuples_to_dict(fatal_tuples, output_dir)

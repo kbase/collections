@@ -29,8 +29,7 @@ def _run_checkm2(
                '--output-directory', str(output_dir),
                '--threads', str(threads),
                '--force',  # will overwrite output directory contents
-               '--input'] + [str(getattr(v, loader_common_names.META_SOURCE_FILE))
-                             for v in ids_to_files.values()]
+               '--input'] + [str(v.source_file) for v in ids_to_files.values()]
 
     command.append('--debug') if debug else None
     print(f'running {" ".join(command)}')

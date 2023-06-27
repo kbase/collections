@@ -60,13 +60,7 @@ FatalTuple = namedtuple(
     ]
 )
 
-GenomeTuple = namedtuple(
-    "GenomeTuple",
-    [
-        loader_common_names.META_SOURCE_FILE,
-        loader_common_names.META_DATA_ID,
-    ]
-)
+GenomeTuple = namedtuple("GenomeTuple", ["source_file", "data_id"])
 
 
 class ToolRunner:
@@ -237,7 +231,7 @@ class ToolRunner:
             data_ids = all_data_ids
         return list(set(data_ids))
 
-    def parallel_single_execution(self, tool_callable: Callable[[str, Path, Path, bool, str], None], unzip=False):
+    def parallel_single_execution(self, tool_callable: Callable[[str, str, Path, Path, bool], None], unzip=False):
         """
         Run a tool by a single data file, storing the results in a single batch directory with
         the individual runs stored in directories by the data ID.
@@ -250,12 +244,12 @@ class ToolRunner:
                   each individual genome directory. Parser program will parse the result file in each individual genome
                   directory.
 
-        tool_callable - the callable for the tool that takes 4 arguments:
-            * The tool identifier
+        tool_callable - the callable for the tool that takes 5 arguments:
+            * The tool safe data ID
+            * The data ID
             * The input file
             * The output directory
             * A debug boolean
-            * The data ID
 
         unzip - if True, unzip the input file before passing it to the tool callable. (unzipped file will be deleted)
         """
@@ -284,12 +278,12 @@ class ToolRunner:
 
             args_list.append(
                 (meta[loader_common_names.META_TOOL_IDENTIFIER],
+                 data_id,
                  # use the uncompressed file if it exists, otherwise use the source file
                  meta.get(loader_common_names.META_UNCOMPRESSED_FILE,
                           meta[loader_common_names.META_SOURCE_FILE]),
                  output_dir,
-                 self._debug,
-                 data_id))
+                 self._debug))
 
         try:
             self._execute(self._threads, tool_callable, args_list, start, False)
@@ -314,7 +308,7 @@ class ToolRunner:
                   Batching genomes for gtdb_tk execution improves overall throughput.
 
         tool_callable - the callable for the tool that takes 4 arguments:
-            * A dictionary of the tool identifier to the GenomeTuple
+            * A dictionary of the tool safe data ID to the GenomeTuple
             * The output directory for results
             * The number of threads to use for the batch
             * A debug boolean
@@ -595,43 +589,16 @@ def find_gtdbtk_summary_files(output_dir: Path):
     return summary_files
 
 
-def get_filtered_or_failed_genome_ids(output_dir: Path):
-    genome_ids = list()
-
-    # process filtered.tsv files
-    align_dir = output_dir / "align"
-    filter_files = [file_name for file_name in os.listdir(align_dir) if 
-                    re.search(loader_common_names.GTDB_FILTER_FILE_PATTERN, file_name)]
-    if not filter_files or len(filter_files) > 2:
-        raise ValueError("Parsed unexpected filterd.tsv files {filter_files}.")
-    for filter_file in filter_files:
-        filter_file_path = os.path.join(align_dir, filter_file)
-        genome_ids.extend(_get_genome_ids_from_tsv_file(filter_file_path))
-    
-    # process failed.tsv file
-    identify_dir = output_dir / "identify"
-    fail_file_path = os.path.join(identify_dir, loader_common_names.GTDB_FAIL_GENOME_FILE)
-    genome_ids.extend(_get_genome_ids_from_tsv_file(fail_file_path))
-
-    return set(genome_ids)
-
-
-def _get_genome_ids_from_tsv_file(file_path: str):
-    with open(file_path, "r") as f:
-        res = [line.strip().split("\t")[0] for line in f]
-    return res
-
-
-def create_gtdbtk_fatal_tuple(
-        genome_id: str,
+def create_fatal_tuple(
+        tool_safe_data_id: str,
         ids_to_files: Dict[str, GenomeTuple],
         error_message: str,
         stacktrace: str = None,
 ):
-    genome_tuple = ids_to_files[genome_id]
-    kbase_id = getattr(genome_tuple, loader_common_names.META_DATA_ID)
-    source_file_path = getattr(genome_tuple, loader_common_names.META_SOURCE_FILE)
-    fatal_tuple = FatalTuple(kbase_id, error_message, str(source_file_path), stacktrace)
+    genome_tuple = ids_to_files[tool_safe_data_id]
+    data_id = genome_tuple.data_id
+    source_file_path = genome_tuple.source_file
+    fatal_tuple = FatalTuple(data_id, error_message, str(source_file_path), stacktrace)
     return fatal_tuple
 
 
