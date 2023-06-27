@@ -15,19 +15,32 @@ from src.service.storage_arango import ArangoStorage
 from typing import Any, Callable
 
 
+def override_load_version(
+    load_ver_override: str = None, match_id: str = None, selection_id: str = None
+) -> str | None:
+    """
+    Determines whether a load verison override should be used for subsequent method calls. Returns
+    the provided override if it's present and no match or selection ID is provided.
+    """
+    return None if match_id or selection_id else load_ver_override
+
+
 async def get_load_version(
     store: ArangoStorage,
     collection_id: str,
     data_product: str,
     load_ver: str,
     user: kb_auth.KBaseUser,
-) -> str:
+) -> tuple[models.ActiveCollection, str]:
     """
-    Get the load version of a data product given a Collection ID and the ID of the data product,
-    optionally allowing an override of the load versionn if the user is a service administrator.
+    Get a collection and the load version of a data product given a Collection ID and the ID
+    of the data product, optionally allowing an override of the load versionn if the user is
+    a service administrator. If the load version is overriden a collection is not returned
+    to allow for providing load versions for data that is not yet active.
 
     store - the data storage system.
-    collection_id - the ID of the Collection from which to retrive the load version.
+    collection_id - the ID of the Collection from which to retrive the load version and possibly
+        colection object.
     data_product - the ID of the data product from which to retrieve the load version.
     load_ver - an override for the load version. If provided:
         * the user must be a service administrator
@@ -42,12 +55,12 @@ async def get_load_version(
         if not user or user.admin_perm != kb_auth.AdminPermission.FULL:
             raise errors.UnauthorizedError(
                 "To override the load version a user must be a system administrator")
-        return load_ver
+        return None, load_ver
     ac = await store.get_collection_active(collection_id)
-    return get_load_ver_from_collection(ac, data_product)
+    return ac, _get_load_ver_from_collection(ac, data_product)
 
 
-def get_load_ver_from_collection(collection: models.SavedCollection, data_product: str) -> str:
+def _get_load_ver_from_collection(collection: models.SavedCollection, data_product: str) -> str:
     """
     Get the load version of a data product given a collection and the ID of the data product.
     """

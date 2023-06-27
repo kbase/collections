@@ -6,13 +6,15 @@ import json
 
 from fastapi import APIRouter, Depends, Request, Query, Path, Response
 
+from functools import partial
+
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
 from src.service.app_state_data_structures import PickleableDependencies, CollectionsState
 from src.common.product_models import heatmap_common_models as heatmap_models
 from src.service.data_products.common_functions import (
+    override_load_version,
     get_load_version,
-    get_load_ver_from_collection,
     get_collection_singleton_from_db,
     get_doc_from_collection_by_unique_id,
     remove_collection_keys,
@@ -201,7 +203,7 @@ class HeatMapController:
         user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
     ) -> heatmap_models.HeatMapMeta:
         storage = app_state.get_app_state(r).arangostorage
-        load_ver = await get_load_version(
+        _, load_ver = await get_load_version(
             storage, collection_id, self._id, load_ver_override, user)
         doc = await get_collection_singleton_from_db(
             storage, self._colname_meta, collection_id, load_ver, bool(load_ver_override))
@@ -219,7 +221,7 @@ class HeatMapController:
         user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
     ) -> heatmap_models.CellDetail:
         storage = app_state.get_app_state(r).arangostorage
-        load_ver = await get_load_version(
+        _, load_ver = await get_load_version(
             storage, collection_id, self._id, load_ver_override, user)
         doc = await get_doc_from_collection_by_unique_id(
             storage, self._colname_cells, collection_id, load_ver, cell_id, "cell detail", True,
@@ -254,9 +256,9 @@ class HeatMapController:
         load_ver, dp_match, dp_sel = await self._get_load_version_and_processes(
             appstate,
             user,
+            self._colname_data,
             collection_id,
             self._id,
-            self._process_heatmap_subset,
             load_ver_override=load_ver_override,
             match_id=match_id,
             selection_id=selection_id,
@@ -300,9 +302,9 @@ class HeatMapController:
         load_ver, dp_match, dp_sel = await self._get_load_version_and_processes(
             appstate,
             user,
+            self._colname_data,
             collection_id,
             self._id,
-            self._process_heatmap_subset,
             match_id=match_id,
             selection_id=selection_id,
         )
@@ -317,54 +319,45 @@ class HeatMapController:
         self,
         appstate: CollectionsState,
         user: kb_auth.KBaseUser | None,
+        collection: str,
         collection_id: str,
-        data_product: str,  # can use self._id here but if we want to make this general in future
-        subset_fn: Callable[
-            [
-                PickleableDependencies,
-                ArangoStorage,
-                models.InternalMatch | models.InternalSelection,
-                models.SavedCollection,
-                models.DataProductProcessIdentifier
-            ],
-            Awaitable[None],
-        ],
+        data_product: str,
         load_ver_override: str | None = None,
         match_id: str | None = None,
         selection_id: str | None = None,
     ):
         # this is very similar to code in taxa_counts - maybe once it gets cleaned up a bit
         # and handles the dependency on genome_attribs in a saner way this can be moved
-        # to common_functions and shared
+        # to common_functions and shared. Would need to be able to specify its own subsetting fn
         dp_match, dp_sel = None, None
-        if match_id or selection_id:
-            coll = await appstate.arangostorage.get_collection_active(collection_id)
-            load_ver = get_load_ver_from_collection(coll, data_product)
-        else:
-            load_ver = await get_load_version(
-                appstate.arangostorage, collection_id, data_product, load_ver_override, user)
+        lvo = override_load_version(load_ver_override, match_id, selection_id)
+        coll, load_ver = await get_load_version(
+            appstate.arangostorage, collection_id, data_product, lvo, user)
         if match_id:
             dp_match = await processing_matches.get_or_create_data_product_match_process(
-                appstate, coll, user, match_id, data_product, subset_fn
+                appstate, coll, user, match_id, data_product,
+                partial(self._process_subset, collection)
             )
         if selection_id:
             dp_sel = await processing_selections.get_or_create_data_product_selection_process(
-                appstate, coll, selection_id, data_product, subset_fn
+                appstate, coll, selection_id, data_product,
+                partial(self._process_subset, collection)
             )
         return load_ver, dp_match, dp_sel
 
-    async def _process_heatmap_subset(
+    async def _process_subset(
         self,
+        collection: str,
         deps: PickleableDependencies,
         storage: ArangoStorage,
         match_or_sel: models.InternalMatch | models.InternalSelection,
         coll: models.SavedCollection,
         dpid: models.DataProductProcessIdentifier,
     ):
-        load_ver = {dp.product: dp.version for dp in coll.data_products}[self._id]
+        load_ver = {dp.product: dp.version for dp in coll.data_products}[dpid.data_product]
         missed = await mark_data_by_kbase_id(
             storage,
-            self._colname_data,
+            collection,
             coll.id,
             load_ver,
             match_or_sel.matches if dpid.is_match() else match_or_sel.selection_ids,

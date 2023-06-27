@@ -17,12 +17,12 @@ from src.service import models
 from src.service import processing_selections
 from src.service.data_products.common_functions import (
     get_load_version,
-    get_load_ver_from_collection,
     remove_collection_keys,
     query_simple_collection_list,
     count_simple_collection_list,
     mark_data_by_kbase_id,
     remove_marked_subset,
+    override_load_version,
 )
 from src.service.data_products import common_models
 from src.service.data_products.table_models import TableAttributes
@@ -241,7 +241,7 @@ async def get_genome_attributes(
     sort_desc: common_models.QUERY_VALIDATOR_SORT_DIRECTION = False,
     skip: common_models.QUERY_VALIDATOR_SKIP = 0,
     limit: common_models.QUERY_VALIDATOR_LIMIT = 1000,
-    output_table: common_models.QUERY_VALIDATOR_OUTPUT_TABLE = False,
+    output_table: common_models.QUERY_VALIDATOR_OUTPUT_TABLE = True,
     count: common_models.QUERY_VALIDATOR_COUNT = False,
     match_id: common_models.QUERY_VALIDATOR_MATCH_ID = None,
     # TODO FEATURE support a choice of AND or OR for matches & selections
@@ -257,11 +257,8 @@ async def get_genome_attributes(
     appstate = app_state.get_app_state(r)
     store = appstate.arangostorage
     internal_match_id, internal_selection_id = None, None
-    if match_id or selection_id:
-        coll = await store.get_collection_active(collection_id)
-        load_ver = get_load_ver_from_collection(coll, ID)
-    else:
-        load_ver = await get_load_version(store, collection_id, ID, load_ver_override, user)
+    lvo = override_load_version(load_ver_override, match_id, selection_id)
+    coll, load_ver = await get_load_version(appstate.arangostorage, collection_id, ID, lvo, user)
     if match_id:
         internal_match_id = await _get_internal_match_id(appstate, user, coll, match_id)
     if selection_id:
