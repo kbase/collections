@@ -45,6 +45,7 @@ def create_app(noop=False):
     """
     Create the Collections application
     """
+    print("create app", flush=True)
     logging.basicConfig(level=logging.INFO)
     # deliberately not documenting noop, should go away when we have real tests
     if noop:
@@ -91,6 +92,7 @@ def create_app(noop=False):
             data_product_specs.get_data_products(),
             matcher_registry.MATCHERS.values()
         )
+    print("adding startup handler", flush=True)
     app.add_event_handler("startup", build_app_wrapper)
 
     async def clean_app_wrapper():
