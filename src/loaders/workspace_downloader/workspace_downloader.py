@@ -18,7 +18,7 @@ optional arguments:
                         Create a source version and link in data to that collection from the overall workspace source data dir
   --root_dir ROOT_DIR   Root directory. (default: /global/cfs/cdirs/kbase/collections)
   --env {CI,NEXT,APPDEV,PROD}
-                        KBase base URL, defaulting to prod (default: PROD)
+                        KBase environment, defaulting to PROD (default: PROD)
   --workers WORKERS     Number of workers for multiprocessing (default: 5)
   --token_filepath TOKEN_FILEPATH
                         A file path that stores KBase token
@@ -42,7 +42,7 @@ e.g.
                                                                                -> 39795_22_1.meta
 
 If kbase_collection and source_version are provided, the data will be linked to the collections source directory:
-e.g. /global/cfs/cdirs/kbase/collectionssource/ -> kbase_collection -> source_version -> ENV -> UPA -> .fa && .meta files
+e.g. /global/cfs/cdirs/kbase/collectionssource/ -> ENV -> kbase_collection -> source_version -> UPA -> .fa && .meta files
 """
 import argparse
 import itertools
@@ -180,9 +180,9 @@ def _make_collection_source_dir(
 ):
     """
     Helper function that creates a collection & source_version and link in data
-    to that colleciton from the overall workspace source data dir.
+    to that collection from the overall workspace source data dir.
     """
-    csd = os.path.join(root_dir, collection_source_dir, collection, source_verion, env)
+    csd = os.path.join(root_dir, collection_source_dir, env, collection, source_verion)
     os.makedirs(csd, exist_ok=True)
     return csd
 
@@ -527,7 +527,7 @@ def main():
         type=str,
         choices=loader_common_names.KB_ENV,
         default='PROD',
-        help="KBase base URL, defaulting to prod",
+        help="KBase environment, defaulting to PROD",
     )
     optional.add_argument(
         "--workers",
