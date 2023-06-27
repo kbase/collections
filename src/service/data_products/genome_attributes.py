@@ -24,6 +24,10 @@ from src.service.data_products.common_functions import (
     remove_marked_subset,
     override_load_version,
 )
+from src.service.data_products.data_product_processing import (
+    MATCH_ID_PREFIX,
+    SELECTION_ID_PREFIX,
+)
 from src.service.data_products import common_models
 from src.service.data_products.table_models import TableAttributes
 from src.service.http_bearer import KBaseHTTPBearer
@@ -39,9 +43,6 @@ ID = names.GENOME_ATTRIBS_PRODUCT_ID
 
 _ROUTER = APIRouter(tags=["Genome Attributes"], prefix=f"/{ID}")
 
-_MATCH_ID_PREFIX = "m_"
-_SELECTION_ID_PREFIX = "s_"
-
 
 class GenomeAttribsSpec(common_models.DataProductSpec):
 
@@ -53,7 +54,7 @@ class GenomeAttribsSpec(common_models.DataProductSpec):
         internal_match_id - the match to delete.
         """
         await remove_marked_subset(
-            storage, names.COLL_GENOME_ATTRIBS, _MATCH_ID_PREFIX + internal_match_id)
+            storage, names.COLL_GENOME_ATTRIBS, MATCH_ID_PREFIX + internal_match_id)
 
     async def delete_selection(self, storage: ArangoStorage, internal_selection_id: str):
         """
@@ -63,7 +64,7 @@ class GenomeAttribsSpec(common_models.DataProductSpec):
         internal_selection_id - the selection to delete.
         """
         await remove_marked_subset(
-            storage, names.COLL_GENOME_ATTRIBS, _SELECTION_ID_PREFIX + internal_selection_id)
+            storage, names.COLL_GENOME_ATTRIBS, SELECTION_ID_PREFIX + internal_selection_id)
 
     async def apply_match(self,
         deps: PickleableDependencies,
@@ -89,7 +90,7 @@ class GenomeAttribsSpec(common_models.DataProductSpec):
             collection.id,
             load_ver,
             kbase_ids,
-            _MATCH_ID_PREFIX + internal_match_id,
+            MATCH_ID_PREFIX + internal_match_id,
         )
         if missed:
             logging.getLogger(__name__).warn(
@@ -122,7 +123,7 @@ class GenomeAttribsSpec(common_models.DataProductSpec):
             collection.id,
             load_ver,
             selection.selection_ids,
-            _SELECTION_ID_PREFIX + selection.internal_selection_id,
+            SELECTION_ID_PREFIX + selection.internal_selection_id,
         )
         state = models.ProcessState.FAILED if missed else models.ProcessState.COMPLETE
         await storage.update_selection_state(
@@ -348,10 +349,10 @@ async def _query(
         sort_descending=sort_desc,
         skip=skip,
         limit=limit,
-        internal_match_id=_prefix_id(_MATCH_ID_PREFIX, internal_match_id),
+        internal_match_id=_prefix_id(MATCH_ID_PREFIX, internal_match_id),
         match_mark=match_mark,
         match_field=names.FLD_MATCHED_SAFE,
-        internal_selection_id=_prefix_id(_SELECTION_ID_PREFIX, internal_selection_id),
+        internal_selection_id=_prefix_id(SELECTION_ID_PREFIX, internal_selection_id),
         selection_mark=selection_mark,
         selection_field=names.FLD_SELECTED_SAFE,
     )
@@ -389,8 +390,8 @@ async def _count(
         names.COLL_GENOME_ATTRIBS,
         collection_id,
         load_ver,
-        internal_match_id=_prefix_id(_MATCH_ID_PREFIX, internal_match_id),
-        internal_selection_id=_prefix_id(_SELECTION_ID_PREFIX, internal_selection_id),
+        internal_match_id=_prefix_id(MATCH_ID_PREFIX, internal_match_id),
+        internal_selection_id=_prefix_id(SELECTION_ID_PREFIX, internal_selection_id),
     )
     return {_FLD_SKIP: 0, _FLD_LIMIT: 0, "count": count}
 
@@ -452,7 +453,7 @@ async def _mark_gtdb_matches_IN_strategy(
         _FLD_COL_ID: collection_id,
         _FLD_COL_LV: load_ver,
         "lineages": list(lineages),
-        "internal_match_id": _MATCH_ID_PREFIX + internal_match_id,
+        "internal_match_id": MATCH_ID_PREFIX + internal_match_id,
     }
     await _mark_gtdb_matches_complete(storage, aql, bind_vars, internal_match_id)
 
@@ -512,7 +513,7 @@ async def _mark_gtdb_matches_STARTS_WITH_strategy(
         f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
         _FLD_COL_ID: collection_id,
         _FLD_COL_LV: load_ver,
-        "internal_match_id": _MATCH_ID_PREFIX + internal_match_id,
+        "internal_match_id": MATCH_ID_PREFIX + internal_match_id,
     }
     for i, lin in enumerate(lineages):
         bind_vars[f"linbottom{i}"] = lin
@@ -545,7 +546,7 @@ async def process_subset_documents(
     load_ver = {d.product: d.version for d in collection.data_products}.get(ID)
     if not load_ver:
         raise ValueError(f"The collection does not have a {ID} data product")
-    prefix = _MATCH_ID_PREFIX if type_ == models.SubsetType.MATCH else _SELECTION_ID_PREFIX
+    prefix = MATCH_ID_PREFIX if type_ == models.SubsetType.MATCH else SELECTION_ID_PREFIX
     bind_vars = {
         f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
         _FLD_COL_ID: collection.id,
