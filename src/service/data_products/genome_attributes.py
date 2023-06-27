@@ -24,15 +24,7 @@ from src.service.data_products.common_functions import (
     mark_data_by_kbase_id,
     remove_marked_subset,
 )
-from src.service.data_products.common_models import (
-    DataProductSpec,
-    DBCollection,
-    QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
-    QUERY_VALIDATOR_LIMIT,
-    QUERY_COUNT,
-    QUERY_MATCH_ID,
-    QUERY_SELECTION_ID,
-)
+from src.service.data_products import common_models
 from src.service.data_products.table_models import TableAttributes
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
@@ -51,7 +43,7 @@ _MATCH_ID_PREFIX = "m_"
 _SELECTION_ID_PREFIX = "s_"
 
 
-class GenomeAttribsSpec(DataProductSpec):
+class GenomeAttribsSpec(common_models.DataProductSpec):
 
     async def delete_match(self, storage: ArangoStorage, internal_match_id: str):
         """
@@ -180,7 +172,7 @@ GENOME_ATTRIBS_SPEC = GenomeAttribsSpec(
     data_product=ID,
     router=_ROUTER,
     db_collections=[
-        DBCollection(
+        common_models.DBCollection(
             name=names.COLL_GENOME_ATTRIBS,
             indexes=[
                 [
@@ -245,44 +237,18 @@ _FLD_LIMIT = "limit"
 async def get_genome_attributes(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
-    sort_on: str = Query(
-        default=names.FLD_KBASE_ID,
-        example="genome_size",
-        description="The field to sort on."
-    ),
-    sort_desc: bool = Query(
-        default=False,
-        description="Whether to sort in descending order rather than ascending"
-    ),
-    skip: int = Query(
-        default=0,
-        ge=0,
-        le=10000,
-        example=1000,
-        description="The number of records to skip"
-    ),
-    limit: QUERY_VALIDATOR_LIMIT = 1000,
-    output_table: bool = Query(
-        default=True,
-        description="Whether to return the data in table form or dictionary list form"
-    ),
-    count: QUERY_COUNT = False,
-    match_id: QUERY_MATCH_ID = None,
+    sort_on: common_models.QUERY_VALIDATOR_SORT_ON = names.FLD_KBASE_ID,
+    sort_desc: common_models.QUERY_VALIDATOR_SORT_DIRECTION = False,
+    skip: common_models.QUERY_VALIDATOR_SKIP = 0,
+    limit: common_models.QUERY_VALIDATOR_LIMIT = 1000,
+    output_table: common_models.QUERY_VALIDATOR_OUTPUT_TABLE = False,
+    count: common_models.QUERY_VALIDATOR_COUNT = False,
+    match_id: common_models.QUERY_VALIDATOR_MATCH_ID = None,
     # TODO FEATURE support a choice of AND or OR for matches & selections
-    match_mark: bool = Query(
-        default=False,
-        description="Whether to mark matched rows rather than filter based on the match ID. "
-            + "Matched rows will be indicated by a true value in the special field "
-            + f"`{names.FLD_GENOME_ATTRIBS_MATCHED}`."
-    ),
-    selection_id: QUERY_SELECTION_ID = None,
-    selection_mark: bool = Query(
-        default=False,
-        description="Whether to mark selected rows rather than filter based on the selection ID. "
-            + "Selected rows will be indicated by a true value in the special field "
-            + f"`{names.FLD_GENOME_ATTRIBS_SELECTED}`."
-    ),
-    load_ver_override: QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
+    match_mark: common_models.QUERY_VALIDATOR_MATCH_MARK_SAFE = False,
+    selection_id: common_models.QUERY_VALIDATOR_SELECTION_ID = None,
+    selection_mark: common_models.QUERY_VALIDATOR_SELECTION_MARK_SAFE = False,
+    load_ver_override: common_models.QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
 ):
     # sorting only works here since we expect the largest collection to be ~300K records and
@@ -387,10 +353,10 @@ async def _query(
         limit=limit,
         internal_match_id=_prefix_id(_MATCH_ID_PREFIX, internal_match_id),
         match_mark=match_mark,
-        match_field=names.FLD_GENOME_ATTRIBS_MATCHED,
+        match_field=names.FLD_MATCHED_SAFE,
         internal_selection_id=_prefix_id(_SELECTION_ID_PREFIX, internal_selection_id),
         selection_mark=selection_mark,
-        selection_field=names.FLD_GENOME_ATTRIBS_SELECTED,
+        selection_field=names.FLD_SELECTED_SAFE,
     )
     # Sort everything since we can't necessarily rely on arango, the client, or the loader
     # to have the same insertion order for the dicts

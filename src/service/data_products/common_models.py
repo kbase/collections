@@ -78,6 +78,14 @@ QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = Annotated[str | None, Query(
 )]
 
 
+QUERY_VALIDATOR_SKIP = Annotated[int, Query(
+    ge=0,
+    le=10000,
+    example=1000,
+    description="The number of records to skip"
+)]
+
+
 QUERY_VALIDATOR_LIMIT = Annotated[int, Query(
     ge=1,
     le=1000,
@@ -86,13 +94,13 @@ QUERY_VALIDATOR_LIMIT = Annotated[int, Query(
 )]
 
 
-QUERY_COUNT = Annotated[bool, Query(
+QUERY_VALIDATOR_COUNT = Annotated[bool, Query(
     description="Whether to return the number of records that match the query rather than "
         + "the records themselves. Paging parameters are ignored."
 )]
 
 
-QUERY_MATCH_ID = Annotated[str | None, Query(
+QUERY_VALIDATOR_MATCH_ID = Annotated[str | None, Query(
     description="A match ID to set the view to the match rather than "
         + "the entire collection. Authentication is required. If a match ID is "
         # matches are against a specific load version, so...
@@ -102,12 +110,19 @@ QUERY_MATCH_ID = Annotated[str | None, Query(
 )]
 
 
-QUERY_MATCH_MARK = Annotated[bool, Query(
+QUERY_VALIDATOR_MATCH_MARK = Annotated[bool, Query(
     description="Whether to mark matched rows rather than filter based on the match ID."
 )]
 
 
-QUERY_SELECTION_ID = Annotated[str | None, Query(
+QUERY_VALIDATOR_MATCH_MARK_SAFE = Annotated[bool, Query(
+    description="Whether to mark matched rows rather than filter based on the match ID. "
+        + "Matched rows will be indicated by a true value in the special field "
+        + f"`{names.FLD_MATCHED_SAFE}`."
+)]
+
+
+QUERY_VALIDATOR_SELECTION_ID = Annotated[str | None, Query(
     description="A selection ID to set the view to the selection rather than the entire "
         + "collection. If a selection ID is set, any load version override is ignored. "
         + "If a selection filter and a match filter are provided, they are ANDed together. "
@@ -115,11 +130,34 @@ QUERY_SELECTION_ID = Annotated[str | None, Query(
 )]
 
 
-QUERY_SELECTION_MARK = Annotated[bool, Query(
+QUERY_VALIDATOR_SELECTION_MARK = Annotated[bool, Query(
     description="Whether to mark selected rows rather than filter based on the selection ID."
 )]
 
 
-QUERY_STATUS_ONLY = Annotated[bool, Query(
+QUERY_VALIDATOR_SELECTION_MARK_SAFE = Annotated[bool, Query(
+    description="Whether to mark selected rows rather than filter based on the selection ID. "
+            + "Selected rows will be indicated by a true value in the special field "
+            + f"`{names.FLD_SELECTED_SAFE}`."
+)]
+
+
+QUERY_VALIDATOR_STATUS_ONLY = Annotated[bool, Query(
     description="Only return the status of any match or selection processing without any data."
+)]
+
+
+QUERY_VALIDATOR_SORT_ON = Annotated[str | None, Query(
+    example=names.FLD_KBASE_ID,
+    description="The field to sort on."
+)]
+
+
+QUERY_VALIDATOR_SORT_DIRECTION = Annotated[bool, Query(
+    description="Whether to sort in descending order rather than ascending"
+)]
+
+
+QUERY_VALIDATOR_OUTPUT_TABLE = Annotated[bool, Query(
+    description="Whether to return the data in table form or dictionary list form"
 )]
