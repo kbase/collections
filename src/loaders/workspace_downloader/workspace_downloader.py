@@ -523,7 +523,7 @@ def main():
         help="Root directory.",
     )
     optional.add_argument(
-        "--env",
+        f"--{loader_common_names.ENV_ARG_NAME}",
         type=str,
         choices=loader_common_names.KB_ENV,
         default='PROD',

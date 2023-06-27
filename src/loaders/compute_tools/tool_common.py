@@ -76,14 +76,13 @@ class ToolRunner:
         -h, --help            show this help message and exit
 
         required named arguments:
+        --env {CI,NEXT,APPDEV,PROD,None}
+                              Environment used to run the tool.
+        --kbase_collection KBASE_COLLECTION
+                              KBase collection identifier name.
         --load_ver LOAD_VER   KBase load version (e.g. r207.kbase.1).
-        --source_data_dir SOURCE_DATA_DIR
-                                Source data (e.g. genome files) directory. (e.g. /glob
-                                al/cfs/cdirs/kbase/collections/sourcedata/GTDB/r207
 
         optional arguments:
-        --kbase_collection KBASE_COLLECTION
-                                KBase collection identifier name (default: GTDB).
         --root_dir ROOT_DIR   Root directory.
         --threads THREADS     Total number of threads used by the script. (default:
                                 half of system cpu count)
@@ -117,9 +116,17 @@ class ToolRunner:
         self._tool_data_id_from_filename = tool_data_id_from_filename
         self._suffix_ids = suffix_ids
         args = self._parse_args()
+        env = getattr(args, loader_common_names.ENV_ARG_NAME)
         kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
+        load_ver = getattr(args, loader_common_names.LOAD_VER_ARG_NAME)
         self._allow_missing_files = kbase_collection in _IGNORE_MISSING_FILES_COLLECTIONS
-        self._source_data_dir = Path(args.source_data_dir)
+        self._source_data_dir = Path(
+            Path(args.root_dir),
+            loader_common_names.COLLECTION_SOURCE_DIR,
+            env,
+            kbase_collection,
+            load_ver
+        )
         self._threads = args.threads
         self._program_threads = args.program_threads
         self._debug = args.debug
@@ -135,8 +142,9 @@ class ToolRunner:
         self._work_dir = Path(
             Path(args.root_dir),
             loader_common_names.COLLECTION_DATA_DIR,
+            env,
             kbase_collection,
-            getattr(args, loader_common_names.LOAD_VER_ARG_NAME),
+            load_ver,
             self._tool
         )
 
@@ -148,21 +156,20 @@ class ToolRunner:
 
         # Required flag arguments
         required.add_argument(
+            f"--{loader_common_names.ENV_ARG_NAME}", required=True, type=str,
+            choices=loader_common_names.KB_ENV + [loader_common_names.DEFAULT_ENV],
+            help=f"Environment used to run the tool."
+        )
+        required.add_argument(
+            f'--{loader_common_names.KBASE_COLLECTION_ARG_NAME}', required=True, type=str,
+            help=loader_common_names.KBASE_COLLECTION_DESCR
+        )
+        required.add_argument(
             f'--{loader_common_names.LOAD_VER_ARG_NAME}', required=True, type=str,
             help=loader_common_names.LOAD_VER_DESCR
         )
-        required.add_argument(
-            '--source_data_dir', required=True, type=str,
-            help='Source data (e.g. genome files) directory. '
-                 + '(e.g. /global/cfs/cdirs/kbase/collections/sourcedata/GTDB/r207'
-        )
 
         # Optional arguments
-        optional.add_argument(
-            f'--{loader_common_names.KBASE_COLLECTION_ARG_NAME}', type=str,
-            default=loader_common_names.DEFAULT_KBASE_COLL_NAME,
-            help=loader_common_names.KBASE_COLLECTION_DESCR
-        )
         optional.add_argument(
             '--root_dir', type=str, default=loader_common_names.ROOT_DIR, help='Root directory.'
         )
@@ -556,7 +563,7 @@ def _find_data_file(
 FatalTuple = namedtuple(
     "FatalTuple",
     [
-        loader_common_names.FATAL_ID, 
+        loader_common_names.FATAL_ID,
         loader_common_names.FATAL_ERROR,
         loader_common_names.FATAL_FILE,
         loader_common_names.FATAL_STACKTRACE,
@@ -579,7 +586,7 @@ def write_fatal_tuples_to_dict(fatal_tuples: List[FatalTuple], output_dir: Path)
 
 
 def find_gtdbtk_summary_files(output_dir: Path):
-    summary_files = [file_name for file_name in os.listdir(output_dir) if 
+    summary_files = [file_name for file_name in os.listdir(output_dir) if
                      re.search(loader_common_names.GTDB_SUMMARY_FILE_PATTERN, file_name)]
     return summary_files
 
