@@ -71,17 +71,10 @@ from src.loaders.common.loader_helper import (
 )
 from src.loaders.compute_tools.tool_common import run_command, find_gtdbtk_summary_files
 
-# Default result file name suffix for parsed computed genome attributes data for arango import.
-# Collection, load version and tools name will be prepended to this file name suffix.
-COMPUTED_GENOME_ATTR_FILE_SUFFIX = "computed_genome_attribs.jsonl"
-
-# Default result file name suffix for parsed heatmap data for arango import.
-# Collection, load version, tools name and categories (meta, rows, cells etc.) will be prepended to this suffix.
-HEATMAP_FILE_SUFFIX = "heatmap_data.jsonl"
-
-# Default result file name suffix for the kbcoll_export_types collections for arango import.
-# Collection, load version and types will be prepended to this file name suffix.
-KBCALL_EXPORT_TYPES_FILE_SUFFIX = "kbcoll_export_types.jsonl"
+# Default result file name root for parsed heatmap data for arango import.
+# Collection, load version, tools name will be prepended to this root.
+# Categories (meta, rows, cells etc.) will be appended to this root.
+HEATMAP_FILE_ROOT = "heatmap_data"
 
 # The following features will be extracted from the CheckM2 result quality_report.tsv file as computed genome attributes
 # If empty, select all available fields
@@ -417,9 +410,9 @@ def _process_heatmap_tools(heatmap_tools: set[str],
         heatmap_meta_dict, heatmap_rows_list, heatmap_cell_details_list = parse_ops(
             root_dir, kbase_collection, load_ver, fatal_ids)
 
-        meta_output = f'{kbase_collection}_{load_ver}_{tool}_meta_{HEATMAP_FILE_SUFFIX}'
-        rows_output = f'{kbase_collection}_{load_ver}_{tool}_rows_{HEATMAP_FILE_SUFFIX}'
-        cell_details_output = f'{kbase_collection}_{load_ver}_{tool}_cell_details_{HEATMAP_FILE_SUFFIX}'
+        meta_output = f'{kbase_collection}_{load_ver}_{tool}_{HEATMAP_FILE_ROOT}_{names.COLL_MICROTRAIT_META}.jsonl'
+        rows_output = f'{kbase_collection}_{load_ver}_{tool}_{HEATMAP_FILE_ROOT}_{names.COLL_MICROTRAIT_DATA}.jsonl'
+        cell_details_output = f'{kbase_collection}_{load_ver}_{tool}_{HEATMAP_FILE_ROOT}_{names.COLL_MICROTRAIT_CELLS}.jsonl'
 
         _create_import_files(root_dir, meta_output, [heatmap_meta_dict])
         _create_import_files(root_dir, rows_output, heatmap_rows_list)
@@ -504,10 +497,10 @@ def _process_genome_attri_tools(genome_attr_tools: set[str],
     meta_lookup = _create_meta_lookup(root_dir, kbase_collection, load_ver, tool)
     docs, encountered_types = _update_docs_with_upa_info(res_dict, meta_lookup, check_genome)
 
-    output = f'{kbase_collection}_{load_ver}_{"_".join(genome_attr_tools)}_{COMPUTED_GENOME_ATTR_FILE_SUFFIX}'
+    output = f'{kbase_collection}_{load_ver}_{"_".join(genome_attr_tools)}_{names.COLL_GENOME_ATTRIBS}.jsonl'
     _create_import_files(root_dir, output, docs)
 
-    export_types_output = f'{kbase_collection}_{load_ver}_{KBCALL_EXPORT_TYPES_FILE_SUFFIX}'
+    export_types_output = f'{kbase_collection}_{load_ver}_{names.COLL_EXPORT_TYPES}.jsonl'
     types_doc = data_product_export_types_to_doc(
         kbase_collection,
         names.GENOME_ATTRIBS_PRODUCT_ID,

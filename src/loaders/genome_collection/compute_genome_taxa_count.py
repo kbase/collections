@@ -42,16 +42,10 @@ e.g. compute_genome_taxa_count.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.ts
      compute_genome_taxa_count.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_version 207 --kbase_collection GTDB --output  gtdb_taxa_counts.json
 """
 
-# Default result file name for genome taxa count data and identical ranks for arango import
-# Collection and load version information will be prepended to this file name.
-GENOME_TAXA_COUNT_FILE = "parsed_genome_taxa_counts.json"
-
 # The source of the input file containing genome taxonomy information to be parsed
 # GTDB - taxonomy file downloaded directly from the GTDB website, such as 'bac120_taxonomy_r207.tsv'
 # genome_attributes - genome attributes file created by running 'parse_tool_results.py' script.
 VALID_SOURCE = ['GTDB', 'genome_attributes']
-
-
 
 
 def _parse_lineage_from_line(line, source):
@@ -148,13 +142,13 @@ def main():
     count_docs, identical_ranks = _create_count_docs(nodes, kbase_collection, load_version)
     rank_doc = _create_rank_docs(kbase_collection, load_version, identical_ranks)
     # Create taxa counts json file
-    count_json = args.output.name if args.output else f'{kbase_collection}_{load_version}_{GENOME_TAXA_COUNT_FILE}'
+    count_json = args.output.name if args.output else f'{kbase_collection}_{load_version}_{names.COLL_TAXA_COUNT}.json'
     with open(count_json, 'w') as out_count_json:
         convert_to_json(count_docs, out_count_json)
 
     # Create identical ranks json file
     root_ext = os.path.splitext(count_json)
-    with open(root_ext[0] + '_rank' + root_ext[1], 'w') as out_rank_json:
+    with open(root_ext[0] + '_ranks' + root_ext[1], 'w') as out_rank_json:
         convert_to_json(rank_doc, out_rank_json)
 
 
