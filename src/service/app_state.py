@@ -37,7 +37,9 @@ async def build_app(
     """
     print("build app", flush=True)
     auth = await KBaseAuth.create(cfg.auth_url, cfg.auth_full_admin_roles)
+    print("built auth", flush=True)
     sdk_client = SDKAsyncClient(cfg.workspace_url)
+    print("built sdk", flush=True)
     cli = None
     try:
         print("calling build storage", flush=True)
