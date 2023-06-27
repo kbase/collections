@@ -15,6 +15,7 @@ from http.client import responses
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from src.common.git_commit import GIT_COMMIT
 from src.common.version import VERSION
 from src.service import app_state
 from src.service import errors
@@ -46,6 +47,7 @@ def create_app(noop=False):
     Create the Collections application
     """
     print("create app", flush=True)
+    print(f"Server version {VERSION} {GIT_COMMIT}")
     logging.basicConfig(level=logging.INFO)
     # deliberately not documenting noop, should go away when we have real tests
     if noop:
