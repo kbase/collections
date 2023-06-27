@@ -46,8 +46,8 @@ def _get_id_and_error_message_mapping_from_tsv_files(output_dir: Path):
 
 
 def _get_id_and_error_message_mapping(file_path: str):
-    data = pd.read_csv(file_path, sep="\t", header=None)
-    res = {tool_safe_data_id:error_message for tool_safe_data_id, error_message in zip(data[0], data[1])}
+    with open(file_path, "r") as f:
+        res = {line.strip().split("\t")[0]: line.strip().split("\t")[1] for line in f}
     return res
 
 
