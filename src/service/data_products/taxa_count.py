@@ -18,8 +18,8 @@ from src.service import processing_matches
 from src.service import processing_selections
 from src.service.data_products.common_functions import (
     get_load_version,
-    get_load_ver_from_collection,
     get_collection_singleton_from_db,
+    override_load_version,
 )
 from src.service.data_products.common_models import (
     DataProductSpec,
@@ -175,7 +175,7 @@ async def get_ranks(
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
 ):
     store = app_state.get_app_state(r).arangostorage
-    load_ver = await get_load_version(store, collection_id, ID, load_ver_override, user)
+    _, load_ver = await get_load_version(store, collection_id, ID, load_ver_override, user)
     return await get_ranks_from_db(store, collection_id, load_ver, bool(load_ver_override))
 
 
@@ -221,11 +221,9 @@ async def get_taxa_counts(
     appstate = app_state.get_app_state(r)
     store = appstate.arangostorage
     dp_match, dp_sel = None, None
-    if match_id or selection_id:
-        errclass = errors.InvalidMatchStateError if match_id else errors.InvalidSelectionStateError
-        load_ver, coll = await _get_load_ver(appstate, collection_id, errclass)
-    else:
-        load_ver = await get_load_version(store, collection_id, ID, load_ver_override, user)
+    lvo = override_load_version(load_ver_override, match_id, selection_id)
+    coll, load_ver = await get_load_version(appstate.arangostorage, collection_id, ID, lvo, user)
+    _check_genome_attribs(coll, bool(match_id), bool(selection_id))
     if match_id:
         dp_match = await processing_matches.get_or_create_data_product_match_process(
             appstate, coll, user, match_id, ID, _process_taxa_count_subset
@@ -282,18 +280,19 @@ async def _add_subset_data_in_place(
             d[_TYPE2FIELD[dp_process.type]] = mqd.get(d[name], 0)
 
 
-async def _get_load_ver(appstate: CollectionsState, collection_id: str, errclass
-) -> tuple[str, models.SavedCollection]:
-    coll = await appstate.arangostorage.get_collection_active(collection_id)
+def _check_genome_attribs(coll: models.ActiveCollection, match: bool, selection: bool):
     # I'm kind of uncomfortable hard coding this dependency... but it's real so... I dunno.
     # Might need refactoring later once it become more clear how data products should
     # interact.
-    if genome_attributes.ID not in {dp.product for dp in coll.data_products}:
-        raise errclass(
-            f"Cannot perform a {ID} subset when the collection does not have a "
-            + f"{genome_attributes.ID} data product")
-    load_ver = get_load_ver_from_collection(coll, ID)
-    return load_ver, coll
+    # Maybe just don't allow registering a taxa count DP without a genome attribs DP, and
+    # configure that in the taxa count spec
+    if (coll and (match or selection) and
+        genome_attributes.ID not in {dp.product for dp in coll.data_products}):
+            errclass = (errors.InvalidMatchStateError if match
+                        else errors.InvalidSelectionStateError)
+            raise errclass(
+                f"Cannot perform a {ID} subset when the collection does not have a "
+                + f"{genome_attributes.ID} data product")
 
 
 async def _query(
