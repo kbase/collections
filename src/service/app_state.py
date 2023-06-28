@@ -35,11 +35,16 @@ async def build_app(
     data_products - the data products installed in the system
     matchers - the matchers installed in the system
     """
+    print("in build_app", flush=True)
     auth = await KBaseAuth.create(cfg.auth_url, cfg.auth_full_admin_roles)
+    print("auth created", flush=True)
     sdk_client = SDKAsyncClient(cfg.workspace_url)
+    print("sdk created", flush=True)
     cli = None
     try:
+        print("calling build_storage", flush=True)
         cli, storage = await build_storage(cfg, data_products)
+        print("completed build_storage", flush=True)
         await _check_workspace_url(sdk_client, cfg.workspace_url)
         app.state._colstate = CollectionsState(
             auth, sdk_client, cli, storage, matchers, cfg

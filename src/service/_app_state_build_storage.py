@@ -11,6 +11,7 @@ async def build_storage(
     cfg: CollectionsServiceConfig,
     data_products: list[DataProductSpec],
 ) -> tuple[aioarango.ArangoClient, ArangoStorage]:
+    print("in build_storage", flush=True)
     cli = aioarango.ArangoClient(hosts=cfg.arango_url)
     try:
         if cfg.create_db_on_startup:
