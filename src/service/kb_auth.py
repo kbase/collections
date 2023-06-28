@@ -32,9 +32,12 @@ class KBaseUser(NamedTuple):
 
 
 async def _get(url, headers):
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession() as session:  # TODO CODE should make 1 per client
+        print("auth about to get url", flush=True)
         async with session.get(url, headers=headers) as r:
+            print("auth got url", flush=True)
             await _check_error(r)
+            print("auth checked error", flush=True)
             return await r.json()
 
 
@@ -75,9 +78,12 @@ class KBaseAuth:
         :param cache_expiration: the expiration time for the token cache in
             seconds.
         '''
+        print("auth create", flush=True)
         if not _not_falsy(auth_url, "auth_url").endswith('/'):
             auth_url += '/'
+        print("auth get url", flush=True)
         j = await _get(auth_url, {'Accept': 'application/json'})
+        print("auth calling constructor", flush=True)
         return KBaseAuth(
             auth_url, full_admin_roles, cache_max_size, cache_expiration, j.get('servicename')
         )
@@ -89,6 +95,7 @@ class KBaseAuth:
             cache_max_size: int,
             cache_expiration: int,
             service_name: str):
+        print("auth in constructor", flush=True)
         self._url = auth_url
         self._me_url = self._url + 'api/V2/me'
         self._full_roles = set(full_admin_roles) if full_admin_roles else set()
@@ -99,6 +106,7 @@ class KBaseAuth:
         if service_name != 'Authentication Service':
             raise IOError(f'The service at {self._url} does not appear to be the KBase ' +
                           'Authentication Service')
+        print("auth exiting constructor", flush=True)
 
         # could use the server time to adjust for clock skew, probably not worth the trouble
 
