@@ -6,6 +6,7 @@ on:
       - develop
       - main
       - master
+      - debug_merge_PR328
     types:
       - opened
       - reopened
@@ -13,7 +14,7 @@ on:
       - closed
 jobs:
   build-develop-open:
-    if: github.base_ref == 'develop' && github.event.pull_request.merged == false
+    if: github.base_ref == 'debug_merge_PR328' && github.event.pull_request.merged == false
     uses: kbase/.github/.github/workflows/reusable_build.yml@main
     secrets: inherit
   build-develop-merge:
