@@ -45,7 +45,7 @@ def _exam_count_result_file(result_file, expected_docs_length, expected_doc_keys
 
 def _exam_rank_result_file(result_file, expected_load_version, expected_collection, expected_ranks_inorder):
     root_ext = os.path.splitext(result_file)
-    rank_result_file = root_ext[0] + '_rank' + root_ext[1]
+    rank_result_file = root_ext[0] + '_ranks' + root_ext[1]
 
     with jsonlines.open(rank_result_file, 'r') as jsonl_f:
         data = [obj for obj in jsonl_f]
