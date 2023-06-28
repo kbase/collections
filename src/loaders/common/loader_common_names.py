@@ -56,8 +56,7 @@ KB_AUTH_TOKEN = "KB_AUTH_TOKEN"
 SDK_JOB_DIR = "sdk_job_dir"
 # used by the podman service. Note that the unix user ID must be interpolated into the string before use
 DOCKER_HOST = "unix:/run/user/{}/podman/podman.sock"
-# used by the callback server
-KB_BASE_URL_DEFAULT = "https://kbase.us/services/"
+KB_ENV = ['CI', 'NEXT', 'APPDEV', 'PROD']
 # JSON keys in the download metadata file in a download directory
 SOURCE_METADATA_FILE_KEYS = ["upa", "name", "type", "timestamp"]
 # callback server docker image name
