@@ -19,7 +19,7 @@ def override_load_version(
     load_ver_override: str = None, match_id: str = None, selection_id: str = None
 ) -> str | None:
     """
-    Determines whether a load verison override should be used for subsequent method calls. Returns
+    Determines whether a load version override should be used for subsequent method calls. Returns
     the provided override if it's present and no match or selection ID is provided.
     """
     return None if match_id or selection_id else load_ver_override
@@ -31,7 +31,7 @@ async def get_load_version(
     data_product: str,
     load_ver: str,
     user: kb_auth.KBaseUser,
-) -> tuple[models.ActiveCollection, str]:
+) -> tuple[models.ActiveCollection | None, str]:
     """
     Get a collection and the load version of a data product given a Collection ID and the ID
     of the data product, optionally allowing an override of the load versionn if the user is
