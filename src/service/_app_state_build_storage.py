@@ -9,6 +9,7 @@ from src.service.storage_arango import ArangoStorage, ARANGO_ERR_NAME_EXISTS
 
 async def build_arango_db(cfg: CollectionsServiceConfig, create_database: bool = False
 ) -> tuple[aioarango.ArangoClient, aioarango.database.StandardDatabase]:
+    print("in build_aranog_db", flush=True)
     cli = aioarango.ArangoClient(hosts=cfg.arango_url)
     try:
         if create_database:
@@ -29,7 +30,8 @@ async def build_storage(
     cfg: CollectionsServiceConfig,
     data_products: list[DataProductSpec],
 ) -> tuple[aioarango.ArangoClient, ArangoStorage]:
-    cli, db = build_arango_db(cfg, cfg.create_db_on_startup)
+    print("in build_storage", flush=True)
+    cli, db = await build_arango_db(cfg, cfg.create_db_on_startup)
     try:
         storage = await ArangoStorage.create(
             db,
