@@ -6,6 +6,7 @@ on:
       - develop
       - main
       - master
+      - debug_PR318_clean
     types:
       - opened
       - reopened
@@ -24,7 +25,7 @@ jobs:
       tags: pr-${{ github.event.number }},latest
     secrets: inherit
   build-main-open:
-    if: (github.base_ref == 'main' || github.base_ref == 'master') && github.event.pull_request.merged == false
+    if: (github.base_ref == 'main' || github.base_ref == 'debug_PR318_clean') && github.event.pull_request.merged == false
     uses: kbase/.github/.github/workflows/reusable_build-push.yml@main
     with:
       name: '${{ github.event.repository.name }}'
