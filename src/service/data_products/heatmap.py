@@ -49,10 +49,6 @@ from typing import Annotated, Any
 _OPT_AUTH = KBaseHTTPBearer(optional=True)
 
 
-def _prefix_id(prefix: str, id_: str | None) -> str | None:
-    return prefix + id_ if id_ else None
-
-
 class HeatMapController:
     """
     A controller for creating a set of heat map endpoints.
@@ -343,9 +339,6 @@ class HeatMapController:
         doc.pop(names.FLD_MATCHES_SELECTIONS, None)
         return doc
 
-    def _get_complete_internal_id(self, dp_proc: models.DataProductProcess | None) -> str:
-        return dp_proc.internal_id if dp_proc and dp_proc.is_complete() else None
-
     async def _query(
         # ew. too many args
         self,
@@ -359,8 +352,6 @@ class HeatMapController:
         selection_proc: models.DataProductProcess | None,
         selection_mark: bool,
     ) -> heatmap_models.HeatMap:
-        internal_match_id = self._get_complete_internal_id(match_proc)
-        internal_selection_id = self._get_complete_internal_id(selection_proc)
         data = []
         await query_simple_collection_list(
             store,
@@ -373,10 +364,12 @@ class HeatMapController:
             skip=0,
             start_after=start_after,
             limit=limit,
-            internal_match_id=_prefix_id(MATCH_ID_PREFIX, internal_match_id),
+            match_process=match_proc,
             match_mark=match_mark,
-            internal_selection_id=_prefix_id(SELECTION_ID_PREFIX, internal_selection_id),
+            match_prefix=MATCH_ID_PREFIX,
+            selection_process=selection_proc,
             selection_mark=selection_mark,    
+            selection_prefix=SELECTION_ID_PREFIX,
         )
         vals = set()
         for r in data:  # lazy lazy lazy
