@@ -35,7 +35,7 @@ def test_make_work_dir(setup_and_teardown):
 
     path = Path(work_dir).resolve()
 
-    assert path.name == f'r{env}'
+    assert path.name == f'{env}'
     assert path.parents[0].name == source
 
 
