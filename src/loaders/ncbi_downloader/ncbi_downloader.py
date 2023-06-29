@@ -70,7 +70,7 @@ GTDB_DOMAIN = "https://data.gtdb.ecogenomic.org/releases/"
 ENV = "NONE"
 
 
-def _parse_gtdb_release_vers():
+def _parse_gtdb_release_vers() -> list[str]:
     # parse GTDB release versions from GTDB website (FTP port is closed)
 
     response = requests.get(GTDB_DOMAIN)
@@ -84,9 +84,13 @@ def _parse_gtdb_release_vers():
     return release_ver
 
 
-def _download_genome_file(download_dir: str, gene_id: str, target_file_ext: list[str],
-                          exclude_name_substring: list[str],
-                          overwrite=False) -> None:
+def _download_genome_file(
+        download_dir: str, 
+        gene_id: str, 
+        target_file_ext: list[str],
+        exclude_name_substring: list[str],
+        overwrite: bool = False
+) -> None:
     # NCBI file structure: a delegated directory is used to store files for all versions of a genome
     # e.g. File structure for RS_GCF_000968435.2 (https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/968/435/)
     # genomes/all/GCF/000/968/435/ --> GCF_000968435.1_ASM96843v1/
@@ -126,7 +130,7 @@ def _download_genome_file(download_dir: str, gene_id: str, target_file_ext: list
         raise ValueError(f'Download Failed for {gene_id} after {max_attempts} attempts!')
 
 
-def _form_gtdb_taxonomy_file_url(release_ver):
+def _form_gtdb_taxonomy_file_url(release_ver: str) -> list[str]:
     # form GTDB taxonomy URL for specific GTDB version.
     # e.g. https://data.gtdb.ecogenomic.org/releases/release207/207.0/ar53_taxonomy_r207.tsv
 
@@ -152,7 +156,7 @@ def _form_gtdb_taxonomy_file_url(release_ver):
     return file_urls
 
 
-def _fetch_gtdb_genome_ids(release_ver, work_dir):
+def _fetch_gtdb_genome_ids(release_ver: str, work_dir: str) -> list[str]:
     # download GTDB taxonomy files and then parse genome_ids from the GTDB taxonomy files
     genome_ids = list()
 
@@ -171,7 +175,7 @@ def _fetch_gtdb_genome_ids(release_ver, work_dir):
     return genome_ids
 
 
-def _fetch_genome_ids(kbase_collection, release_ver, work_dir):
+def _fetch_genome_ids(kbase_collection: str, release_ver: str, work_dir: str) -> list[str]:
     # retrieve genome ids
     func_name = f"_fetch_{kbase_collection.lower()}_genome_ids"
 
@@ -185,14 +189,20 @@ def _fetch_genome_ids(kbase_collection, release_ver, work_dir):
     return genome_ids
 
 
-def _make_work_dir(root_dir, source_data_dir, source, env):
+def _make_work_dir(root_dir: str, source_data_dir: str, source: str, env: str) -> str:
     # make working directory for a specific collection under root directory
     work_dir = os.path.join(root_dir, source_data_dir, source, env)
     os.makedirs(work_dir, exist_ok=True)
     return work_dir
 
 
-def _make_collection_source_dir(root_dir, collection_source_dir, collection, release_ver, env):
+def _make_collection_source_dir(
+        root_dir: str,
+        collection_source_dir: str,
+        collection: str,
+        release_ver: str,
+        env: str
+) -> str:
     """
     Helper function that creates a collection & source_version and link in data
     to that colleciton from the overall source data dir.
@@ -202,10 +212,19 @@ def _make_collection_source_dir(root_dir, collection_source_dir, collection, rel
     return csd
 
 
-def _process_genome_ids(genome_ids_unprocssed, work_dir, target_file_ext, exclude_name_substring):
+def _process_genome_ids(
+        work_dir: str,
+        genome_ids_unprocssed: list[str], 
+        target_file_ext: list[str],
+        exclude_name_substring: list[str],
+        overwrite: bool = False
+)-> list[str]:
     """
     Helper function that processes genome ids to avoid redownloading files.
     """
+    if overwrite:
+        return genome_ids_unprocssed
+    
     genome_ids = list()
     for genome_id in genome_ids_unprocssed:
         data_dir = os.path.join(work_dir, genome_id)
@@ -226,8 +245,13 @@ def _process_genome_ids(genome_ids_unprocssed, work_dir, target_file_ext, exclud
     return genome_ids
 
 
-def download_genome_files(gene_ids: list[str], target_file_ext: list[str], exclude_name_substring: list[str],
-                          result_dir: str, overwrite=False) -> list[str]:
+def download_genome_files(
+        gene_ids: list[str],
+        target_file_ext: list[str],
+        exclude_name_substring: list[str],
+        result_dir: str,
+        overwrite: bool = False
+) -> list[str]:
     """
     Download genome files from NCBI FTP server
 
@@ -264,7 +288,12 @@ def download_genome_files(gene_ids: list[str], target_file_ext: list[str], exclu
     return failed_ids
 
 
-def create_softlink_between_csd_and_work_dir(genome_ids_unprocssed, csd, work_dir, failed_ids=[]):
+def create_softlink_between_csd_and_work_dir(
+        csd: str,
+        work_dir: str,
+        genome_ids_unprocssed: list[str],
+        failed_ids: list[str] = []
+) -> None:
     genome_ids = set(genome_ids_unprocssed) - set(failed_ids)
     for genome_id in genome_ids:
         genome_dir = os.path.join(work_dir, genome_id)
@@ -322,10 +351,10 @@ def main():
     work_dir = _make_work_dir(root_dir, loader_common_names.SOURCE_DATA_DIR, source, ENV)
     csd = _make_collection_source_dir(root_dir, loader_common_names.COLLECTION_SOURCE_DIR, kbase_collection, release_ver, ENV)
     genome_ids_unprocssed = _fetch_genome_ids(kbase_collection, release_ver, work_dir)
-    genome_ids = _process_genome_ids(genome_ids_unprocssed, work_dir, download_file_ext, exclude_name_substring)
+    genome_ids = _process_genome_ids(work_dir, genome_ids_unprocssed, download_file_ext, exclude_name_substring, overwrite)
     if not genome_ids:
         print(f"All {len(genome_ids_unprocssed)} genomes files haven already existed in {work_dir}")
-        create_softlink_between_csd_and_work_dir(genome_ids_unprocssed, csd, work_dir)
+        create_softlink_between_csd_and_work_dir(csd, work_dir, genome_ids_unprocssed)
         return
 
     if not threads:
@@ -348,7 +377,7 @@ def main():
     else:
         print(f'\nSuccessfully downloaded {len(genome_ids)} genome files')
     
-    create_softlink_between_csd_and_work_dir(genome_ids_unprocssed, csd, work_dir, failed_ids)
+    create_softlink_between_csd_and_work_dir(csd, work_dir, genome_ids_unprocssed, failed_ids)
     
 
 if __name__ == "__main__":
