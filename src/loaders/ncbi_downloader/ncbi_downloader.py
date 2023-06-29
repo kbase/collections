@@ -48,6 +48,7 @@ import itertools
 import math
 import multiprocessing
 import os
+import sys
 import time
 from datetime import datetime
 from urllib import request
@@ -57,15 +58,17 @@ import ftputil
 import requests
 from bs4 import BeautifulSoup
 
-from src.loaders.common import loader_common_names
+from src.loaders.common import loader_common_names, loader_helper
 from src.loaders.common.loader_helper import parse_genome_id
 
 # Fraction amount of system cores can be utilized
 # (i.e. 0.5 - program will use 50% of total processors,
 #       0.1 - program will use 10% of total processors)
 SYSTEM_UTILIZATION = 0.5
-SOURCE = ['GTDB']  # supported source of data
-GTDB_DOMAIN = 'https://data.gtdb.ecogenomic.org/releases/'
+SOURCE = ["NCBI"]  # supported source of data
+COLLECTIONS = ["GTDB"]  # supported collections
+GTDB_DOMAIN = "https://data.gtdb.ecogenomic.org/releases/"
+ENV = "NONE"
 
 
 def _parse_gtdb_release_vers():
@@ -169,28 +172,55 @@ def _fetch_gtdb_genome_ids(release_ver, work_dir):
     return genome_ids
 
 
-def _fetch_genome_ids(source, release_ver, work_dir):
+def _fetch_genome_ids(kbase_collection, release_ver, work_dir):
     # retrieve genome ids
+    func_name = f"_fetch_{kbase_collection.lower()}_genome_ids"
 
-    if source == 'GTDB':
-        genome_ids = _fetch_gtdb_genome_ids(release_ver, work_dir)
-    else:
-        raise ValueError(f'Unexpected source: {source}')
+    try:
+        fetch_coll_genome_ids = getattr(sys.modules[__name__], func_name)
+    except AttributeError as e:
+        raise ValueError(f"Please implement fetching method for: {func_name}") from e
+    
+    genome_ids = fetch_coll_genome_ids(release_ver, work_dir)
 
     return genome_ids
 
 
-def _make_work_dir(root_dir, source_data_dir, source, release_ver):
+def _make_work_dir(root_dir, source_data_dir, source, env):
     # make working directory for a specific collection under root directory
-
-    if source == 'GTDB':
-        work_dir = os.path.join(root_dir, source_data_dir, source, f'r{release_ver}')
-    else:
-        raise ValueError(f'Unexpected source: {source}')
-
+    work_dir = os.path.join(root_dir, source_data_dir, source, env)
     os.makedirs(work_dir, exist_ok=True)
-
     return work_dir
+
+
+def _make_collection_source_dir(root_dir, collection_source_dir, collection, release_ver, env):
+    """
+    Helper function that creates a collection & source_version and link in data
+    to that colleciton from the overall source data dir.
+    """
+    csd = os.path.join(root_dir, collection_source_dir, env, collection, release_ver)
+    os.makedirs(csd, exist_ok=True)
+    return csd
+
+
+def _process_genome_ids(genome_ids_unprocssed, work_dir, target_file_ext):
+    """
+    Helper function that processes genome ids to avoid redownloading files.
+    """
+    genome_ids = list()
+    target_ext_count = len(target_file_ext)
+    for genome_id in genome_ids_unprocssed:
+        data_dir = os.path.join(work_dir, genome_id)
+        if not os.path.exists(data_dir):
+            genome_ids.append(genome_id)
+            continue
+        ext_count = 0
+        for file_ext in target_file_ext:
+            if any([file_name.endswith(file_ext) for file_name in os.listdir(data_dir)]):
+                ext_count += 1
+        if ext_count != target_ext_count:
+            genome_ids.append(genome_id)
+    return genome_ids
 
 
 def download_genome_files(gene_ids: list[str], target_file_ext: list[str], exclude_name_substring: list[str],
@@ -247,10 +277,12 @@ def main():
                           help='GTDB release version')
 
     # Optional argument
+    optional.add_argument(f"--{loader_common_names.KBASE_COLLECTION_ARG_NAME}", type=str, default="GTDB",
+                          help="Create a collection and link in data to that collection from the overall source data dir")
     optional.add_argument('--root_dir', type=str, default=loader_common_names.ROOT_DIR,
                           help='Root directory.')
-    optional.add_argument('--source', type=str, default='GTDB',
-                          help='Source of data (default: GTDB)')
+    optional.add_argument('--source', type=str, default='NCBI',
+                          help='Source of data')
     optional.add_argument('--threads', type=int,
                           help='Number of threads. (default: half of system cpu count)')
     optional.add_argument('--overwrite', action='store_true',
@@ -259,27 +291,36 @@ def main():
                           help='Files with a specific substring in their names that should be excluded from the download.')
 
     args = parser.parse_args()
-
-    (download_file_ext,
-     release_ver,
-     root_dir,
-     source,
-     threads,
-     overwrite,
-     exclude_name_substring) = (args.download_file_ext, args.release_ver, args.root_dir, args.source,
-                                args.threads, args.overwrite, args.exclude_name_substring)
+    
+    download_file_ext = args.download_file_ext
+    release_ver = args.release_ver
+    root_dir = args.root_dir
+    source = args.source
+    threads = args.threads
+    overwrite = args.overwrite
+    exclude_name_substring = args.exclude_name_substring
+    kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
 
     if source not in SOURCE:
         raise ValueError(f'Unexpected source. Currently supported sources: {SOURCE}')
+    
+    if kbase_collection not in COLLECTIONS:
+        raise ValueError(f'Unexpected collection. Currently supported collections: {COLLECTIONS}')
 
-    work_dir = _make_work_dir(root_dir, loader_common_names.SOURCE_DATA_DIR, source, release_ver)
-
-    genome_ids = _fetch_genome_ids(source, release_ver, work_dir)
+    work_dir = _make_work_dir(root_dir, loader_common_names.SOURCE_DATA_DIR, source, ENV)
+    csd = _make_collection_source_dir(root_dir, loader_common_names.COLLECTION_SOURCE_DIR, kbase_collection, release_ver, ENV)
+    genome_ids_unprocssed = _fetch_genome_ids(kbase_collection, release_ver, work_dir)
+    genome_ids = _process_genome_ids(genome_ids_unprocssed, work_dir, download_file_ext)
+    if not genome_ids:
+        print(f"All {len(genome_ids_unprocssed)} genomes files haven already been downloaded in {work_dir}")
+        return
 
     if not threads:
         threads = max(int(multiprocessing.cpu_count() * min(SYSTEM_UTILIZATION, 1)), 1)
     threads = max(1, threads)
-    print(f"Start downloading genome files with {threads} threads")
+    print(f"Originally planned to download {len(genome_ids_unprocssed)} genome files\n"
+          f"Detected {len(genome_ids_unprocssed) - len(genome_ids)} genome files already existed\n"
+          f"Start downloading {len(genome_ids)} genome files with {threads} threads")
 
     chunk_size = math.ceil(len(genome_ids) / threads)  # distribute genome ids evenly across threads
     batch_input = [(genome_ids[i: i + chunk_size], download_file_ext, exclude_name_substring, work_dir,
@@ -292,6 +333,15 @@ def main():
         print(f'Failed to download {failed_ids}')
     else:
         print(f'Successfully downloaded {len(genome_ids)} genome files')
+    
+    for genome_id in genome_ids_unprocssed:
+        if genome_id in failed_ids:
+            continue
+        genome_dir = os.path.join(work_dir, genome_id)
+        csd_genome_dir = os.path.join(csd, genome_id)
+        loader_helper.create_softlink(csd_genome_dir, genome_dir)
+
+    print(f"Genome files in {csd} now link to {work_dir}")
 
 
 if __name__ == "__main__":
