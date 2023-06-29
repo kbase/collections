@@ -1,43 +1,45 @@
 """
-PROTOTYPE - Download genome files from NCBI FTP server.
-
-usage: ncbi_downloader.py [-h] --download_file_ext DOWNLOAD_FILE_EXT [DOWNLOAD_FILE_EXT ...] --release_ver
-                          RELEASE_VER [--root_dir ROOT_DIR] [--source SOURCE] [--threads THREADS]
-                          [--overwrite]
+usage: ncbi_downloader.py [-h] --download_file_ext DOWNLOAD_FILE_EXT [DOWNLOAD_FILE_EXT ...] --release_ver {202,207,214,80,83,86,89,95}
+                          [--kbase_collection {GTDB}] [--root_dir ROOT_DIR] [--source {NCBI}] [--threads THREADS] [--overwrite]
                           [--exclude_name_substring EXCLUDE_NAME_SUBSTRING [EXCLUDE_NAME_SUBSTRING ...]]
+
+PROTOTYPE - Download genome files from NCBI FTP server.
 
 options:
   -h, --help            show this help message and exit
 
 required named arguments:
   --download_file_ext DOWNLOAD_FILE_EXT [DOWNLOAD_FILE_EXT ...]
-                        Download only files that match given extensions.
-  --release_ver RELEASE_VER
+                        Download only files that match given extensions
+  --release_ver {202,207,214,80,83,86,89,95}
                         GTDB release version
 
 optional arguments:
-  --root_dir ROOT_DIR   Root directory.
-  --source SOURCE       Source of data (default: GTDB)
-  --threads THREADS     Number of threads. (default: half of system cpu count)
-  --overwrite           Overwrite existing files.
+  --kbase_collection {GTDB}
+                        Create a collection and link in data to that collection from the overall source data dir (default: GTDB)
+  --root_dir ROOT_DIR   Root directory (default: /global/cfs/cdirs/kbase/collections)
+  --source {NCBI}       Source of data (default: NCBI)
+  --threads THREADS     Number of threads
+  --overwrite           Overwrite existing files
   --exclude_name_substring EXCLUDE_NAME_SUBSTRING [EXCLUDE_NAME_SUBSTRING ...]
-                        Files with a specific substring in their names that should be excluded from the
-                        download.
+                        Files with a specific substring in their names that should be excluded from the download (default: [])
 
-
-
+                        
 e.g.
 PYTHONPATH=. python src/loaders/ncbi_downloader/ncbi_downloader.py --download_file_ext genomic.fna.gz --release_ver 207 --exclude_name_substring cds_from rna_from ERR
 
 NOTE:
 NERSC file structure for NCBI:
-/global/cfs/cdirs/kbase/collections/sourcedata/NCBI/NONE -> [genome_id] -> genome files
+/global/cfs/cdirs/kbase/collections/sourcedata/ -> NCBI -> ENV -> genome_id -> genome files
 
 e.g.
-/global/cfs/cdirs/kbase/collections/sourcedata/NCBI/NONE -> GCA_000016605.1 -> genome files
-                                                         -> GCA_000200715.1 -> genome files                  
-                                                         -> GCF_000970165.1 -> genome files
-                                                         -> GCF_000970185.1 -> genome files
+/global/cfs/cdirs/kbase/collections/sourcedata/NCBI -> NONE -> GCA_000016605.1 -> genome files
+                                                            -> GCA_000200715.1 -> genome files                  
+                                                            -> GCF_000970165.1 -> genome files
+                                                            -> GCF_000970185.1 -> genome files
+
+The data will be linked to the collections source directory:
+e.g. /global/cfs/cdirs/kbase/collections/collectionssource/ -> ENV -> kbase_collection -> release_ver -> genome_id -> genome files
 """
 import argparse
 import itertools
