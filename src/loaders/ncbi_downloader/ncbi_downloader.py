@@ -199,9 +199,9 @@ def _make_work_dir(root_dir: str, source_data_dir: str, source: str, env: str) -
 def _make_collection_source_dir(
         root_dir: str,
         collection_source_dir: str,
+        env: str,
         collection: str,
-        release_ver: str,
-        env: str
+        release_ver: str
 ) -> str:
     """
     Helper function that creates a collection & source_version and link in data
@@ -349,7 +349,7 @@ def main():
         parser.error(f"minimum thread is 1 and maximum thread is {cpu_count()}")
 
     work_dir = _make_work_dir(root_dir, loader_common_names.SOURCE_DATA_DIR, source, ENV)
-    csd = _make_collection_source_dir(root_dir, loader_common_names.COLLECTION_SOURCE_DIR, kbase_collection, release_ver, ENV)
+    csd = _make_collection_source_dir(root_dir, loader_common_names.COLLECTION_SOURCE_DIR, ENV, kbase_collection, release_ver)
     genome_ids_unprocssed = _fetch_genome_ids(kbase_collection, release_ver, work_dir)
     genome_ids = _process_genome_ids(work_dir, genome_ids_unprocssed, download_file_ext, exclude_name_substring, overwrite)
     if not genome_ids:
