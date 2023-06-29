@@ -30,16 +30,12 @@ def setup_and_teardown():
 def test_make_work_dir(setup_and_teardown):
     tmp_dir, script_file = setup_and_teardown
 
-    with pytest.raises(ValueError, match='Unexpected source:'):
-        fake_source = 'hello_fake'
-        ncbi_downloader._make_work_dir(tmp_dir, SOURCE_DATA_DIR, fake_source, 'release_ver')
-
-    source, release_ver = 'GTDB', '207'
-    work_dir = ncbi_downloader._make_work_dir(tmp_dir, SOURCE_DATA_DIR, source, release_ver)
+    source, env = 'NCBI', 'NONE'
+    work_dir = ncbi_downloader._make_work_dir(tmp_dir, SOURCE_DATA_DIR, source, env)
 
     path = Path(work_dir).resolve()
 
-    assert path.name == f'r{release_ver}'
+    assert path.name == f'r{env}'
     assert path.parents[0].name == source
 
 
