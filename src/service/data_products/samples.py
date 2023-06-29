@@ -19,11 +19,11 @@ from src.service import processing_selections
 from src.service.data_products.common_functions import (
     get_load_version,
     remove_collection_keys,
-    query_simple_collection_list,
     count_simple_collection_list,
     mark_data_by_kbase_id,
     remove_marked_subset,
     override_load_version,
+    query_table
 )
 from src.service.data_products import common_models
 from src.service.data_products.data_product_processing import (
@@ -149,7 +149,7 @@ async def get_samples(
     sort_desc: common_models.QUERY_VALIDATOR_SORT_DIRECTION = False,
     skip: common_models.QUERY_VALIDATOR_SKIP = 0,
     limit: common_models.QUERY_VALIDATOR_LIMIT = 1000,
-    output_table: common_models.QUERY_VALIDATOR_OUTPUT_TABLE = False,
+    output_table: common_models.QUERY_VALIDATOR_OUTPUT_TABLE = True,
     count: common_models.QUERY_VALIDATOR_COUNT = False,
     match_id: common_models.QUERY_VALIDATOR_MATCH_ID = None,
     # TODO FEATURE support a choice of AND or OR for matches & selections
@@ -194,8 +194,33 @@ async def get_samples(
         )
         return _response(dp_match=dp_match, dp_sel=dp_sel, count=count)
     else:
-    # TODO SAMPLES data query (like genome attribs)
-        return _response(dp_match=dp_match, dp_sel=dp_sel, count=-100)
+        res = await query_table(
+            appstate.arangostorage,
+            names.COLL_SAMPLES,
+            collection_id,
+            load_ver,
+            sort_on,
+            sort_descending=sort_desc,
+            skip=skip,
+            limit=limit,
+            output_table=output_table,
+            match_process=dp_match,
+            match_mark=match_mark,
+            match_prefix=MATCH_ID_PREFIX,
+            selection_process=dp_sel,
+            selection_mark=selection_mark,
+            selection_prefix=SELECTION_ID_PREFIX,
+            document_mutator=_remove_keys,
+        )
+        return _response(
+            skip=res.skip,
+            limit=res.limit,
+            dp_match=dp_match,
+            dp_sel=dp_sel,
+            fields=res.fields,
+            table=res.table,
+            data=res.data
+        )
 
 
 # TODO SAMPLES location API
@@ -208,6 +233,9 @@ def _response(
     count: int = None,
     skip: int = 0,
     limit: int = 0,
+    fields: list[dict[str, str]] = None,
+    table: list[list[Any]] = None,
+    data: list[dict[str, Any]] = None,
 ) -> SamplesTable:
     return SamplesTable(
         skip=skip,
@@ -215,5 +243,7 @@ def _response(
         count=count,
         match_state=dp_match.state if dp_match else None,
         selection_state=dp_sel.state if dp_sel else None,
-        # TODO SAMPLES data w/ table and dict views
+        fields=fields,
+        table=table,
+        data=data,
     )
