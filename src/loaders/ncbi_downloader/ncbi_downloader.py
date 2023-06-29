@@ -265,6 +265,16 @@ def download_genome_files(gene_ids: list[str], target_file_ext: list[str], exclu
     return failed_ids
 
 
+def create_softlink_between_csd_and_work_dir(genome_ids_unprocssed, csd, work_dir, failed_ids=[]):
+    genome_ids = set(genome_ids_unprocssed) - set(failed_ids)
+    for genome_id in genome_ids:
+        genome_dir = os.path.join(work_dir, genome_id)
+        csd_genome_dir = os.path.join(csd, genome_id)
+        loader_helper.create_softlink(csd_genome_dir, genome_dir)
+
+    print(f"Genome files in {csd} now link to {work_dir}")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='PROTOTYPE - Download genome files from NCBI FTP server.')
@@ -316,7 +326,8 @@ def main():
     genome_ids_unprocssed = _fetch_genome_ids(kbase_collection, release_ver, work_dir)
     genome_ids = _process_genome_ids(genome_ids_unprocssed, work_dir, download_file_ext, exclude_name_substring)
     if not genome_ids:
-        print(f"All {len(genome_ids_unprocssed)} genomes files haven already been downloaded in {work_dir}")
+        print(f"All {len(genome_ids_unprocssed)} genomes files haven already existed in {work_dir}")
+        create_softlink_between_csd_and_work_dir(genome_ids_unprocssed, csd, work_dir)
         return
 
     if not threads:
@@ -338,15 +349,8 @@ def main():
     else:
         print(f'Successfully downloaded {len(genome_ids)} genome files')
     
-    for genome_id in genome_ids_unprocssed:
-        if genome_id in failed_ids:
-            continue
-        genome_dir = os.path.join(work_dir, genome_id)
-        csd_genome_dir = os.path.join(csd, genome_id)
-        loader_helper.create_softlink(csd_genome_dir, genome_dir)
-
-    print(f"Genome files in {csd} now link to {work_dir}")
-
+    create_softlink_between_csd_and_work_dir(genome_ids_unprocssed, csd, work_dir, failed_ids)
+    
 
 if __name__ == "__main__":
     main()
