@@ -353,7 +353,7 @@ def main():
     genome_ids_unprocssed = _fetch_genome_ids(kbase_collection, release_ver, work_dir)
     genome_ids = _process_genome_ids(work_dir, genome_ids_unprocssed, download_file_ext, exclude_name_substring, overwrite)
     if not genome_ids:
-        print(f"All {len(genome_ids_unprocssed)} genomes files haven already existed in {work_dir}")
+        print(f"All {len(genome_ids_unprocssed)} genomes files already exist in {work_dir}")
         create_softlink_between_csd_and_work_dir(csd, work_dir, genome_ids_unprocssed)
         return
 
@@ -363,7 +363,7 @@ def main():
     
     print(f"Originally planned to download {len(genome_ids_unprocssed)} genome files")
     print(f"Will overwrite existing genome files" if overwrite else 
-          f"Detected {len(genome_ids_unprocssed) - len(genome_ids)} genome files already existed")
+          f"Detected {len(genome_ids_unprocssed) - len(genome_ids)} genome files already exist")
     print(f"Start downloading {len(genome_ids)} genome files with {threads} threads\n")
 
     chunk_size = math.ceil(len(genome_ids) / threads)  # distribute genome ids evenly across threads
