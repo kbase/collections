@@ -453,9 +453,9 @@ def _retrieve_node_data(
         _validate_node_data(key, meta_value)
         node_data[key] = meta_value['value']
 
-    # create and add geo-spatial data in the format of [latitude, longitude]
-    node_data[names.FLD_SAMPLE_GEO] = [meta_controlled[names.FLD_SAMPLE_LATITUDE]['value'],
-                                   meta_controlled[names.FLD_SAMPLE_LONGITUDE]['value']]
+    # create and add geo-spatial data in the format of [longitude, latitude]
+    node_data[names.FLD_SAMPLE_GEO] = [meta_controlled[names.FLD_SAMPLE_LONGITUDE]['value'],
+                                       meta_controlled[names.FLD_SAMPLE_LATITUDE]['value']]
 
     return node_data
 
