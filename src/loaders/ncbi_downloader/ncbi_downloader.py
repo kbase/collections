@@ -27,30 +27,26 @@ optional arguments:
 
 
 e.g.
-python ncbi_downloader.py --download_file_ext genomic.gff.gz genomic.fna.gz --release_ver 207
+PYTHONPATH=. python src/loaders/ncbi_downloader/ncbi_downloader.py --download_file_ext genomic.fna.gz --release_ver 207 --exclude_name_substring cds_from rna_from ERR
 
 NOTE:
-NERSC file structure for GTDB:
-/global/cfs/cdirs/kbase/collections/sourcedata/ -> GTDB -> [GTDB_release_version] -> [genome_id] -> genome files
+NERSC file structure for NCBI:
+/global/cfs/cdirs/kbase/collections/sourcedata/NCBI/NONE -> [genome_id] -> genome files
 
 e.g.
-/global/cfs/cdirs/kbase/collections/sourcedata/GTDB -> r207 -> GCA_000016605.1 -> genome files
-                                                            -> GCA_000200715.1 -> genome files
-                                                       r202 -> GCA_000016605.1 -> genome files
-                                                            -> GCA_000200715.1 -> genome files
-                                                       r80  -> GCA_000016605.1 -> genome files
-                                                            -> GCA_000200715.1 -> genome files
-
-
+/global/cfs/cdirs/kbase/collections/sourcedata/NCBI/NONE -> GCA_000016605.1 -> genome files
+                                                         -> GCA_000200715.1 -> genome files                  
+                                                         -> GCF_000970165.1 -> genome files
+                                                         -> GCF_000970185.1 -> genome files
 """
 import argparse
 import itertools
 import math
-import multiprocessing
 import os
 import sys
 import time
 from datetime import datetime
+from multiprocessing import cpu_count, Pool
 from urllib import request
 from urllib.parse import urlparse
 
@@ -277,7 +273,9 @@ def create_softlink_between_csd_and_work_dir(genome_ids_unprocssed, csd, work_di
 
 def main():
     parser = argparse.ArgumentParser(
-        description='PROTOTYPE - Download genome files from NCBI FTP server.')
+        description='PROTOTYPE - Download genome files from NCBI FTP server.',
+        formatter_class=loader_helper.ExplicitDefaultsHelpFormatter,
+    )
 
     gtdb_release_vers = _parse_gtdb_release_vers()  # available GTDB release versions
 
@@ -286,23 +284,23 @@ def main():
 
     # Required flag argument
     required.add_argument('--download_file_ext', required=True, type=str, nargs='+',
-                          help='Download only files that match given extensions.')
+                          help='Download only files that match given extensions')
     required.add_argument('--release_ver', required=True, type=str, choices=gtdb_release_vers,
                           help='GTDB release version')
 
     # Optional argument
-    optional.add_argument(f"--{loader_common_names.KBASE_COLLECTION_ARG_NAME}", type=str, default="GTDB",
+    optional.add_argument(f"--{loader_common_names.KBASE_COLLECTION_ARG_NAME}", type=str, default="GTDB", choices=COLLECTIONS,
                           help="Create a collection and link in data to that collection from the overall source data dir")
     optional.add_argument('--root_dir', type=str, default=loader_common_names.ROOT_DIR,
-                          help='Root directory.')
-    optional.add_argument('--source', type=str, default='NCBI',
+                          help='Root directory')
+    optional.add_argument('--source', type=str, default='NCBI', choices=SOURCE, 
                           help='Source of data')
     optional.add_argument('--threads', type=int,
-                          help='Number of threads. (default: half of system cpu count)')
+                          help='Number of threads')
     optional.add_argument('--overwrite', action='store_true',
-                          help='Overwrite existing files.')
+                          help='Overwrite existing files')
     optional.add_argument('--exclude_name_substring', type=str, nargs='+', default=[],
-                          help='Files with a specific substring in their names that should be excluded from the download.')
+                          help='Files with a specific substring in their names that should be excluded from the download')
 
     args = parser.parse_args()
     
@@ -315,11 +313,8 @@ def main():
     exclude_name_substring = args.exclude_name_substring
     kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
 
-    if source not in SOURCE:
-        raise ValueError(f'Unexpected source. Currently supported sources: {SOURCE}')
-    
-    if kbase_collection not in COLLECTIONS:
-        raise ValueError(f'Unexpected collection. Currently supported collections: {COLLECTIONS}')
+    if threads and (threads < 1 or threads > cpu_count()):
+        parser.error(f"minimum thread is 1 and maximum thread is {cpu_count()}")
 
     work_dir = _make_work_dir(root_dir, loader_common_names.SOURCE_DATA_DIR, source, ENV)
     csd = _make_collection_source_dir(root_dir, loader_common_names.COLLECTION_SOURCE_DIR, kbase_collection, release_ver, ENV)
@@ -331,8 +326,9 @@ def main():
         return
 
     if not threads:
-        threads = max(int(multiprocessing.cpu_count() * min(SYSTEM_UTILIZATION, 1)), 1)
+        threads = max(int(cpu_count() * min(SYSTEM_UTILIZATION, 1)), 1)
     threads = max(1, threads)
+    
     print(f"Originally planned to download {len(genome_ids_unprocssed)} genome files\n"
           f"Detected {len(genome_ids_unprocssed) - len(genome_ids)} genome files already existed\n"
           f"Start downloading {len(genome_ids)} genome files with {threads} threads\n")
@@ -340,7 +336,7 @@ def main():
     chunk_size = math.ceil(len(genome_ids) / threads)  # distribute genome ids evenly across threads
     batch_input = [(genome_ids[i: i + chunk_size], download_file_ext, exclude_name_substring, work_dir,
                     overwrite) for i in range(0, len(genome_ids), chunk_size)]
-    pool = multiprocessing.Pool(processes=threads)
+    pool = Pool(processes=threads)
     batch_result = pool.starmap(download_genome_files, batch_input)
 
     failed_ids = list(itertools.chain.from_iterable(batch_result))
