@@ -263,13 +263,35 @@ async def query_simple_collection_list(
         await cur.close(ignore_missing=True)
 
 
+def _calculate_subset_id(
+    subset_id: str | None,
+    subset_process: models.DataProductProcess | None,
+    subset_mark: str | None,
+    subset_prefix: str | None
+) -> str | None:
+    # could throw an error if subset ID & process are provided at the same time... meh
+    if subset_mark:
+        return None
+    if subset_process:
+        subset_id = subset_process.internal_id if subset_process.is_complete() else None
+    if subset_id and subset_prefix:
+        subset_id = subset_prefix + subset_id
+    return subset_id
+
+
 async def count_simple_collection_list(
     storage: ArangoStorage,
     collection: str,
     collection_id: str,
     load_ver: str,
-    internal_match_id: str | None,
-    internal_selection_id: str | None,
+    internal_match_id: str | None = None,
+    match_process: models.DataProductProcess | None = None,
+    match_mark: bool = False,
+    match_prefix: str | None = None,
+    internal_selection_id: str | None = None,
+    selection_process: models.DataProductProcess | None = None,
+    selection_mark: bool = False,
+    selection_prefix: str | None = None,
 ) -> int:
     """
     Count rows in a collection. Index set up is the responsibilty of the caller.
@@ -279,10 +301,25 @@ async def count_simple_collection_list(
     collection_id - the ID of the KBase collection to query.
     load_ver - the load version of the KBase collection to query.
     internal_match_id - an ID for a match.
+    match_process - the process for a match. If provided, internal_match_id is obtained from the
+        process. If the process is not complete the match information is ignored.
+    match_mark - whether the match should filter or simply mark the matches. If the latter, any 
+        match information is ignored in the count.
+    match_prefix - the prefix string to apply to the internal_match_id, if any.
     internal_selection_id - an ID for a selection.
+    selection_process - the process for a selection. If provided, internal_selection_id is obtained
+        from the process. If the process is not complete the selection information is ignored.
+    selection_mark - whether the selection should filter or simply mark the selections.
+        If the latter, any selection information is ignored in the count.
+    selection_prefix - the prefix string to apply to the internal_selection_id, if any.
     """
     # for now this method doesn't do much. One we have some filtering implemented
     # it'll need to take that into account.
+
+    internal_match_id = _calculate_subset_id(
+        internal_match_id, match_process, match_mark, match_prefix)
+    internal_selection_id = _calculate_subset_id(
+        internal_selection_id, selection_process, selection_mark, selection_prefix)
 
     bind_vars = {
         f"@coll": collection,
