@@ -233,23 +233,6 @@ def _assembly_genome_lookup(genome_objs):
     return hashmap, duplicate
 
 
-def _create_softlink(csd_upa_dir, upa_dir):
-    """
-    Helper function that creates a softlink between two directories.
-    """
-    if os.path.exists(csd_upa_dir):
-        if (
-                os.path.isdir(csd_upa_dir)
-                and os.path.islink(csd_upa_dir)
-                and os.readlink(csd_upa_dir) == upa_dir
-        ):
-            return
-        raise ValueError(
-            f"{csd_upa_dir} already exists and does not link to {upa_dir} as expected"
-        )
-    os.symlink(upa_dir, csd_upa_dir, target_is_directory=True)
-
-
 def _process_object_info(obj_info, genome_upa):
     """
     "upa", "name", "type", and "timestamp info will be extracted from object info and save as a dict."
@@ -660,7 +643,7 @@ def main():
             for upa in upas:
                 upa_dir = os.path.join(output_dir, upa)
                 csd_upa_dir = os.path.join(csd, upa)
-                _create_softlink(csd_upa_dir, upa_dir)
+                loader_helper.create_softlink(csd_upa_dir, upa_dir)
             assert len(os.listdir(csd)) == len(
                 assembly_objs
             ), f"directory count in {csd} is not equal to object count"
