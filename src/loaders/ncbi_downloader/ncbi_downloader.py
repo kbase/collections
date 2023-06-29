@@ -26,7 +26,8 @@ optional arguments:
 
                         
 e.g.
-PYTHONPATH=. python src/loaders/ncbi_downloader/ncbi_downloader.py --download_file_ext genomic.fna.gz --release_ver 207 --exclude_name_substring cds_from rna_from ERR
+PYTHONPATH=. python src/loaders/ncbi_downloader/ncbi_downloader.py --download_file_ext genomic.fna.gz --release_ver 207 
+                                                                   --exclude_name_substring cds_from rna_from ERR
 
 NOTE:
 NERSC file structure for NCBI:
@@ -270,7 +271,7 @@ def create_softlink_between_csd_and_work_dir(genome_ids_unprocssed, csd, work_di
         csd_genome_dir = os.path.join(csd, genome_id)
         loader_helper.create_softlink(csd_genome_dir, genome_dir)
 
-    print(f"Genome files in {csd} now link to {work_dir}")
+    print(f"Genome files in {csd} \nnow link to {work_dir}")
 
 
 def main():
@@ -343,9 +344,9 @@ def main():
 
     failed_ids = list(itertools.chain.from_iterable(batch_result))
     if failed_ids:
-        print(f'Failed to download {failed_ids}')
+        print(f'\nFailed to download {failed_ids}')
     else:
-        print(f'Successfully downloaded {len(genome_ids)} genome files')
+        print(f'\nSuccessfully downloaded {len(genome_ids)} genome files')
     
     create_softlink_between_csd_and_work_dir(genome_ids_unprocssed, csd, work_dir, failed_ids)
     
