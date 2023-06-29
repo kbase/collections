@@ -361,11 +361,9 @@ def main():
         threads = max(int(cpu_count() * min(SYSTEM_UTILIZATION, 1)), 1)
     threads = max(1, threads)
     
-    print(f"Originally planned to download {len(genome_ids_unprocssed)} genome files\n")
-    if overwrite:
-        print(f"Will overwrite existing genome files\n")
-    else:
-        print(f"Detected {len(genome_ids_unprocssed) - len(genome_ids)} genome files already existed\n")
+    print(f"Originally planned to download {len(genome_ids_unprocssed)} genome files")
+    print(f"Will overwrite existing genome files" if overwrite else 
+          f"Detected {len(genome_ids_unprocssed) - len(genome_ids)} genome files already existed")
     print(f"Start downloading {len(genome_ids)} genome files with {threads} threads\n")
 
     chunk_size = math.ceil(len(genome_ids) / threads)  # distribute genome ids evenly across threads
