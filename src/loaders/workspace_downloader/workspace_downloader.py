@@ -42,7 +42,7 @@ e.g.
                                                                                -> 39795_22_1.meta
 
 If kbase_collection and source_version are provided, the data will be linked to the collections source directory:
-e.g. /global/cfs/cdirs/kbase/collectionssource/ -> ENV -> kbase_collection -> source_version -> UPA -> .fa && .meta files
+e.g. /global/cfs/cdirs/kbase/collections/collectionssource/ -> ENV -> kbase_collection -> source_version -> UPA -> .fa && .meta files
 """
 import argparse
 import itertools
