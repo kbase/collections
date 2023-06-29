@@ -203,23 +203,27 @@ def _make_collection_source_dir(root_dir, collection_source_dir, collection, rel
     return csd
 
 
-def _process_genome_ids(genome_ids_unprocssed, work_dir, target_file_ext):
+def _process_genome_ids(genome_ids_unprocssed, work_dir, target_file_ext, exclude_name_substring):
     """
     Helper function that processes genome ids to avoid redownloading files.
     """
     genome_ids = list()
-    target_ext_count = len(target_file_ext)
     for genome_id in genome_ids_unprocssed:
         data_dir = os.path.join(work_dir, genome_id)
         if not os.path.exists(data_dir):
             genome_ids.append(genome_id)
             continue
-        ext_count = 0
-        for file_ext in target_file_ext:
-            if any([file_name.endswith(file_ext) for file_name in os.listdir(data_dir)]):
-                ext_count += 1
-        if ext_count != target_ext_count:
+        
+        exist = False
+        for file_name in os.listdir(data_dir):
+            if any([file_name.endswith(ext) for ext in target_file_ext]) and all(
+                    [substring not in file_name for substring in exclude_name_substring]):
+                exist = True
+                break
+        
+        if not exist:
             genome_ids.append(genome_id)
+
     return genome_ids
 
 
@@ -310,7 +314,7 @@ def main():
     work_dir = _make_work_dir(root_dir, loader_common_names.SOURCE_DATA_DIR, source, ENV)
     csd = _make_collection_source_dir(root_dir, loader_common_names.COLLECTION_SOURCE_DIR, kbase_collection, release_ver, ENV)
     genome_ids_unprocssed = _fetch_genome_ids(kbase_collection, release_ver, work_dir)
-    genome_ids = _process_genome_ids(genome_ids_unprocssed, work_dir, download_file_ext)
+    genome_ids = _process_genome_ids(genome_ids_unprocssed, work_dir, download_file_ext, exclude_name_substring)
     if not genome_ids:
         print(f"All {len(genome_ids_unprocssed)} genomes files haven already been downloaded in {work_dir}")
         return
