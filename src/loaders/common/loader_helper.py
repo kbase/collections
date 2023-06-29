@@ -193,6 +193,23 @@ def is_upa_info_complete(upa_dir: str):
     return True
 
 
+def create_softlink(csd_dir, sd_dir):
+    """
+    Creates a softlink between two directories.
+    """
+    if os.path.exists(csd_dir):
+        if (
+                os.path.isdir(csd_dir)
+                and os.path.islink(csd_dir)
+                and os.readlink(csd_dir) == sd_dir
+        ):
+            return
+        raise ValueError(
+            f"{csd_dir} already exists and does not link to {sd_dir} as expected"
+        )
+    os.symlink(sd_dir, csd_dir, target_is_directory=True)
+
+
 def get_ip():
     """
     Get current ip address.
