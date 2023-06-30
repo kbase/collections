@@ -79,8 +79,9 @@ class ToolRunner:
           --kbase_collection KBASE_COLLECTION
                                 KBase collection identifier name.
           --source_ver SOURCE_VER
-                                Version of the source data. (e.g. 207, 214 for GTDB,
-                                2023.06 for GROW/PMI)
+                                Version of the source data, which should match the
+                                source directory in the collectionssource. (e.g. 207,
+                                214 for GTDB, 2023.06 for GROW/PMI)
 
         optional arguments:
           --env {CI,NEXT,APPDEV,PROD,NONE}
@@ -169,7 +170,7 @@ class ToolRunner:
         )
         required.add_argument(
             f'--{loader_common_names.SOURCE_VER_ARG_NAME}', required=True, type=str,
-            help="Version of the source data. (e.g. 207, 214 for GTDB, 2023.06 for GROW/PMI)"
+            help="Version of the source data, which should match the source directory in the collectionssource. (e.g. 207, 214 for GTDB, 2023.06 for GROW/PMI)"
         )
 
         # Optional arguments
