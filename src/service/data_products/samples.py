@@ -2,27 +2,17 @@
 The samples data product, which provides sample information for a collection.
 """
 
-from collections import defaultdict
-import logging
-
 from fastapi import APIRouter, Request, Depends, Query
 from pydantic import BaseModel, Field
 import src.common.storage.collection_and_field_names as names
 from src.common.product_models.common_models import SubsetProcessStates
 from src.service import app_state
-from src.service.app_state_data_structures import CollectionsState, PickleableDependencies
-from src.service import errors
 from src.service import kb_auth
-from src.service import processing_matches
 from src.service import models
-from src.service import processing_selections
 from src.service.data_products.common_functions import (
-    get_load_version,
     remove_collection_keys,
     count_simple_collection_list,
-    mark_data_by_kbase_id,
     remove_marked_subset,
-    override_load_version,
     query_table
 )
 from src.service.data_products import common_models
@@ -30,13 +20,13 @@ from src.service.data_products.data_product_processing import (
     MATCH_ID_PREFIX,
     SELECTION_ID_PREFIX,
     get_load_version_and_processes,
+    get_missing_ids as _get_missing_ids
 )
 from src.service.data_products.table_models import TableAttributes
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
-from src.service.timestamp import now_epoch_millis
-from typing import Any, Callable, Annotated
+from typing import Any, Annotated
 
 # Implementation note - we know FLD_KBASE_ID is unique per collection id /
 # load version combination since the loader uses those 3 fields as the arango _key
@@ -376,4 +366,26 @@ async def _query(
     return _location_response(dp_match=dp_match, dp_sel=dp_sel, locs=res)
 
 
-# TODO SAMPLES missing IDs API
+@_ROUTER.get(
+    "/missing",
+    response_model=common_models.DataProductMissingIDs,
+    summary=f"Get missing IDs for a match or selection",
+    description=f"Get the list of genome IDs that were not found in these samples "
+        + "but were present in the match and / or selection.",
+)
+async def get_missing_ids(
+    r: Request,
+    collection_id: Annotated[str, PATH_VALIDATOR_COLLECTION_ID],
+    match_id: Annotated[str | None, Query(description="A match ID.")] = None,
+    selection_id: Annotated[str | None, Query(description="A selection ID.")] = None,
+    user: kb_auth.KBaseUser = Depends(_OPT_AUTH),
+) -> common_models.DataProductMissingIDs:
+    return await _get_missing_ids(
+        app_state.get_app_state(r),
+        names.COLL_SAMPLES,
+        collection_id,
+        ID,
+        match_id=match_id,
+        selection_id=selection_id,
+        user=user,
+    )
