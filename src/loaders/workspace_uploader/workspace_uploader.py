@@ -159,7 +159,7 @@ def main():
         conf = Conf(job_dir, kb_base_url, token_filepath)
         fasta_file = conf.asu.get_assembly_as_fasta({"ref": upa.replace("_", "/"), "filename": upa_fasta})
         conf.asu.save_assembly_from_fasta(
-            {"file": {"path": os.path.join(job_dir, "workdir", "tmp", upa_fasta)},
+            {"file": {"path": os.path.join(job_dir, upa_fasta)},
              "workspace_name": worksapce_name,
              "assembly_name": fasta_file['assembly_name']})
 
