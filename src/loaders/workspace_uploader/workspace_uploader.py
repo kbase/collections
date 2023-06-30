@@ -157,7 +157,7 @@ def main():
         conf.asu.save_assembly_from_fasta(
             {"workspace_id": workspace_id,
             "inputs":[{"file": os.path.join(job_dir, "69036_370_1.fa"),
-                       "assembly_name": "test_workspace_uploader"}]})
+                       "assembly_name": "workspace uploader testing"}]})
 
     finally:
         # stop callback server if it is on
