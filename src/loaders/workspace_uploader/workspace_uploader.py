@@ -154,11 +154,12 @@ def main():
     else:
         # set up conf and start callback server
         upa = "69036_370_1"
+        upa_fasta = upa + ".fasta"
         worksapce_name = "sijiex:narrative_1688077625427"
         conf = Conf(job_dir, kb_base_url, token_filepath)
-        fasta_file = conf.asu.get_assembly_as_fasta({"ref": upa.replace("_", "/"), "filename": upa})
+        fasta_file = conf.asu.get_assembly_as_fasta({"ref": upa.replace("_", "/"), "filename": upa_fasta})
         conf.asu.save_assembly_from_fasta(
-            {"file": {"path": os.path.join(job_dir, "workdir", "tmp", upa)},
+            {"file": {"path": os.path.join(job_dir, "workdir", "tmp", upa_fasta)},
              "workspace_name": worksapce_name,
              "assembly_name": fasta_file['assembly_name']})
 
