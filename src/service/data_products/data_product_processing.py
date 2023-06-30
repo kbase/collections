@@ -4,6 +4,7 @@ Data product specific match and selection processing methods.
 
 from functools import partial
 
+from src.service import errors
 from src.service import kb_auth
 from src.service import models
 from src.service import processing_matches
@@ -14,6 +15,7 @@ from src.service.data_products.common_functions import (
     get_load_version,
     mark_data_by_kbase_id,
 )
+from src.service.data_products.common_models import DataProductMissingIDs
 from src.service.storage_arango import ArangoStorage
 
 
@@ -107,4 +109,52 @@ async def _process_subset(
     )
     await storage.update_data_product_process_state(
         dpid, models.ProcessState.COMPLETE, deps.get_epoch_ms(), missing_ids=missed
+    )
+
+
+async def get_missing_ids(
+    appstate: CollectionsState,
+    collection: str,
+    collection_id: str,
+    data_product: str,
+    match_id: str | None = None,
+    selection_id: str | None = None,
+    user: kb_auth.KBaseUser | None = None,
+) -> DataProductMissingIDs:
+    """
+    Get missing IDs from a match or selection. If the match and or selection is not complete
+    for the data product, start or restart the process.
+
+    See get_load_version_and_processes, which is called by this method, for other constraints
+    and behaviors.
+
+    appstate - the state of the collections service.
+    collection - the ArangoDB collection containing the matched data. The IDs in the
+        *already completed* match and / or selections will be queried against the `kbase_id` field.
+    collection_id - the ID of the active collection (e.g. PMI, GTDB, etc.) to query against.
+    data_product - the data product to query against.
+    match_id - the match ID to query against. If the match has not already been applied to the
+        data product / collection_id combination, a new process will be started to to so.
+    selection_id - the selection ID to query against. If the selection has not already been
+        applied to the data product / collection_id combination, a new process will be started
+        to to so.
+    user - the user requesting the information. Required if a match ID is supplied.
+    """
+    if not match_id and not selection_id:
+        raise errors.IllegalParameterError(
+            "At last one of a match ID or selection ID must be supplied")
+    _, dp_match, dp_sel = await get_load_version_and_processes(
+        appstate,
+        user,
+        collection,
+        collection_id,
+        data_product,
+        match_id=match_id,
+        selection_id=selection_id,
+    )
+    return DataProductMissingIDs(
+        match_state=dp_match.state if dp_match else None,
+        selection_state=dp_sel.state if dp_sel else None,
+        match_missing=dp_match.missing_ids if dp_match else None,
+        selection_missing=dp_sel.missing_ids if dp_sel else None,
     )

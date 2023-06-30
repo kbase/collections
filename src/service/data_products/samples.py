@@ -30,6 +30,7 @@ from src.service.data_products.data_product_processing import (
     MATCH_ID_PREFIX,
     SELECTION_ID_PREFIX,
     get_load_version_and_processes,
+    get_missing_ids as _get_missing_ids
 )
 from src.service.data_products.table_models import TableAttributes
 from src.service.http_bearer import KBaseHTTPBearer
@@ -376,4 +377,27 @@ async def _query(
     return _location_response(dp_match=dp_match, dp_sel=dp_sel, locs=res)
 
 
-# TODO SAMPLES missing IDs API
+@_ROUTER.get(
+    "/missing",
+    response_model=common_models.DataProductMissingIDs,
+    summary=f"Get missing IDs for a match or selection",
+    description=f"Get the list of genome IDs that were not found in these samples "
+        + "but were present in the match and / or selection.",
+)
+async def get_missing_ids(
+    r: Request,
+    collection_id: Annotated[str, PATH_VALIDATOR_COLLECTION_ID],
+    match_id: Annotated[str | None, Query(description="A match ID.")] = None,
+    selection_id: Annotated[str | None, Query(description="A selection ID.")] = None,
+    user: kb_auth.KBaseUser = Depends(_OPT_AUTH),
+) -> common_models.DataProductMissingIDs:
+    return await _get_missing_ids(
+        app_state.get_app_state(r),
+        names.COLL_SAMPLES,
+        collection_id,
+        ID,
+        match_id=match_id,
+        selection_id=selection_id,
+        user=user,
+    )
+
