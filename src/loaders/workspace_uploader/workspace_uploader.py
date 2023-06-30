@@ -153,11 +153,14 @@ def main():
         raise Exception("Podman service failed to start") from e
     else:
         # set up conf and start callback server
+        upa = "69036_370_1"
         conf = Conf(job_dir, kb_base_url, token_filepath)
-        conf.asu.save_assembly_from_fasta(
-            {"workspace_id": workspace_id,
-            "inputs":[{"file": os.path.join(job_dir, "69036_370_1.fa"),
-                       "assembly_name": "workspace uploader testing"}]})
+        fasta_file = conf.asu.get_assembly_as_fasta({"ref": upa.replace("_", "/"), "filename": upa})
+        print(fasta_file['assembly_name'])
+        # conf.asu.save_assembly_from_fasta(
+        #     {"workspace_id": workspace_id,
+        #     "inputs":[{"file": os.path.join(job_dir, "69036_370_1.fa"),
+        #                "assembly_name": "workspace uploader testing"}]})
 
     finally:
         # stop callback server if it is on
