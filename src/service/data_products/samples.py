@@ -6,7 +6,7 @@ from collections import defaultdict
 import logging
 
 from fastapi import APIRouter, Request, Depends, Query
-from pydantic import BaseModel, Field, Extra
+from pydantic import BaseModel, Field
 import src.common.storage.collection_and_field_names as names
 from src.common.product_models.common_models import SubsetProcessStates
 from src.service import app_state
@@ -127,6 +127,22 @@ class SamplesTable(TableAttributes, SubsetProcessStates):
     The set of available attributes may be different for different collections.
     """
 
+class SampleLocation(BaseModel):
+    """
+    A location of one or more samples containing one or more genomes.
+    """
+    lat: float = Field(example=36.1, description="The latitude of the location in degrees.")
+    lon: float = Field(example=-28.2, description="The longitude of the location in degrees.")
+    count: int = Field(example=3, description="The number of genomes found at the location.")
+
+
+class SampleLocations(SubsetProcessStates):
+    """
+    A list of sample locations, aggregated by location.
+    """
+    locs: list[SampleLocation] | None = None
+
+
 
 # At some point we're going to want to filter/sort on fields. We may want a list of fields
 # somewhere to check input fields are ok... but really we could just fetch the first document
@@ -134,7 +150,7 @@ class SamplesTable(TableAttributes, SubsetProcessStates):
 @_ROUTER.get(
     "/",
     response_model=SamplesTable,
-    description="Get the corresponding sample attribues for each data unit in the collection, "
+    description="Get the corresponding sample attributes for each data unit in the collection, "
         + "which may differ from collection to collection. Note that data units may share "
         + "samples - if so the sample information is duplicated in the table for each data unit."
         + "\n\n "
@@ -223,10 +239,6 @@ async def get_samples(
         )
 
 
-# TODO SAMPLES location API
-# TODO SAMPLES missing IDs API
-
-
 def _response(
     dp_match: models.DataProductProcess = None,
     dp_sel: models.DataProductProcess = None,
@@ -247,3 +259,121 @@ def _response(
         table=table,
         data=data,
     )
+
+
+def _get_subset_id(subset_process: models.DataProductProcess, subset_prefix: str):
+    if subset_process and subset_process.is_complete():
+        return subset_prefix + subset_process.internal_id
+    return None
+
+
+@_ROUTER.get(
+    "/locations",
+    response_model=SampleLocations,
+    description="Get sample locations and the number of genomes at each location. "
+        + "Currently all sample locations are returned."
+        + "\n\n "
+        + "Authentication is not required unless submitting a match ID or overriding the load "
+        + "version; in the latter case service administration permissions are required.\n"
+)
+async def get_sample_locations(
+    r: Request,
+    collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
+    match_id: Annotated[str | None, Query(
+        description="A match ID to set the view to the match rather than "
+            + "the entire collection. Authentication is required. If a match ID is "
+            # matches are against a specific load version, so...
+            + "set, any load version override is ignored. "
+            + "If a selection filter and a match filter are provided, they are ANDed together. "
+    )] = None,
+    # TODO FEATURE support a choice of AND or OR for matches & selections
+    selection_id: Annotated[str | None, Query(
+        description="A selection ID to set the view to the selection rather than the entire "
+            + "collection. If a selection ID is set, any load version override is ignored. "
+            + "If a selection filter and a match filter are provided, they are ANDed together. "
+    )] = None,
+    status_only: common_models.QUERY_VALIDATOR_STATUS_ONLY = False,
+    load_ver_override: common_models.QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
+    user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
+) -> SampleLocations:
+    # might need to return a bare Response if the pydantic checking gets too expensive
+    # might need some sort of pagination
+    appstate = app_state.get_app_state(r)
+    load_ver, dp_match, dp_sel = await get_load_version_and_processes(
+        appstate,
+        user,
+        names.COLL_SAMPLES,
+        collection_id,
+        ID,
+        load_ver_override=load_ver_override,
+        match_id=match_id,
+        selection_id=selection_id,
+    )
+    if status_only:
+        return _location_response(dp_match=dp_match, dp_sel=dp_sel)
+    return await _query(appstate.arangostorage, collection_id, load_ver, dp_match, dp_sel)
+
+
+def _location_response(
+    dp_match: models.DataProductProcess = None,
+    dp_sel: models.DataProductProcess = None,
+    locs: list[SampleLocation] = None
+) -> SampleLocations:
+    return SampleLocations(
+        match_state=dp_match.state if dp_match else None,
+        selection_state=dp_sel.state if dp_sel else None,
+        locs=locs
+    )
+
+
+async def _query(
+    storage: ArangoStorage,
+    collection_id: str,
+    load_ver: str,
+    dp_match: models.DataProductProcess = None,
+    dp_sel: models.DataProductProcess = None,
+):
+    internal_match_id = _get_subset_id(dp_match, MATCH_ID_PREFIX)
+    internal_selection_id = _get_subset_id(dp_sel, SELECTION_ID_PREFIX)
+    bind_vars = {
+        f"@coll": names.COLL_SAMPLES,
+        "coll_id": collection_id,
+        "load_ver": load_ver,
+    }
+    aql = f"""
+    FOR d IN @@coll
+        FILTER d.{names.FLD_COLLECTION_ID} == @coll_id
+        FILTER d.{names.FLD_LOAD_VERSION} == @load_ver
+    """
+    if internal_match_id:
+        bind_vars["internal_match_id"] = internal_match_id
+        aql += f"""
+            FILTER @internal_match_id IN d.{names.FLD_MATCHES_SELECTIONS}
+        """
+    # this will AND the match and selection. To OR, just OR the two filters instead of having
+    # separate statements.
+    if internal_selection_id:
+        bind_vars["internal_selection_id"] = internal_selection_id
+        aql += f"""
+            FILTER @internal_selection_id IN d.{names.FLD_MATCHES_SELECTIONS}
+        """
+    aql += f"""
+        COLLECT lat = d.{names.FLD_SAMPLE_LATITUDE}, lon = d.{names.FLD_SAMPLE_LONGITUDE}
+            WITH COUNT INTO count
+        RETURN {{
+            "lat": lat,
+            "lon": lon,
+            "count": count
+        }}
+    """
+    res = []
+    cur = await storage.execute_aql(aql, bind_vars=bind_vars)
+    try:
+        async for d in cur:
+            res.append(SampleLocation(lat=d["lat"], lon=d["lon"], count=d["count"]))
+    finally:
+        await cur.close(ignore_missing=True)
+    return _location_response(dp_match=dp_match, dp_sel=dp_sel, locs=res)
+
+
+# TODO SAMPLES missing IDs API
