@@ -7,6 +7,7 @@ echo "using $env_tool to manage environment"
 $env_tool run -n $CONDA_ENV \
   python $PY_SCRIPT \
   --load_ver $LOAD_VER \
+  --source_ver $SOURCE_VER \
   --env $ENV \
   --kbase_collection $KBASE_COLLECTION \
   --root_dir $ROOT_DIR \

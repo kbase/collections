@@ -19,6 +19,8 @@ KBASE_COLLECTION_DESCR = (
     f"KBase collection identifier name."
 )
 
+SOURCE_VER_ARG_NAME = "source_ver"
+
 # Name for environment argument
 ENV_ARG_NAME = "env"
 

@@ -512,7 +512,7 @@ def main():
         help="Create a collection and link in data to that collection from the overall workspace source data dir",
     )
     optional.add_argument(
-        "--source_version",
+        f"--{loader_common_names.SOURCE_VER_ARG_NAME}",
         type=str,
         help="Create a source version and link in data to that collection from the overall workspace source data dir",
     )
