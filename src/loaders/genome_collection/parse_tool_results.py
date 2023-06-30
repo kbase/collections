@@ -131,9 +131,6 @@ IMPORT_DIR = 'import_files'
 # (https://github.com/jgi-kbase/AssemblyHomologyService#sequence-metadata-file)
 SEQ_METADATA = 'seq_metadata.jsonl'
 
-# The suffix for prepared samples data
-_PREPARED_SAMPLES = 'samples.jsonl'
-
 # Merged FATAL_ERROR_FILE
 FATAL_ERROR_FILE_SUFFIX = 'fatal_error.jsonl'
 
@@ -912,7 +909,7 @@ def _retrieve_sample(root_dir, kbase_collection, load_ver):
 
         prepared_samples_data.append(doc)
 
-    _create_import_files(root_dir, f'{kbase_collection}_{load_ver}_{_PREPARED_SAMPLES}', prepared_samples_data)
+    _create_import_files(root_dir, f'{kbase_collection}_{load_ver}_{names.COLL_SAMPLES}.jsonl', prepared_samples_data)
 
 
 def main():
