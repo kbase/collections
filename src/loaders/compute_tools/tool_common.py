@@ -78,33 +78,37 @@ class ToolRunner:
         PROTOTYPE - Run a computational tool on a set of data.
 
         options:
-        -h, --help            show this help message and exit
+          -h, --help            show this help message and exit
 
         required named arguments:
-        --load_ver LOAD_VER   KBase load version (e.g. r207.kbase.1).
-        --source_data_dir SOURCE_DATA_DIR
-                                Source data (e.g. genome files) directory. (e.g. /glob
-                                al/cfs/cdirs/kbase/collections/sourcedata/GTDB/r207
+          --kbase_collection KBASE_COLLECTION
+                                KBase collection identifier name.
+          --source_ver SOURCE_VER
+                                Version of the source data, which should match the
+                                source directory in the collectionssource. (e.g. 207,
+                                214 for GTDB, 2023.06 for GROW/PMI)
 
         optional arguments:
-        --kbase_collection KBASE_COLLECTION
-                                KBase collection identifier name (default: GTDB).
-        --root_dir ROOT_DIR   Root directory.
-        --threads THREADS     Total number of threads used by the script. (default:
+          --env {CI,NEXT,APPDEV,PROD,NONE}
+                                Environment containing the data to be processed.
+                                (default: PROD)
+          --load_ver LOAD_VER   KBase load version (e.g. r207.kbase.1). (defaults to
+                                the source version)
+          --root_dir ROOT_DIR   Root directory.
+          --threads THREADS     Total number of threads used by the script. (default:
                                 half of system cpu count)
-        --program_threads PROGRAM_THREADS
+          --program_threads PROGRAM_THREADS
                                 Number of threads to execute a single tool command.
                                 threads / program_threads determines the number of
                                 batches. (default: 32)
-        --node_id NODE_ID     node ID for running job
-        --debug               Debug mode.
-        --data_id_file DATA_ID_FILE
+          --node_id NODE_ID     node ID for running job
+          --debug               Debug mode.
+          --data_id_file DATA_ID_FILE
                                 tab separated file containing data ids for the running
                                 job (requires 'genome_id' as the column name)
-        --source_file_ext SOURCE_FILE_EXT
+          --source_file_ext SOURCE_FILE_EXT
                                 Select files from source data directory that match the
                                 given extension.
-
 
         Programmatic arguments:
         tool_name - the name of the tool that will be run. Used as a unique identifier.
@@ -122,9 +126,21 @@ class ToolRunner:
         self._tool_data_id_from_filename = tool_data_id_from_filename
         self._suffix_ids = suffix_ids
         args = self._parse_args()
+        env = getattr(args, loader_common_names.ENV_ARG_NAME)
         kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
+        source_ver = getattr(args, loader_common_names.SOURCE_VER_ARG_NAME)
+        load_ver = getattr(args, loader_common_names.LOAD_VER_ARG_NAME)
+        if not load_ver:
+            load_ver = source_ver
+
         self._allow_missing_files = kbase_collection in _IGNORE_MISSING_FILES_COLLECTIONS
-        self._source_data_dir = Path(args.source_data_dir)
+        self._source_data_dir = Path(
+            Path(args.root_dir),
+            loader_common_names.COLLECTION_SOURCE_DIR,
+            env,
+            kbase_collection,
+            source_ver
+        )
         self._threads = args.threads
         self._program_threads = args.program_threads
         self._debug = args.debug
@@ -140,8 +156,9 @@ class ToolRunner:
         self._work_dir = Path(
             Path(args.root_dir),
             loader_common_names.COLLECTION_DATA_DIR,
+            env,
             kbase_collection,
-            getattr(args, loader_common_names.LOAD_VER_ARG_NAME),
+            load_ver,
             self._tool
         )
 
@@ -153,21 +170,28 @@ class ToolRunner:
 
         # Required flag arguments
         required.add_argument(
-            f'--{loader_common_names.LOAD_VER_ARG_NAME}', required=True, type=str,
-            help=loader_common_names.LOAD_VER_DESCR
+            f'--{loader_common_names.KBASE_COLLECTION_ARG_NAME}', required=True, type=str,
+            help=loader_common_names.KBASE_COLLECTION_DESCR
         )
         required.add_argument(
-            '--source_data_dir', required=True, type=str,
-            help='Source data (e.g. genome files) directory. '
-                 + '(e.g. /global/cfs/cdirs/kbase/collections/sourcedata/GTDB/r207'
+            f'--{loader_common_names.SOURCE_VER_ARG_NAME}', required=True, type=str,
+            help="Version of the source data, which should match the source directory in the collectionssource. (e.g. 207, 214 for GTDB, 2023.06 for GROW/PMI)"
         )
 
         # Optional arguments
         optional.add_argument(
-            f'--{loader_common_names.KBASE_COLLECTION_ARG_NAME}', type=str,
-            default=loader_common_names.DEFAULT_KBASE_COLL_NAME,
-            help=loader_common_names.KBASE_COLLECTION_DESCR
+            f"--{loader_common_names.ENV_ARG_NAME}",
+            type=str,
+            choices=loader_common_names.KB_ENV + [loader_common_names.DEFAULT_ENV],
+            default='PROD',
+            help="Environment containing the data to be processed. (default: PROD)",
         )
+
+        optional.add_argument(
+            f'--{loader_common_names.LOAD_VER_ARG_NAME}', type=str,
+            help=loader_common_names.LOAD_VER_DESCR + ' (defaults to the source version)'
+        )
+
         optional.add_argument(
             '--root_dir', type=str, default=loader_common_names.ROOT_DIR, help='Root directory.'
         )
@@ -576,7 +600,7 @@ def write_fatal_tuples_to_dict(fatal_tuples: List[FatalTuple], output_dir: Path)
 
 
 def find_gtdbtk_summary_files(output_dir: Path):
-    summary_files = [file_name for file_name in os.listdir(output_dir) if 
+    summary_files = [file_name for file_name in os.listdir(output_dir) if
                      re.search(loader_common_names.GTDB_SUMMARY_FILE_PATTERN, file_name)]
     return summary_files
 
