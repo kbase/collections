@@ -50,15 +50,7 @@ _STANDARD_FILE_EXCLUDE_SUBSTRINGS = ['cds_from', 'rna_from', 'ERR']
 
 _ID_MUNGING_SUFFIX = "_kbase"
 
-FatalTuple = namedtuple(
-    "FatalTuple",
-    [
-        loader_common_names.FATAL_ID,
-        loader_common_names.FATAL_ERROR,
-        loader_common_names.FATAL_FILE,
-        loader_common_names.FATAL_STACKTRACE,
-    ]
-)
+FatalTuple = namedtuple("FatalTuple",["data_id", "error", "file", "stacktrace"])
 
 GenomeTuple = namedtuple("GenomeTuple", ["source_file", "data_id"])
 
@@ -572,10 +564,10 @@ def _find_data_file(
 def write_fatal_tuples_to_dict(fatal_tuples: List[FatalTuple], output_dir: Path):
     fatal_dict = {}
     for fatal_tuple in fatal_tuples:
-        fatal_dict[getattr(fatal_tuple, loader_common_names.FATAL_ID)] = {
-            loader_common_names.FATAL_ERROR: getattr(fatal_tuple, loader_common_names.FATAL_ERROR),
-            loader_common_names.FATAL_FILE: getattr(fatal_tuple, loader_common_names.FATAL_FILE),
-            loader_common_names.FATAL_STACKTRACE: getattr(fatal_tuple, loader_common_names.FATAL_STACKTRACE),
+        fatal_dict[fatal_tuple.data_id] = {
+            loader_common_names.FATAL_ERROR: fatal_tuple.error,
+            loader_common_names.FATAL_FILE: fatal_tuple.file,
+            loader_common_names.FATAL_STACKTRACE: fatal_tuple.stacktrace,
         }
 
     fatal_error_path = os.path.join(output_dir, loader_common_names.FATAL_ERROR_FILE)

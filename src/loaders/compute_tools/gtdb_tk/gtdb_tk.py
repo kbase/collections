@@ -20,6 +20,11 @@ from src.loaders.compute_tools.tool_common import (
     write_fatal_tuples_to_dict,
 )
 
+# GTDB specific constants
+GTDB_UNCLASSIFIED = "Unclassified"
+GTDB_FILTER_FILE_PATTERN = "gtdbtk.*.filtered.tsv"
+GTDB_FAIL_GENOME_FILE = "gtdbtk.failed_genomes.tsv"
+
 
 def _get_id_and_error_message_mapping_from_tsv_files(output_dir: Path):
     genome_dict = dict()
@@ -27,11 +32,11 @@ def _get_id_and_error_message_mapping_from_tsv_files(output_dir: Path):
     # process filtered.tsv files
     align_dir = output_dir / "align"
     filter_files = [file_name for file_name in os.listdir(align_dir) if 
-                    re.search(loader_common_names.GTDB_FILTER_FILE_PATTERN, file_name)]
+                    re.search(GTDB_FILTER_FILE_PATTERN, file_name)]
     
     if not filter_files or len(filter_files) > 2:
-        raise ValueError(f"Either or both gtdbtk.ar53.filtered.tsv and "
-                         f"gtdbtk.bac120.filtered.tsv files must exist.")
+        raise ValueError(f"At least one but no more than two files matching the pattern "
+                         f"{GTDB_FILTER_FILE_PATTERN} must be present.")
     
     for filter_file in filter_files:
         filter_file_path = os.path.join(align_dir, filter_file)
@@ -39,7 +44,7 @@ def _get_id_and_error_message_mapping_from_tsv_files(output_dir: Path):
     
     # process failed.tsv file
     identify_dir = output_dir / "identify"
-    fail_file_path = os.path.join(identify_dir, loader_common_names.GTDB_FAIL_GENOME_FILE)
+    fail_file_path = os.path.join(identify_dir, GTDB_FAIL_GENOME_FILE)
     genome_dict.update(_get_id_and_error_message_mapping(fail_file_path))
 
     return genome_dict
@@ -103,7 +108,7 @@ def _run_gtdb_tk(
         for tool_safe_data_id, classify_res in zip(summary_df[loader_common_names.GTDB_GENOME_ID_COL],
                                                    summary_df[loader_common_names.GTDB_CLASSIFICATION_COL]):
             tool_safe_data_ids.add(tool_safe_data_id)
-            if classify_res.startswith(loader_common_names.GTDB_UNCLASSIFIED):
+            if classify_res.startswith(GTDB_UNCLASSIFIED):
                 error_message = f"GTDB_tk classification failed: {classify_res}"
                 fatal_tuple = create_fatal_tuple(tool_safe_data_id, ids_to_files, error_message)
                 fatal_tuples.append(fatal_tuple)
@@ -114,9 +119,8 @@ def _run_gtdb_tk(
 
     if error_tool_safe_data_ids:
         raise ValueError(
-            f"Miss {error_tool_safe_data_ids} that are not found in either "
-            f"{loader_common_names.GTDB_FILTER_FILE_PATTERN} or "
-            f"{loader_common_names.GTDB_FAIL_GENOME_FILE}"
+            f"Missing IDs {error_tool_safe_data_ids} that are not found in either "
+            f"{GTDB_FILTER_FILE_PATTERN} or {GTDB_FAIL_GENOME_FILE}"
         )
     
     for miss_tool_safe_data_id in miss_tool_safe_data_ids:
