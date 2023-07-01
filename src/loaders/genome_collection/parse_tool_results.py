@@ -63,7 +63,7 @@ from src.common.storage.db_doc_conversions import (
 )
 from src.loaders.common import loader_common_names
 from src.loaders.common.loader_helper import (
-    convert_to_json,
+    create_import_files,
     create_global_fatal_dict_doc,
     init_row_doc,
     is_upa_info_complete,
@@ -123,9 +123,6 @@ _MICROTRAIT_TO_SYS_TRAIT_MAP = {
     _MICROTRAIT_TRAIT_ORDER: _SYS_TRAIT_INDEX,
     loader_common_names.DETECTED_GENE_SCORE_COL: loader_common_names.DETECTED_GENE_SCORE_COL,
 }
-
-# Default directory name for the parsed JSONL files for arango import
-IMPORT_DIR = 'import_files'
 
 # The suffix for the sequence metadata file name for Assembly Homology service
 # (https://github.com/jgi-kbase/AssemblyHomologyService#sequence-metadata-file)
@@ -307,18 +304,6 @@ def _append_trait_val(
                                 })
 
 
-def _create_import_files(root_dir: str, file_name: str, docs: list[dict[str, Any]]):
-    # create and save the data documents as JSONLines file to the import directory
-
-    import_dir = os.path.join(root_dir, IMPORT_DIR)
-    os.makedirs(import_dir, exist_ok=True)
-
-    file_path = os.path.join(import_dir, file_name)
-    print(f'Creating JSONLines import file: {file_path}')
-    with open(file_path, 'w') as f:
-        convert_to_json(docs, f)
-
-
 def _read_sketch(sketch_file: Path) -> dict:
     # run mash info on the sketch file and return the JSON output
 
@@ -373,9 +358,9 @@ def _process_mash_tool(root_dir: str,
                 raise ValueError(f'Unable to locate the sketch file: {sketch_file} for genome: {data_id}')
             sketch_files.append(sketch_file)
 
-    _create_import_files(root_dir, f'{kbase_collection}_{load_ver}_{SEQ_METADATA}', seq_meta)
+    create_import_files(root_dir, f'{kbase_collection}_{load_ver}_{SEQ_METADATA}', seq_meta)
 
-    import_dir = Path(root_dir, IMPORT_DIR)
+    import_dir = Path(root_dir, loader_common_names.IMPORT_DIR)
     os.makedirs(import_dir, exist_ok=True)
     mash_output_prefix = import_dir / f'{kbase_collection}_{load_ver}_merged_sketch'
 
@@ -411,9 +396,9 @@ def _process_heatmap_tools(heatmap_tools: set[str],
         rows_output = f'{kbase_collection}_{load_ver}_{tool}_{HEATMAP_FILE_ROOT}_{names.COLL_MICROTRAIT_DATA}.jsonl'
         cell_details_output = f'{kbase_collection}_{load_ver}_{tool}_{HEATMAP_FILE_ROOT}_{names.COLL_MICROTRAIT_CELLS}.jsonl'
 
-        _create_import_files(root_dir, meta_output, [heatmap_meta_dict])
-        _create_import_files(root_dir, rows_output, heatmap_rows_list)
-        _create_import_files(root_dir, cell_details_output, heatmap_cell_details_list)
+        create_import_files(root_dir, meta_output, [heatmap_meta_dict])
+        create_import_files(root_dir, rows_output, heatmap_rows_list)
+        create_import_files(root_dir, cell_details_output, heatmap_cell_details_list)
 
 
 def _process_fatal_error_tools(check_fatal_error_tools: set[str],
@@ -457,7 +442,7 @@ def _process_fatal_error_tools(check_fatal_error_tools: set[str],
                         loader_common_names.FATAL_FILE: fatal_errors[kbase_id][loader_common_names.FATAL_FILE],
                         loader_common_names.FATAL_ERRORS: [fatal_dict_info]}
 
-    import_dir = os.path.join(root_dir, IMPORT_DIR)
+    import_dir = os.path.join(root_dir, loader_common_names.IMPORT_DIR)
     os.makedirs(import_dir, exist_ok=True)
     fatal_output = f"{kbase_collection}_{load_ver}_{loader_common_names.FATAL_ERROR_FILE}"
     fatal_error_path = os.path.join(import_dir, fatal_output)
@@ -495,7 +480,7 @@ def _process_genome_attri_tools(genome_attr_tools: set[str],
     docs, encountered_types = _update_docs_with_upa_info(res_dict, meta_lookup, check_genome)
 
     output = f'{kbase_collection}_{load_ver}_{"_".join(genome_attr_tools)}_{names.COLL_GENOME_ATTRIBS}.jsonl'
-    _create_import_files(root_dir, output, docs)
+    create_import_files(root_dir, output, docs)
 
     export_types_output = f'{kbase_collection}_{load_ver}_{names.COLL_EXPORT_TYPES}.jsonl'
     types_doc = data_product_export_types_to_doc(
@@ -504,7 +489,7 @@ def _process_genome_attri_tools(genome_attr_tools: set[str],
         load_ver,
         sorted(encountered_types)
     )
-    _create_import_files(root_dir, export_types_output, [types_doc])
+    create_import_files(root_dir, export_types_output, [types_doc])
 
 
 def _create_meta_lookup(root_dir, kbase_collection, load_ver, tool):
@@ -909,7 +894,7 @@ def _retrieve_sample(root_dir, kbase_collection, load_ver):
 
         prepared_samples_data.append(doc)
 
-    _create_import_files(root_dir, f'{kbase_collection}_{load_ver}_{names.COLL_SAMPLES}.jsonl', prepared_samples_data)
+    create_import_files(root_dir, f'{kbase_collection}_{load_ver}_{names.COLL_SAMPLES}.jsonl', prepared_samples_data)
 
 
 def main():
