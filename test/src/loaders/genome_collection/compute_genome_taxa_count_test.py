@@ -8,6 +8,7 @@ import jsonlines
 import pytest
 
 import src.common.storage.collection_and_field_names as names
+from src.loaders.common.loader_common_names import IMPORT_DIR
 
 
 @pytest.fixture(scope="module")
@@ -78,11 +79,11 @@ def test_create_json_default(setup_and_teardown):
     expected_docs_length = 5420
     expected_doc_keys = {'_key', 'coll', 'load_ver', 'rank', 'name', 'count', 'internal_id'}
     expected_collection = 'GTDB'
-    result_file = os.path.join(tmp_dir, f'{expected_collection}_{load_version}_{names.COLL_TAXA_COUNT}.jsonl')
+    result_file = os.path.join(tmp_dir, IMPORT_DIR, f'{expected_collection}_{load_version}_{names.COLL_TAXA_COUNT}.jsonl')
     _exam_count_result_file(result_file, expected_docs_length, expected_doc_keys,
                             load_version, expected_collection)
     expected_ranks_inorder = ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'species']
-    result_file = os.path.join(tmp_dir, f'{expected_collection}_{load_version}_{names.COLL_TAXA_COUNT_RANKS}.jsonl')
+    result_file = os.path.join(tmp_dir, IMPORT_DIR, f'{expected_collection}_{load_version}_{names.COLL_TAXA_COUNT_RANKS}.jsonl')
     _exam_rank_result_file(result_file, load_version, expected_collection, expected_ranks_inorder)
 
 
@@ -103,9 +104,9 @@ def test_create_json_option_input(setup_and_teardown):
 
     expected_docs_length = 5420
     expected_doc_keys = {'_key', 'coll', 'load_ver', 'rank', 'name', 'count', 'internal_id'}
-    result_file = os.path.join(tmp_dir, f'{kbase_collections}_{load_version}_{names.COLL_TAXA_COUNT}.jsonl')
+    result_file = os.path.join(tmp_dir, IMPORT_DIR, f'{kbase_collections}_{load_version}_{names.COLL_TAXA_COUNT}.jsonl')
     _exam_count_result_file(result_file, expected_docs_length, expected_doc_keys,
                             load_version, kbase_collections)
     expected_ranks_inorder = ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'species']
-    result_file = os.path.join(tmp_dir, f'{kbase_collections}_{load_version}_{names.COLL_TAXA_COUNT_RANKS}.jsonl')
+    result_file = os.path.join(tmp_dir, IMPORT_DIR, f'{kbase_collections}_{load_version}_{names.COLL_TAXA_COUNT_RANKS}.jsonl')
     _exam_rank_result_file(result_file, load_version, kbase_collections, expected_ranks_inorder)
