@@ -7,6 +7,8 @@ from pathlib import Path
 import jsonlines
 import pytest
 
+import src.common.storage.collection_and_field_names as names
+
 
 @pytest.fixture(scope="module")
 def setup_and_teardown():
@@ -44,10 +46,7 @@ def _exam_count_result_file(result_file, expected_docs_length, expected_doc_keys
 
 
 def _exam_rank_result_file(result_file, expected_load_version, expected_collection, expected_ranks_inorder):
-    root_ext = os.path.splitext(result_file)
-    rank_result_file = root_ext[0] + '_ranks' + root_ext[1]
-
-    with jsonlines.open(rank_result_file, 'r') as jsonl_f:
+    with jsonlines.open(result_file, 'r') as jsonl_f:
         data = [obj for obj in jsonl_f]
 
     assert len(data) == 1
@@ -68,42 +67,45 @@ def _exe_command(command):
 def test_create_json_default(setup_and_teardown):
     tmp_dir, caller_file_dir, script_file = setup_and_teardown
 
-    result_file = os.path.join(tmp_dir, 'test.json')
     load_version = '100-dev'
     command = ['python', script_file,
                os.path.join(caller_file_dir, 'ar53_taxonomy_r207.tsv'),
                '--load_ver', load_version,
-               '-o', result_file]
+               '--root_dir', tmp_dir]
 
     _exe_command(command)
 
     expected_docs_length = 5420
     expected_doc_keys = {'_key', 'coll', 'load_ver', 'rank', 'name', 'count', 'internal_id'}
     expected_collection = 'GTDB'
+    result_file = os.path.join(tmp_dir, f'{expected_collection}_{load_version}_{names.COLL_TAXA_COUNT}.jsonl')
     _exam_count_result_file(result_file, expected_docs_length, expected_doc_keys,
                             load_version, expected_collection)
     expected_ranks_inorder = ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'species']
+    result_file = os.path.join(tmp_dir, f'{expected_collection}_{load_version}_{names.COLL_TAXA_COUNT_RANKS}.jsonl')
     _exam_rank_result_file(result_file, load_version, expected_collection, expected_ranks_inorder)
 
 
 def test_create_json_option_input(setup_and_teardown):
     tmp_dir, caller_file_dir, script_file = setup_and_teardown
 
-    result_file = os.path.join(tmp_dir, 'test2.json')
     load_version = '300-beta'
     kbase_collections = 'test_gtdb'
+
     command = ['python', script_file,
                os.path.join(caller_file_dir, 'ar53_taxonomy_r207.tsv'),
                os.path.join(caller_file_dir, 'ar53_taxonomy_r207.tsv'),
                '--load_ver', load_version,
-               '--output', result_file,
+               '--root_dir', tmp_dir,
                '--kbase_collection', kbase_collections]
 
     _exe_command(command)
 
     expected_docs_length = 5420
     expected_doc_keys = {'_key', 'coll', 'load_ver', 'rank', 'name', 'count', 'internal_id'}
+    result_file = os.path.join(tmp_dir, f'{kbase_collections}_{load_version}_{names.COLL_TAXA_COUNT}.jsonl')
     _exam_count_result_file(result_file, expected_docs_length, expected_doc_keys,
                             load_version, kbase_collections)
     expected_ranks_inorder = ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'species']
+    result_file = os.path.join(tmp_dir, f'{kbase_collections}_{load_version}_{names.COLL_TAXA_COUNT_RANKS}.jsonl')
     _exam_rank_result_file(result_file, load_version, kbase_collections, expected_ranks_inorder)
