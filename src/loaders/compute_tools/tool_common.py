@@ -50,7 +50,7 @@ _STANDARD_FILE_EXCLUDE_SUBSTRINGS = ['cds_from', 'rna_from', 'ERR']
 
 _ID_MUNGING_SUFFIX = "_kbase"
 
-FatalTuple = namedtuple("FatalTuple",["data_id", "error", "file", "stacktrace"])
+FatalTuple = namedtuple("FatalTuple", ["data_id", "error", "file", "stacktrace"])
 
 GenomeTuple = namedtuple("GenomeTuple", ["source_file", "data_id"])
 
