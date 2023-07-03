@@ -65,6 +65,14 @@ def _exe_command(command):
     print(str(stdout), str(stderr))
 
 
+def _create_taxa_count_result_file(tmp_dir, kbase_collection, load_version):
+    return os.path.join(tmp_dir, IMPORT_DIR, f'{kbase_collection}_{load_version}_{names.COLL_TAXA_COUNT}.jsonl')
+
+
+def _create_taxa_count_ranks_result_file(tmp_dir, kbase_collection, load_version):
+    return os.path.join(tmp_dir, IMPORT_DIR, f'{kbase_collection}_{load_version}_{names.COLL_TAXA_COUNT_RANKS}.jsonl')
+
+
 def test_create_json_default(setup_and_teardown):
     tmp_dir, caller_file_dir, script_file = setup_and_teardown
 
@@ -79,12 +87,12 @@ def test_create_json_default(setup_and_teardown):
     expected_docs_length = 5420
     expected_doc_keys = {'_key', 'coll', 'load_ver', 'rank', 'name', 'count', 'internal_id'}
     expected_collection = 'GTDB'
-    result_file = os.path.join(tmp_dir, IMPORT_DIR, f'{expected_collection}_{load_version}_{names.COLL_TAXA_COUNT}.jsonl')
-    _exam_count_result_file(result_file, expected_docs_length, expected_doc_keys,
+    count_result_file = _create_taxa_count_result_file(tmp_dir, expected_collection, load_version)
+    _exam_count_result_file(count_result_file, expected_docs_length, expected_doc_keys,
                             load_version, expected_collection)
     expected_ranks_inorder = ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'species']
-    result_file = os.path.join(tmp_dir, IMPORT_DIR, f'{expected_collection}_{load_version}_{names.COLL_TAXA_COUNT_RANKS}.jsonl')
-    _exam_rank_result_file(result_file, load_version, expected_collection, expected_ranks_inorder)
+    ranks_result_file = _create_taxa_count_ranks_result_file(tmp_dir, expected_collection, load_version)
+    _exam_rank_result_file(ranks_result_file, load_version, expected_collection, expected_ranks_inorder)
 
 
 def test_create_json_option_input(setup_and_teardown):
@@ -104,9 +112,9 @@ def test_create_json_option_input(setup_and_teardown):
 
     expected_docs_length = 5420
     expected_doc_keys = {'_key', 'coll', 'load_ver', 'rank', 'name', 'count', 'internal_id'}
-    result_file = os.path.join(tmp_dir, IMPORT_DIR, f'{kbase_collections}_{load_version}_{names.COLL_TAXA_COUNT}.jsonl')
-    _exam_count_result_file(result_file, expected_docs_length, expected_doc_keys,
+    count_result_file = _create_taxa_count_result_file(tmp_dir, kbase_collections, load_version)
+    _exam_count_result_file(count_result_file, expected_docs_length, expected_doc_keys,
                             load_version, kbase_collections)
     expected_ranks_inorder = ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'species']
-    result_file = os.path.join(tmp_dir, IMPORT_DIR, f'{kbase_collections}_{load_version}_{names.COLL_TAXA_COUNT_RANKS}.jsonl')
-    _exam_rank_result_file(result_file, load_version, kbase_collections, expected_ranks_inorder)
+    ranks_result_file = _create_taxa_count_ranks_result_file(tmp_dir, kbase_collections, load_version)
+    _exam_rank_result_file(ranks_result_file, load_version, kbase_collections, expected_ranks_inorder)
