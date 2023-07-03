@@ -6,21 +6,16 @@ import json
 
 from fastapi import APIRouter, Depends, Request, Query, Path, Response
 
-from functools import partial
-
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
-from src.service.app_state_data_structures import PickleableDependencies, CollectionsState
 from src.common.product_models import heatmap_common_models as heatmap_models
 from src.service.data_products.common_functions import (
-    override_load_version,
     get_load_version,
     get_collection_singleton_from_db,
     get_doc_from_collection_by_unique_id,
     remove_collection_keys,
     query_simple_collection_list,
     count_simple_collection_list,
-    mark_data_by_kbase_id,
     remove_marked_subset,
 )
 from src.service.data_products.common_models import (
@@ -35,21 +30,21 @@ from src.service.data_products.common_models import (
     QUERY_VALIDATOR_SELECTION_MARK,
     QUERY_VALIDATOR_STATUS_ONLY,
 )
+from src.service.data_products.data_product_processing import (
+    MATCH_ID_PREFIX,
+    SELECTION_ID_PREFIX,
+    get_load_version_and_processes,
+)
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service import errors
 from src.service import kb_auth
 from src.service import models
-from src.service import processing_matches
-from src.service import processing_selections
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
 
-from typing import Annotated, Awaitable, Callable, Any
+from typing import Annotated, Any
 
 _OPT_AUTH = KBaseHTTPBearer(optional=True)
-
-_MATCH_ID_PREFIX = "m_"
-_SELECTION_ID_PREFIX = "s_"
 
 
 def _prefix_id(prefix: str, id_: str | None) -> str | None:
@@ -189,11 +184,11 @@ class HeatMapController:
 
     async def _delete_match(self, storage: ArangoStorage, internal_match_id: str):
         await remove_marked_subset(
-            storage, self._colname_data, _MATCH_ID_PREFIX + internal_match_id)
+            storage, self._colname_data, MATCH_ID_PREFIX + internal_match_id)
 
     async def _delete_selection(self, storage: ArangoStorage, internal_selection_id: str):
         await remove_marked_subset(
-            storage, self._colname_data, _SELECTION_ID_PREFIX + internal_selection_id)
+            storage, self._colname_data, SELECTION_ID_PREFIX + internal_selection_id)
 
     async def get_meta_info(
         self,
@@ -253,7 +248,7 @@ class HeatMapController:
         # For some reason returning the data as a model slows down the endpoint by ~10x.
         # Serializing manually and returning a plain response is much faster
         appstate = app_state.get_app_state(r)
-        load_ver, dp_match, dp_sel = await self._get_load_version_and_processes(
+        load_ver, dp_match, dp_sel = await get_load_version_and_processes(
             appstate,
             user,
             self._colname_data,
@@ -299,7 +294,7 @@ class HeatMapController:
         if not match_id and not selection_id:
             raise errors.IllegalParameterError(
                 "At last one of a match ID or selection ID must be supplied")
-        load_ver, dp_match, dp_sel = await self._get_load_version_and_processes(
+        load_ver, dp_match, dp_sel = await get_load_version_and_processes(
             appstate,
             user,
             self._colname_data,
@@ -313,58 +308,6 @@ class HeatMapController:
             heatmap_selection_state=dp_sel.state if dp_sel else None,
             match_missing=dp_match.missing_ids if dp_match else None,
             selection_missing=dp_sel.missing_ids if dp_sel else None,
-        )
-    
-    async def _get_load_version_and_processes( # pretty huge method sig here
-        self,
-        appstate: CollectionsState,
-        user: kb_auth.KBaseUser | None,
-        collection: str,
-        collection_id: str,
-        data_product: str,
-        load_ver_override: str | None = None,
-        match_id: str | None = None,
-        selection_id: str | None = None,
-    ):
-        # this is very similar to code in taxa_counts - maybe once it gets cleaned up a bit
-        # and handles the dependency on genome_attribs in a saner way this can be moved
-        # to common_functions and shared. Would need to be able to specify its own subsetting fn
-        dp_match, dp_sel = None, None
-        lvo = override_load_version(load_ver_override, match_id, selection_id)
-        coll, load_ver = await get_load_version(
-            appstate.arangostorage, collection_id, data_product, lvo, user)
-        if match_id:
-            dp_match = await processing_matches.get_or_create_data_product_match_process(
-                appstate, coll, user, match_id, data_product,
-                partial(self._process_subset, collection)
-            )
-        if selection_id:
-            dp_sel = await processing_selections.get_or_create_data_product_selection_process(
-                appstate, coll, selection_id, data_product,
-                partial(self._process_subset, collection)
-            )
-        return load_ver, dp_match, dp_sel
-
-    async def _process_subset(
-        self,
-        collection: str,
-        deps: PickleableDependencies,
-        storage: ArangoStorage,
-        match_or_sel: models.InternalMatch | models.InternalSelection,
-        coll: models.SavedCollection,
-        dpid: models.DataProductProcessIdentifier,
-    ):
-        load_ver = {dp.product: dp.version for dp in coll.data_products}[dpid.data_product]
-        missed = await mark_data_by_kbase_id(
-            storage,
-            collection,
-            coll.id,
-            load_ver,
-            match_or_sel.matches if dpid.is_match() else match_or_sel.selection_ids,
-            (_MATCH_ID_PREFIX if dpid.is_match() else _SELECTION_ID_PREFIX) + dpid.internal_id,
-        )
-        await storage.update_data_product_process_state(
-            dpid, models.ProcessState.COMPLETE, deps.get_epoch_ms(), missing_ids=missed
         )
 
     def _response(
@@ -401,8 +344,8 @@ class HeatMapController:
             self._colname_data,
             collection_id,
             load_ver,
-            internal_match_id=_prefix_id(_MATCH_ID_PREFIX, internal_match_id),
-            internal_selection_id=_prefix_id(_SELECTION_ID_PREFIX, internal_selection_id),
+            internal_match_id=_prefix_id(MATCH_ID_PREFIX, internal_match_id),
+            internal_selection_id=_prefix_id(SELECTION_ID_PREFIX, internal_selection_id),
         )
         return count
 
@@ -442,9 +385,9 @@ class HeatMapController:
             skip=0,
             start_after=start_after,
             limit=limit,
-            internal_match_id=_prefix_id(_MATCH_ID_PREFIX, internal_match_id),
+            internal_match_id=_prefix_id(MATCH_ID_PREFIX, internal_match_id),
             match_mark=match_mark,
-            internal_selection_id=_prefix_id(_SELECTION_ID_PREFIX, internal_selection_id),
+            internal_selection_id=_prefix_id(SELECTION_ID_PREFIX, internal_selection_id),
             selection_mark=selection_mark,    
         )
         vals = set()

@@ -13,7 +13,7 @@ class AttributeName(BaseModel):
     )
 
 
-class TableAttributes(BaseModel, extra=Extra.allow):
+class TableAttributes(BaseModel):
     """
     Attributes for a set of data. Either `fields` and `table` are returned, `data` is
     returned, or `count` is returned.
