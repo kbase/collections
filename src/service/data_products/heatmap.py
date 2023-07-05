@@ -263,12 +263,18 @@ class HeatMapController:
         if status_only:
             return self._response(dp_match=dp_match, dp_sel=dp_sel)
         elif count:
-            count = await self._count(
+            # may want to make some sort of shared builder
+            count = await count_simple_collection_list(
                 appstate.arangostorage,
+                self._colname_data,
                 collection_id,
                 load_ver,
-                self._get_complete_internal_id(dp_match) if not match_mark else None,
-                self._get_complete_internal_id(dp_sel) if not selection_mark else None,
+                match_process=dp_match,
+                match_mark=match_mark,
+                match_prefix=MATCH_ID_PREFIX,
+                selection_process=dp_sel,
+                selection_mark=selection_mark,
+                selection_prefix=SELECTION_ID_PREFIX,
             )
             return self._response(dp_match=dp_match, dp_sel=dp_sel, count=count)
         else:
@@ -331,26 +337,6 @@ class HeatMapController:
         }
         return Response(content=json.dumps(j), media_type="application/json")
     
-    async def _count(
-        self,
-        store: ArangoStorage,
-        collection_id: str,
-        load_ver: str,
-        internal_match_id: str | None,
-        internal_selection_id: str | None,
-    ):
-        # for now this method doesn't do much. One we have some filtering implemented
-        # it'll need to take that into account.
-        count = await count_simple_collection_list(
-            store,
-            self._colname_data,
-            collection_id,
-            load_ver,
-            internal_match_id=_prefix_id(MATCH_ID_PREFIX, internal_match_id),
-            internal_selection_id=_prefix_id(SELECTION_ID_PREFIX, internal_selection_id),
-        )
-        return count
-
     def _remove_doc_keys(self, doc: dict[str, Any]) -> dict[str, Any]:
         # removes in place
         doc = remove_arango_keys(remove_collection_keys(doc))

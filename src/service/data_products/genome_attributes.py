@@ -267,13 +267,21 @@ async def get_genome_attributes(
             appstate, selection_id, require_complete=True, require_collection=coll)
         internal_selection_id = internal_sel.internal_selection_id
     if count:
-        return await _count(
+        # for now this method doesn't do much. One we have some filtering implemented
+        # it'll need to take that into account.
+        count = await count_simple_collection_list(  # may want to make some sort of shared builder
             store,
+            names.COLL_GENOME_ATTRIBS,
             collection_id,
             load_ver,
-            internal_match_id if not match_mark else None,
-            internal_selection_id if not selection_mark else None,
+            internal_match_id=internal_match_id,
+            match_mark=match_mark,
+            match_prefix=MATCH_ID_PREFIX,
+            internal_selection_id=internal_selection_id,
+            selection_mark=selection_mark,
+            selection_prefix=SELECTION_ID_PREFIX,
         )
+        return {_FLD_SKIP: 0, _FLD_LIMIT: 0, "count": count}
     else:
         return await _query(
             store,
@@ -374,26 +382,6 @@ async def _query(
 
 def _prefix_id(prefix: str, id_: str | None) -> str | None:
     return prefix + id_ if id_ else None
-
-
-async def _count(
-    store: ArangoStorage,
-    collection_id: str,
-    load_ver: str,
-    internal_match_id: str | None,
-    internal_selection_id: str | None,
-):
-    # for now this method doesn't do much. One we have some filtering implemented
-    # it'll need to take that into account.
-    count = await count_simple_collection_list(
-        store,
-        names.COLL_GENOME_ATTRIBS,
-        collection_id,
-        load_ver,
-        internal_match_id=_prefix_id(MATCH_ID_PREFIX, internal_match_id),
-        internal_selection_id=_prefix_id(SELECTION_ID_PREFIX, internal_selection_id),
-    )
-    return {_FLD_SKIP: 0, _FLD_LIMIT: 0, "count": count}
 
 
 async def perform_gtdb_lineage_match(
