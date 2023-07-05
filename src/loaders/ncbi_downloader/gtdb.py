@@ -247,12 +247,12 @@ def main():
         parser.error(f"minimum thread is 1 and maximum thread is {cpu_count()}")
 
     work_dir = _make_work_dir(
-        root_dir, loader_common_names.SOURCE_DATA_DIR, source, loader_helper.DEFAULT_ENV
+        root_dir, loader_common_names.SOURCE_DATA_DIR, source, loader_common_names.DEFAULT_ENV
     )
     csd = loader_helper.make_collection_source_dir(
         root_dir,
         loader_common_names.COLLECTION_SOURCE_DIR,
-        loader_helper.DEFAULT_ENV,
+        loader_common_names.DEFAULT_ENV,
         kbase_collection,
         release_ver,
     )
