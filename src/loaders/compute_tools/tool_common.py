@@ -30,6 +30,7 @@ from typing import Any, Callable, Dict, List, Tuple, Union
 import pandas as pd
 
 from src.loaders.common import loader_common_names
+from src.loaders.common.loader_helper import form_source_dir
 
 # TODO CODE add a common module for saving and loading the metadata shared between the compute
 #           and parser
@@ -134,13 +135,7 @@ class ToolRunner:
             load_ver = source_ver
 
         self._allow_missing_files = kbase_collection in _IGNORE_MISSING_FILES_COLLECTIONS
-        self._source_data_dir = Path(
-            Path(args.root_dir),
-            loader_common_names.COLLECTION_SOURCE_DIR,
-            env,
-            kbase_collection,
-            source_ver
-        )
+        self._source_data_dir = form_source_dir(args.root_dir, env, kbase_collection, source_ver)
         self._threads = args.threads
         self._program_threads = args.program_threads
         self._debug = args.debug
@@ -175,7 +170,7 @@ class ToolRunner:
         )
         required.add_argument(
             f'--{loader_common_names.SOURCE_VER_ARG_NAME}', required=True, type=str,
-            help="Version of the source data, which should match the source directory in the collectionssource. (e.g. 207, 214 for GTDB, 2023.06 for GROW/PMI)"
+            help=loader_common_names.SOURCE_VER_DESCR
         )
 
         # Optional arguments
