@@ -6,6 +6,7 @@ from pathlib import Path
 
 import src.loaders.jobs.taskfarmer.taskfarmer_common as tf_common
 from src.loaders.common import loader_common_names
+from src.loaders.common.loader_helper import form_source_dir
 from src.loaders.jobs.taskfarmer.taskfarmer_task_mgr import TFTaskManager, PreconditionError
 
 '''
@@ -181,7 +182,6 @@ def _create_genome_id_file(genome_ids, genome_id_file):
 
 
 def _create_task_list(
-        source_data_dir: Path,
         env: str,
         kbase_collection: str,
         source_ver: str,
@@ -206,6 +206,7 @@ def _create_task_list(
     TODO: make threads/program_threads configurable based on tool used. However, for the time being, we have set
     these parameters to 32 and , since this value has produced the highest throughput in our experiments.
     """
+    source_data_dir = form_source_dir(root_dir, env, kbase_collection, source_ver)
     genome_ids = [path for path in os.listdir(source_data_dir) if
                   os.path.isdir(os.path.join(source_data_dir, path))]
 
@@ -353,13 +354,7 @@ def main():
         load_ver = source_ver
 
     root_dir = args.root_dir
-    source_data_dir = Path(
-        Path(root_dir),
-        loader_common_names.COLLECTION_SOURCE_DIR,
-        env,
-        kbase_collection,
-        source_ver
-    )
+    source_data_dir = form_source_dir(root_dir, env, kbase_collection, source_ver)
     source_file_ext = args.source_file_ext
 
     try:
@@ -374,7 +369,6 @@ def main():
     image_str = _fetch_image(REGISTRY, tool, job_dir, tag=args.image_tag, force_pull=not args.use_cached_image)
     wrapper_file = _create_shifter_wrapper(job_dir, image_str)
     task_list_file, n_jobs = _create_task_list(
-        source_data_dir,
         env,
         kbase_collection,
         source_ver,

@@ -6,12 +6,14 @@ import subprocess
 import time
 from collections import defaultdict
 from contextlib import closing
+from pathlib import Path
 from typing import Any
 
 import jsonlines
 
 import src.common.storage.collection_and_field_names as names
 from src.common.storage.db_doc_conversions import collection_data_id_key
+from src.loaders.common import loader_common_names
 from src.loaders.common.loader_common_names import (
     DOCKER_HOST,
     FATAL_ERROR,
@@ -25,6 +27,25 @@ from src.loaders.common.loader_common_names import (
 """
 This module contains helper functions used for loaders (e.g. compute_genome_attribs, gtdb_genome_attribs_loader, etc.)
 """
+
+
+def form_source_dir(
+    root_dir: str,
+    env: str,
+    kbase_collection: str,
+    source_ver: str
+):
+    """
+    Form the path to the collections source data directory.
+    (e.g. root_dir/collectionssource/env/kbase_collection/source_ver)
+    """
+    return Path(
+        Path(root_dir),
+        loader_common_names.COLLECTION_SOURCE_DIR,
+        env,
+        kbase_collection,
+        source_ver
+    )
 
 
 def convert_to_json(docs, outfile):
