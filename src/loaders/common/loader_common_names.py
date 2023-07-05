@@ -42,6 +42,9 @@ COLLECTION_DATA_DIR = "collectionsdata"  # subdirectory for collected data (e.g.
 
 COLLECTION_SOURCE_DIR = "collectionssource"  # subdirectory for source collections
 
+# Default directory name for the parsed JSONL files for arango import
+IMPORT_DIR = 'import_files'
+
 # metadata file generated in the tool result folder with tool generated genome identifier,
 # original genome id and source genome file info
 GENOME_METADATA_FILE = "genome_metadata.tsv"
@@ -92,11 +95,9 @@ FATAL_ERROR_FILE = "fatal_error.json"
 # Used by gtdb output summary files
 GTDB_GENOME_ID_COL = "user_genome"
 GTDB_CLASSIFICATION_COL = "classification"
-GTDB_UNCLASSIFIED = "Unclassified"
 GTDB_SUMMARY_FILE_PATTERN = "gtdbtk.*.summary.tsv"
 
 # Used by the global fatal error file and nametuple 
-FATAL_ID = "kbase_id"
 FATAL_ERROR = "error"
 FATAL_ERRORS = "errors"
 FATAL_FILE = "file"

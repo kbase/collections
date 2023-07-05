@@ -4,14 +4,14 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-fastapi = "==0.95.1"
+fastapi = "==0.99.0"
 uvicorn = {version = "==0.22.0", extras = ["standard"]}
 jsonlines = "==3.1.0"
 cacheout = "==0.14.1"
 aiohttp = "==3.8.4"
-requests = "==2.29.0"
+requests = "==2.31.0"
 jinja-cli = "==1.2.2"
-pandas = "==2.0.1"
+pandas = "==2.0.3"
 aioarango = "==1.0.0"
 ftputil = "==5.0.4"
 beautifulsoup4 = "==4.12.2"
@@ -19,15 +19,20 @@ jsonschema = "==4.17.3"
 apscheduler = "==3.10.1"
 file-read-backwards = "==3.0.0"
 aiodns = "==3.0.0"
-docker = "==6.0.1"
+docker = "==6.1.3"
 click = "==8.1.3"
+# Unfortunately aioarango requires requests-toolbelt < 0.10.0, which is not compatible with
+# urrlib3 >= 2.0.0
+# We're going to have to figure out some alternative to aioarango at some point as it seems to be
+# abandonware
+urllib3 = "<2.0.0"
 
 [dev-packages]
-pytest = "==7.3.1"
+pytest = "==7.4.0"
 python-dateutil = "==2.8.2"
-coverage = "==7.2.5"
-pytest-cov = "==4.0.0"
-ipython = "==8.13.1"
+coverage = "==7.2.7"
+pytest-cov = "==4.1.0"
+ipython = "==8.14.0"
 pytest-asyncio = "==0.21.0"
 
 [requires]
