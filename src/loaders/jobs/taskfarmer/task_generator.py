@@ -2,6 +2,7 @@ import argparse
 import math
 import os
 import shutil
+from pathlib import Path
 
 import src.loaders.jobs.taskfarmer.taskfarmer_common as tf_common
 from src.loaders.common import loader_common_names
@@ -11,25 +12,24 @@ from src.loaders.jobs.taskfarmer.taskfarmer_task_mgr import TFTaskManager, Preco
 
 Create the required documents and scripts for the TaskFarmer Workflow Manager and provide the option to execute tasks.
 
-usage: task_generator.py [-h] --tool {gtdb_tk} --kbase_collection
-                         KBASE_COLLECTION --load_ver LOAD_VER
-                         --source_data_dir SOURCE_DATA_DIR
-                         [--root_dir ROOT_DIR] [--image_tag IMAGE_TAG]
-                         [--use_cached_image] [--submit_job] [--force]
+usage: task_generator.py [-h] --tool {gtdb_tk,checkm2,microtrait,mash} --kbase_collection KBASE_COLLECTION --source_ver SOURCE_VER [--env {CI,NEXT,APPDEV,PROD,NONE}]
+                         [--load_ver LOAD_VER] [--root_dir ROOT_DIR] [--image_tag IMAGE_TAG] [--use_cached_image] [--submit_job] [--force] [--source_file_ext SOURCE_FILE_EXT]
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
 
 required named arguments:
-  --tool {gtdb_tk}      Name of tool to be executed. (e.g. gtdb_tk, checkm2,
-                        etc.)
+  --tool {gtdb_tk,checkm2,microtrait,mash}
+                        Name of tool to be executed. (e.g. gtdb_tk, checkm2, etc.)
   --kbase_collection KBASE_COLLECTION
-                        KBase collection identifier name (e.g. GTDB).
-  --load_ver LOAD_VER   KBase load version (e.g. r207.kbase.1).
-  --source_data_dir SOURCE_DATA_DIR
-                        Source data (genome files) directory. (e.g. /global/cfs/cdirs/kbase/collections/sourcedata/GTDB/r207
+                        KBase collection identifier name.
+  --source_ver SOURCE_VER
+                        Version of the source data, which should match the source directory in the collectionssource. (e.g. 207, 214 for GTDB, 2023.06 for GROW/PMI)
 
 optional arguments:
+  --env {CI,NEXT,APPDEV,PROD,NONE}
+                        Environment containing the data to be processed. (default: PROD)
+  --load_ver LOAD_VER   KBase load version (e.g. r207.kbase.1). (defaults to the source version)
   --root_dir ROOT_DIR   Root directory for the collections project. (default: /global/cfs/cdirs/kbase/collections)
   --image_tag IMAGE_TAG
                         Docker/Shifter image tag. (default: latest)
@@ -38,7 +38,7 @@ optional arguments:
   --force               Force overwrite of existing job directory
   --source_file_ext SOURCE_FILE_EXT
                         Select files from source data directory that match the given extension.
-  
+                        
 Note: Based on our experiment with GTDB-Tk, we have determined that the optimal chunk size is 1000 genomes.
 With 4 batches running in parallel, each using 32 cores, it takes around 50 minutes to process a single chunk.
 To reflect this, we have set the "threads" and "program_threads" parameters in "_create_task_list" to 32, 
@@ -180,8 +180,19 @@ def _create_genome_id_file(genome_ids, genome_id_file):
     _write_to_file(genome_id_file, content)
 
 
-def _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper_file, job_dir, root_dir,
-                      threads=32, program_threads=32, source_file_ext='genomic.fna.gz'):
+def _create_task_list(
+        source_data_dir: Path,
+        env: str,
+        kbase_collection: str,
+        source_ver: str,
+        load_ver: str,
+        tool: str,
+        wrapper_file: str,
+        job_dir: str,
+        root_dir: str,
+        threads: int = 32,
+        program_threads: int = 32,
+        source_file_ext: str = 'genomic.fna.gz'):
     """
     Create task list file (tasks.txt)
 
@@ -210,10 +221,17 @@ def _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper
         genome_id_file = os.path.join(job_dir, f'genome_id_{idx}.tsv')
         _create_genome_id_file(genome_ids_chunk, genome_id_file)
 
-        env_vars = {'TOOLS': tool, 'LOAD_VER': load_ver, 'SOURCE_DATA_DIR': source_data_dir,
-                    'KBASE_COLLECTION': kbase_collection, 'ROOT_DIR': root_dir,
-                    'NODE_ID': f'job_{idx}', 'GENOME_ID_FILE': genome_id_file,
-                    'THREADS': threads, 'PROGRAM_THREADS': program_threads, 'SOURCE_FILE_EXT': source_file_ext}
+        env_vars = {'TOOLS': tool,
+                    'ENV': env,
+                    'KBASE_COLLECTION': kbase_collection,
+                    'SOURCE_VER': source_ver,
+                    'LOAD_VER': load_ver,
+                    'ROOT_DIR': root_dir,
+                    'NODE_ID': f'job_{idx}',
+                    'GENOME_ID_FILE': genome_id_file,
+                    'THREADS': threads,
+                    'PROGRAM_THREADS': program_threads,
+                    'SOURCE_FILE_EXT': source_file_ext}
 
         for mount_vol, docker_vol in vol_mounts.items():
             task_list += f''' --volume={mount_vol}:{docker_vol} '''
@@ -299,14 +317,20 @@ def main():
     required.add_argument(f'--{loader_common_names.KBASE_COLLECTION_ARG_NAME}', required=True, type=str,
                           help=loader_common_names.KBASE_COLLECTION_DESCR)
 
-    required.add_argument(f'--{loader_common_names.LOAD_VER_ARG_NAME}', required=True, type=str,
-                          help=loader_common_names.LOAD_VER_DESCR)
-
-    required.add_argument('--source_data_dir', required=True, type=str,
-                          help='Source data (genome files) directory. '
-                               '(e.g. /global/cfs/cdirs/kbase/collections/sourcedata/GTDB/r207')
+    required.add_argument(f'--{loader_common_names.SOURCE_VER_ARG_NAME}', required=True, type=str,
+                          help=loader_common_names.SOURCE_VER_DESCR)
 
     # Optional arguments
+    optional.add_argument(
+        f"--{loader_common_names.ENV_ARG_NAME}",
+        type=str,
+        choices=loader_common_names.KB_ENV + [loader_common_names.DEFAULT_ENV],
+        default='PROD',
+        help="Environment containing the data to be processed. (default: PROD)",
+    )
+
+    optional.add_argument(f'--{loader_common_names.LOAD_VER_ARG_NAME}', type=str,
+                          help=loader_common_names.LOAD_VER_DESCR + ' (defaults to the source version)')
     optional.add_argument('--root_dir', type=str, default=loader_common_names.ROOT_DIR,
                           help=f'Root directory for the collections project. (default: {loader_common_names.ROOT_DIR})')
     optional.add_argument('--image_tag', type=str, default=DEFAULT_IMG_TAG,
@@ -321,14 +345,25 @@ def main():
     args = parser.parse_args()
 
     tool = args.tool
+    env = getattr(args, loader_common_names.ENV_ARG_NAME)
     kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
+    source_ver = getattr(args, loader_common_names.SOURCE_VER_ARG_NAME)
     load_ver = getattr(args, loader_common_names.LOAD_VER_ARG_NAME)
-    source_data_dir = args.source_data_dir
+    if not load_ver:
+        load_ver = source_ver
+
     root_dir = args.root_dir
+    source_data_dir = Path(
+        Path(root_dir),
+        loader_common_names.COLLECTION_SOURCE_DIR,
+        env,
+        kbase_collection,
+        source_ver
+    )
     source_file_ext = args.source_file_ext
 
     try:
-        task_mgr = TFTaskManager(kbase_collection, load_ver, tool, source_data_dir, args.force, root_dir=root_dir)
+        task_mgr = TFTaskManager(kbase_collection, load_ver, tool, str(source_data_dir), args.force, root_dir=root_dir)
     except PreconditionError as e:
         raise ValueError(f'Error submitting job:\n{e}\n'
                          f'Please use the --force flag to overwrite the previous run.') from e
@@ -338,8 +373,17 @@ def main():
 
     image_str = _fetch_image(REGISTRY, tool, job_dir, tag=args.image_tag, force_pull=not args.use_cached_image)
     wrapper_file = _create_shifter_wrapper(job_dir, image_str)
-    task_list_file, n_jobs = _create_task_list(source_data_dir, kbase_collection, load_ver, tool, wrapper_file, job_dir,
-                                               root_dir, source_file_ext=source_file_ext)
+    task_list_file, n_jobs = _create_task_list(
+        source_data_dir,
+        env,
+        kbase_collection,
+        source_ver,
+        load_ver,
+        tool,
+        wrapper_file,
+        job_dir,
+        root_dir,
+        source_file_ext=source_file_ext)
 
     batch_script = _create_batch_script(job_dir, task_list_file, n_jobs, tool)
 

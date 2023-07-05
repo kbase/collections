@@ -170,7 +170,7 @@ class ToolRunner:
         )
         required.add_argument(
             f'--{loader_common_names.SOURCE_VER_ARG_NAME}', required=True, type=str,
-            help="Version of the source data, which should match the source directory in the collectionssource. (e.g. 207, 214 for GTDB, 2023.06 for GROW/PMI)"
+            help=loader_common_names.SOURCE_VER_DESCR
         )
 
         # Optional arguments

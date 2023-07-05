@@ -20,6 +20,8 @@ KBASE_COLLECTION_DESCR = (
 )
 
 SOURCE_VER_ARG_NAME = "source_ver"
+SOURCE_VER_DESCR = """Version of the source data, which should match the source directory in the collectionssource. 
+(e.g. 207, 214 for GTDB, 2023.06 for GROW/PMI)"""
 
 # Name for environment argument
 ENV_ARG_NAME = "env"
