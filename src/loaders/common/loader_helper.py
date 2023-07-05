@@ -34,7 +34,7 @@ def form_source_dir(
         env: str,
         kbase_collection: str,
         source_ver: str
-):
+) -> Path:
     """
     Form the path to the collections source data directory.
     (e.g. root_dir/collectionssource/env/kbase_collection/source_ver)
