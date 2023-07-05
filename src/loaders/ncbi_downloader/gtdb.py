@@ -144,7 +144,7 @@ def _make_work_dir(root_dir: str, source_data_dir: str, source: str, env: str) -
 
 def _process_genome_ids(
     work_dir: str,
-    genome_ids: list[str],
+    genome_ids_unprocssed: list[str],
     target_file_ext: list[str],
     exclude_name_substring: list[str],
     overwrite: bool = False,
@@ -153,11 +153,11 @@ def _process_genome_ids(
     Helper function that processes genome ids to avoid redownloading files.
     """
     if overwrite:
-        return genome_ids
+        return genome_ids_unprocssed
 
     genome_ids = list()
     target_ext_count = len(target_file_ext)
-    for genome_id in genome_ids:
+    for genome_id in genome_ids_unprocssed:
         data_dir = os.path.join(work_dir, genome_id)
         if not os.path.exists(data_dir):
             genome_ids.append(genome_id)
