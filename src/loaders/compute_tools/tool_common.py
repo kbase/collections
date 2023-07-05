@@ -43,9 +43,6 @@ _SYSTEM_UTILIZATION = 0.5  # This might need to be customizable per tool
 # TODO DOWNLOAD having download script not create empty directories for genomes with missing files
 #      so that we no longer need this
 _IGNORE_MISSING_FILES_COLLECTIONS = ['GTDB']
-# TODO DOWNLOAD if we settle on a standard file name scheme for downloaders we can get
-#               rid of this
-_STANDARD_FILE_EXCLUDE_SUBSTRINGS = ['cds_from', 'rna_from', 'ERR']
 
 _ID_MUNGING_SUFFIX = "_kbase"
 
@@ -563,7 +560,7 @@ def _find_data_file(
 
     genome_files = [f for f in genome_files if
                     all(name_substr not in str(f)
-                        for name_substr in _STANDARD_FILE_EXCLUDE_SUBSTRINGS)]
+                        for name_substr in loader_common_names.STANDARD_FILE_EXCLUDE_SUBSTRINGS)]
 
     # Raise an error if no genome files are found and the collection is not in the
     # ignored collections
