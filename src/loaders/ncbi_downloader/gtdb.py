@@ -46,7 +46,8 @@ import argparse
 import itertools
 import math
 import os
-from multiprocessing import cpu_count, Pool
+from multiprocessing import Pool, cpu_count
+from typing import Tuple
 from urllib import request
 from urllib.parse import urlparse
 
@@ -113,7 +114,7 @@ def _form_gtdb_taxonomy_file_url(release_ver: str) -> list[str]:
     return file_urls
 
 
-def _fetch_gtdb_genome_ids(release_ver: str, work_dir: str) -> list[str]:
+def _fetch_gtdb_genome_ids(release_ver: str, work_dir: str) -> Tuple[list[str], list[str]]:
     # download GTDB taxonomy files and then parse genome_ids from the GTDB taxonomy files
     genome_ids = list()
 
@@ -131,7 +132,7 @@ def _fetch_gtdb_genome_ids(release_ver: str, work_dir: str) -> list[str]:
                 [parse_genome_id(line.strip().split("\t")[0]) for line in f]
             )
 
-    return genome_ids
+    return genome_ids, taxonomy_urls
 
 
 def _make_work_dir(root_dir: str, source_data_dir: str, source: str, env: str) -> str:
@@ -255,7 +256,8 @@ def main():
         kbase_collection,
         release_ver,
     )
-    genome_ids_unprocssed = _fetch_gtdb_genome_ids(release_ver, work_dir)
+    genome_ids_unprocssed, taxonomy_urls = _fetch_gtdb_genome_ids(release_ver, work_dir)
+    taxonomy_files = [os.path.basename(url) for url in taxonomy_urls]
     genome_ids = _process_genome_ids(
         work_dir,
         genome_ids_unprocssed,
@@ -265,7 +267,7 @@ def main():
     )
     if not genome_ids:
         print(f"All {len(genome_ids_unprocssed)} genomes files already exist in {work_dir}")
-        loader_helper.create_softlinks_in_csd(csd, work_dir, genome_ids_unprocssed)
+        loader_helper.create_softlinks_in_csd(csd, work_dir, genome_ids_unprocssed, taxonomy_files)
         return
 
     if not threads:
@@ -301,7 +303,7 @@ def main():
         print(f"\nSuccessfully downloaded {len(genome_ids)} genome files")
 
     genome_ids_clean = set(genome_ids) - set(failed_ids)
-    loader_helper.create_softlinks_in_csd(csd, work_dir, list(genome_ids_clean))
+    loader_helper.create_softlinks_in_csd(csd, work_dir, list(genome_ids_clean), taxonomy_files)
 
 
 if __name__ == "__main__":
