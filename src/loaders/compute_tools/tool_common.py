@@ -14,6 +14,7 @@ of the KBase collections service.
 import argparse
 import datetime
 import gzip
+import json
 import math
 import multiprocessing
 import os
@@ -48,6 +49,10 @@ _IGNORE_MISSING_FILES_COLLECTIONS = ['GTDB']
 _STANDARD_FILE_EXCLUDE_SUBSTRINGS = ['cds_from', 'rna_from', 'ERR']
 
 _ID_MUNGING_SUFFIX = "_kbase"
+
+FatalTuple = namedtuple("FatalTuple", ["data_id", "error", "file", "stacktrace"])
+
+GenomeTuple = namedtuple("GenomeTuple", ["source_file", "data_id"])
 
 
 class ToolRunner:
@@ -242,7 +247,7 @@ class ToolRunner:
             data_ids = all_data_ids
         return list(set(data_ids))
 
-    def parallel_single_execution(self, tool_callable: Callable[[str, Path, Path, bool], None], unzip=False):
+    def parallel_single_execution(self, tool_callable: Callable[[str, str, Path, Path, bool], None], unzip=False):
         """
         Run a tool by a single data file, storing the results in a single batch directory with
         the individual runs stored in directories by the data ID.
@@ -255,7 +260,8 @@ class ToolRunner:
                   each individual genome directory. Parser program will parse the result file in each individual genome
                   directory.
 
-        tool_callable - the callable for the tool that takes four arguments:
+        tool_callable - the callable for the tool that takes 5 arguments:
+            * The tool safe data ID
             * The data ID
             * The input file
             * The output directory
@@ -288,11 +294,13 @@ class ToolRunner:
 
             args_list.append(
                 (meta[loader_common_names.META_TOOL_IDENTIFIER],
+                 data_id,
                  # use the uncompressed file if it exists, otherwise use the source file
                  meta.get(loader_common_names.META_UNCOMPRESSED_FILE,
                           meta[loader_common_names.META_SOURCE_FILE]),
                  output_dir,
                  self._debug))
+
         try:
             self._execute(self._threads, tool_callable, args_list, start, False)
         finally:
@@ -300,10 +308,10 @@ class ToolRunner:
                 print(f"Deleting {len(unzipped_files_to_delete)} unzipped files: {unzipped_files_to_delete[:5]}...")
                 for file in unzipped_files_to_delete:
                     os.remove(file)
-
+        
         _create_metadata_file(genomes_meta, batch_dir)
 
-    def parallel_batch_execution(self, tool_callable: Callable[[Dict[str, Path], Path, int, bool], None], unzip=False):
+    def parallel_batch_execution(self, tool_callable: Callable[[Dict[str, GenomeTuple], Path, int, bool], None], unzip=False):
         """
         Run a tool in batched mode, where > 1 data file is processed by the tool in one
         call. Each batch gets its own batch directory.
@@ -316,7 +324,7 @@ class ToolRunner:
                   Batching genomes for gtdb_tk execution improves overall throughput.
 
         tool_callable - the callable for the tool that takes 4 arguments:
-            * A dictionary of the data_id to the source file path
+            * A dictionary of the tool safe data ID to the GenomeTuple
             * The output directory for results
             * The number of threads to use for the batch
             * A debug boolean
@@ -347,14 +355,14 @@ class ToolRunner:
 
             metas.append((meta, batch_dir))
             ids_to_files = dict()
-            for m in meta.values():
+            for data_id, m in meta.items():
                 # use the uncompressed file if it exists, otherwise use the source file
                 source_file = m.get(loader_common_names.META_UNCOMPRESSED_FILE,
                                     m[loader_common_names.META_SOURCE_FILE])
-                ids_to_files[m[loader_common_names.META_TOOL_IDENTIFIER]] = source_file
+                ids_to_files[m[loader_common_names.META_TOOL_IDENTIFIER]] = GenomeTuple(source_file, data_id)
 
             batch_input.append((ids_to_files, batch_dir, self._program_threads, self._debug))
-
+            
         try:
             self._execute(num_batches, tool_callable, batch_input, start, True)
         finally:
@@ -362,7 +370,7 @@ class ToolRunner:
                 print(f"Deleting {len(unzipped_files_to_delete)} unzipped files: {unzipped_files_to_delete[:5]}...")
                 for file in unzipped_files_to_delete:
                     os.remove(file)
-
+        
         for meta in metas:
             _create_metadata_file(*meta)
 
@@ -577,35 +585,37 @@ def _find_data_file(
     return genome_files[0]
 
 
-FatalTuple = namedtuple(
-    "FatalTuple",
-    [
-        loader_common_names.FATAL_ID,
-        loader_common_names.FATAL_ERROR,
-        loader_common_names.FATAL_FILE,
-        loader_common_names.FATAL_STACKTRACE,
-    ]
-)
-
-
 def write_fatal_tuples_to_dict(fatal_tuples: List[FatalTuple], output_dir: Path):
     fatal_dict = {}
     for fatal_tuple in fatal_tuples:
-        fatal_dict[getattr(fatal_tuple, loader_common_names.FATAL_ID)] = {
-            loader_common_names.FATAL_ERROR: getattr(fatal_tuple, loader_common_names.FATAL_ERROR),
-            loader_common_names.FATAL_FILE: getattr(fatal_tuple, loader_common_names.FATAL_FILE),
-            loader_common_names.FATAL_STACKTRACE: getattr(fatal_tuple, loader_common_names.FATAL_STACKTRACE),
+        fatal_dict[fatal_tuple.data_id] = {
+            loader_common_names.FATAL_ERROR: fatal_tuple.error,
+            loader_common_names.FATAL_FILE: fatal_tuple.file,
+            loader_common_names.FATAL_STACKTRACE: fatal_tuple.stacktrace,
         }
 
     fatal_error_path = os.path.join(output_dir, loader_common_names.FATAL_ERROR_FILE)
     with open(fatal_error_path, "w") as outfile:
-        outfile.dump(fatal_dict, outfile)
+        json.dump(fatal_dict, outfile, indent=4)
 
 
 def find_gtdbtk_summary_files(output_dir: Path):
     summary_files = [file_name for file_name in os.listdir(output_dir) if
                      re.search(loader_common_names.GTDB_SUMMARY_FILE_PATTERN, file_name)]
     return summary_files
+
+
+def create_fatal_tuple(
+        tool_safe_data_id: str,
+        ids_to_files: Dict[str, GenomeTuple],
+        error_message: str,
+        stacktrace: str = None,
+):
+    genome_tuple = ids_to_files[tool_safe_data_id]
+    data_id = genome_tuple.data_id
+    source_file_path = genome_tuple.source_file
+    fatal_tuple = FatalTuple(data_id, error_message, str(source_file_path), stacktrace)
+    return fatal_tuple
 
 
 if __name__ == "__main__":
