@@ -6,6 +6,7 @@ import subprocess
 import time
 from collections import defaultdict
 from contextlib import closing
+from typing import Any
 
 import jsonlines
 
@@ -16,6 +17,7 @@ from src.loaders.common.loader_common_names import (
     FATAL_ERROR,
     FATAL_STACKTRACE,
     FATAL_TOOL,
+    IMPORT_DIR,
     KB_AUTH_TOKEN,
     SOURCE_METADATA_FILE_KEYS,
 )
@@ -36,6 +38,19 @@ def convert_to_json(docs, outfile):
 
     with jsonlines.Writer(outfile) as writer:
         writer.write_all(docs)
+
+
+def create_import_files(root_dir: str, file_name: str, docs: list[dict[str, Any]]):
+    """
+    Create and save the data documents as JSONLines file to the import directory.
+    """
+    import_dir = os.path.join(root_dir, IMPORT_DIR)
+    os.makedirs(import_dir, exist_ok=True)
+
+    file_path = os.path.join(import_dir, file_name)
+    print(f'Creating JSONLines import file: {file_path}')
+    with open(file_path, 'w') as f:
+        convert_to_json(docs, f)
 
 
 def parse_genome_id(gtdb_accession):

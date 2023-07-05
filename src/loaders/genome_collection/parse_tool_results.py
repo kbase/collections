@@ -63,7 +63,7 @@ from src.common.storage.db_doc_conversions import (
 )
 from src.loaders.common import loader_common_names
 from src.loaders.common.loader_helper import (
-    convert_to_json,
+    create_import_files,
     create_global_fatal_dict_doc,
     init_row_doc,
     is_upa_info_complete,
@@ -71,17 +71,10 @@ from src.loaders.common.loader_helper import (
 )
 from src.loaders.compute_tools.tool_common import run_command, find_gtdbtk_summary_files
 
-# Default result file name suffix for parsed computed genome attributes data for arango import.
-# Collection, load version and tools name will be prepended to this file name suffix.
-COMPUTED_GENOME_ATTR_FILE_SUFFIX = "computed_genome_attribs.jsonl"
-
-# Default result file name suffix for parsed heatmap data for arango import.
-# Collection, load version, tools name and categories (meta, rows, cells etc.) will be prepended to this suffix.
-HEATMAP_FILE_SUFFIX = "heatmap_data.jsonl"
-
-# Default result file name suffix for the kbcoll_export_types collections for arango import.
-# Collection, load version and types will be prepended to this file name suffix.
-KBCALL_EXPORT_TYPES_FILE_SUFFIX = "kbcoll_export_types.jsonl"
+# Default result file name root for parsed heatmap data for arango import.
+# Collection, load version, tools name will be prepended to this root.
+# Categories (meta, rows, cells etc.) will be appended to this root.
+HEATMAP_FILE_ROOT = "heatmap_data"
 
 # The following features will be extracted from the CheckM2 result quality_report.tsv file as computed genome attributes
 # If empty, select all available fields
@@ -131,18 +124,9 @@ _MICROTRAIT_TO_SYS_TRAIT_MAP = {
     loader_common_names.DETECTED_GENE_SCORE_COL: loader_common_names.DETECTED_GENE_SCORE_COL,
 }
 
-# Default directory name for the parsed JSONL files for arango import
-IMPORT_DIR = 'import_files'
-
 # The suffix for the sequence metadata file name for Assembly Homology service
 # (https://github.com/jgi-kbase/AssemblyHomologyService#sequence-metadata-file)
 SEQ_METADATA = 'seq_metadata.jsonl'
-
-# The suffix for prepared samples data
-_PREPARED_SAMPLES = 'samples.jsonl'
-
-# Merged FATAL_ERROR_FILE
-FATAL_ERROR_FILE_SUFFIX = 'fatal_error.jsonl'
 
 
 def _locate_dir(root_dir, kbase_collection, load_ver, check_exists=False, tool=''):
@@ -317,18 +301,6 @@ def _append_trait_val(
                                 })
 
 
-def _create_import_files(root_dir: str, file_name: str, docs: list[dict[str, Any]]):
-    # create and save the data documents as JSONLines file to the import directory
-
-    import_dir = os.path.join(root_dir, IMPORT_DIR)
-    os.makedirs(import_dir, exist_ok=True)
-
-    file_path = os.path.join(import_dir, file_name)
-    print(f'Creating JSONLines import file: {file_path}')
-    with open(file_path, 'w') as f:
-        convert_to_json(docs, f)
-
-
 def _read_sketch(sketch_file: Path) -> dict:
     # run mash info on the sketch file and return the JSON output
 
@@ -383,9 +355,9 @@ def _process_mash_tool(root_dir: str,
                 raise ValueError(f'Unable to locate the sketch file: {sketch_file} for genome: {data_id}')
             sketch_files.append(sketch_file)
 
-    _create_import_files(root_dir, f'{kbase_collection}_{load_ver}_{SEQ_METADATA}', seq_meta)
+    create_import_files(root_dir, f'{kbase_collection}_{load_ver}_{SEQ_METADATA}', seq_meta)
 
-    import_dir = Path(root_dir, IMPORT_DIR)
+    import_dir = Path(root_dir, loader_common_names.IMPORT_DIR)
     os.makedirs(import_dir, exist_ok=True)
     mash_output_prefix = import_dir / f'{kbase_collection}_{load_ver}_merged_sketch'
 
@@ -417,13 +389,13 @@ def _process_heatmap_tools(heatmap_tools: set[str],
         heatmap_meta_dict, heatmap_rows_list, heatmap_cell_details_list = parse_ops(
             root_dir, kbase_collection, load_ver, fatal_ids)
 
-        meta_output = f'{kbase_collection}_{load_ver}_{tool}_meta_{HEATMAP_FILE_SUFFIX}'
-        rows_output = f'{kbase_collection}_{load_ver}_{tool}_rows_{HEATMAP_FILE_SUFFIX}'
-        cell_details_output = f'{kbase_collection}_{load_ver}_{tool}_cell_details_{HEATMAP_FILE_SUFFIX}'
+        meta_output = f'{kbase_collection}_{load_ver}_{tool}_{HEATMAP_FILE_ROOT}_{names.COLL_MICROTRAIT_META}.jsonl'
+        rows_output = f'{kbase_collection}_{load_ver}_{tool}_{HEATMAP_FILE_ROOT}_{names.COLL_MICROTRAIT_DATA}.jsonl'
+        cell_details_output = f'{kbase_collection}_{load_ver}_{tool}_{HEATMAP_FILE_ROOT}_{names.COLL_MICROTRAIT_CELLS}.jsonl'
 
-        _create_import_files(root_dir, meta_output, [heatmap_meta_dict])
-        _create_import_files(root_dir, rows_output, heatmap_rows_list)
-        _create_import_files(root_dir, cell_details_output, heatmap_cell_details_list)
+        create_import_files(root_dir, meta_output, [heatmap_meta_dict])
+        create_import_files(root_dir, rows_output, heatmap_rows_list)
+        create_import_files(root_dir, cell_details_output, heatmap_cell_details_list)
 
 
 def _process_fatal_error_tools(check_fatal_error_tools: set[str],
@@ -441,7 +413,7 @@ def _process_fatal_error_tools(check_fatal_error_tools: set[str],
         batch_dirs = _get_batch_dirs(result_dir)
         batch_no_batch_prefix = loader_common_names.COMPUTE_OUTPUT_PREFIX + loader_common_names.COMPUTE_OUTPUT_NO_BATCH
         if len(batch_dirs) == 1 and batch_dirs[0].startswith(batch_no_batch_prefix):
-            batch_dirs = [os.path.join(batch_dirs[0], d) for d in os.listdir(batch_dirs[0])
+            batch_dirs = [os.path.join(batch_dirs[0], d) for d in os.listdir(os.path.join(result_dir, batch_dirs[0]))
                           if os.path.isdir(os.path.join(result_dir, batch_dirs[0], d))]
         for batch_dir in batch_dirs:
             data_dir = os.path.join(result_dir, batch_dir)
@@ -467,14 +439,14 @@ def _process_fatal_error_tools(check_fatal_error_tools: set[str],
                         loader_common_names.FATAL_FILE: fatal_errors[kbase_id][loader_common_names.FATAL_FILE],
                         loader_common_names.FATAL_ERRORS: [fatal_dict_info]}
 
-    import_dir = os.path.join(root_dir, IMPORT_DIR)
+    import_dir = os.path.join(root_dir, loader_common_names.IMPORT_DIR)
     os.makedirs(import_dir, exist_ok=True)
     fatal_output = f"{kbase_collection}_{load_ver}_{loader_common_names.FATAL_ERROR_FILE}"
     fatal_error_path = os.path.join(import_dir, fatal_output)
     print(f"Creating a merged {loader_common_names.FATAL_ERROR_FILE}: {fatal_error_path}")
     with open(fatal_error_path, "w") as outfile:
-        outfile.dump(fatal_dict, outfile)
-
+        json.dump(fatal_dict, outfile, indent=4)
+    
     return set(fatal_dict.keys())
 
 
@@ -504,17 +476,17 @@ def _process_genome_attri_tools(genome_attr_tools: set[str],
     meta_lookup = _create_meta_lookup(root_dir, kbase_collection, load_ver, tool)
     docs, encountered_types = _update_docs_with_upa_info(res_dict, meta_lookup, check_genome)
 
-    output = f'{kbase_collection}_{load_ver}_{"_".join(genome_attr_tools)}_{COMPUTED_GENOME_ATTR_FILE_SUFFIX}'
-    _create_import_files(root_dir, output, docs)
+    output = f'{kbase_collection}_{load_ver}_{"_".join(genome_attr_tools)}_{names.COLL_GENOME_ATTRIBS}.jsonl'
+    create_import_files(root_dir, output, docs)
 
-    export_types_output = f'{kbase_collection}_{load_ver}_{KBCALL_EXPORT_TYPES_FILE_SUFFIX}'
+    export_types_output = f'{kbase_collection}_{load_ver}_{names.COLL_EXPORT_TYPES}.jsonl'
     types_doc = data_product_export_types_to_doc(
         kbase_collection,
         names.GENOME_ATTRIBS_PRODUCT_ID,
         load_ver,
         sorted(encountered_types)
     )
-    _create_import_files(root_dir, export_types_output, [types_doc])
+    create_import_files(root_dir, export_types_output, [types_doc])
 
 
 def _create_meta_lookup(root_dir, kbase_collection, load_ver, tool):
@@ -849,7 +821,7 @@ def gtdb_tk(root_dir, kbase_collection, load_ver, fatal_ids):
     result_dir = _locate_dir(root_dir, kbase_collection, load_ver, tool='gtdb_tk')
     batch_dirs = _get_batch_dirs(result_dir)
 
-    genome_id_col = loader_common_names.GENOME_ID_COL
+    genome_id_col = loader_common_names.GTDB_GENOME_ID_COL
     for batch_dir in batch_dirs:
 
         summary_files = find_gtdbtk_summary_files(Path(result_dir, batch_dir))
@@ -919,7 +891,7 @@ def _retrieve_sample(root_dir, kbase_collection, load_ver):
 
         prepared_samples_data.append(doc)
 
-    _create_import_files(root_dir, f'{kbase_collection}_{load_ver}_{_PREPARED_SAMPLES}', prepared_samples_data)
+    create_import_files(root_dir, f'{kbase_collection}_{load_ver}_{names.COLL_SAMPLES}.jsonl', prepared_samples_data)
 
 
 def main():
