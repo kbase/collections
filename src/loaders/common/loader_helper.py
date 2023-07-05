@@ -193,6 +193,34 @@ def is_upa_info_complete(upa_dir: str):
     return True
 
 
+def make_collection_source_dir(
+        root_dir: str,
+        collection_source_dir: str,
+        env: str,
+        collection: str,
+        release_ver: str
+) -> str:
+    """
+    Helper function that creates a collection & source_version and link in data
+    to that colleciton from the overall source data dir.
+    """
+    csd = os.path.join(root_dir, collection_source_dir, env, collection, release_ver)
+    os.makedirs(csd, exist_ok=True)
+    return csd
+
+
+def create_softlinks_in_csd(csd: str, work_dir: str, genome_ids: list[str]) -> None:
+    """
+    Create softlinks in the collection source dir to the genome files in the work dir.
+    """
+    for genome_id in genome_ids:
+        genome_dir = os.path.join(work_dir, genome_id)
+        csd_genome_dir = os.path.join(csd, genome_id)
+        create_softlink(csd_genome_dir, genome_dir)
+
+    print(f"Genome files in {csd} \nnow link to {work_dir}")
+
+
 def create_softlink(csd_dir, sd_dir):
     """
     Creates a softlink between two directories.

@@ -116,3 +116,7 @@ SAMPLE_EFFECTIVE_TIME = "sample_effective_time"
 # extension for source sample data file and prepared sample node data file for downloaded workspace objects
 SAMPLE_FILE_EXT = "sample"
 SAMPLE_PREPARED_EXT = "prepared.sample"
+
+# TODO DOWNLOAD if we settle on a standard file name scheme for downloaders we can get
+#               rid of this
+STANDARD_FILE_EXCLUDE_SUBSTRINGS = ['cds_from', 'rna_from', 'ERR']
