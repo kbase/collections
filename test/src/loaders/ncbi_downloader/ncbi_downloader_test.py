@@ -43,11 +43,11 @@ def test_fetch_gtdb_genome_ids(setup_and_teardown):
     tmp_dir, script_file = setup_and_teardown
 
     release_ver = '207'
-    genome_ids = gtdb._fetch_gtdb_genome_ids(release_ver, tmp_dir)
+    genome_ids, _ = gtdb._fetch_gtdb_genome_ids(release_ver, tmp_dir)
     assert len(genome_ids) == 317542
 
     release_ver = '202'
-    genome_ids = gtdb._fetch_gtdb_genome_ids(release_ver, tmp_dir)
+    genome_ids, _ = gtdb._fetch_gtdb_genome_ids(release_ver, tmp_dir)
     assert len(genome_ids) == 258406
 
 
