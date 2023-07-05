@@ -55,9 +55,11 @@ async def _get_arango_db(cli: aioarango.ArangoClient, db: str, cfg: CollectionsS
             return rdb
         except aioarango.exceptions.ServerConnectionError as e:
             err = e
-            print(  f"Failed to connect to Arango database at {cfg.arango_url}\n"
-                  + f"    Error: {err}\n"
-                  + f"    Waiting for {t}s and retrying db connection"
+            print(
+                f"Failed to connect to Arango database at {cfg.arango_url}\n"
+                + f"    Error: {err}\n"
+                + f"    Waiting for {t}s and retrying db connection",
+                flush=True
             )
             sys.stdout.flush()
             # TODO CODE both time.sleep() and this block SIGINT. How to fix?
