@@ -128,9 +128,6 @@ _MICROTRAIT_TO_SYS_TRAIT_MAP = {
 # (https://github.com/jgi-kbase/AssemblyHomologyService#sequence-metadata-file)
 SEQ_METADATA = 'seq_metadata.jsonl'
 
-# Merged FATAL_ERROR_FILE
-FATAL_ERROR_FILE_SUFFIX = 'fatal_error.jsonl'
-
 
 def _locate_dir(root_dir, kbase_collection, load_ver, check_exists=False, tool=''):
     result_dir = os.path.join(root_dir, loader_common_names.COLLECTION_DATA_DIR, kbase_collection, load_ver, tool)
@@ -416,7 +413,7 @@ def _process_fatal_error_tools(check_fatal_error_tools: set[str],
         batch_dirs = _get_batch_dirs(result_dir)
         batch_no_batch_prefix = loader_common_names.COMPUTE_OUTPUT_PREFIX + loader_common_names.COMPUTE_OUTPUT_NO_BATCH
         if len(batch_dirs) == 1 and batch_dirs[0].startswith(batch_no_batch_prefix):
-            batch_dirs = [os.path.join(batch_dirs[0], d) for d in os.listdir(batch_dirs[0])
+            batch_dirs = [os.path.join(batch_dirs[0], d) for d in os.listdir(os.path.join(result_dir, batch_dirs[0]))
                           if os.path.isdir(os.path.join(result_dir, batch_dirs[0], d))]
         for batch_dir in batch_dirs:
             data_dir = os.path.join(result_dir, batch_dir)
@@ -448,8 +445,8 @@ def _process_fatal_error_tools(check_fatal_error_tools: set[str],
     fatal_error_path = os.path.join(import_dir, fatal_output)
     print(f"Creating a merged {loader_common_names.FATAL_ERROR_FILE}: {fatal_error_path}")
     with open(fatal_error_path, "w") as outfile:
-        outfile.dump(fatal_dict, outfile)
-
+        json.dump(fatal_dict, outfile, indent=4)
+    
     return set(fatal_dict.keys())
 
 
@@ -824,7 +821,7 @@ def gtdb_tk(root_dir, kbase_collection, load_ver, fatal_ids):
     result_dir = _locate_dir(root_dir, kbase_collection, load_ver, tool='gtdb_tk')
     batch_dirs = _get_batch_dirs(result_dir)
 
-    genome_id_col = loader_common_names.GENOME_ID_COL
+    genome_id_col = loader_common_names.GTDB_GENOME_ID_COL
     for batch_dir in batch_dirs:
 
         summary_files = find_gtdbtk_summary_files(Path(result_dir, batch_dir))
