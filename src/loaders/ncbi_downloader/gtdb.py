@@ -22,7 +22,8 @@ optional arguments:
   --threads THREADS     Number of threads
   --overwrite           Overwrite existing files
   --exclude_name_substring EXCLUDE_NAME_SUBSTRING [EXCLUDE_NAME_SUBSTRING ...]
-                        Files with a specific substring in their names that should be excluded from the download (default: [])
+                        Files with a specific substring in their names that should be excluded from the download (default: ['cds_from',
+                        'rna_from', 'ERR'])
 
                         
 e.g.
