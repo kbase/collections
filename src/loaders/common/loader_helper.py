@@ -30,22 +30,17 @@ This module contains helper functions used for loaders (e.g. compute_genome_attr
 
 
 def form_source_dir(
-    root_dir: str,
-    env: str,
-    kbase_collection: str,
-    source_ver: str
+        root_dir: str,
+        env: str,
+        kbase_collection: str,
+        source_ver: str
 ):
     """
     Form the path to the collections source data directory.
     (e.g. root_dir/collectionssource/env/kbase_collection/source_ver)
     """
-    return Path(
-        Path(root_dir),
-        loader_common_names.COLLECTION_SOURCE_DIR,
-        env,
-        kbase_collection,
-        source_ver
-    )
+
+    return Path(root_dir) / loader_common_names.COLLECTION_SOURCE_DIR / env / kbase_collection / source_ver
 
 
 def convert_to_json(docs, outfile):
