@@ -169,19 +169,24 @@ def make_collection_source_dir(
     return csd
 
 
-def create_softlinks_in_csd(csd: str, work_dir: str, genome_ids: list[str]) -> None:
+def create_softlinks_in_csd(csd: str, work_dir: str, genome_ids: list[str], taxonomy_files: list[str] = []) -> None:
     """
     Create softlinks in the collection source dir to the genome files in the work dir.
     """
     for genome_id in genome_ids:
         genome_dir = os.path.join(work_dir, genome_id)
         csd_genome_dir = os.path.join(csd, genome_id)
-        create_softlink(csd_genome_dir, genome_dir)
+        create_softlink_between_dirs(csd_genome_dir, genome_dir)
+
+    for taxonomy_file in taxonomy_files:
+        csd_file = os.path.join(csd, taxonomy_file)
+        sd_file = os.path.join(work_dir, taxonomy_file)
+        create_softlink_between_files(csd_file, sd_file)
 
     print(f"Genome files in {csd} \nnow link to {work_dir}")
 
 
-def create_softlink(csd_dir, sd_dir):
+def create_softlink_between_dirs(csd_dir, sd_dir):
     """
     Creates a softlink between two directories.
     """
@@ -196,6 +201,19 @@ def create_softlink(csd_dir, sd_dir):
             f"{csd_dir} already exists and does not link to {sd_dir} as expected"
         )
     os.symlink(sd_dir, csd_dir, target_is_directory=True)
+
+
+def create_softlink_between_files(csd_file, sd_file):
+    """
+    Creates a softlink between two files.
+    """
+    if os.path.exists(csd_file):
+        if (os.path.islink(csd_file) and os.readlink(csd_file) == sd_file):
+            return
+        raise ValueError(
+            f"{csd_file} already exists and does not link to {sd_file} as expected"
+        )
+    os.symlink(sd_file, csd_file)
 
 
 def get_ip():
