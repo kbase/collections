@@ -49,6 +49,9 @@ page would be `abasciscus`.
 #### Pros
 
 * Easily understood by users if implemented as a simple "next page" button
+* Users can jump to a particular value rather than having to search through pages if they
+  are allowed to specify the `start_after` value
+  * Essentially a filter used for paging
 * Prior `start_after` values can be cached by the front end to allow for returning to a
   previous page
 * At worst linear time complexity
@@ -57,8 +60,6 @@ page would be `abasciscus`.
 
 * Can only navigate to the next page after the current page. Navigating to page 10 from page
   1 would require 9 full page loads.
-  * Binary search to a particular value is possible, but still relatively expensive and 
-    confusing for users.
 * May not work well on non-unique fields
   * If a page has more than a page size's number of identical values in the field being paged over,
     it is impossible to advance further.
