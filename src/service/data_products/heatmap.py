@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Request, Query, Path, Response
 
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
+from src.common.product_models.common_models import FIELD_MATCH_STATE, FIELD_SELECTION_STATE
 from src.common.product_models import heatmap_common_models as heatmap_models
 from src.service.data_products.common_functions import (
     get_load_version,
@@ -21,6 +22,7 @@ from src.service.data_products.common_functions import (
 from src.service.data_products.common_models import (
     DataProductSpec,
     DBCollection,
+    DataProductMissingIDs,
     QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
     QUERY_VALIDATOR_LIMIT,
     QUERY_VALIDATOR_COUNT,
@@ -120,7 +122,7 @@ class HeatMapController:
             "/missing",
             self.get_missing_ids,
             methods=["GET"],
-            response_model=heatmap_models.HeatMapMissingIDs,
+            response_model=DataProductMissingIDs,
             summary=f"Get missing IDs for a match or selection",
             description=f"Get the list of IDs that were not found in this {self._api_category} "
                 + "heatmap but were present in the match and / or selection.",
@@ -289,7 +291,7 @@ class HeatMapController:
         match_id: Annotated[str | None, Query(description="A match ID.")] = None,
         selection_id: Annotated[str | None, Query(description="A selection ID.")] = None,
         user: kb_auth.KBaseUser = Depends(_OPT_AUTH),
-    ) -> heatmap_models.HeatMapMissingIDs:
+    ) -> DataProductMissingIDs:
         appstate = app_state.get_app_state(r)
         if not match_id and not selection_id:
             raise errors.IllegalParameterError(
@@ -303,9 +305,9 @@ class HeatMapController:
             match_id=match_id,
             selection_id=selection_id,
         )
-        return heatmap_models.HeatMapMissingIDs(
-            heatmap_match_state=dp_match.state if dp_match else None,
-            heatmap_selection_state=dp_sel.state if dp_sel else None,
+        return DataProductMissingIDs(
+            match_state=dp_match.state if dp_match else None,
+            selection_state=dp_sel.state if dp_sel else None,
             match_missing=dp_match.missing_ids if dp_match else None,
             selection_missing=dp_sel.missing_ids if dp_sel else None,
         )
@@ -320,8 +322,8 @@ class HeatMapController:
         max_value: int = None,
     ) -> Response:
         j = {
-            heatmap_models.FIELD_HEATMAP_MATCH_STATE: dp_match.state if dp_match else None,
-            heatmap_models.FIELD_HEATMAP_SELECTION_STATE: dp_sel.state if dp_sel else None,
+            FIELD_MATCH_STATE: dp_match.state if dp_match else None,
+            FIELD_SELECTION_STATE: dp_sel.state if dp_sel else None,
             heatmap_models.FIELD_HEATMAP_DATA: data,
             heatmap_models.FIELD_HEATMAP_MIN_VALUE: min_value,
             heatmap_models.FIELD_HEATMAP_MAX_VALUE: max_value,
