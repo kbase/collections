@@ -4,6 +4,7 @@ Data structures common to all data products
 
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, validator, Field
+from src.common.product_models.common_models import SubsetProcessStates
 from src.common.storage import collection_and_field_names as names
 from src.service import models
 from src.service import errors
@@ -66,6 +67,20 @@ class DataProductSpec(BaseModel):
 
     class Config:
         arbitrary_types_allowed = True
+
+
+class DataProductMissingIDs(SubsetProcessStates):
+    """
+    IDs that weren't found in the data product as part of a match or selection process.
+    """
+    match_missing: list[str] | None = Field(
+        example=models.FIELD_SELECTION_EXAMPLE,
+        description="Any IDs that were part of the match but not found in this data product",
+    )
+    selection_missing: list[str] | None = Field(
+        example=models.FIELD_SELECTION_EXAMPLE,
+        description="Any IDs that were part of the selection but not found in this data product",
+    )
 
 
 QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = Annotated[str | None, Query(
