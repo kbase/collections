@@ -134,7 +134,7 @@ class SamplesTable(TableAttributes, SubsetProcessStates):
 @_ROUTER.get(
     "/",
     response_model=SamplesTable,
-    description="Get the corresponding sample attribues for each data unit in the collection, "
+    description="Get the corresponding sample attributes for each data unit in the collection, "
         + "which may differ from collection to collection. Note that data units may share "
         + "samples - if so the sample information is duplicated in the table for each data unit."
         + "\n\n "
