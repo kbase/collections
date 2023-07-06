@@ -165,9 +165,9 @@ def main():
         #      "workspace_name": workspace_name,
         #      "assembly_name": fasta_file['assembly_name']})
         conf.asu.save_assemblies_from_fastas(
-            "workspace_id": workspace_id,
+            {"workspace_id": workspace_id,
             "inputs": [{"file": {"path": fasta_file['path']},
-                        "assembly_name": fasta_file['assembly_name']}])
+                        "assembly_name": fasta_file['assembly_name']}]})
 
     finally:
         # stop callback server if it is on
