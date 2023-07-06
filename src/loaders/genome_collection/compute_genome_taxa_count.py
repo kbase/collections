@@ -109,14 +109,19 @@ def main():
                                'computed_genome_attribs.json)')
 
     # Required flag argument
+    required.add_argument(f'--{loader_common_names.KBASE_COLLECTION_ARG_NAME}', required=True, type=str,
+                          help=loader_common_names.KBASE_COLLECTION_DESCR)
     required.add_argument(f'--{loader_common_names.LOAD_VER_ARG_NAME}', required=True, type=str,
                           help=loader_common_names.LOAD_VER_DESCR)
 
     # Optional argument
-    optional.add_argument(f'--{loader_common_names.KBASE_COLLECTION_ARG_NAME}', type=str,
-                          default=loader_common_names.DEFAULT_KBASE_COLL_NAME,
-                          help=loader_common_names.KBASE_COLLECTION_DESCR)
-
+    optional.add_argument(
+        f"--{loader_common_names.ENV_ARG_NAME}",
+        type=str,
+        choices=loader_common_names.KB_ENV + [loader_common_names.DEFAULT_ENV],
+        default='PROD',
+        help="Environment containing the data to be processed. (default: PROD)",
+    )
     optional.add_argument('--root_dir', type=str, default=loader_common_names.ROOT_DIR,
                           help=f'Root directory for the collections project (default: {loader_common_names.ROOT_DIR})')
 
@@ -128,6 +133,7 @@ def main():
     root_dir = args.root_dir
     load_version = getattr(args, loader_common_names.LOAD_VER_ARG_NAME)
     kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
+    env = getattr(args, loader_common_names.ENV_ARG_NAME)
     source = args.input_source
 
     print('start parsing input files')
@@ -138,11 +144,11 @@ def main():
 
     # Create taxa counts jsonl file
     count_jsonl = f'{kbase_collection}_{load_version}_{names.COLL_TAXA_COUNT}.jsonl'
-    create_import_files(root_dir, count_jsonl, count_docs)
+    create_import_files(root_dir, env, count_jsonl, count_docs)
 
     # Create identical ranks jsonl file
     count_ranks_jsonl = f'{kbase_collection}_{load_version}_{names.COLL_TAXA_COUNT_RANKS}.jsonl'
-    create_import_files(root_dir, count_ranks_jsonl, rank_doc)
+    create_import_files(root_dir, env, count_ranks_jsonl, rank_doc)
 
 
 if __name__ == "__main__":
