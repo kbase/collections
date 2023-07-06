@@ -8,6 +8,7 @@ import uuid
 import docker
 
 from src.clients.AssemblyUtilClient import AssemblyUtil
+from src.clients.workspaceClient import Workspace
 from src.loaders.common import loader_common_names, loader_helper
 
 # setup KB_AUTH_TOKEN as env or provide a token_filepath in --token_filepath
@@ -28,8 +29,10 @@ class Conf:
         self.start_callback_server(
             docker.from_env(), uuid.uuid4().hex, job_dir, kb_base_url, token, port
         )
+        ws_url = os.path.join(kb_base_url, "ws")
         callback_url = "http://" + loader_helper.get_ip() + ":" + str(port)
         print("callback_url:", callback_url)
+        self.ws = Workspace(ws_url, token=token)
         self.asu = AssemblyUtil(callback_url, token=token)
 
     def setup_callback_server_envs(self, job_dir, kb_base_url, token, port):
@@ -155,14 +158,14 @@ def main():
         # set up conf and start callback server
         upa = "69036_370_1"
         upa_fasta = upa + ".fasta"
-        worksapce_name = "sijiex:narrative_1688077625427"
         conf = Conf(job_dir, kb_base_url, token_filepath)
+        workspace_name = conf.ws.get_workspace_info({"id": workspace_id})[1]
         fasta_file = conf.asu.get_assembly_as_fasta({"ref": upa.replace("_", "/"), "filename": upa_fasta})
         file_path = os.path.join(job_dir, "workdir", "tmp", upa_fasta)
         assert os.path.exists(file_path)
         conf.asu.save_assembly_from_fasta(
             {"file": {"path": file_path},
-             "workspace_name": worksapce_name,
+             "workspace_name": workspace_name,
              "assembly_name": fasta_file['assembly_name']})
 
     finally:
