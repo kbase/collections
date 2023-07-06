@@ -16,26 +16,26 @@ from src.loaders.common.loader_helper import create_import_files
 """
 PROTOTYPE - Prepare genome taxa count data and identical ranks in JSON format for arango import.
 
-usage: compute_genome_taxa_count.py [-h] --load_ver LOAD_VER [--kbase_collection KBASE_COLLECTION] [--root_dir ROOT_DIR]
+usage: compute_genome_taxa_count.py [-h] --kbase_collection KBASE_COLLECTION --load_ver LOAD_VER [--env {CI,NEXT,APPDEV,PROD,NONE}] [--root_dir ROOT_DIR]
                                     [--input_source {GTDB,genome_attributes}]
                                     load_files [load_files ...]
-
 options:
   -h, --help            show this help message and exit
 
 required named arguments:
   load_files            Files containing genome taxonomy (e.g. ar53_taxonomy_r207.tsv, computed_genome_attribs.json)
+  --kbase_collection KBASE_COLLECTION
+                        KBase collection identifier name.
   --load_ver LOAD_VER   KBase load version (e.g. r207.kbase.1).
 
 optional arguments:
-  --kbase_collection KBASE_COLLECTION
-                        KBase collection identifier name (default: GTDB).
+  --env {CI,NEXT,APPDEV,PROD,NONE}
+                        Environment containing the data to be processed. (default: PROD)
   --root_dir ROOT_DIR   Root directory for the collections project (default: /global/cfs/cdirs/kbase/collections)
   --input_source {GTDB,genome_attributes}
                         Input file source
  
-e.g. compute_genome_taxa_count.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_ver 207
-     compute_genome_taxa_count.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_ver 207 --kbase_collection GTDB
+e.g. compute_genome_taxa_count.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_ver 207 --kbase_collection GTDB
      compute_genome_taxa_count.py ENIGMA_2023.01_checkm2_gtdb_tk_computed_genome_attribs.jsonl --load_ver 2023.01 --kbase_collection ENIGMA --input_source genome_attributes
 """
 
