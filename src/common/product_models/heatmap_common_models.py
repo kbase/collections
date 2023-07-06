@@ -6,11 +6,10 @@ from enum import Enum
 from pydantic import BaseModel, Field
 
 from src.service import models
+from src.common.product_models.common_models import SubsetProcessStates
 
 
 # these fields need to match the fields in the models below.
-FIELD_HEATMAP_MATCH_STATE = "heatmap_match_state"
-FIELD_HEATMAP_SELECTION_STATE = "heatmap_selection_state"
 FIELD_HEATMAP_DATA = "data"
 FIELD_HEATMAP_MIN_VALUE = "min_value"
 FIELD_HEATMAP_MAX_VALUE = "max_value"
@@ -128,20 +127,7 @@ class HeatMapRow(BaseModel):
     )
 
 
-class HeatMapProcessState(BaseModel):
-    heatmap_match_state: models.ProcessState | None = Field(
-        example=models.ProcessState.PROCESSING,
-        description="The processing state of the match (if any) for this data product. "
-            + "This data product requires additional processing beyond the primary match."
-    )
-    heatmap_selection_state: models.ProcessState | None = Field(
-        example=models.ProcessState.FAILED,
-        description="The processing state of the selection (if any) for this data product. "
-            + "This data product requires additional processing beyond the primary selection."
-    )
-
-
-class HeatMap(HeatMapProcessState):
+class HeatMap(SubsetProcessStates):
     """
     A heatmap or a portion of a heatmap.
 
@@ -190,17 +176,3 @@ class CellDetail(BaseModel):
     """
     cell_id: str = _FLD_CELL_ID
     values: list[CellDetailEntry]
-
-
-class HeatMapMissingIDs(HeatMapProcessState):
-    """
-    IDs that weren't found in the heatmap as part of a match or selection process.
-    """
-    match_missing: list[str] | None = Field(
-        example=models.FIELD_SELECTION_EXAMPLE,
-        description="Any IDs that were part of the match but not found in this heatmap",
-    )
-    selection_missing: list[str] | None = Field(
-        example=models.FIELD_SELECTION_EXAMPLE,
-        description="Any IDs that were part of the selection but not found in this heatmap",
-    )

@@ -6,16 +6,20 @@ import subprocess
 import time
 from collections import defaultdict
 from contextlib import closing
+from pathlib import Path
+from typing import Any
 
 import jsonlines
 
 import src.common.storage.collection_and_field_names as names
 from src.common.storage.db_doc_conversions import collection_data_id_key
+from src.loaders.common import loader_common_names
 from src.loaders.common.loader_common_names import (
     DOCKER_HOST,
     FATAL_ERROR,
     FATAL_STACKTRACE,
     FATAL_TOOL,
+    IMPORT_DIR,
     KB_AUTH_TOKEN,
     SOURCE_METADATA_FILE_KEYS,
 )
@@ -23,6 +27,20 @@ from src.loaders.common.loader_common_names import (
 """
 This module contains helper functions used for loaders (e.g. compute_genome_attribs, gtdb_genome_attribs_loader, etc.)
 """
+
+
+def form_source_dir(
+        root_dir: str,
+        env: str,
+        kbase_collection: str,
+        source_ver: str
+) -> Path:
+    """
+    Form the path to the collections source data directory.
+    (e.g. root_dir/collectionssource/env/kbase_collection/source_ver)
+    """
+
+    return Path(root_dir) / loader_common_names.COLLECTION_SOURCE_DIR / env / kbase_collection / source_ver
 
 
 def convert_to_json(docs, outfile):
@@ -36,6 +54,28 @@ def convert_to_json(docs, outfile):
 
     with jsonlines.Writer(outfile) as writer:
         writer.write_all(docs)
+
+
+def create_import_dir(root_dir: str, env: str) -> Path:
+    """
+    Create the import directory for the given environment.
+    """
+    import_dir = Path(root_dir, IMPORT_DIR, env)
+    os.makedirs(import_dir, exist_ok=True)
+
+    return import_dir
+
+
+def create_import_files(root_dir: str, env: str, file_name: str, docs: list[dict[str, Any]]):
+    """
+    Create and save the data documents as JSONLines file to the import directory.
+    """
+    import_dir = create_import_dir(root_dir, env)
+
+    file_path = os.path.join(import_dir, file_name)
+    print(f'Creating JSONLines import file: {file_path}')
+    with open(file_path, 'w') as f:
+        convert_to_json(docs, f)
 
 
 def parse_genome_id(gtdb_accession):

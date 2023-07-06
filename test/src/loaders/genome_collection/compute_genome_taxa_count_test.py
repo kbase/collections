@@ -7,6 +7,9 @@ from pathlib import Path
 import jsonlines
 import pytest
 
+import src.common.storage.collection_and_field_names as names
+from src.loaders.common.loader_common_names import IMPORT_DIR
+
 
 @pytest.fixture(scope="module")
 def setup_and_teardown():
@@ -44,10 +47,7 @@ def _exam_count_result_file(result_file, expected_docs_length, expected_doc_keys
 
 
 def _exam_rank_result_file(result_file, expected_load_version, expected_collection, expected_ranks_inorder):
-    root_ext = os.path.splitext(result_file)
-    rank_result_file = root_ext[0] + '_rank' + root_ext[1]
-
-    with jsonlines.open(rank_result_file, 'r') as jsonl_f:
+    with jsonlines.open(result_file, 'r') as jsonl_f:
         data = [obj for obj in jsonl_f]
 
     assert len(data) == 1
@@ -65,45 +65,62 @@ def _exe_command(command):
     print(str(stdout), str(stderr))
 
 
+def _create_taxa_count_result_file(tmp_dir, env, kbase_collection, load_version):
+    return os.path.join(tmp_dir, IMPORT_DIR, env, f'{kbase_collection}_{load_version}_{names.COLL_TAXA_COUNT}.jsonl')
+
+
+def _create_taxa_count_ranks_result_file(tmp_dir, env, kbase_collection, load_version):
+    return os.path.join(tmp_dir, IMPORT_DIR, env, f'{kbase_collection}_{load_version}_{names.COLL_TAXA_COUNT_RANKS}.jsonl')
+
+
 def test_create_json_default(setup_and_teardown):
     tmp_dir, caller_file_dir, script_file = setup_and_teardown
 
-    result_file = os.path.join(tmp_dir, 'test.json')
     load_version = '100-dev'
+    kbcoll = 'test_gtdb'
+    env = 'NEXT'
     command = ['python', script_file,
                os.path.join(caller_file_dir, 'ar53_taxonomy_r207.tsv'),
+               '--kbase_collection', kbcoll,
                '--load_ver', load_version,
-               '-o', result_file]
+               '--env', env,
+               '--root_dir', tmp_dir]
 
     _exe_command(command)
 
     expected_docs_length = 5420
     expected_doc_keys = {'_key', 'coll', 'load_ver', 'rank', 'name', 'count', 'internal_id'}
-    expected_collection = 'GTDB'
-    _exam_count_result_file(result_file, expected_docs_length, expected_doc_keys,
+    expected_collection = kbcoll
+    count_result_file = _create_taxa_count_result_file(tmp_dir, env, kbcoll, load_version)
+    _exam_count_result_file(count_result_file, expected_docs_length, expected_doc_keys,
                             load_version, expected_collection)
     expected_ranks_inorder = ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'species']
-    _exam_rank_result_file(result_file, load_version, expected_collection, expected_ranks_inorder)
+    ranks_result_file = _create_taxa_count_ranks_result_file(tmp_dir, env, expected_collection, load_version)
+    _exam_rank_result_file(ranks_result_file, load_version, expected_collection, expected_ranks_inorder)
 
 
 def test_create_json_option_input(setup_and_teardown):
     tmp_dir, caller_file_dir, script_file = setup_and_teardown
 
-    result_file = os.path.join(tmp_dir, 'test2.json')
     load_version = '300-beta'
     kbase_collections = 'test_gtdb'
+    env = 'NEXT'
+
     command = ['python', script_file,
                os.path.join(caller_file_dir, 'ar53_taxonomy_r207.tsv'),
                os.path.join(caller_file_dir, 'ar53_taxonomy_r207.tsv'),
                '--load_ver', load_version,
-               '--output', result_file,
+               '--root_dir', tmp_dir,
+               '--env', env,
                '--kbase_collection', kbase_collections]
 
     _exe_command(command)
 
     expected_docs_length = 5420
     expected_doc_keys = {'_key', 'coll', 'load_ver', 'rank', 'name', 'count', 'internal_id'}
-    _exam_count_result_file(result_file, expected_docs_length, expected_doc_keys,
+    count_result_file = _create_taxa_count_result_file(tmp_dir, env, kbase_collections, load_version)
+    _exam_count_result_file(count_result_file, expected_docs_length, expected_doc_keys,
                             load_version, kbase_collections)
     expected_ranks_inorder = ['domain', 'phylum', 'class', 'order', 'family', 'genus', 'species']
-    _exam_rank_result_file(result_file, load_version, kbase_collections, expected_ranks_inorder)
+    ranks_result_file = _create_taxa_count_ranks_result_file(tmp_dir, env, kbase_collections, load_version)
+    _exam_rank_result_file(ranks_result_file, load_version, kbase_collections, expected_ranks_inorder)

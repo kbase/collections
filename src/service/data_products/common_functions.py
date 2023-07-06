@@ -12,7 +12,7 @@ from src.service import models
 from src.service import kb_auth
 from src.service.storage_arango import ArangoStorage
 
-from typing import Any, Callable
+from typing import Any, Callable, NamedTuple
 
 
 def override_load_version(
@@ -179,18 +179,18 @@ async def query_simple_collection_list(
     start_after: str = None,
     limit: int = 1000,
     internal_match_id: str | None = None,
+    match_process: models.DataProductProcess | None = None,
     match_mark: bool = False,
+    match_prefix: str | None = None,
     match_field: str = names.FLD_MATCHED,
     internal_selection_id: str | None = None,
+    selection_process: models.DataProductProcess | None = None,
     selection_mark: bool = False,
-    selection_field: str = names.FLD_SELECTED
+    selection_prefix: str | None = None,
+    selection_field: str = names.FLD_SELECTED,
 ):
     f"""
     Query rows in a collection. Index set up is the responsibilty of the caller.
-
-    If match and / or selection IDs are provided, the special keys `{names.FLD_MATCHED}` and
-    `{names.FLD_SELECTED}` will be used to mark which rows are matched / selected by a value
-    of `True`.
 
     storage - the storage system.
     collection - the ArangoDB collection containing the data to query.
@@ -208,13 +208,26 @@ async def query_simple_collection_list(
         non-O(n^2) paging of data.
     limit - the maximum number of rows to return.
     internal_match_id - an ID for a match.
-    match_mark - if True, don't filter based on the match, just mark matched rows.
+    match_process - the process for a match. If provided, internal_match_id is obtained from the
+        process. If the process is not complete the match information is ignored.
+    match_mark - whether the match should filter or simply mark the matches.
+    match_prefix - the prefix string to apply to the internal_match_id, if any.
     match_field - the name of the field in the document where the match mark should be stored.
+    match_prefix - a prefix to apply to the match id, if supplied.
     internal_selection_id - an ID for a selection.
-    selection_mark - if True, don't filter based on the selection, just mark selected rows.
+    selection_process - the process for a selection. If provided, internal_selection_id is obtained
+        from the process. If the process is not complete the selection information is ignored.
+    selection_mark - whether the selection should filter or simply mark the selections.
+    selection_prefix - the prefix string to apply to the internal_selection_id, if any.
     selection_field - the name of the field in the document where the selection mark should
         be stored.
     """
+    # The number of args for these search methods is ridiculous and growing worse. A 
+    # builder may be needed
+    internal_match_id = _calculate_subset_id(
+        internal_match_id, match_process, False, match_prefix)
+    internal_selection_id = _calculate_subset_id(
+        internal_selection_id, selection_process, False, selection_prefix)
     bind_vars = {
         f"@coll": collection,
         "coll_id": collection_id,
@@ -263,13 +276,170 @@ async def query_simple_collection_list(
         await cur.close(ignore_missing=True)
 
 
+def _query_acceptor(
+    data: list[dict[str, Any]],
+    last: list[dict[str, Any]],
+    doc: dict[str, Any],
+    output_table: bool,
+    document_mutator: Callable[[dict[str, Any]], dict[str, Any]],
+):
+    last[0] = doc
+    if output_table:
+        data.append([doc[k] for k in sorted(document_mutator(doc))])
+    else:
+        data.append({k: doc[k] for k in sorted(document_mutator(doc))})
+
+
+class QueryTableResult(NamedTuple):
+    """ The results from a query_table call. """
+    skip: int
+    """ The provided skip value. """
+    limit: int
+    """ The provided limit value. """
+    fields: list[dict[str, str]] = None
+    """
+    The list of fields in the table, provided as "name" -> <field name> dictionaries.
+    Provided if output_table is True.
+    """
+    table: list[list[Any]] = None
+    """
+    The the table data. Each column (e.g. the inner list index) in the table is described by
+    the equivalent fields value,
+    Provided if output_table is True.
+    """
+    data: list[dict[str, Any]] = None
+    """
+    The table data provided as a list of key / value dictionaries, which duplicates the keys
+    when compared to the table view.
+    Provided if output_table is False.
+    """
+
+
+async def query_table(
+    # ew. too many args
+    store: ArangoStorage,
+    collection: str,
+    collection_id: str,
+    load_ver: str,
+    sort_on: str,
+    sort_descending: bool = False,
+    skip: int = 0,
+    limit: int = 1000,
+    output_table: bool = True,
+    internal_match_id: str | None = None,
+    match_process: models.DataProductProcess | None = None,
+    match_mark: bool = False,
+    match_prefix: str | None = None,
+    internal_selection_id: str | None = None,
+    selection_process: models.DataProductProcess | None = None,
+    selection_mark: bool = False,
+    selection_prefix: str | None = None,
+    document_mutator: Callable[[dict[str, Any]], dict[str, Any]] = lambda x: x,
+) -> QueryTableResult:
+    f"""
+    Similar to query_simple_collections_list, but tailored to querying what is effectively a
+    table of key / value pairs.
+
+    If match and / or selection IDs are provided, the special keys `{names.FLD_MATCHED_SAFE}` and
+    `{names.FLD_SELECTED_SAFE}` will be used to mark which rows are matched / selected by a value
+    of `True`.
+
+    storage - the storage system.
+    collection - the ArangoDB collection containing the data to query.
+    collection_id - the ID of the KBase collection to query.
+    load_ver - the load version of the KBase collection to query.
+    sort_on - the field to sort on.
+    sort_descending - sort in descending order rather than ascending.
+    skip - the number of records to skip. Use this parameter wisely, as paging through records via
+        increasing skip incrementally is an O(n^2) operation.
+    limit - the maximum number of rows to return.
+    output_table - whether to return the results as a list of lists (e.g. a table) with a separate
+        fields entry defining the key for each table column, or a list of key / value dictionaries.
+    internal_match_id - an ID for a match.
+    match_process - the process for a match. If provided, internal_match_id is obtained from the
+        process. If the process is not complete the match information is ignored.
+    match_mark - whether the match should filter or simply mark the matches.
+    match_prefix - the prefix string to apply to the internal_match_id, if any.
+    match_field - the name of the field in the document where the match mark should be stored.
+    match_prefix - a prefix to apply to the match id, if supplied.
+    internal_selection_id - an ID for a selection.
+    selection_process - the process for a selection. If provided, internal_selection_id is obtained
+        from the process. If the process is not complete the selection information is ignored.
+    selection_mark - whether the selection should filter or simply mark the selections.
+    selection_prefix - the prefix string to apply to the internal_selection_id, if any.
+    selection_field - the name of the field in the document where the selection mark should
+        be stored.
+    document_mutator - a function applied to a document retrieved from the database before
+        returning the results.
+    """
+    data = []
+    last = [None]
+    await query_simple_collection_list(
+        store,
+        collection,
+        lambda doc: _query_acceptor(data, last, doc, output_table, document_mutator),
+        collection_id,
+        load_ver,
+        sort_on,
+        sort_descending=sort_descending,
+        skip=skip,
+        limit=limit,
+        internal_match_id=internal_match_id,
+        match_process=match_process,
+        match_mark=match_mark,
+        match_prefix=match_prefix,
+        match_field=names.FLD_MATCHED_SAFE,
+        internal_selection_id=internal_selection_id,
+        selection_process=selection_process,
+        selection_mark=selection_mark,
+        selection_prefix=selection_prefix,
+        selection_field=names.FLD_SELECTED_SAFE,
+    )
+    # Sort everything since we can't necessarily rely on arango, the client, or the loader
+    # to have the same insertion order for the dicts
+    # If we want a specific order the loader should stick a keys doc or something into arango
+    # and we order by that
+    fields = []
+    if last[0]:
+        if sort_on not in last[0]: 
+            raise errors.IllegalParameterError(
+                f"No such field for collection {collection_id} load version {load_ver}: {sort_on}")
+        fields = [{"name": k} for k in sorted(last[0])]
+    if output_table:
+        return QueryTableResult(skip=skip, limit=limit, fields=fields, table=data)
+    else:
+        return QueryTableResult(skip=skip, limit=limit, data=data)
+
+
+def _calculate_subset_id(
+    subset_id: str | None,
+    subset_process: models.DataProductProcess | None,
+    subset_mark: str | None,
+    subset_prefix: str | None
+) -> str | None:
+    # could throw an error if subset ID & process are provided at the same time... meh
+    if subset_mark:
+        return None
+    if subset_process:
+        subset_id = subset_process.internal_id if subset_process.is_complete() else None
+    if subset_id and subset_prefix:
+        subset_id = subset_prefix + subset_id
+    return subset_id
+
+
 async def count_simple_collection_list(
     storage: ArangoStorage,
     collection: str,
     collection_id: str,
     load_ver: str,
-    internal_match_id: str | None,
-    internal_selection_id: str | None,
+    internal_match_id: str | None = None,
+    match_process: models.DataProductProcess | None = None,
+    match_mark: bool = False,
+    match_prefix: str | None = None,
+    internal_selection_id: str | None = None,
+    selection_process: models.DataProductProcess | None = None,
+    selection_mark: bool = False,
+    selection_prefix: str | None = None,
 ) -> int:
     """
     Count rows in a collection. Index set up is the responsibilty of the caller.
@@ -279,10 +449,25 @@ async def count_simple_collection_list(
     collection_id - the ID of the KBase collection to query.
     load_ver - the load version of the KBase collection to query.
     internal_match_id - an ID for a match.
+    match_process - the process for a match. If provided, internal_match_id is obtained from the
+        process. If the process is not complete the match information is ignored.
+    match_mark - whether the match should filter or simply mark the matches. If the latter, any 
+        match information is ignored in the count.
+    match_prefix - the prefix string to apply to the internal_match_id, if any.
     internal_selection_id - an ID for a selection.
+    selection_process - the process for a selection. If provided, internal_selection_id is obtained
+        from the process. If the process is not complete the selection information is ignored.
+    selection_mark - whether the selection should filter or simply mark the selections.
+        If the latter, any selection information is ignored in the count.
+    selection_prefix - the prefix string to apply to the internal_selection_id, if any.
     """
     # for now this method doesn't do much. One we have some filtering implemented
     # it'll need to take that into account.
+
+    internal_match_id = _calculate_subset_id(
+        internal_match_id, match_process, match_mark, match_prefix)
+    internal_selection_id = _calculate_subset_id(
+        internal_selection_id, selection_process, selection_mark, selection_prefix)
 
     bind_vars = {
         f"@coll": collection,

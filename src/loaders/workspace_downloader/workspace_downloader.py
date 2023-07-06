@@ -364,7 +364,9 @@ def _download_sample_data(
         if not conf.ignore_no_sample_error:
             raise ValueError(f"Sample data not found for {upas}")
         return
+
     node_data = _retrieve_node_data(sample_ret['node_tree'])
+    node_data[names.FLD_KB_SAMPLE_ID] = sample_ret['id']
 
     # save sample data and parsed key-value node data to file
     upa_dir, sample_file_prefix = Path(metafile).parent, sample_upa.replace("/", "_")
@@ -512,7 +514,7 @@ def main():
         help="Create a collection and link in data to that collection from the overall workspace source data dir",
     )
     optional.add_argument(
-        "--source_version",
+        f"--{loader_common_names.SOURCE_VER_ARG_NAME}",
         type=str,
         help="Create a source version and link in data to that collection from the overall workspace source data dir",
     )
@@ -523,7 +525,7 @@ def main():
         help="Root directory.",
     )
     optional.add_argument(
-        "--env",
+        f"--{loader_common_names.ENV_ARG_NAME}",
         type=str,
         choices=loader_common_names.KB_ENV,
         default='PROD',
@@ -560,7 +562,7 @@ def main():
 
     workspace_id = args.workspace_id
     kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
-    source_version = args.source_version
+    source_version = getattr(args, loader_common_names.SOURCE_VER_ARG_NAME)
     root_dir = args.root_dir
     env = args.env
     workers = args.workers

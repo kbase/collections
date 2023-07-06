@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Request, Query, Path, Response
 
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
+from src.common.product_models.common_models import FIELD_MATCH_STATE, FIELD_SELECTION_STATE
 from src.common.product_models import heatmap_common_models as heatmap_models
 from src.service.data_products.common_functions import (
     get_load_version,
@@ -21,6 +22,7 @@ from src.service.data_products.common_functions import (
 from src.service.data_products.common_models import (
     DataProductSpec,
     DBCollection,
+    DataProductMissingIDs,
     QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE,
     QUERY_VALIDATOR_LIMIT,
     QUERY_VALIDATOR_COUNT,
@@ -45,10 +47,6 @@ from src.service.storage_arango import ArangoStorage, remove_arango_keys
 from typing import Annotated, Any
 
 _OPT_AUTH = KBaseHTTPBearer(optional=True)
-
-
-def _prefix_id(prefix: str, id_: str | None) -> str | None:
-    return prefix + id_ if id_ else None
 
 
 class HeatMapController:
@@ -120,7 +118,7 @@ class HeatMapController:
             "/missing",
             self.get_missing_ids,
             methods=["GET"],
-            response_model=heatmap_models.HeatMapMissingIDs,
+            response_model=DataProductMissingIDs,
             summary=f"Get missing IDs for a match or selection",
             description=f"Get the list of IDs that were not found in this {self._api_category} "
                 + "heatmap but were present in the match and / or selection.",
@@ -261,12 +259,18 @@ class HeatMapController:
         if status_only:
             return self._response(dp_match=dp_match, dp_sel=dp_sel)
         elif count:
-            count = await self._count(
+            # may want to make some sort of shared builder
+            count = await count_simple_collection_list(
                 appstate.arangostorage,
+                self._colname_data,
                 collection_id,
                 load_ver,
-                self._get_complete_internal_id(dp_match) if not match_mark else None,
-                self._get_complete_internal_id(dp_sel) if not selection_mark else None,
+                match_process=dp_match,
+                match_mark=match_mark,
+                match_prefix=MATCH_ID_PREFIX,
+                selection_process=dp_sel,
+                selection_mark=selection_mark,
+                selection_prefix=SELECTION_ID_PREFIX,
             )
             return self._response(dp_match=dp_match, dp_sel=dp_sel, count=count)
         else:
@@ -289,7 +293,7 @@ class HeatMapController:
         match_id: Annotated[str | None, Query(description="A match ID.")] = None,
         selection_id: Annotated[str | None, Query(description="A selection ID.")] = None,
         user: kb_auth.KBaseUser = Depends(_OPT_AUTH),
-    ) -> heatmap_models.HeatMapMissingIDs:
+    ) -> DataProductMissingIDs:
         appstate = app_state.get_app_state(r)
         if not match_id and not selection_id:
             raise errors.IllegalParameterError(
@@ -303,9 +307,9 @@ class HeatMapController:
             match_id=match_id,
             selection_id=selection_id,
         )
-        return heatmap_models.HeatMapMissingIDs(
-            heatmap_match_state=dp_match.state if dp_match else None,
-            heatmap_selection_state=dp_sel.state if dp_sel else None,
+        return DataProductMissingIDs(
+            match_state=dp_match.state if dp_match else None,
+            selection_state=dp_sel.state if dp_sel else None,
             match_missing=dp_match.missing_ids if dp_match else None,
             selection_missing=dp_sel.missing_ids if dp_sel else None,
         )
@@ -320,8 +324,8 @@ class HeatMapController:
         max_value: int = None,
     ) -> Response:
         j = {
-            heatmap_models.FIELD_HEATMAP_MATCH_STATE: dp_match.state if dp_match else None,
-            heatmap_models.FIELD_HEATMAP_SELECTION_STATE: dp_sel.state if dp_sel else None,
+            FIELD_MATCH_STATE: dp_match.state if dp_match else None,
+            FIELD_SELECTION_STATE: dp_sel.state if dp_sel else None,
             heatmap_models.FIELD_HEATMAP_DATA: data,
             heatmap_models.FIELD_HEATMAP_MIN_VALUE: min_value,
             heatmap_models.FIELD_HEATMAP_MAX_VALUE: max_value,
@@ -329,34 +333,11 @@ class HeatMapController:
         }
         return Response(content=json.dumps(j), media_type="application/json")
     
-    async def _count(
-        self,
-        store: ArangoStorage,
-        collection_id: str,
-        load_ver: str,
-        internal_match_id: str | None,
-        internal_selection_id: str | None,
-    ):
-        # for now this method doesn't do much. One we have some filtering implemented
-        # it'll need to take that into account.
-        count = await count_simple_collection_list(
-            store,
-            self._colname_data,
-            collection_id,
-            load_ver,
-            internal_match_id=_prefix_id(MATCH_ID_PREFIX, internal_match_id),
-            internal_selection_id=_prefix_id(SELECTION_ID_PREFIX, internal_selection_id),
-        )
-        return count
-
     def _remove_doc_keys(self, doc: dict[str, Any]) -> dict[str, Any]:
         # removes in place
         doc = remove_arango_keys(remove_collection_keys(doc))
         doc.pop(names.FLD_MATCHES_SELECTIONS, None)
         return doc
-
-    def _get_complete_internal_id(self, dp_proc: models.DataProductProcess | None) -> str:
-        return dp_proc.internal_id if dp_proc and dp_proc.is_complete() else None
 
     async def _query(
         # ew. too many args
@@ -371,8 +352,6 @@ class HeatMapController:
         selection_proc: models.DataProductProcess | None,
         selection_mark: bool,
     ) -> heatmap_models.HeatMap:
-        internal_match_id = self._get_complete_internal_id(match_proc)
-        internal_selection_id = self._get_complete_internal_id(selection_proc)
         data = []
         await query_simple_collection_list(
             store,
@@ -385,10 +364,12 @@ class HeatMapController:
             skip=0,
             start_after=start_after,
             limit=limit,
-            internal_match_id=_prefix_id(MATCH_ID_PREFIX, internal_match_id),
+            match_process=match_proc,
             match_mark=match_mark,
-            internal_selection_id=_prefix_id(SELECTION_ID_PREFIX, internal_selection_id),
+            match_prefix=MATCH_ID_PREFIX,
+            selection_process=selection_proc,
             selection_mark=selection_mark,    
+            selection_prefix=SELECTION_ID_PREFIX,
         )
         vals = set()
         for r in data:  # lazy lazy lazy

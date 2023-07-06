@@ -14,6 +14,7 @@ of the KBase collections service.
 import argparse
 import datetime
 import gzip
+import json
 import math
 import multiprocessing
 import os
@@ -49,6 +50,10 @@ _STANDARD_FILE_EXCLUDE_SUBSTRINGS = ['cds_from', 'rna_from', 'ERR']
 
 _ID_MUNGING_SUFFIX = "_kbase"
 
+FatalTuple = namedtuple("FatalTuple", ["data_id", "error", "file", "stacktrace"])
+
+GenomeTuple = namedtuple("GenomeTuple", ["source_file", "data_id"])
+
 
 class ToolRunner:
 
@@ -73,33 +78,37 @@ class ToolRunner:
         PROTOTYPE - Run a computational tool on a set of data.
 
         options:
-        -h, --help            show this help message and exit
+          -h, --help            show this help message and exit
 
         required named arguments:
-        --load_ver LOAD_VER   KBase load version (e.g. r207.kbase.1).
-        --source_data_dir SOURCE_DATA_DIR
-                                Source data (e.g. genome files) directory. (e.g. /glob
-                                al/cfs/cdirs/kbase/collections/sourcedata/GTDB/r207
+          --kbase_collection KBASE_COLLECTION
+                                KBase collection identifier name.
+          --source_ver SOURCE_VER
+                                Version of the source data, which should match the
+                                source directory in the collectionssource. (e.g. 207,
+                                214 for GTDB, 2023.06 for GROW/PMI)
 
         optional arguments:
-        --kbase_collection KBASE_COLLECTION
-                                KBase collection identifier name (default: GTDB).
-        --root_dir ROOT_DIR   Root directory.
-        --threads THREADS     Total number of threads used by the script. (default:
+          --env {CI,NEXT,APPDEV,PROD,NONE}
+                                Environment containing the data to be processed.
+                                (default: PROD)
+          --load_ver LOAD_VER   KBase load version (e.g. r207.kbase.1). (defaults to
+                                the source version)
+          --root_dir ROOT_DIR   Root directory.
+          --threads THREADS     Total number of threads used by the script. (default:
                                 half of system cpu count)
-        --program_threads PROGRAM_THREADS
+          --program_threads PROGRAM_THREADS
                                 Number of threads to execute a single tool command.
                                 threads / program_threads determines the number of
                                 batches. (default: 32)
-        --node_id NODE_ID     node ID for running job
-        --debug               Debug mode.
-        --data_id_file DATA_ID_FILE
+          --node_id NODE_ID     node ID for running job
+          --debug               Debug mode.
+          --data_id_file DATA_ID_FILE
                                 tab separated file containing data ids for the running
                                 job (requires 'genome_id' as the column name)
-        --source_file_ext SOURCE_FILE_EXT
+          --source_file_ext SOURCE_FILE_EXT
                                 Select files from source data directory that match the
                                 given extension.
-
 
         Programmatic arguments:
         tool_name - the name of the tool that will be run. Used as a unique identifier.
@@ -117,9 +126,19 @@ class ToolRunner:
         self._tool_data_id_from_filename = tool_data_id_from_filename
         self._suffix_ids = suffix_ids
         args = self._parse_args()
+        env = getattr(args, loader_common_names.ENV_ARG_NAME)
         kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
+        source_ver = getattr(args, loader_common_names.SOURCE_VER_ARG_NAME)
+        load_ver = getattr(args, loader_common_names.LOAD_VER_ARG_NAME)
+        if not load_ver:
+            load_ver = source_ver
+
         self._allow_missing_files = kbase_collection in _IGNORE_MISSING_FILES_COLLECTIONS
-        self._source_data_dir = Path(args.source_data_dir)
+        self._source_data_dir = Path(args.root_dir,
+                                     loader_common_names.COLLECTION_SOURCE_DIR,
+                                     env,
+                                     kbase_collection,
+                                     source_ver)
         self._threads = args.threads
         self._program_threads = args.program_threads
         self._debug = args.debug
@@ -135,8 +154,9 @@ class ToolRunner:
         self._work_dir = Path(
             Path(args.root_dir),
             loader_common_names.COLLECTION_DATA_DIR,
+            env,
             kbase_collection,
-            getattr(args, loader_common_names.LOAD_VER_ARG_NAME),
+            load_ver,
             self._tool
         )
 
@@ -148,21 +168,28 @@ class ToolRunner:
 
         # Required flag arguments
         required.add_argument(
-            f'--{loader_common_names.LOAD_VER_ARG_NAME}', required=True, type=str,
-            help=loader_common_names.LOAD_VER_DESCR
+            f'--{loader_common_names.KBASE_COLLECTION_ARG_NAME}', required=True, type=str,
+            help=loader_common_names.KBASE_COLLECTION_DESCR
         )
         required.add_argument(
-            '--source_data_dir', required=True, type=str,
-            help='Source data (e.g. genome files) directory. '
-                 + '(e.g. /global/cfs/cdirs/kbase/collections/sourcedata/GTDB/r207'
+            f'--{loader_common_names.SOURCE_VER_ARG_NAME}', required=True, type=str,
+            help=loader_common_names.SOURCE_VER_DESCR
         )
 
         # Optional arguments
         optional.add_argument(
-            f'--{loader_common_names.KBASE_COLLECTION_ARG_NAME}', type=str,
-            default=loader_common_names.DEFAULT_KBASE_COLL_NAME,
-            help=loader_common_names.KBASE_COLLECTION_DESCR
+            f"--{loader_common_names.ENV_ARG_NAME}",
+            type=str,
+            choices=loader_common_names.KB_ENV + [loader_common_names.DEFAULT_ENV],
+            default='PROD',
+            help="Environment containing the data to be processed. (default: PROD)",
         )
+
+        optional.add_argument(
+            f'--{loader_common_names.LOAD_VER_ARG_NAME}', type=str,
+            help=loader_common_names.LOAD_VER_DESCR + ' (defaults to the source version)'
+        )
+
         optional.add_argument(
             '--root_dir', type=str, default=loader_common_names.ROOT_DIR, help='Root directory.'
         )
@@ -218,7 +245,7 @@ class ToolRunner:
             data_ids = all_data_ids
         return list(set(data_ids))
 
-    def parallel_single_execution(self, tool_callable: Callable[[str, Path, Path, bool], None], unzip=False):
+    def parallel_single_execution(self, tool_callable: Callable[[str, str, Path, Path, bool], None], unzip=False):
         """
         Run a tool by a single data file, storing the results in a single batch directory with
         the individual runs stored in directories by the data ID.
@@ -231,7 +258,8 @@ class ToolRunner:
                   each individual genome directory. Parser program will parse the result file in each individual genome
                   directory.
 
-        tool_callable - the callable for the tool that takes four arguments:
+        tool_callable - the callable for the tool that takes 5 arguments:
+            * The tool safe data ID
             * The data ID
             * The input file
             * The output directory
@@ -264,11 +292,13 @@ class ToolRunner:
 
             args_list.append(
                 (meta[loader_common_names.META_TOOL_IDENTIFIER],
+                 data_id,
                  # use the uncompressed file if it exists, otherwise use the source file
                  meta.get(loader_common_names.META_UNCOMPRESSED_FILE,
                           meta[loader_common_names.META_SOURCE_FILE]),
                  output_dir,
                  self._debug))
+
         try:
             self._execute(self._threads, tool_callable, args_list, start, False)
         finally:
@@ -279,7 +309,8 @@ class ToolRunner:
 
         _create_metadata_file(genomes_meta, batch_dir)
 
-    def parallel_batch_execution(self, tool_callable: Callable[[Dict[str, Path], Path, int, bool], None], unzip=False):
+    def parallel_batch_execution(self, tool_callable: Callable[[Dict[str, GenomeTuple], Path, int, bool], None],
+                                 unzip=False):
         """
         Run a tool in batched mode, where > 1 data file is processed by the tool in one
         call. Each batch gets its own batch directory.
@@ -292,7 +323,7 @@ class ToolRunner:
                   Batching genomes for gtdb_tk execution improves overall throughput.
 
         tool_callable - the callable for the tool that takes 4 arguments:
-            * A dictionary of the data_id to the source file path
+            * A dictionary of the tool safe data ID to the GenomeTuple
             * The output directory for results
             * The number of threads to use for the batch
             * A debug boolean
@@ -323,11 +354,11 @@ class ToolRunner:
 
             metas.append((meta, batch_dir))
             ids_to_files = dict()
-            for m in meta.values():
+            for data_id, m in meta.items():
                 # use the uncompressed file if it exists, otherwise use the source file
                 source_file = m.get(loader_common_names.META_UNCOMPRESSED_FILE,
                                     m[loader_common_names.META_SOURCE_FILE])
-                ids_to_files[m[loader_common_names.META_TOOL_IDENTIFIER]] = source_file
+                ids_to_files[m[loader_common_names.META_TOOL_IDENTIFIER]] = GenomeTuple(source_file, data_id)
 
             batch_input.append((ids_to_files, batch_dir, self._program_threads, self._debug))
 
@@ -553,35 +584,37 @@ def _find_data_file(
     return genome_files[0]
 
 
-FatalTuple = namedtuple(
-    "FatalTuple",
-    [
-        loader_common_names.FATAL_ID, 
-        loader_common_names.FATAL_ERROR,
-        loader_common_names.FATAL_FILE,
-        loader_common_names.FATAL_STACKTRACE,
-    ]
-)
-
-
 def write_fatal_tuples_to_dict(fatal_tuples: List[FatalTuple], output_dir: Path):
     fatal_dict = {}
     for fatal_tuple in fatal_tuples:
-        fatal_dict[getattr(fatal_tuple, loader_common_names.FATAL_ID)] = {
-            loader_common_names.FATAL_ERROR: getattr(fatal_tuple, loader_common_names.FATAL_ERROR),
-            loader_common_names.FATAL_FILE: getattr(fatal_tuple, loader_common_names.FATAL_FILE),
-            loader_common_names.FATAL_STACKTRACE: getattr(fatal_tuple, loader_common_names.FATAL_STACKTRACE),
+        fatal_dict[fatal_tuple.data_id] = {
+            loader_common_names.FATAL_ERROR: fatal_tuple.error,
+            loader_common_names.FATAL_FILE: fatal_tuple.file,
+            loader_common_names.FATAL_STACKTRACE: fatal_tuple.stacktrace,
         }
 
     fatal_error_path = os.path.join(output_dir, loader_common_names.FATAL_ERROR_FILE)
     with open(fatal_error_path, "w") as outfile:
-        outfile.dump(fatal_dict, outfile)
+        json.dump(fatal_dict, outfile, indent=4)
 
 
 def find_gtdbtk_summary_files(output_dir: Path):
-    summary_files = [file_name for file_name in os.listdir(output_dir) if 
+    summary_files = [file_name for file_name in os.listdir(output_dir) if
                      re.search(loader_common_names.GTDB_SUMMARY_FILE_PATTERN, file_name)]
     return summary_files
+
+
+def create_fatal_tuple(
+        tool_safe_data_id: str,
+        ids_to_files: Dict[str, GenomeTuple],
+        error_message: str,
+        stacktrace: str = None,
+):
+    genome_tuple = ids_to_files[tool_safe_data_id]
+    data_id = genome_tuple.data_id
+    source_file_path = genome_tuple.source_file
+    fatal_tuple = FatalTuple(data_id, error_message, str(source_file_path), stacktrace)
+    return fatal_tuple
 
 
 if __name__ == "__main__":
