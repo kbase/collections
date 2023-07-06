@@ -18,11 +18,11 @@ from src.service import processing_selections
 from src.service.data_products.common_functions import (
     get_load_version,
     remove_collection_keys,
-    query_simple_collection_list,
     count_simple_collection_list,
     mark_data_by_kbase_id,
     remove_marked_subset,
     override_load_version,
+    query_table,
 )
 from src.service.data_products.data_product_processing import (
     MATCH_ID_PREFIX,
@@ -283,20 +283,31 @@ async def get_genome_attributes(
         )
         return {_FLD_SKIP: 0, _FLD_LIMIT: 0, "count": count}
     else:
-        return await _query(
+        res = await query_table(
             store,
+            names.COLL_GENOME_ATTRIBS,
             collection_id,
             load_ver,
             sort_on,
-            sort_desc,
-            skip,
-            limit,
-            output_table,
-            internal_match_id,
-            match_mark,
-            internal_selection_id,
-            selection_mark,
+            sort_descending=sort_desc,
+            skip=skip,
+            limit=limit,
+            output_table=output_table,
+            internal_match_id=internal_match_id,
+            match_mark=match_mark,
+            match_prefix=MATCH_ID_PREFIX,
+            internal_selection_id=internal_selection_id,
+            selection_mark=selection_mark,
+            selection_prefix=SELECTION_ID_PREFIX,
+            document_mutator=_remove_keys
         )
+        return {
+            _FLD_SKIP: res.skip,
+            _FLD_LIMIT: res.limit,
+            "fields": res.fields,
+            "table": res.table,
+            "data": res.data
+        }
 
 
 async def _get_internal_match_id(
@@ -315,73 +326,6 @@ async def _get_internal_match_id(
         require_collection=coll
     )
     return match.internal_match_id
-
-
-def _query_acceptor(
-    data: list[dict[str, Any]],
-    last: list[dict[str, Any]],
-    doc: dict[str, Any],
-    output_table: bool
-):
-    last[0] = doc
-    if output_table:
-        data.append([doc[k] for k in sorted(_remove_keys(doc))])
-    else:
-        data.append({k: doc[k] for k in sorted(_remove_keys(doc))})
-
-
-async def _query(
-    # ew. too many args
-    store: ArangoStorage,
-    collection_id: str,
-    load_ver: str,
-    sort_on: str,
-    sort_desc: bool,
-    skip: int,
-    limit: int,
-    output_table: bool,
-    internal_match_id: str | None,
-    match_mark: bool,
-    internal_selection_id: str | None,
-    selection_mark: bool,
-):
-    data = []
-    last = [None]
-    await query_simple_collection_list(
-        store,
-        names.COLL_GENOME_ATTRIBS,
-        lambda doc: _query_acceptor(data, last, doc, output_table),
-        collection_id,
-        load_ver,
-        sort_on,
-        sort_descending=sort_desc,
-        skip=skip,
-        limit=limit,
-        internal_match_id=_prefix_id(MATCH_ID_PREFIX, internal_match_id),
-        match_mark=match_mark,
-        match_field=names.FLD_MATCHED_SAFE,
-        internal_selection_id=_prefix_id(SELECTION_ID_PREFIX, internal_selection_id),
-        selection_mark=selection_mark,
-        selection_field=names.FLD_SELECTED_SAFE,
-    )
-    # Sort everything since we can't necessarily rely on arango, the client, or the loader
-    # to have the same insertion order for the dicts
-    # If we want a specific order the loader should stick a keys doc or something into arango
-    # and we order by that
-    fields = []
-    if last[0]:
-        if sort_on not in last[0]: 
-            raise errors.IllegalParameterError(
-                f"No such field for collection {collection_id} load version {load_ver}: {sort_on}")
-        fields = [{"name": k} for k in sorted(last[0])]
-    if output_table:
-        return {_FLD_SKIP: skip, _FLD_LIMIT: limit, "fields": fields, "table": data}
-    else:
-        return {_FLD_SKIP: skip, _FLD_LIMIT: limit, "data": data}
-
-
-def _prefix_id(prefix: str, id_: str | None) -> str | None:
-    return prefix + id_ if id_ else None
 
 
 async def perform_gtdb_lineage_match(
