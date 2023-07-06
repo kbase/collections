@@ -56,11 +56,11 @@ def convert_to_json(docs, outfile):
         writer.write_all(docs)
 
 
-def create_import_files(root_dir: str, file_name: str, docs: list[dict[str, Any]]):
+def create_import_files(root_dir: str, env: str, file_name: str, docs: list[dict[str, Any]]):
     """
     Create and save the data documents as JSONLines file to the import directory.
     """
-    import_dir = os.path.join(root_dir, IMPORT_DIR)
+    import_dir = os.path.join(root_dir, IMPORT_DIR, env)
     os.makedirs(import_dir, exist_ok=True)
 
     file_path = os.path.join(import_dir, file_name)
