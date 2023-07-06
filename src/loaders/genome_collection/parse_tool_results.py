@@ -137,6 +137,13 @@ _MICROTRAIT_TO_SYS_TRAIT_MAP = {
 SEQ_METADATA = 'seq_metadata.jsonl'
 
 
+def _make_import_dir(root_dir: str, env: str) -> Path:
+    import_dir = Path(root_dir, loader_common_names.IMPORT_DIR, env)
+    os.makedirs(import_dir, exist_ok=True)
+
+    return import_dir
+
+
 def _locate_dir(root_dir, env, kbase_collection, load_ver, check_exists=False, tool=''):
     result_dir = os.path.join(root_dir, loader_common_names.COLLECTION_DATA_DIR, env, kbase_collection, load_ver, tool)
 
@@ -367,8 +374,7 @@ def _process_mash_tool(root_dir: str,
 
     create_import_files(root_dir, env, f'{kbase_collection}_{load_ver}_{SEQ_METADATA}', seq_meta)
 
-    import_dir = Path(root_dir, loader_common_names.IMPORT_DIR, env)
-    os.makedirs(import_dir, exist_ok=True)
+    import_dir = _make_import_dir(root_dir, env)
     mash_output_prefix = import_dir / f'{kbase_collection}_{load_ver}_merged_sketch'
 
     # write the lines from sketch_files into a temporary file
@@ -451,10 +457,9 @@ def _process_fatal_error_tools(check_fatal_error_tools: set[str],
                         loader_common_names.FATAL_FILE: fatal_errors[kbase_id][loader_common_names.FATAL_FILE],
                         loader_common_names.FATAL_ERRORS: [fatal_dict_info]}
 
-    import_dir = os.path.join(root_dir, loader_common_names.IMPORT_DIR)
-    os.makedirs(import_dir, exist_ok=True)
+    import_dir = _make_import_dir(root_dir, env)
     fatal_output = f"{kbase_collection}_{load_ver}_{loader_common_names.FATAL_ERROR_FILE}"
-    fatal_error_path = os.path.join(import_dir, env, fatal_output)
+    fatal_error_path = os.path.join(import_dir, fatal_output)
     print(f"Creating a merged {loader_common_names.FATAL_ERROR_FILE}: {fatal_error_path}")
     with open(fatal_error_path, "w") as outfile:
         json.dump(fatal_dict, outfile, indent=4)
