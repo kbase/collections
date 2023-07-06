@@ -161,8 +161,7 @@ def main():
         conf = Conf(job_dir, kb_base_url, token_filepath)
         workspace_name = conf.ws.get_workspace_info({"id": workspace_id})[1]
         fasta_file = conf.asu.get_assembly_as_fasta({"ref": upa.replace("_", "/"), "filename": upa_fasta})
-        file_path = os.path.join(job_dir, "workdir", "tmp", upa_fasta)
-        assert os.path.exists(file_path)
+        file_path = os.path.join("/kb/module/workdir/tmp", upa_fasta)
         conf.asu.save_assembly_from_fasta(
             {"file": {"path": file_path},
              "workspace_name": workspace_name,
