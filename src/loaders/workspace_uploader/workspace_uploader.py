@@ -166,7 +166,7 @@ def main():
         #      "assembly_name": fasta_file['assembly_name']})
         conf.asu.save_assemblies_from_fastas(
             {"workspace_id": workspace_id,
-            "inputs": [{"file": {"path": fasta_file['path']},
+            "inputs": [{"file": fasta_file['path'],
                         "assembly_name": fasta_file['assembly_name']}]})
 
     finally:
