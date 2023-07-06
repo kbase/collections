@@ -560,7 +560,7 @@ def main():
 
     workspace_id = args.workspace_id
     kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
-    source_version = args.source_version
+    source_version = getattr(args, loader_common_names.SOURCE_VER_ARG_NAME)
     root_dir = args.root_dir
     env = args.env
     workers = args.workers
