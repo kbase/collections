@@ -63,6 +63,11 @@ page would be `abasciscus`.
 * May not work well on non-unique fields
   * If a page has more than a page size's number of identical values in the field being paged over,
     it is impossible to advance further.
+  * A numbered index could be added for each field which might be subject to sorting and those
+    numbers could be used as the `start_after` value.
+    * This adds otherwise valueless data to the database data and index size
+    * Similar to the `Precalculated or inherent ordering` strategy below but unaffected by
+      filtering and cannot skip pages
 
 #### Notes
 
