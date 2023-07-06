@@ -301,3 +301,6 @@ FLD_SAMPLE_LONGITUDE = "longitude"
 
 FLD_SAMPLE_GEO = '_geo_spatial'
 """ Key name for sample geo-spatial data in format of [longitude, latitude] """
+
+FLD_KB_SAMPLE_ID = "kbase_sample_id"
+""" Key name for KBase sample id """

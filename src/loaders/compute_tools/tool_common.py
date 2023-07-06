@@ -30,7 +30,6 @@ from typing import Any, Callable, Dict, List, Tuple, Union
 import pandas as pd
 
 from src.loaders.common import loader_common_names
-from src.loaders.common.loader_helper import form_source_dir
 
 # TODO CODE add a common module for saving and loading the metadata shared between the compute
 #           and parser
@@ -132,7 +131,11 @@ class ToolRunner:
             load_ver = source_ver
 
         self._allow_missing_files = kbase_collection in _IGNORE_MISSING_FILES_COLLECTIONS
-        self._source_data_dir = form_source_dir(args.root_dir, env, kbase_collection, source_ver)
+        self._source_data_dir = Path(args.root_dir,
+                                     loader_common_names.COLLECTION_SOURCE_DIR,
+                                     env,
+                                     kbase_collection,
+                                     source_ver)
         self._threads = args.threads
         self._program_threads = args.program_threads
         self._debug = args.debug
@@ -300,10 +303,11 @@ class ToolRunner:
                 print(f"Deleting {len(unzipped_files_to_delete)} unzipped files: {unzipped_files_to_delete[:5]}...")
                 for file in unzipped_files_to_delete:
                     os.remove(file)
-        
+
         _create_metadata_file(genomes_meta, batch_dir)
 
-    def parallel_batch_execution(self, tool_callable: Callable[[Dict[str, GenomeTuple], Path, int, bool], None], unzip=False):
+    def parallel_batch_execution(self, tool_callable: Callable[[Dict[str, GenomeTuple], Path, int, bool], None],
+                                 unzip=False):
         """
         Run a tool in batched mode, where > 1 data file is processed by the tool in one
         call. Each batch gets its own batch directory.
@@ -354,7 +358,7 @@ class ToolRunner:
                 ids_to_files[m[loader_common_names.META_TOOL_IDENTIFIER]] = GenomeTuple(source_file, data_id)
 
             batch_input.append((ids_to_files, batch_dir, self._program_threads, self._debug))
-            
+
         try:
             self._execute(num_batches, tool_callable, batch_input, start, True)
         finally:
@@ -362,7 +366,7 @@ class ToolRunner:
                 print(f"Deleting {len(unzipped_files_to_delete)} unzipped files: {unzipped_files_to_delete[:5]}...")
                 for file in unzipped_files_to_delete:
                     os.remove(file)
-        
+
         for meta in metas:
             _create_metadata_file(*meta)
 
