@@ -20,6 +20,7 @@ _SPECS = {
     "src.service.data_products.taxa_count": "TAXA_COUNT_SPEC",
     "src.service.data_products.genome_attributes": "GENOME_ATTRIBS_SPEC",
     "src.service.data_products.microtrait": "MICROTRAIT_SPEC",
+    "src.service.data_products.samples": "SAMPLES_SPEC",
 }
 
 _IMPORT_CACHE = {}  # load at app startup to prevent import loops
