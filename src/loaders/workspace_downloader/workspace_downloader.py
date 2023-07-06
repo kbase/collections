@@ -364,7 +364,9 @@ def _download_sample_data(
         if not conf.ignore_no_sample_error:
             raise ValueError(f"Sample data not found for {upas}")
         return
+
     node_data = _retrieve_node_data(sample_ret['node_tree'])
+    node_data[names.FLD_KB_SAMPLE_ID] = sample_ret['id']
 
     # save sample data and parsed key-value node data to file
     upa_dir, sample_file_prefix = Path(metafile).parent, sample_upa.replace("/", "_")
