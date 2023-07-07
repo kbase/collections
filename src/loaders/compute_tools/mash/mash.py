@@ -2,7 +2,6 @@
 Run Mash on a set of assemblies.
 """
 import json
-import os
 from pathlib import Path
 
 from src.loaders.common.loader_common_names import MASH_METADATA

@@ -54,6 +54,7 @@ from bs4 import BeautifulSoup
 from src.loaders.common import loader_common_names, loader_helper
 from src.loaders.common.loader_helper import parse_genome_id
 from src.loaders.ncbi_downloader import ncbi_downloader_helper
+from src.loaders.compute_tools.tool_common import get_threads
 
 # Fraction amount of system cores can be utilized
 # (i.e. 0.5 - program will use 50% of total processors,
@@ -258,7 +259,7 @@ def main():
         loader_helper.create_softlinks_in_csd(csd, work_dir, genome_ids_unprocessed, taxonomy_files)
         return
 
-    threads = ncbi_downloader_helper.get_threads(SYSTEM_UTILIZATION, threads)
+    threads = get_threads(SYSTEM_UTILIZATION, threads)
 
     print(f"Originally planned to download {len(genome_ids_unprocessed)} genome files")
     print(
