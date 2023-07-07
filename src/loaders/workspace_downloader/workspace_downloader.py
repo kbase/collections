@@ -565,9 +565,9 @@ def main():
         csd = loader_helper.make_collection_source_dir(
             root_dir,
             loader_common_names.COLLECTION_SOURCE_DIR,
+            env,
             kbase_collection,
             source_version,
-            env,
         )
 
     proc = None
