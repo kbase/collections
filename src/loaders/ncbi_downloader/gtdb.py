@@ -134,9 +134,9 @@ def _fetch_gtdb_genome_ids(release_ver: str, work_dir: str) -> Tuple[list[str], 
     return genome_ids, taxonomy_urls
 
 
-def _make_work_dir(root_dir: str, env: str) -> str:
+def _make_work_dir(root_dir: str) -> str:
     # make working directory for a specific collection under root directory
-    work_dir = os.path.join(root_dir, loader_common_names.SOURCE_DATA_DIR, SOURCE, env)
+    work_dir = os.path.join(root_dir, loader_common_names.SOURCE_DATA_DIR, SOURCE, loader_common_names.DEFAULT_ENV)
     os.makedirs(work_dir, exist_ok=True)
     return work_dir
 
@@ -238,7 +238,7 @@ def main():
     if threads and (threads < 1 or threads > cpu_count()):
         parser.error(f"minimum thread is 1 and maximum thread is {cpu_count()}")
 
-    work_dir = _make_work_dir(root_dir, loader_common_names.DEFAULT_ENV)
+    work_dir = _make_work_dir(root_dir)
     csd = loader_helper.make_collection_source_dir(
         root_dir,
         loader_common_names.DEFAULT_ENV,
