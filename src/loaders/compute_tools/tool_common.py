@@ -30,7 +30,6 @@ from typing import Any, Callable, Dict, List, Tuple, Union
 import pandas as pd
 
 from src.loaders.common import loader_common_names
-from src.loaders.ncbi_downloader import ncbi_downloader_helper
 
 # TODO CODE add a common module for saving and loading the metadata shared between the compute
 #           and parser
