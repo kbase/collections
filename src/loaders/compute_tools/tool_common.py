@@ -30,6 +30,7 @@ from typing import Any, Callable, Dict, List, Tuple, Union
 import pandas as pd
 
 from src.loaders.common import loader_common_names
+from src.loaders.ncbi_downloader import ncbi_downloader_helper
 
 # TODO CODE add a common module for saving and loading the metadata shared between the compute
 #           and parser
@@ -136,17 +137,13 @@ class ToolRunner:
                                      env,
                                      kbase_collection,
                                      source_ver)
-        self._threads = args.threads
+        self._threads = ncbi_downloader_helper.get_threads(_SYSTEM_UTILIZATION, args.threads)
         self._program_threads = args.program_threads
         self._debug = args.debug
         self._data_id_file = args.data_id_file
         self._node_id = args.node_id
         self._source_file_ext = args.source_file_ext
         self._data_ids = self._get_data_ids()
-
-        if not self._threads:
-            self._threads = max(int(multiprocessing.cpu_count() * min(_SYSTEM_UTILIZATION, 1)), 1)
-        self._threads = max(1, self._threads)
 
         self._work_dir = Path(
             Path(args.root_dir),
