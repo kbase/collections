@@ -1,6 +1,7 @@
 import os
 import time
 from datetime import datetime
+from multiprocessing import cpu_count
 
 import ftputil
 
@@ -92,3 +93,10 @@ def download_genome_files(
         print(f'Failed to download {failed_ids}')
 
     return failed_ids
+
+
+def get_threads(system_utilization: float, threads: int = None) -> int:
+    if not threads:
+        threads = max(int(cpu_count() * min(system_utilization, 1)), 1)
+    threads = max(1, threads)
+    return threads

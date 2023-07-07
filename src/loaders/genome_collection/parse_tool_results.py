@@ -74,8 +74,8 @@ from src.loaders.common.loader_helper import (
     create_global_fatal_dict_doc,
     init_row_doc,
     is_upa_info_complete,
+    make_collection_source_dir,
     merge_docs,
-    form_source_dir,
     create_import_dir,
 )
 from src.loaders.compute_tools.tool_common import run_command, find_gtdbtk_summary_files
@@ -878,7 +878,7 @@ def checkm2(root_dir, env, kbase_collection, load_ver, fatal_ids):
 def _retrieve_sample(root_dir, env, kbase_collection, source_ver, load_ver):
     print(f'Parsing sample data for {kbase_collection} collection, load version {load_ver}, '
           f'source version {source_ver}.')
-    source_dir = form_source_dir(root_dir, env, kbase_collection, source_ver)
+    source_dir = make_collection_source_dir(root_dir, env, kbase_collection, source_ver)
     if not os.path.exists(source_dir):
         raise ValueError(f'The source directory {source_dir} does not exist.')
 

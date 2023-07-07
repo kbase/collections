@@ -6,7 +6,7 @@ from pathlib import Path
 
 import src.loaders.jobs.taskfarmer.taskfarmer_common as tf_common
 from src.loaders.common import loader_common_names
-from src.loaders.common.loader_helper import form_source_dir
+from src.loaders.common.loader_helper import make_collection_source_dir
 from src.loaders.jobs.taskfarmer.taskfarmer_task_mgr import TFTaskManager, PreconditionError
 
 '''
@@ -206,7 +206,7 @@ def _create_task_list(
     TODO: make threads/program_threads configurable based on tool used. However, for the time being, we have set
     these parameters to 32 and , since this value has produced the highest throughput in our experiments.
     """
-    source_data_dir = form_source_dir(root_dir, env, kbase_collection, source_ver)
+    source_data_dir = make_collection_source_dir(root_dir, env, kbase_collection, source_ver)
     genome_ids = [path for path in os.listdir(source_data_dir) if
                   os.path.isdir(os.path.join(source_data_dir, path))]
 
@@ -354,11 +354,11 @@ def main():
         load_ver = source_ver
 
     root_dir = args.root_dir
-    source_data_dir = form_source_dir(root_dir, env, kbase_collection, source_ver)
+    source_data_dir = make_collection_source_dir(root_dir, env, kbase_collection, source_ver)
     source_file_ext = args.source_file_ext
 
     try:
-        task_mgr = TFTaskManager(kbase_collection, load_ver, tool, str(source_data_dir), args.force, root_dir=root_dir)
+        task_mgr = TFTaskManager(kbase_collection, load_ver, tool, source_data_dir, args.force, root_dir=root_dir)
     except PreconditionError as e:
         raise ValueError(f'Error submitting job:\n{e}\n'
                          f'Please use the --force flag to overwrite the previous run.') from e

@@ -29,20 +29,6 @@ This module contains helper functions used for loaders (e.g. compute_genome_attr
 """
 
 
-def form_source_dir(
-        root_dir: str,
-        env: str,
-        kbase_collection: str,
-        source_ver: str
-) -> Path:
-    """
-    Form the path to the collections source data directory.
-    (e.g. root_dir/collectionssource/env/kbase_collection/source_ver)
-    """
-
-    return Path(root_dir) / loader_common_names.COLLECTION_SOURCE_DIR / env / kbase_collection / source_ver
-
-
 def convert_to_json(docs, outfile):
     """
     Writes list of dictionaries to an argparse File (e.g. argparse.FileType('w')) object in JSON Lines formate.
@@ -195,24 +181,26 @@ def is_upa_info_complete(upa_dir: str):
 
 def make_collection_source_dir(
         root_dir: str,
-        collection_source_dir: str,
         env: str,
         collection: str,
-        release_ver: str
+        source_ver: str
 ) -> str:
     """
     Helper function that creates a collection & source_version and link in data
     to that collection from the overall source data dir.
     """
-    csd = os.path.join(root_dir, collection_source_dir, env, collection, release_ver)
+    csd = os.path.join(root_dir, loader_common_names.COLLECTION_SOURCE_DIR, env, collection, source_ver)
     os.makedirs(csd, exist_ok=True)
     return csd
 
 
-def create_softlinks_in_csd(csd: str, work_dir: str, genome_ids: list[str], taxonomy_files: list[str] = []) -> None:
+def create_softlinks_in_csd(csd: str, work_dir: str, genome_ids: list[str], taxonomy_files: list[str] = None) -> None:
     """
     Create softlinks in the collection source dir to the genome files in the work dir.
     """
+    if not taxonomy_files:
+        taxonomy_files = []
+
     for genome_id in genome_ids:
         genome_dir = os.path.join(work_dir, genome_id)
         csd_genome_dir = os.path.join(csd, genome_id)

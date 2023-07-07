@@ -1,7 +1,7 @@
 """
-usage: ncbi_downloader.py [-h] --download_file_ext DOWNLOAD_FILE_EXT [DOWNLOAD_FILE_EXT ...] --release_ver {202,207,214,80,83,86,89,95}
-                          [--kbase_collection {GTDB}] [--root_dir ROOT_DIR] [--source {NCBI}] [--threads THREADS] [--overwrite]
-                          [--exclude_name_substring EXCLUDE_NAME_SUBSTRING [EXCLUDE_NAME_SUBSTRING ...]]
+usage: gtdb.py [-h] --release_ver {202,207,214,80,83,86,89,95} [--root_dir ROOT_DIR]
+               [--download_file_ext DOWNLOAD_FILE_EXT [DOWNLOAD_FILE_EXT ...]] [--threads THREADS] [--overwrite]
+               [--exclude_name_substring EXCLUDE_NAME_SUBSTRING [EXCLUDE_NAME_SUBSTRING ...]]
 
 PROTOTYPE - Download genome files from NCBI FTP server.
 
@@ -9,23 +9,19 @@ options:
   -h, --help            show this help message and exit
 
 required named arguments:
-  --download_file_ext DOWNLOAD_FILE_EXT [DOWNLOAD_FILE_EXT ...]
-                        Download only files that match given extensions
   --release_ver {202,207,214,80,83,86,89,95}
                         GTDB release version that dynamically parsed from the GTDB website
 
 optional arguments:
-  --kbase_collection {GTDB}
-                        Create a collection and link in data to that collection from the overall source data dir (default: GTDB)
   --root_dir ROOT_DIR   Root directory (default: /global/cfs/cdirs/kbase/collections)
-  --source {NCBI}       Source of data (default: NCBI)
+  --download_file_ext DOWNLOAD_FILE_EXT [DOWNLOAD_FILE_EXT ...]
+                        Download only files that match given extensions (default: ['genomic.fna.gz'])
   --threads THREADS     Number of threads
   --overwrite           Overwrite existing files
   --exclude_name_substring EXCLUDE_NAME_SUBSTRING [EXCLUDE_NAME_SUBSTRING ...]
                         Files with a specific substring in their names that should be excluded from the download (default: ['cds_from',
                         'rna_from', 'ERR'])
 
-                        
 e.g.
 PYTHONPATH=. python src/loaders/ncbi_downloader/ncbi_downloader.py --download_file_ext genomic.fna.gz --release_ver 207 
                                                                    --exclude_name_substring cds_from rna_from ERR
@@ -63,8 +59,9 @@ from src.loaders.ncbi_downloader import ncbi_downloader_helper
 # (i.e. 0.5 - program will use 50% of total processors,
 #       0.1 - program will use 10% of total processors)
 SYSTEM_UTILIZATION = 0.5
-SOURCE = ["NCBI"]  # supported source of data
-COLLECTIONS = ["GTDB"]  # supported collections
+DOWNLOAD_FILE_EXT = ["genomic.fna.gz"]  # download only files that match given extensions
+KBASE_COLLECTION = "GTDB"  # GTDB is the only collection supported by this script
+SOURCE = "NCBI"  # NCBI is the only source supported by this script
 GTDB_DOMAIN = "https://data.gtdb.ecogenomic.org/releases/"
 
 
@@ -136,16 +133,16 @@ def _fetch_gtdb_genome_ids(release_ver: str, work_dir: str) -> Tuple[list[str], 
     return genome_ids, taxonomy_urls
 
 
-def _make_work_dir(root_dir: str, source_data_dir: str, source: str, env: str) -> str:
+def _make_work_dir(root_dir: str, env: str) -> str:
     # make working directory for a specific collection under root directory
-    work_dir = os.path.join(root_dir, source_data_dir, source, env)
+    work_dir = os.path.join(root_dir, loader_common_names.SOURCE_DATA_DIR, SOURCE, env)
     os.makedirs(work_dir, exist_ok=True)
     return work_dir
 
 
 def _process_genome_ids(
     work_dir: str,
-    genome_ids_unprocssed: list[str],
+    genome_ids_unprocessed: list[str],
     target_file_ext: list[str],
     exclude_name_substring: list[str],
     overwrite: bool = False,
@@ -154,11 +151,11 @@ def _process_genome_ids(
     Helper function that processes genome ids to avoid redownloading files.
     """
     if overwrite:
-        return genome_ids_unprocssed
+        return genome_ids_unprocessed
 
     genome_ids = list()
     target_ext_count = len(target_file_ext)
-    for genome_id in genome_ids_unprocssed:
+    for genome_id in genome_ids_unprocessed:
         data_dir = os.path.join(work_dir, genome_id)
         if not os.path.exists(data_dir):
             genome_ids.append(genome_id)
@@ -177,7 +174,8 @@ def _process_genome_ids(
     return genome_ids
 
 
-def main():
+def _get_parser():
+
     parser = argparse.ArgumentParser(
         description="PROTOTYPE - Download genome files from NCBI FTP server.",
         formatter_class=loader_helper.ExplicitDefaultsHelpFormatter,
@@ -190,13 +188,6 @@ def main():
 
     # Required flag argument
     required.add_argument(
-        "--download_file_ext",
-        required=True,
-        type=str,
-        nargs="+",
-        help="Download only files that match given extensions",
-    )
-    required.add_argument(
         "--release_ver",
         required=True,
         type=str,
@@ -206,20 +197,17 @@ def main():
 
     # Optional argument
     optional.add_argument(
-        f"--{loader_common_names.KBASE_COLLECTION_ARG_NAME}",
-        type=str,
-        default="GTDB",
-        choices=COLLECTIONS,
-        help="Create a collection and link in data to that collection from the overall source data dir",
-    )
-    optional.add_argument(
         "--root_dir",
         type=str,
         default=loader_common_names.ROOT_DIR,
         help="Root directory",
     )
     optional.add_argument(
-        "--source", type=str, default="NCBI", choices=SOURCE, help="Source of data"
+        "--download_file_ext",
+        type=str,
+        nargs="+",
+        default=DOWNLOAD_FILE_EXT,
+        help="Download only files that match given extensions",
     )
     optional.add_argument("--threads", type=int, help="Number of threads")
     optional.add_argument(
@@ -232,54 +220,51 @@ def main():
         default=loader_common_names.STANDARD_FILE_EXCLUDE_SUBSTRINGS,
         help="Files with a specific substring in their names that should be excluded from the download",
     )
+    return parser
 
+
+def main():
+    parser = _get_parser()
     args = parser.parse_args()
 
-    download_file_ext = args.download_file_ext
     release_ver = args.release_ver
     root_dir = args.root_dir
-    source = args.source
     threads = args.threads
     overwrite = args.overwrite
+    download_file_ext = args.download_file_ext
     exclude_name_substring = args.exclude_name_substring
-    kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
 
     if threads and (threads < 1 or threads > cpu_count()):
         parser.error(f"minimum thread is 1 and maximum thread is {cpu_count()}")
 
-    work_dir = _make_work_dir(
-        root_dir, loader_common_names.SOURCE_DATA_DIR, source, loader_common_names.DEFAULT_ENV
-    )
+    work_dir = _make_work_dir(root_dir, loader_common_names.DEFAULT_ENV)
     csd = loader_helper.make_collection_source_dir(
         root_dir,
-        loader_common_names.COLLECTION_SOURCE_DIR,
         loader_common_names.DEFAULT_ENV,
-        kbase_collection,
+        KBASE_COLLECTION,
         release_ver,
     )
-    genome_ids_unprocssed, taxonomy_urls = _fetch_gtdb_genome_ids(release_ver, work_dir)
+    genome_ids_unprocessed, taxonomy_urls = _fetch_gtdb_genome_ids(release_ver, work_dir)
     taxonomy_files = [os.path.basename(url) for url in taxonomy_urls]
     genome_ids = _process_genome_ids(
         work_dir,
-        genome_ids_unprocssed,
+        genome_ids_unprocessed,
         download_file_ext,
         exclude_name_substring,
         overwrite,
     )
     if not genome_ids:
-        print(f"All {len(genome_ids_unprocssed)} genomes files already exist in {work_dir}")
-        loader_helper.create_softlinks_in_csd(csd, work_dir, genome_ids_unprocssed, taxonomy_files)
+        print(f"All {len(genome_ids_unprocessed)} genomes files already exist in {work_dir}")
+        loader_helper.create_softlinks_in_csd(csd, work_dir, genome_ids_unprocessed, taxonomy_files)
         return
 
-    if not threads:
-        threads = max(int(cpu_count() * min(SYSTEM_UTILIZATION, 1)), 1)
-    threads = max(1, threads)
+    threads = ncbi_downloader_helper.get_threads(SYSTEM_UTILIZATION, threads)
 
-    print(f"Originally planned to download {len(genome_ids_unprocssed)} genome files")
+    print(f"Originally planned to download {len(genome_ids_unprocessed)} genome files")
     print(
         f"Will overwrite existing genome files"
         if overwrite
-        else f"Detected {len(genome_ids_unprocssed) - len(genome_ids)} genome files already exist"
+        else f"Detected {len(genome_ids_unprocessed) - len(genome_ids)} genome files already exist"
     )
     print(f"Start downloading {len(genome_ids)} genome files with {threads} threads\n")
 
