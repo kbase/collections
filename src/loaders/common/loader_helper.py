@@ -202,7 +202,7 @@ def make_collection_source_dir(
 ) -> str:
     """
     Helper function that creates a collection & source_version and link in data
-    to that colleciton from the overall source data dir.
+    to that collection from the overall source data dir.
     """
     csd = os.path.join(root_dir, collection_source_dir, env, collection, release_ver)
     os.makedirs(csd, exist_ok=True)
