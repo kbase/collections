@@ -16,26 +16,26 @@ from src.loaders.common.loader_helper import create_import_files
 """
 PROTOTYPE - Prepare genome taxa count data and identical ranks in JSON format for arango import.
 
-usage: compute_genome_taxa_count.py [-h] --load_ver LOAD_VER [--kbase_collection KBASE_COLLECTION] [--root_dir ROOT_DIR]
+usage: compute_genome_taxa_count.py [-h] --kbase_collection KBASE_COLLECTION --load_ver LOAD_VER [--env {CI,NEXT,APPDEV,PROD,NONE}] [--root_dir ROOT_DIR]
                                     [--input_source {GTDB,genome_attributes}]
                                     load_files [load_files ...]
-
 options:
   -h, --help            show this help message and exit
 
 required named arguments:
   load_files            Files containing genome taxonomy (e.g. ar53_taxonomy_r207.tsv, computed_genome_attribs.json)
+  --kbase_collection KBASE_COLLECTION
+                        KBase collection identifier name.
   --load_ver LOAD_VER   KBase load version (e.g. r207.kbase.1).
 
 optional arguments:
-  --kbase_collection KBASE_COLLECTION
-                        KBase collection identifier name (default: GTDB).
+  --env {CI,NEXT,APPDEV,PROD,NONE}
+                        Environment containing the data to be processed. (default: PROD)
   --root_dir ROOT_DIR   Root directory for the collections project (default: /global/cfs/cdirs/kbase/collections)
   --input_source {GTDB,genome_attributes}
                         Input file source
  
-e.g. compute_genome_taxa_count.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_ver 207
-     compute_genome_taxa_count.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_ver 207 --kbase_collection GTDB
+e.g. compute_genome_taxa_count.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_ver 207 --kbase_collection GTDB
      compute_genome_taxa_count.py ENIGMA_2023.01_checkm2_gtdb_tk_computed_genome_attribs.jsonl --load_ver 2023.01 --kbase_collection ENIGMA --input_source genome_attributes
 """
 
@@ -109,14 +109,19 @@ def main():
                                'computed_genome_attribs.json)')
 
     # Required flag argument
+    required.add_argument(f'--{loader_common_names.KBASE_COLLECTION_ARG_NAME}', required=True, type=str,
+                          help=loader_common_names.KBASE_COLLECTION_DESCR)
     required.add_argument(f'--{loader_common_names.LOAD_VER_ARG_NAME}', required=True, type=str,
                           help=loader_common_names.LOAD_VER_DESCR)
 
     # Optional argument
-    optional.add_argument(f'--{loader_common_names.KBASE_COLLECTION_ARG_NAME}', type=str,
-                          default=loader_common_names.DEFAULT_KBASE_COLL_NAME,
-                          help=loader_common_names.KBASE_COLLECTION_DESCR)
-
+    optional.add_argument(
+        f"--{loader_common_names.ENV_ARG_NAME}",
+        type=str,
+        choices=loader_common_names.KB_ENV + [loader_common_names.DEFAULT_ENV],
+        default='PROD',
+        help="Environment containing the data to be processed. (default: PROD)",
+    )
     optional.add_argument('--root_dir', type=str, default=loader_common_names.ROOT_DIR,
                           help=f'Root directory for the collections project (default: {loader_common_names.ROOT_DIR})')
 
@@ -128,6 +133,7 @@ def main():
     root_dir = args.root_dir
     load_version = getattr(args, loader_common_names.LOAD_VER_ARG_NAME)
     kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
+    env = getattr(args, loader_common_names.ENV_ARG_NAME)
     source = args.input_source
 
     print('start parsing input files')
@@ -138,11 +144,11 @@ def main():
 
     # Create taxa counts jsonl file
     count_jsonl = f'{kbase_collection}_{load_version}_{names.COLL_TAXA_COUNT}.jsonl'
-    create_import_files(root_dir, count_jsonl, count_docs)
+    create_import_files(root_dir, env, count_jsonl, count_docs)
 
     # Create identical ranks jsonl file
     count_ranks_jsonl = f'{kbase_collection}_{load_version}_{names.COLL_TAXA_COUNT_RANKS}.jsonl'
-    create_import_files(root_dir, count_ranks_jsonl, rank_doc)
+    create_import_files(root_dir, env, count_ranks_jsonl, rank_doc)
 
 
 if __name__ == "__main__":
