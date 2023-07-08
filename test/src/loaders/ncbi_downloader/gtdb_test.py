@@ -31,7 +31,7 @@ def test_make_work_dir(setup_and_teardown):
     tmp_dir, script_file = setup_and_teardown
 
     source, env = 'NCBI', 'NONE'
-    work_dir = gtdb._make_work_dir(tmp_dir, SOURCE_DATA_DIR, source, env)
+    work_dir = gtdb._make_work_dir(tmp_dir)
 
     path = Path(work_dir).resolve()
 
