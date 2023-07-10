@@ -36,6 +36,7 @@ from src.service.data_products.data_product_processing import (
     MATCH_ID_PREFIX,
     SELECTION_ID_PREFIX,
     get_load_version_and_processes,
+    get_missing_ids,
 )
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service import errors
@@ -294,24 +295,14 @@ class HeatMapController:
         selection_id: Annotated[str | None, Query(description="A selection ID.")] = None,
         user: kb_auth.KBaseUser = Depends(_OPT_AUTH),
     ) -> DataProductMissingIDs:
-        appstate = app_state.get_app_state(r)
-        if not match_id and not selection_id:
-            raise errors.IllegalParameterError(
-                "At last one of a match ID or selection ID must be supplied")
-        load_ver, dp_match, dp_sel = await get_load_version_and_processes(
-            appstate,
-            user,
+        return await get_missing_ids(
+            app_state.get_app_state(r),
             self._colname_data,
             collection_id,
             self._id,
             match_id=match_id,
             selection_id=selection_id,
-        )
-        return DataProductMissingIDs(
-            match_state=dp_match.state if dp_match else None,
-            selection_state=dp_sel.state if dp_sel else None,
-            match_missing=dp_match.missing_ids if dp_match else None,
-            selection_missing=dp_sel.missing_ids if dp_sel else None,
+            user=user,
         )
 
     def _response(
