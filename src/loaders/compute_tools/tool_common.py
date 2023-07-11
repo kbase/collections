@@ -136,13 +136,17 @@ class ToolRunner:
                                      env,
                                      kbase_collection,
                                      source_ver)
-        self._threads = get_threads(_SYSTEM_UTILIZATION, args.threads)
+        self._threads = args.threads
         self._program_threads = args.program_threads
         self._debug = args.debug
         self._data_id_file = args.data_id_file
         self._node_id = args.node_id
         self._source_file_ext = args.source_file_ext
         self._data_ids = self._get_data_ids()
+
+        if not self._threads:
+            self._threads = max(int(multiprocessing.cpu_count() * min(_SYSTEM_UTILIZATION, 1)), 1)
+        self._threads = max(1, self._threads)
 
         self._work_dir = Path(
             Path(args.root_dir),
@@ -608,13 +612,6 @@ def create_fatal_tuple(
     source_file_path = genome_tuple.source_file
     fatal_tuple = FatalTuple(data_id, error_message, str(source_file_path), stacktrace)
     return fatal_tuple
-
-
-def get_threads(system_utilization: float, threads: int = None) -> int:
-    if not threads:
-        threads = max(int(multiprocessing.cpu_count() * min(system_utilization, 1)), 1)
-    threads = max(1, threads)
-    return threads
 
 
 if __name__ == "__main__":

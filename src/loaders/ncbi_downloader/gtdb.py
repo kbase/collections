@@ -23,8 +23,7 @@ optional arguments:
                         'rna_from', 'ERR'])
 
 e.g.
-PYTHONPATH=. python src/loaders/ncbi_downloader/ncbi_downloader.py --download_file_ext genomic.fna.gz --release_ver 207 
-                                                                   --exclude_name_substring cds_from rna_from ERR
+PYTHONPATH=. python src/loaders/ncbi_downloader/gtdb.py --release_ver 207 --download_file_ext genomic.fna.gz
 
 NOTE:
 NERSC file structure for NCBI:
@@ -37,13 +36,12 @@ e.g.
                                                             -> GCF_000970185.1 -> genome files
 
 The data will be linked to the collections source directory:
-e.g. /global/cfs/cdirs/kbase/collections/collectionssource/ -> ENV -> kbase_collection -> release_ver -> genome_id -> genome files
+e.g. /global/cfs/cdirs/kbase/collections/collectionssource/ -> ENV -> kbase_collection -> source_ver -> genome_id -> genome files
 """
 import argparse
 import itertools
-import math
 import os
-from multiprocessing import Pool, cpu_count
+from multiprocessing import cpu_count
 from typing import Tuple
 from urllib import request
 from urllib.parse import urlparse
@@ -54,7 +52,6 @@ from bs4 import BeautifulSoup
 from src.loaders.common import loader_common_names, loader_helper
 from src.loaders.common.loader_helper import parse_genome_id
 from src.loaders.ncbi_downloader import ncbi_downloader_helper
-from src.loaders.compute_tools.tool_common import get_threads
 
 # Fraction amount of system cores can be utilized
 # (i.e. 0.5 - program will use 50% of total processors,
@@ -62,7 +59,6 @@ from src.loaders.compute_tools.tool_common import get_threads
 SYSTEM_UTILIZATION = 0.5
 DOWNLOAD_FILE_EXT = ["genomic.fna.gz"]  # download only files that match given extensions
 KBASE_COLLECTION = "GTDB"  # GTDB is the only collection supported by this script
-SOURCE = "NCBI"  # NCBI is the only source supported by this script
 GTDB_DOMAIN = "https://data.gtdb.ecogenomic.org/releases/"
 
 
@@ -136,13 +132,13 @@ def _fetch_gtdb_genome_ids(release_ver: str, work_dir: str) -> Tuple[list[str], 
 
 def _make_work_dir(root_dir: str) -> str:
     # make working directory for a specific collection under root directory
-    work_dir = os.path.join(root_dir, loader_common_names.SOURCE_DATA_DIR, SOURCE, loader_common_names.DEFAULT_ENV)
+    work_dir = ncbi_downloader_helper.get_work_dir(root_dir)
     os.makedirs(work_dir, exist_ok=True)
     return work_dir
 
 
 def _process_genome_ids(
-    work_dir: str,
+    root_dir: str,
     genome_ids_unprocessed: list[str],
     target_file_ext: list[str],
     exclude_name_substring: list[str],
@@ -156,6 +152,7 @@ def _process_genome_ids(
 
     genome_ids = list()
     target_ext_count = len(target_file_ext)
+    work_dir = ncbi_downloader_helper.get_work_dir(root_dir)
     for genome_id in genome_ids_unprocessed:
         data_dir = os.path.join(work_dir, genome_id)
         if not os.path.exists(data_dir):
@@ -248,7 +245,7 @@ def main():
     genome_ids_unprocessed, taxonomy_urls = _fetch_gtdb_genome_ids(release_ver, work_dir)
     taxonomy_files = [os.path.basename(url) for url in taxonomy_urls]
     genome_ids = _process_genome_ids(
-        work_dir,
+        root_dir,
         genome_ids_unprocessed,
         download_file_ext,
         exclude_name_substring,
@@ -259,29 +256,22 @@ def main():
         loader_helper.create_softlinks_in_csd(csd, work_dir, genome_ids_unprocessed, taxonomy_files)
         return
 
-    threads = get_threads(SYSTEM_UTILIZATION, threads)
-
     print(f"Originally planned to download {len(genome_ids_unprocessed)} genome files")
     print(
         f"Will overwrite existing genome files"
         if overwrite
         else f"Detected {len(genome_ids_unprocessed) - len(genome_ids)} genome files already exist"
     )
-    print(f"Start downloading {len(genome_ids)} genome files with {threads} threads\n")
 
-    chunk_size = math.ceil(len(genome_ids) / threads)  # distribute genome ids evenly across threads
-    batch_input = [
-        (
-            genome_ids[i : i + chunk_size],
-            download_file_ext,
-            exclude_name_substring,
-            work_dir,
-            overwrite,
-        )
-        for i in range(0, len(genome_ids), chunk_size)
-    ]
-    pool = Pool(processes=threads)
-    batch_result = pool.starmap(ncbi_downloader_helper.download_genome_files, batch_input)
+    batch_result = ncbi_downloader_helper.download_genome_files_in_parallel(
+        root_dir,
+        genome_ids,
+        download_file_ext,
+        exclude_name_substring,
+        SYSTEM_UTILIZATION,
+        threads,
+        overwrite,
+    )
 
     failed_ids = list(itertools.chain.from_iterable(batch_result))
     if failed_ids:

@@ -1,8 +1,14 @@
+import math
+import multiprocessing
 import os
 import time
 from datetime import datetime
 
 import ftputil
+
+from src.loaders.common import loader_common_names
+
+SOURCE = "NCBI"  # NCBI is the only source supported by this script
 
 
 def _download_genome_file(
@@ -55,7 +61,7 @@ def download_genome_files(
         gene_ids: list[str],
         target_file_ext: list[str],
         exclude_name_substring: list[str],
-        result_dir: str,
+        root_dir: str,
         overwrite: bool = False
 ) -> list[str]:
     """
@@ -63,13 +69,16 @@ def download_genome_files(
 
     gene_ids: genome ids that parsed from GTDB metadata file (e.g. GB_GCA_000016605.1, RS_GCF_000968435.2).
     target_file_ext: download only files that match given extensions.
-    result_dir: result directory for downloaded files. Files for a specific gene ID are stored in a folder with the gene ID as the name.
+    exclude_name_substring: exclude files that contain given substrings in their names.
+    root_dir: root directory for the collections project.
+    overwrite: overwrite existing files if True.
     """
 
     print(f'start downloading {len(gene_ids)} genome files')
 
     failed_ids = list()
 
+    result_dir = get_work_dir(root_dir)
     os.makedirs(result_dir, exist_ok=True)
 
     counter = 1
@@ -92,3 +101,41 @@ def download_genome_files(
         print(f'Failed to download {failed_ids}')
 
     return failed_ids
+
+
+def download_genome_files_in_parallel(
+        root_dir: str,
+        genome_ids: list[str],
+        target_file_ext: list[str],
+        exclude_name_substring: list[str],
+        system_utilization: float,
+        threads: int = None,
+        overwrite: bool = False
+) -> list[list[str]]:
+    if not threads:
+        threads = max(int(multiprocessing.cpu_count() * min(system_utilization, 1)), 1)
+    threads = max(1, threads)
+
+    print(f"Start downloading {len(genome_ids)} genome files with {threads} threads\n")
+
+    chunk_size = math.ceil(len(genome_ids) / threads)  # distribute genome ids evenly across threads
+    batch_input = [
+        (
+            genome_ids[i : i + chunk_size],
+            target_file_ext,
+            exclude_name_substring,
+            root_dir,
+            overwrite,
+        )
+        for i in range(0, len(genome_ids), chunk_size)
+    ]
+    pool = multiprocessing.Pool(processes=threads)
+    batch_result = pool.starmap(download_genome_files, batch_input)
+    return batch_result
+
+
+def get_work_dir(root: str) -> str:
+    """
+    Get the working directory for NCBI downloader.py.
+    """
+    return os.path.join(root, loader_common_names.SOURCE_DATA_DIR, SOURCE, loader_common_names.DEFAULT_ENV)
