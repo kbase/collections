@@ -4,7 +4,7 @@ Matches assemblies and genomes to collections based on Minhash homology.
 
 # NOTE: this is only demo worthy as of now. See the benchmarks in /design/experiments,
 #       but the sketch / homology services
-#           a) can only handle ~ 40 simultaneous connectionsbefore errors start occuring, so
+#           a) can only handle ~ 40 simultaneous connectionsbefore errors start occurring, so
 #               multiple simultaneous matches are likely to fail and
 #           b) time out after ~ 100 seconds. Sketching 1 sequence against 100k takes about 20-30s
 #              so larger collections will be likely to time out.

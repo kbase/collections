@@ -9,7 +9,7 @@ from src.service.errors import ErrorType
 
 class ServerErrorDetail(BaseModel):
     httpcode: int = Field(example=500, description="The HTTP error code")
-    httpstatus: str = Field(example="INTERNAL SERVER ERRROR", description="The HTTP status string")
+    httpstatus: str = Field(example="INTERNAL SERVER ERROR", description="The HTTP status string")
     time: str = Field(
         example="2022-10-07T17:58:53.188698+00:00",
         description="The server time in ISO8601 format"
@@ -25,7 +25,7 @@ class RequestValidationDetail(BaseModel):
     # included in the spec
     loc: list[str | int] = Field(
         example=["body", "data_products", 2, "version"],
-        description="The location where the validation error occured"
+        description="The location where the validation error occurred"
     )
     msg: str = Field(
         example="ensure this value has at most 20 characters",

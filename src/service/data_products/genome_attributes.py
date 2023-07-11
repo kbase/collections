@@ -465,7 +465,7 @@ async def process_subset_documents(
     fields: list[str] | None = None,
 ) -> None:
     """
-    Iterate through the documents for a subset, passing them to an acceptor fuction for processing.
+    Iterate through the documents for a subset, passing them to an acceptor function for processing.
 
     storage - the storage system containing the data.
     collection - the collection containing the subset.

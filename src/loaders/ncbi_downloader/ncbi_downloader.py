@@ -128,7 +128,7 @@ def _form_gtdb_taxonomy_file_url(release_ver):
     # form GTDB taxonomy URL for specific GTDB version.
     # e.g. https://data.gtdb.ecogenomic.org/releases/release207/207.0/ar53_taxonomy_r207.tsv
 
-    file_dir_url = GTDB_DOMAIN + f'release{release_ver}/' + f'{release_ver}.0/'  # TODO: add dot support, relase version 86 has '86.1' and '86.2'
+    file_dir_url = GTDB_DOMAIN + f'release{release_ver}/' + f'{release_ver}.0/'  # TODO: add dot support, release version 86 has '86.1' and '86.2'
 
     file_urls = list()
 

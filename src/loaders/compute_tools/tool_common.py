@@ -121,7 +121,7 @@ class ToolRunner:
             as the data ID, meaning the tool runner needs to map from the data ID to the filename
         """
         self._tool = tool_name
-        # TODO DOWNLOAD if we settle on a standard file name schem for downloaders we can get
+        # TODO DOWNLOAD if we settle on a standard file name scheme for downloaders we can get
         #               rid of this
         self._tool_data_id_from_filename = tool_data_id_from_filename
         self._suffix_ids = suffix_ids

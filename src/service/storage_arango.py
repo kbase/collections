@@ -269,7 +269,7 @@ class ArangoStorage:
     async def save_collection_active(self, collection: models.ActiveCollection) -> None:
         """
         Save a collection, making it active.
-        The caller is expected to retrive a collection from a `get_collection_version_by_*`
+        The caller is expected to retrieve a collection from a `get_collection_version_by_*`
         method, update it to an active collection, and save it here.
         """
         await self._insert_model(collection, collection.id, names.COLL_SRV_ACTIVE, overwrite=True)
@@ -482,7 +482,7 @@ class ArangoStorage:
 
         match_id - the ID of the match.
         username - the user name of the user whose permissions were checked.
-        check_time - the time at which the permisisons were checked in epoch milliseconds.
+        check_time - the time at which the permissions were checked in epoch milliseconds.
         """
         aql = f"""
             FOR d in @@{_FLD_COLLECTION}
@@ -794,7 +794,7 @@ class ArangoStorage:
             states=states,    
         )
 
-    async def _process_subsets(  # method would be paramterized in Java, meh here
+    async def _process_subsets(  # method would be parameterized in Java, meh here
         self,
         coll: str,
         processor: Callable[[models.InternalMatch | models.InternalSelection], Awaitable[None]],

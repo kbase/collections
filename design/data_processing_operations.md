@@ -5,8 +5,8 @@
 Lay out goals / designs for KBase Collections data processing in the short, middle and long term.
 Said goals / designs will necessarily get more vague the further out in time we go.
 
-This document does not inlude data product specific tasks (like the Microtrait work) - only
-general, non-data type specfic work.
+This document does not include data product specific tasks (like the Microtrait work) - only
+general, non-data type specific work.
 
 ## Short term goals
 

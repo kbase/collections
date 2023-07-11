@@ -1,5 +1,5 @@
 """
-Methods for retriving matches from a storage system, ensuring that the user has permissions
+Methods for retrieving matches from a storage system, ensuring that the user has permissions
 to the match, the match is in the expected state, and access times are updated correctly as well
 as starting match processes and recovering processes that are stalled when requesting a match.
 """
@@ -258,7 +258,7 @@ async def _create_match_process(
 
     matcher - the matcher to use.
     ww - a workspace wrapper initialized with the credentials of the user
-    upas - the UPAs of the workspce objects to include in the match.
+    upas - the UPAs of the workspace objects to include in the match.
     collection_parameters - the parameters for the match provided by the collection data
         (as opposed to user provided parameters.)
 

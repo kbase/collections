@@ -144,7 +144,7 @@ class Workspace(object):
            objects are not cloned, although hidden objects are and remain
            hidden in the new workspace. Required arguments: WorkspaceIdentity
            wsi - the workspace to be cloned. ws_name workspace - name of the
-           workspace to be cloned into. This must be a non-existant workspace
+           workspace to be cloned into. This must be a non-existent workspace
            name. Optional arguments: permission globalread - 'r' to set the
            new workspace globally readable, default 'n'. string description -
            A free-text description of the new workspace, 1000 characters max.
@@ -1997,7 +1997,7 @@ class Workspace(object):
            subset specification: list<object_path> included - the portions of
            the object to include in the object subset. boolean strict_maps -
            if true, throw an exception if the subset specification traverses
-           a non-existant map key (default false) boolean strict_arrays - if
+           a non-existent map key (default false) boolean strict_arrays - if
            true, throw an exception if the subset specification exceeds the
            size of an array (default true) @deprecated
            Workspace.ObjectSpecification) -> structure: parameter "workspace"

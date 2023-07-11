@@ -144,7 +144,7 @@ terminate called after throwing an instance of 'kj::ExceptionImpl'
 stack: 0x460609 0x463c5a 0x45b07c 0x42d155 0x41f3c4 0x43d5c2 0x426bb6 0x40a55e 0x7efe890c82e1 0x40a205
 ```
 
-Why running multiple intances of `mash` would cause this error is not clear. It seems to occur
+Why running multiple instances of `mash` would cause this error is not clear. It seems to occur
 when the number of `mash` instances are greater than the number of available CPUs.
 
 Also note that `mash`, at this point, hasn't had a release in 2.5 years and seems to be typical

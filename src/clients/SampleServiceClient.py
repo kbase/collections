@@ -98,7 +98,7 @@ class SampleService(object):
            unspecified object, parameter "source_meta" of list of type
            "SourceMetadata" (Information about a metadata key as it appeared
            at the data source. The source key and value represents the
-           original state of the metadata before it was tranformed for
+           original state of the metadata before it was transformed for
            ingestion by the sample service. key - the metadata key. skey -
            the key as it appeared at the data source. svalue - the value as
            it appeared at the data source.) -> structure: parameter "key" of
@@ -203,7 +203,7 @@ class SampleService(object):
            unspecified object, parameter "source_meta" of list of type
            "SourceMetadata" (Information about a metadata key as it appeared
            at the data source. The source key and value represents the
-           original state of the metadata before it was tranformed for
+           original state of the metadata before it was transformed for
            ingestion by the sample service. key - the metadata key. skey -
            the key as it appeared at the data source. svalue - the value as
            it appeared at the data source.) -> structure: parameter "key" of
@@ -295,7 +295,7 @@ class SampleService(object):
            unspecified object, parameter "source_meta" of list of type
            "SourceMetadata" (Information about a metadata key as it appeared
            at the data source. The source key and value represents the
-           original state of the metadata before it was tranformed for
+           original state of the metadata before it was transformed for
            ingestion by the sample service. key - the metadata key. skey -
            the key as it appeared at the data source. svalue - the value as
            it appeared at the data source.) -> structure: parameter "key" of
@@ -553,7 +553,7 @@ class SampleService(object):
         :param params: instance of type "PropagateDataLinkParams"
            (propagate_data_links parameters. id - the sample id. version -
            the sample version. (data links are propagated to)
-           previous_version - the previouse sample version. (data links are
+           previous_version - the previous sample version. (data links are
            propagated from) ignore_types - the workspace data type ignored
            from propagating. default empty. update - if false (the default),
            fail if a link already exists from the data unit (the combination
@@ -877,7 +877,7 @@ class SampleService(object):
            unspecified object, parameter "source_meta" of list of type
            "SourceMetadata" (Information about a metadata key as it appeared
            at the data source. The source key and value represents the
-           original state of the metadata before it was tranformed for
+           original state of the metadata before it was transformed for
            ingestion by the sample service. key - the metadata key. skey -
            the key as it appeared at the data source. svalue - the value as
            it appeared at the data source.) -> structure: parameter "key" of
@@ -1006,7 +1006,7 @@ class SampleService(object):
            unspecified object, parameter "source_meta" of list of type
            "SourceMetadata" (Information about a metadata key as it appeared
            at the data source. The source key and value represents the
-           original state of the metadata before it was tranformed for
+           original state of the metadata before it was transformed for
            ingestion by the sample service. key - the metadata key. skey -
            the key as it appeared at the data source. svalue - the value as
            it appeared at the data source.) -> structure: parameter "key" of
