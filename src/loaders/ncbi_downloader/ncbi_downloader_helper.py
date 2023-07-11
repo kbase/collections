@@ -112,6 +112,9 @@ def download_genome_files_in_parallel(
         threads: int = None,
         overwrite: bool = False
 ) -> list[list[str]]:
+    """
+    Download genome files from NCBI FTP server in parallel using multiprocessing
+    """
     if not threads:
         threads = max(int(multiprocessing.cpu_count() * min(system_utilization, 1)), 1)
     threads = max(1, threads)
@@ -136,6 +139,6 @@ def download_genome_files_in_parallel(
 
 def get_work_dir(root: str) -> str:
     """
-    Get the working directory for NCBI downloader.py.
+    Get the working directory for NCBI downloader.py
     """
     return os.path.join(root, loader_common_names.SOURCE_DATA_DIR, SOURCE, loader_common_names.DEFAULT_ENV)
