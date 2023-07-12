@@ -130,48 +130,6 @@ def _fetch_gtdb_genome_ids(release_ver: str, work_dir: str) -> Tuple[list[str], 
     return genome_ids, taxonomy_urls
 
 
-def _make_work_dir(root_dir: str) -> str:
-    # make working directory for a specific collection under root directory
-    work_dir = ncbi_downloader_helper.get_work_dir(root_dir)
-    os.makedirs(work_dir, exist_ok=True)
-    return work_dir
-
-
-def _process_genome_ids(
-    root_dir: str,
-    genome_ids_unprocessed: list[str],
-    target_file_ext: list[str],
-    exclude_name_substring: list[str],
-    overwrite: bool = False,
-) -> list[str]:
-    """
-    Helper function that processes genome ids to avoid redownloading files.
-    """
-    if overwrite:
-        return genome_ids_unprocessed
-
-    genome_ids = list()
-    target_ext_count = len(target_file_ext)
-    work_dir = ncbi_downloader_helper.get_work_dir(root_dir)
-    for genome_id in genome_ids_unprocessed:
-        data_dir = os.path.join(work_dir, genome_id)
-        if not os.path.exists(data_dir):
-            genome_ids.append(genome_id)
-            continue
-
-        ext_count = 0
-        for file_name in os.listdir(data_dir):
-            if any([file_name.endswith(ext) for ext in target_file_ext]) and all(
-                [substring not in file_name for substring in exclude_name_substring]
-            ):
-                ext_count += 1
-
-        if ext_count != target_ext_count:
-            genome_ids.append(genome_id)
-
-    return genome_ids
-
-
 def _get_parser():
 
     parser = argparse.ArgumentParser(
@@ -235,7 +193,7 @@ def main():
     if threads and (threads < 1 or threads > cpu_count()):
         parser.error(f"minimum thread is 1 and maximum thread is {cpu_count()}")
 
-    work_dir = _make_work_dir(root_dir)
+    work_dir = ncbi_downloader_helper.get_work_dir(root_dir)
     csd = loader_helper.make_collection_source_dir(
         root_dir,
         loader_common_names.DEFAULT_ENV,
@@ -244,7 +202,7 @@ def main():
     )
     genome_ids_unprocessed, taxonomy_urls = _fetch_gtdb_genome_ids(release_ver, work_dir)
     taxonomy_files = [os.path.basename(url) for url in taxonomy_urls]
-    genome_ids = _process_genome_ids(
+    genome_ids = ncbi_downloader_helper.remove_ids_with_existing_data(
         root_dir,
         genome_ids_unprocessed,
         download_file_ext,
