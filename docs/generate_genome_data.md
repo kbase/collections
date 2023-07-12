@@ -11,7 +11,7 @@ The scripts used in the process are located in the `src/loaders` directory.
 1. Retrieve Source Genome Files
     * From NCBI
         * Download the genome files from the NCBI FTP server using the script
-          [ncbi_downloader.py](../src/loaders/ncbi_downloader/ncbi_downloader.py).
+          [gtdb.py](../src/loaders/ncbi_downloader/gtdb.py).
     * From workspace
         * Download the genome files from workspace using the script
           [workspace_downloader.py](../src/loaders/workspace_downloader/workspace_downloader.py).
@@ -52,9 +52,9 @@ Note:
 
 * For usage instructions for each script, please refer to the help option (-h) of the script.
 * Default directory layout at NERSC
-    * source genome files: `/global/cfs/cdirs/kbase/collections/sourcedata/[kbase_collection]/[load_ver]`
-    * collections source genome files: `/global/cfs/cdirs/kbase/collections/collectionssource/[kbase_collection]/[source_ver]`
-    * computed genome files: `/global/cfs/cdirs/kbase/collections/collectionsdata/[kbase_collection]/[load_ver]/[tool_name]`
+    * source genome files: `/global/cfs/cdirs/kbase/collections/sourcedata/[kbase_collection]/[env]`
+    * collections source genome files: `/global/cfs/cdirs/kbase/collections/collectionssource/[env]/[kbase_collection]/[source_ver]`
+    * computed genome files: `/global/cfs/cdirs/kbase/collections/collectionsdata/[env]/[kbase_collection]/[load_ver]/[tool_name]`
 * Under common use, all tools should be run at the same time in the script [parse_tool_results.py](../src/loaders/genome_collection/parse_tool_results.py) so that errors can be handled consistently
     * Running less than a full set of tools is generally for development only
     * It’s safe to run less than a full set of tools if none of the tools in the load set reported any errors
