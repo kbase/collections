@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 
-from src.loaders.common.loader_common_names import SOURCE_DATA_DIR
 from src.loaders.ncbi_downloader import gtdb, ncbi_downloader_helper
 from src.loaders.ncbi_downloader.gtdb import GTDB_DOMAIN
 
@@ -31,7 +30,7 @@ def test_make_work_dir(setup_and_teardown):
     tmp_dir, script_file = setup_and_teardown
 
     source, env = 'NCBI', 'NONE'
-    work_dir = gtdb._make_work_dir(tmp_dir)
+    work_dir = ncbi_downloader_helper.get_work_dir(tmp_dir)
 
     path = Path(work_dir).resolve()
 
