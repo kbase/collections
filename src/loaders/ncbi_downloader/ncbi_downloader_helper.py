@@ -79,7 +79,6 @@ def download_genome_files(
     failed_ids = list()
 
     result_dir = get_work_dir(root_dir)
-    os.makedirs(result_dir, exist_ok=True)
 
     counter = 1
     for gene_id in gene_ids:
@@ -114,6 +113,14 @@ def download_genome_files_in_parallel(
 ) -> list[list[str]]:
     """
     Download genome files from NCBI FTP server in parallel using multiprocessing
+
+    root_dir: root directory for the collections project.
+    genome_ids: genome ids that parsed from GTDB metadata file (e.g. GB_GCA_000016605.1, RS_GCF_000968435.2).
+    target_file_ext: download only files that match given extensions.
+    exclude_name_substring: exclude files that contain given substrings in their names.
+    system_utilization: fraction of CPU cores to use.
+    threads: number of threads to use.
+    overwrite: overwrite existing files if True.
     """
     if not threads:
         threads = max(int(multiprocessing.cpu_count() * min(system_utilization, 1)), 1)
@@ -137,8 +144,53 @@ def download_genome_files_in_parallel(
     return batch_result
 
 
+def remove_ids_with_existing_data(
+    root_dir: str,
+    genome_ids_unprocessed: list[str],
+    target_file_ext: list[str],
+    exclude_name_substring: list[str],
+    overwrite: bool = False,
+) -> list[str]:
+    """
+    Helper function that processes genome ids to avoid redownloading files.
+
+    root_dir: root directory for the collections project.
+    genome_ids_unprocessed: genome ids that parsed from GTDB metadata file (e.g. GB_GCA_000016605.1, RS_GCF_000968435.2).
+    target_file_ext: download only files that match given extensions.
+    exclude_name_substring: exclude files that contain given substrings in their names.
+    overwrite: overwrite existing files if True.
+    """
+    if overwrite:
+        return genome_ids_unprocessed
+
+    genome_ids = list()
+    target_ext_count = len(target_file_ext)
+    work_dir = get_work_dir(root_dir)
+    for genome_id in genome_ids_unprocessed:
+        data_dir = os.path.join(work_dir, genome_id)
+        if not os.path.exists(data_dir):
+            genome_ids.append(genome_id)
+            continue
+
+        ext_count = 0
+        for file_name in os.listdir(data_dir):
+            if any([file_name.endswith(ext) for ext in target_file_ext]) and all(
+                [substring not in file_name for substring in exclude_name_substring]
+            ):
+                ext_count += 1
+
+        if ext_count != target_ext_count:
+            genome_ids.append(genome_id)
+
+    return genome_ids
+
+
 def get_work_dir(root: str) -> str:
     """
     Get the working directory for NCBI downloader.py
+
+    root: root directory for the collections project.
     """
-    return os.path.join(root, loader_common_names.SOURCE_DATA_DIR, SOURCE, loader_common_names.DEFAULT_ENV)
+    work_dir = os.path.join(root, loader_common_names.SOURCE_DATA_DIR, SOURCE, loader_common_names.DEFAULT_ENV)
+    os.makedirs(work_dir, exist_ok=True)
+    return work_dir
