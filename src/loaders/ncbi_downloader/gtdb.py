@@ -86,7 +86,7 @@ def _form_gtdb_taxonomy_file_url(release_ver: str) -> list[str]:
 
     file_dir_url = (
         GTDB_DOMAIN + f"release{release_ver}/" + f"{release_ver}.0/"
-    )  # TODO: add dot support, relase version 86 has '86.1' and '86.2'
+    )  # TODO: add dot support, release version 86 has '86.1' and '86.2'
 
     file_urls = list()
 

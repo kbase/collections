@@ -67,7 +67,7 @@ def download_genome_files(
     """
     Download genome files from NCBI FTP server
 
-    gene_ids: genome ids that parsed from GTDB metadata file (e.g. GB_GCA_000016605.1, RS_GCF_000968435.2).
+    gene_ids: NCBI genome ids to download (e.g. GCA_000016605.1, GCF_000968435.2).
     target_file_ext: download only files that match given extensions.
     exclude_name_substring: exclude files that contain given substrings in their names.
     root_dir: root directory for the collections project.
@@ -115,11 +115,11 @@ def download_genome_files_in_parallel(
     Download genome files from NCBI FTP server in parallel using multiprocessing
 
     root_dir: root directory for the collections project.
-    genome_ids: genome ids that parsed from GTDB metadata file (e.g. GB_GCA_000016605.1, RS_GCF_000968435.2).
+    genome_ids: NCBI genome ids to download (e.g. GCA_000016605.1, GCF_000968435.2).
     target_file_ext: download only files that match given extensions.
     exclude_name_substring: exclude files that contain given substrings in their names.
     system_utilization: fraction of CPU cores to use.
-    threads: number of threads to use.
+    threads: number of threads to use. Takes precedence over system_utilization if supplied.
     overwrite: overwrite existing files if True.
     """
     if not threads:
@@ -155,7 +155,7 @@ def remove_ids_with_existing_data(
     Helper function that processes genome ids to avoid redownloading files.
 
     root_dir: root directory for the collections project.
-    genome_ids_unprocessed: genome ids that parsed from GTDB metadata file (e.g. GB_GCA_000016605.1, RS_GCF_000968435.2).
+    genome_ids_unprocessed: NCBI genome ids to download (e.g. GCA_000016605.1, GCF_000968435.2).
     target_file_ext: download only files that match given extensions.
     exclude_name_substring: exclude files that contain given substrings in their names.
     overwrite: overwrite existing files if True.

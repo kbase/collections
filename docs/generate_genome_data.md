@@ -9,7 +9,7 @@ This section describes the steps and scripts used to generate attributes of geno
 The scripts used in the process are located in the `src/loaders` directory.
 
 1. Retrieve Source Genome Files
-    * From NCBI
+    * From GTDB
         * Download the genome files from the NCBI FTP server using the script
           [gtdb.py](../src/loaders/ncbi_downloader/gtdb.py).
     * From workspace
