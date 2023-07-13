@@ -39,7 +39,6 @@ from src.service.data_products.data_product_processing import (
     get_missing_ids,
 )
 from src.service.http_bearer import KBaseHTTPBearer
-from src.service import errors
 from src.service import kb_auth
 from src.service import models
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID

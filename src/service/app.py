@@ -12,7 +12,6 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from http.client import responses
-from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from src.common.git_commit import GIT_COMMIT

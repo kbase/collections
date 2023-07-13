@@ -4,7 +4,7 @@ Matches assemblies and genomes to collections based on Minhash homology.
 
 # NOTE: this is only demo worthy as of now. See the benchmarks in /design/experiments,
 #       but the sketch / homology services
-#           a) can only handle ~ 40 simultaneous connectionsbefore errors start occuring, so
+#           a) can only handle ~ 40 simultaneous connections before errors start occurring, so
 #               multiple simultaneous matches are likely to fail and
 #           b) time out after ~ 100 seconds. Sketching 1 sequence against 100k takes about 20-30s
 #              so larger collections will be likely to time out.
@@ -144,7 +144,7 @@ async def _do_match(  # this method sig is getting real long
         kbase_ids = await _get_kbase_ids(upas, sketch_cli, search_db, token, max_dist)
     finally:
         await sketch_cli.close()
-    # hardcoding genome attributes again... thie might BMITA later
+    # hardcoding genome attributes again... this might BMITA later
     genome_attribs = data_product_specs.get_data_product_spec(genome_attributes.ID)
     await genome_attribs.apply_match(deps, storage, coll, internal_match_id, kbase_ids)
 
@@ -169,7 +169,7 @@ async def _process_match(
         hb = Heartbeat(heartbeat, HEARTBEAT_INTERVAL_SEC)
         hb.start()
         await _do_match(deps, internal_match_id, storage, upas, collection_params, token, max_dist)
-    except Exception as e:
+    except Exception as _:
         logging.getLogger(__name__).exception(
             f"Matching process for match with internal ID {internal_match_id} failed")
         await storage.update_match_state(

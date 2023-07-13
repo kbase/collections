@@ -121,7 +121,7 @@ class ToolRunner:
             as the data ID, meaning the tool runner needs to map from the data ID to the filename
         """
         self._tool = tool_name
-        # TODO DOWNLOAD if we settle on a standard file name schem for downloaders we can get
+        # TODO DOWNLOAD if we settle on a standard file name scheme for downloaders we can get
         #               rid of this
         self._tool_data_id_from_filename = tool_data_id_from_filename
         self._suffix_ids = suffix_ids
@@ -531,7 +531,7 @@ def _retrieve_data_file(
 
     data_file = _find_data_file(data_id, source_file_ext, source_data_dir, allow_missing_files)
 
-    tool_identifier, genome_file = data_id, None
+    tool_identifier = data_id
     # TODO DOWNLOADERS come up with a standard file name for the input file so we don't have to
     #                  worry about multiple files matching the extension
     if data_file:

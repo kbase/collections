@@ -103,7 +103,7 @@ def _run_gtdb_tk(
         try:
             summary_df = pd.read_csv(summary_file_path, sep='\t', usecols=selected_cols)
         except Exception as e:
-            raise ValueError(f"{summary_file} exists, but unable to retrive") from e
+            raise ValueError(f"{summary_file} exists, but unable to retrieve") from e
 
         for tool_safe_data_id, classify_res in zip(summary_df[loader_common_names.GTDB_GENOME_ID_COL],
                                                    summary_df[loader_common_names.GTDB_CLASSIFICATION_COL]):

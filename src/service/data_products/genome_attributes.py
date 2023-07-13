@@ -5,8 +5,7 @@ The genome_attribs data product, which provides genome attributes for a collecti
 from collections import defaultdict
 import logging
 
-from fastapi import APIRouter, Request, Depends, Query
-from pydantic import BaseModel, Field, Extra
+from fastapi import APIRouter, Request, Depends
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
 from src.service.app_state_data_structures import CollectionsState, PickleableDependencies
@@ -34,7 +33,7 @@ from src.service.http_bearer import KBaseHTTPBearer
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
 from src.service.timestamp import now_epoch_millis
-from typing import Any, Callable, Annotated
+from typing import Any, Callable
 
 # Implementation note - we know FLD_KBASE_ID is unique per collection id /
 # load version combination since the loader uses those 3 fields as the arango _key
@@ -465,7 +464,7 @@ async def process_subset_documents(
     fields: list[str] | None = None,
 ) -> None:
     """
-    Iterate through the documents for a subset, passing them to an acceptor fuction for processing.
+    Iterate through the documents for a subset, passing them to an acceptor function for processing.
 
     storage - the storage system containing the data.
     collection - the collection containing the subset.

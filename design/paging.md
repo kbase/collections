@@ -43,8 +43,8 @@ of documents to return.
 Provide a string or numerical value after which paging should start. Get the next start after
 value from the last value of the current page.
 
-E.g. if the current page runs from `Ababdeh` to `abaciscus` the `start_after` value for the next
-page would be `abasciscus`.
+E.g. if the current page runs from `Ababdeh` to `abaciscus` the `start_after` value for the
+next page would be `abasciscus`.
 
 #### Pros
 
@@ -121,4 +121,4 @@ to the user for use when requesting further pages.
   * If the dataset is very large this could take a very long (linear amount of) time
   * Potentially the index could be generated in the background and the available pages at
     any given time communicated to the front end, but that adds even more complexity
-* The user must retrive and use the query ID to take advantage of the generated index
+* The user must retrieve and use the query ID to take advantage of the generated index

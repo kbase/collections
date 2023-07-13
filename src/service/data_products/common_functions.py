@@ -34,13 +34,13 @@ async def get_load_version(
 ) -> tuple[models.ActiveCollection | None, str]:
     """
     Get a collection and the load version of a data product given a Collection ID and the ID
-    of the data product, optionally allowing an override of the load versionn if the user is
-    a service administrator. If the load version is overriden a collection is not returned
+    of the data product, optionally allowing an override of the load version if the user is
+    a service administrator. If the load version is overridden a collection is not returned
     to allow for providing load versions for data that is not yet active.
 
     store - the data storage system.
-    collection_id - the ID of the Collection from which to retrive the load version and possibly
-        colection object.
+    collection_id - the ID of the Collection from which to retrieve the load version and possibly
+        collection object.
     data_product - the ID of the data product from which to retrieve the load version.
     load_ver - an override for the load version. If provided:
         * the user must be a service administrator
@@ -190,7 +190,7 @@ async def query_simple_collection_list(
     selection_field: str = names.FLD_SELECTED,
 ):
     f"""
-    Query rows in a collection. Index set up is the responsibilty of the caller.
+    Query rows in a collection. Index set up is the responsibility of the caller.
 
     storage - the storage system.
     collection - the ArangoDB collection containing the data to query.
@@ -442,7 +442,7 @@ async def count_simple_collection_list(
     selection_prefix: str | None = None,
 ) -> int:
     """
-    Count rows in a collection. Index set up is the responsibilty of the caller.
+    Count rows in a collection. Index set up is the responsibility of the caller.
 
     storage - the storage system.
     collection - the ArangoDB collection containing the data to query.
@@ -525,9 +525,9 @@ async def mark_data_by_kbase_id(
     load_ver - the load version of the KBase collection to alter
     kbase_ids - the ids to mark in the data set.
     subset_internal_id - the ID with with to mark the data entries in the data set, including
-        any prefixes that might be necessasry.
+        any prefixes that might be necessary.
     """
-    # This should be batched up, most likely. Stupid implmentation for now, batch up later
+    # This should be batched up, most likely. Stupid implementation for now, batch up later
     # https://stackoverflow.com/a/57877288/643675 to start and wait for multiple async routines
     selfld = names.FLD_MATCHES_SELECTIONS
     aql = f"""
