@@ -5,8 +5,8 @@
 Lay out goals / designs for KBase Collections data processing in the short, middle and long term.
 Said goals / designs will necessarily get more vague the further out in time we go.
 
-This document does not inlude data product specific tasks (like the Microtrait work) - only
-general, non-data type specfic work.
+This document does not include data product specific tasks (like the Microtrait work) - only
+general, non-data type specific work.
 
 ## Short term goals
 
@@ -127,6 +127,5 @@ Ultimately, we want a mostly automated system that
   * producing files suitable for import to Arango
 * Loads the files into Arango
 * Updates the collection version in the service with the new load version for the data product
-* Notifies KBase personnel who check the load, and if everying looks ok, activate the updated
+* Notifies KBase personnel who check the load, and if everything looks ok, activate the updated
   collection
-

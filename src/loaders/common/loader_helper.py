@@ -31,7 +31,7 @@ This module contains helper functions used for loaders (e.g. compute_genome_attr
 
 def convert_to_json(docs, outfile):
     """
-    Writes list of dictionaries to an argparse File (e.g. argparse.FileType('w')) object in JSON Lines formate.
+    Writes list of dictionaries to a file-like-object in JSON Lines format.
 
     Args:
         docs: list of dictionaries

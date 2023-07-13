@@ -5,6 +5,11 @@ collections.env
 .dockerignore
 *_pycache__
 .DS_Store
-.vscode/settings.json
+.vscode
 collections_config.toml
 arangoimport_data_files
+.settings
+.project
+.pydevproject
+.pytest_cache
+htmlcov
