@@ -6,7 +6,6 @@ import time
 from pathlib import Path
 from typing import Dict
 
-from src.loaders.common import loader_common_names
 from src.loaders.compute_tools.tool_common import (
     GenomeTuple,
     ToolRunner,

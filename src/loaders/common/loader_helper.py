@@ -29,20 +29,6 @@ This module contains helper functions used for loaders (e.g. compute_genome_attr
 """
 
 
-def form_source_dir(
-        root_dir: str,
-        env: str,
-        kbase_collection: str,
-        source_ver: str
-) -> Path:
-    """
-    Form the path to the collections source data directory.
-    (e.g. root_dir/collectionssource/env/kbase_collection/source_ver)
-    """
-
-    return Path(root_dir) / loader_common_names.COLLECTION_SOURCE_DIR / env / kbase_collection / source_ver
-
-
 def convert_to_json(docs, outfile):
     """
     Writes list of dictionaries to a file-like-object in JSON Lines format.
@@ -191,6 +177,71 @@ def is_upa_info_complete(upa_dir: str):
     if not set(SOURCE_METADATA_FILE_KEYS).issubset(set(data.keys())):
         return False
     return True
+
+
+def make_collection_source_dir(
+        root_dir: str,
+        env: str,
+        collection: str,
+        source_ver: str
+) -> str:
+    """
+    Helper function that creates a collection & source_version and link in data
+    to that collection from the overall source data dir.
+    """
+    csd = os.path.join(root_dir, loader_common_names.COLLECTION_SOURCE_DIR, env, collection, source_ver)
+    os.makedirs(csd, exist_ok=True)
+    return csd
+
+
+def create_softlinks_in_csd(csd: str, work_dir: str, genome_ids: list[str], taxonomy_files: list[str] = None) -> None:
+    """
+    Create softlinks in the collection source dir to the genome files in the work dir.
+    """
+    if not taxonomy_files:
+        taxonomy_files = []
+
+    for genome_id in genome_ids:
+        genome_dir = os.path.join(work_dir, genome_id)
+        csd_genome_dir = os.path.join(csd, genome_id)
+        create_softlink_between_dirs(csd_genome_dir, genome_dir)
+
+    for taxonomy_file in taxonomy_files:
+        csd_file = os.path.join(csd, taxonomy_file)
+        sd_file = os.path.join(work_dir, taxonomy_file)
+        create_softlink_between_files(csd_file, sd_file)
+
+    print(f"Genome files in {csd} \nnow link to {work_dir}")
+
+
+def create_softlink_between_dirs(csd_dir, sd_dir):
+    """
+    Creates a softlink between two directories.
+    """
+    if os.path.exists(csd_dir):
+        if (
+                os.path.isdir(csd_dir)
+                and os.path.islink(csd_dir)
+                and os.readlink(csd_dir) == sd_dir
+        ):
+            return
+        raise ValueError(
+            f"{csd_dir} already exists and does not link to {sd_dir} as expected"
+        )
+    os.symlink(sd_dir, csd_dir, target_is_directory=True)
+
+
+def create_softlink_between_files(csd_file, sd_file):
+    """
+    Creates a softlink between two files.
+    """
+    if os.path.exists(csd_file):
+        if (os.path.islink(csd_file) and os.readlink(csd_file) == sd_file):
+            return
+        raise ValueError(
+            f"{csd_file} already exists and does not link to {sd_file} as expected"
+        )
+    os.symlink(sd_file, csd_file)
 
 
 def get_ip():
