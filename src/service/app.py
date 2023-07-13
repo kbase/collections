@@ -12,9 +12,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from http.client import responses
-from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from src.common.git_commit import GIT_COMMIT
 from src.common.version import VERSION
 from src.service import app_state
 from src.service import errors
@@ -52,6 +52,7 @@ def create_app(noop=False):
         # config file, all service dependencies, etc.
         return
 
+    print(f"Server version {VERSION} {GIT_COMMIT}")
     with open(os.environ[_KB_DEPLOYMENT_CONFIG], 'rb') as cfgfile:
         cfg = CollectionsServiceConfig(cfgfile)
     cfg.print_config(sys.stdout)

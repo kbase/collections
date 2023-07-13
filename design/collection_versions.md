@@ -77,4 +77,4 @@ still expected to be arbitrary strings (and don't necessarily need to be exposed
 
 ## Decision
 
-22/10/24: Use an arbitray tag and an integer version per the RE team.
+22/10/24: Use an arbitrary tag and an integer version per the RE team.

@@ -17,7 +17,7 @@ from typing import Annotated
 # Global fields
 
 ## These fields aren't specific to a particular collection. collection specific fields are 
-## specfied along with their collection.
+## specified along with their collection.
 
 FLD_ARANGO_KEY = "_key"
 FLD_ARANGO_ID = "_id"
@@ -42,7 +42,7 @@ FLD_TYPES = "types"
 
 FLD_UPA_MAP = "_upas"
 """
-The name of the key that has a mapping of workspace type to workspce UPA for workspace
+The name of the key that has a mapping of workspace type to workspace UPA for workspace
 data associated with the document.
 """
 
@@ -301,3 +301,6 @@ FLD_SAMPLE_LONGITUDE = "longitude"
 
 FLD_SAMPLE_GEO = '_geo_spatial'
 """ Key name for sample geo-spatial data in format of [longitude, latitude] """
+
+FLD_KB_SAMPLE_ID = "kbase_sample_id"
+""" Key name for KBase sample id """

@@ -14,7 +14,6 @@ from fastapi.requests import Request
 from src.service import app_state
 from src.service import errors
 from src.service import kb_auth
-from src.service.user import UserID
 from typing import Optional
 
 # Modified from https://github.com/tiangolo/fastapi/blob/e13df8ee79d11ad8e338026d99b1dcdcb2261c9f/fastapi/security/http.py#L100

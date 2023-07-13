@@ -5,8 +5,7 @@ The genome_attribs data product, which provides genome attributes for a collecti
 from collections import defaultdict
 import logging
 
-from fastapi import APIRouter, Request, Depends, Query
-from pydantic import BaseModel, Field, Extra
+from fastapi import APIRouter, Request, Depends
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
 from src.service.app_state_data_structures import CollectionsState, PickleableDependencies
@@ -18,11 +17,15 @@ from src.service import processing_selections
 from src.service.data_products.common_functions import (
     get_load_version,
     remove_collection_keys,
-    query_simple_collection_list,
     count_simple_collection_list,
     mark_data_by_kbase_id,
     remove_marked_subset,
     override_load_version,
+    query_table,
+)
+from src.service.data_products.data_product_processing import (
+    MATCH_ID_PREFIX,
+    SELECTION_ID_PREFIX,
 )
 from src.service.data_products import common_models
 from src.service.data_products.table_models import TableAttributes
@@ -30,7 +33,7 @@ from src.service.http_bearer import KBaseHTTPBearer
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
 from src.service.timestamp import now_epoch_millis
-from typing import Any, Callable, Annotated
+from typing import Any, Callable
 
 # Implementation note - we know FLD_KBASE_ID is unique per collection id /
 # load version combination since the loader uses those 3 fields as the arango _key
@@ -38,9 +41,6 @@ from typing import Any, Callable, Annotated
 ID = names.GENOME_ATTRIBS_PRODUCT_ID
 
 _ROUTER = APIRouter(tags=["Genome Attributes"], prefix=f"/{ID}")
-
-_MATCH_ID_PREFIX = "m_"
-_SELECTION_ID_PREFIX = "s_"
 
 
 class GenomeAttribsSpec(common_models.DataProductSpec):
@@ -53,7 +53,7 @@ class GenomeAttribsSpec(common_models.DataProductSpec):
         internal_match_id - the match to delete.
         """
         await remove_marked_subset(
-            storage, names.COLL_GENOME_ATTRIBS, _MATCH_ID_PREFIX + internal_match_id)
+            storage, names.COLL_GENOME_ATTRIBS, MATCH_ID_PREFIX + internal_match_id)
 
     async def delete_selection(self, storage: ArangoStorage, internal_selection_id: str):
         """
@@ -63,7 +63,7 @@ class GenomeAttribsSpec(common_models.DataProductSpec):
         internal_selection_id - the selection to delete.
         """
         await remove_marked_subset(
-            storage, names.COLL_GENOME_ATTRIBS, _SELECTION_ID_PREFIX + internal_selection_id)
+            storage, names.COLL_GENOME_ATTRIBS, SELECTION_ID_PREFIX + internal_selection_id)
 
     async def apply_match(self,
         deps: PickleableDependencies,
@@ -89,7 +89,7 @@ class GenomeAttribsSpec(common_models.DataProductSpec):
             collection.id,
             load_ver,
             kbase_ids,
-            _MATCH_ID_PREFIX + internal_match_id,
+            MATCH_ID_PREFIX + internal_match_id,
         )
         if missed:
             logging.getLogger(__name__).warn(
@@ -122,7 +122,7 @@ class GenomeAttribsSpec(common_models.DataProductSpec):
             collection.id,
             load_ver,
             selection.selection_ids,
-            _SELECTION_ID_PREFIX + selection.internal_selection_id,
+            SELECTION_ID_PREFIX + selection.internal_selection_id,
         )
         state = models.ProcessState.FAILED if missed else models.ProcessState.COMPLETE
         await storage.update_selection_state(
@@ -266,28 +266,47 @@ async def get_genome_attributes(
             appstate, selection_id, require_complete=True, require_collection=coll)
         internal_selection_id = internal_sel.internal_selection_id
     if count:
-        return await _count(
+        # for now this method doesn't do much. One we have some filtering implemented
+        # it'll need to take that into account.
+        count = await count_simple_collection_list(  # may want to make some sort of shared builder
             store,
+            names.COLL_GENOME_ATTRIBS,
             collection_id,
             load_ver,
-            internal_match_id if not match_mark else None,
-            internal_selection_id if not selection_mark else None,
+            internal_match_id=internal_match_id,
+            match_mark=match_mark,
+            match_prefix=MATCH_ID_PREFIX,
+            internal_selection_id=internal_selection_id,
+            selection_mark=selection_mark,
+            selection_prefix=SELECTION_ID_PREFIX,
         )
+        return {_FLD_SKIP: 0, _FLD_LIMIT: 0, "count": count}
     else:
-        return await _query(
+        res = await query_table(
             store,
+            names.COLL_GENOME_ATTRIBS,
             collection_id,
             load_ver,
             sort_on,
-            sort_desc,
-            skip,
-            limit,
-            output_table,
-            internal_match_id,
-            match_mark,
-            internal_selection_id,
-            selection_mark,
+            sort_descending=sort_desc,
+            skip=skip,
+            limit=limit,
+            output_table=output_table,
+            internal_match_id=internal_match_id,
+            match_mark=match_mark,
+            match_prefix=MATCH_ID_PREFIX,
+            internal_selection_id=internal_selection_id,
+            selection_mark=selection_mark,
+            selection_prefix=SELECTION_ID_PREFIX,
+            document_mutator=_remove_keys
         )
+        return {
+            _FLD_SKIP: res.skip,
+            _FLD_LIMIT: res.limit,
+            "fields": res.fields,
+            "table": res.table,
+            "data": res.data
+        }
 
 
 async def _get_internal_match_id(
@@ -306,93 +325,6 @@ async def _get_internal_match_id(
         require_collection=coll
     )
     return match.internal_match_id
-
-
-def _query_acceptor(
-    data: list[dict[str, Any]],
-    last: list[dict[str, Any]],
-    doc: dict[str, Any],
-    output_table: bool
-):
-    last[0] = doc
-    if output_table:
-        data.append([doc[k] for k in sorted(_remove_keys(doc))])
-    else:
-        data.append({k: doc[k] for k in sorted(_remove_keys(doc))})
-
-
-async def _query(
-    # ew. too many args
-    store: ArangoStorage,
-    collection_id: str,
-    load_ver: str,
-    sort_on: str,
-    sort_desc: bool,
-    skip: int,
-    limit: int,
-    output_table: bool,
-    internal_match_id: str | None,
-    match_mark: bool,
-    internal_selection_id: str | None,
-    selection_mark: bool,
-):
-    data = []
-    last = [None]
-    await query_simple_collection_list(
-        store,
-        names.COLL_GENOME_ATTRIBS,
-        lambda doc: _query_acceptor(data, last, doc, output_table),
-        collection_id,
-        load_ver,
-        sort_on,
-        sort_descending=sort_desc,
-        skip=skip,
-        limit=limit,
-        internal_match_id=_prefix_id(_MATCH_ID_PREFIX, internal_match_id),
-        match_mark=match_mark,
-        match_field=names.FLD_MATCHED_SAFE,
-        internal_selection_id=_prefix_id(_SELECTION_ID_PREFIX, internal_selection_id),
-        selection_mark=selection_mark,
-        selection_field=names.FLD_SELECTED_SAFE,
-    )
-    # Sort everything since we can't necessarily rely on arango, the client, or the loader
-    # to have the same insertion order for the dicts
-    # If we want a specific order the loader should stick a keys doc or something into arango
-    # and we order by that
-    fields = []
-    if last[0]:
-        if sort_on not in last[0]: 
-            raise errors.IllegalParameterError(
-                f"No such field for collection {collection_id} load version {load_ver}: {sort_on}")
-        fields = [{"name": k} for k in sorted(last[0])]
-    if output_table:
-        return {_FLD_SKIP: skip, _FLD_LIMIT: limit, "fields": fields, "table": data}
-    else:
-        return {_FLD_SKIP: skip, _FLD_LIMIT: limit, "data": data}
-
-
-def _prefix_id(prefix: str, id_: str | None) -> str | None:
-    return prefix + id_ if id_ else None
-
-
-async def _count(
-    store: ArangoStorage,
-    collection_id: str,
-    load_ver: str,
-    internal_match_id: str | None,
-    internal_selection_id: str | None,
-):
-    # for now this method doesn't do much. One we have some filtering implemented
-    # it'll need to take that into account.
-    count = await count_simple_collection_list(
-        store,
-        names.COLL_GENOME_ATTRIBS,
-        collection_id,
-        load_ver,
-        internal_match_id=_prefix_id(_MATCH_ID_PREFIX, internal_match_id),
-        internal_selection_id=_prefix_id(_SELECTION_ID_PREFIX, internal_selection_id),
-    )
-    return {_FLD_SKIP: 0, _FLD_LIMIT: 0, "count": count}
 
 
 async def perform_gtdb_lineage_match(
@@ -452,7 +384,7 @@ async def _mark_gtdb_matches_IN_strategy(
         _FLD_COL_ID: collection_id,
         _FLD_COL_LV: load_ver,
         "lineages": list(lineages),
-        "internal_match_id": _MATCH_ID_PREFIX + internal_match_id,
+        "internal_match_id": MATCH_ID_PREFIX + internal_match_id,
     }
     await _mark_gtdb_matches_complete(storage, aql, bind_vars, internal_match_id)
 
@@ -512,7 +444,7 @@ async def _mark_gtdb_matches_STARTS_WITH_strategy(
         f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
         _FLD_COL_ID: collection_id,
         _FLD_COL_LV: load_ver,
-        "internal_match_id": _MATCH_ID_PREFIX + internal_match_id,
+        "internal_match_id": MATCH_ID_PREFIX + internal_match_id,
     }
     for i, lin in enumerate(lineages):
         bind_vars[f"linbottom{i}"] = lin
@@ -532,7 +464,7 @@ async def process_subset_documents(
     fields: list[str] | None = None,
 ) -> None:
     """
-    Iterate through the documents for a subset, passing them to an acceptor fuction for processing.
+    Iterate through the documents for a subset, passing them to an acceptor function for processing.
 
     storage - the storage system containing the data.
     collection - the collection containing the subset.
@@ -545,7 +477,7 @@ async def process_subset_documents(
     load_ver = {d.product: d.version for d in collection.data_products}.get(ID)
     if not load_ver:
         raise ValueError(f"The collection does not have a {ID} data product")
-    prefix = _MATCH_ID_PREFIX if type_ == models.SubsetType.MATCH else _SELECTION_ID_PREFIX
+    prefix = MATCH_ID_PREFIX if type_ == models.SubsetType.MATCH else SELECTION_ID_PREFIX
     bind_vars = {
         f"@{_FLD_COL_NAME}": names.COLL_GENOME_ATTRIBS,
         _FLD_COL_ID: collection.id,

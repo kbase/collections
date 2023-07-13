@@ -136,7 +136,7 @@ class DataProduct(BaseModel):
     # assume missing == schema version 1 for now
 
     @validator("product", "version", pre=True)
-    def _strip(cls, v):
+    def _strip(cls, v):  # @NoSelf
         return v.strip()
 
 
@@ -192,7 +192,7 @@ class Collection(BaseModel):
     )
 
     @validator("name", "ver_src", pre=True)
-    def _strip_and_fail_on_control_characters(cls, v):
+    def _strip_and_fail_on_control_characters(cls, v):  # @NoSelf
         v = v.strip()
         pos = contains_control_characters(v)
         if pos > -1:
@@ -200,7 +200,7 @@ class Collection(BaseModel):
         return v
 
     @validator("desc", pre=True)
-    def _strip_and_fail_on_control_characters_with_exceptions(cls, v):
+    def _strip_and_fail_on_control_characters_with_exceptions(cls, v):  # @NoSelf
         if v is None:
             return None
         v = v.strip()
@@ -210,11 +210,11 @@ class Collection(BaseModel):
         return v
 
     @validator("data_products")
-    def _check_data_products_unique(cls, v):
+    def _check_data_products_unique(cls, v):  # @NoSelf
         return cls._checkunique(v, lambda dp: dp.product, "data product")
 
     @validator("matchers")
-    def _check_matchers_unique(cls, v):
+    def _check_matchers_unique(cls, v):  # @NoSelf
         return cls._checkunique(v, lambda m: m.matcher, "matcher")
 
     @classmethod
@@ -227,7 +227,7 @@ class Collection(BaseModel):
         return items
 
     @root_validator
-    def _check_default_selection(cls, values):
+    def _check_default_selection(cls, values):  # @NoSelf
         select = values.get("default_select")
         if select:
             dps = {dp.product for dp in values[FIELD_DATA_PRODUCTS]}
@@ -390,14 +390,14 @@ class MatchVerbose(Match):
         description="Unique identifiers for the matches in the collection. The contents of the "
             + "strings will differ based on the matcher and the collection in question. "
             + "Null if the match is not yet complete."
-    )  # This might get hairy. Hopefully we can lock this down a bit with more experience in
-       # how this is going to work.
-       # E.g. should it be the Arango _key value instead of the genome_id value in the
-       # case of a gtdb_lineage matcher? The former is not useful to users, but is guaranteed
-       # to be unique. However, the loaders should be guaranteeing uniqueness of the
-       # genome_ids.
-       # Do we need to be able to map the incoming UPAs to their matches? Potentially 1:M
-       # Maybe this field should be internal only?
+    )   # This might get hairy. Hopefully we can lock this down a bit with more experience in
+        # how this is going to work.
+        # E.g. should it be the Arango _key value instead of the genome_id value in the
+        # case of a gtdb_lineage matcher? The former is not useful to users, but is guaranteed
+        # to be unique. However, the loaders should be guaranteeing uniqueness of the
+        # genome_ids.
+        # Do we need to be able to map the incoming UPAs to their matches? Potentially 1:M
+        # Maybe this field should be internal only?
 
 
 class InternalMatch(MatchVerbose, ProcessAttributes, LastAccess):
@@ -415,7 +415,7 @@ class InternalMatch(MatchVerbose, ProcessAttributes, LastAccess):
             + "Expected to be a v4 UUID.",
     )
     wsids: set[int] = Field(
-        examples={78, 10067},
+        example={78, 10067},
         description="The set of workspace IDs from the UPAs."
     )
     user_last_perm_check: dict[str, int] = Field(

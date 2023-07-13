@@ -1,57 +1,48 @@
 import argparse
 import json
-import os
-from collections import defaultdict
 
 import src.common.storage.collection_and_field_names as names
-from src.common.storage.db_doc_conversions import (
-    taxa_node_count_to_doc,
-    collection_load_version_key,
-)
 import src.loaders.common.loader_common_names as loader_common_names
 from src.common.gtdb_lineage import (
+    GTDBRank,
     GTDBTaxaCount,
-    GTDBRank
 )
-from src.loaders.common.loader_helper import convert_to_json
+from src.common.storage.db_doc_conversions import (
+    collection_load_version_key,
+    taxa_node_count_to_doc,
+)
+from src.loaders.common.loader_helper import create_import_files
 
 """
 PROTOTYPE - Prepare genome taxa count data and identical ranks in JSON format for arango import.
 
-usage: compute_genome_taxa_count.py [-h] --load_ver LOAD_VER [--kbase_collection KBASE_COLLECTION] [-o OUTPUT]
+usage: compute_genome_taxa_count.py [-h] --kbase_collection KBASE_COLLECTION --load_ver LOAD_VER [--env {CI,NEXT,APPDEV,PROD,NONE}] [--root_dir ROOT_DIR]
                                     [--input_source {GTDB,genome_attributes}]
                                     load_files [load_files ...]
-
 options:
   -h, --help            show this help message and exit
 
 required named arguments:
   load_files            Files containing genome taxonomy (e.g. ar53_taxonomy_r207.tsv, computed_genome_attribs.json)
+  --kbase_collection KBASE_COLLECTION
+                        KBase collection identifier name.
   --load_ver LOAD_VER   KBase load version (e.g. r207.kbase.1).
 
 optional arguments:
-  --kbase_collection KBASE_COLLECTION
-                        KBase collection identifier name (default: GTDB).
-  -o OUTPUT, --output OUTPUT
-                        Output JSON file path.
+  --env {CI,NEXT,APPDEV,PROD,NONE}
+                        Environment containing the data to be processed. (default: PROD)
+  --root_dir ROOT_DIR   Root directory for the collections project (default: /global/cfs/cdirs/kbase/collections)
   --input_source {GTDB,genome_attributes}
                         Input file source
  
-e.g. compute_genome_taxa_count.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_version 207
-     compute_genome_taxa_count.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_version 207 --kbase_collection GTDB
-     compute_genome_taxa_count.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_version 207 --kbase_collection GTDB --output  gtdb_taxa_counts.json
+e.g. compute_genome_taxa_count.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_ver 207 --kbase_collection GTDB
+     compute_genome_taxa_count.py ENIGMA_2023.01_checkm2_gtdb_tk_computed_genome_attribs.jsonl --load_ver 2023.01 --kbase_collection ENIGMA --input_source genome_attributes
 """
-
-# Default result file name for genome taxa count data and identical ranks for arango import
-# Collection and load version information will be prepended to this file name.
-GENOME_TAXA_COUNT_FILE = "parsed_genome_taxa_counts.json"
 
 # The source of the input file containing genome taxonomy information to be parsed
 # GTDB - taxonomy file downloaded directly from the GTDB website, such as 'bac120_taxonomy_r207.tsv'
 # genome_attributes - genome attributes file created by running 'parse_tool_results.py' script.
 VALID_SOURCE = ['GTDB', 'genome_attributes']
-
-
 
 
 def _parse_lineage_from_line(line, source):
@@ -118,44 +109,46 @@ def main():
                                'computed_genome_attribs.json)')
 
     # Required flag argument
+    required.add_argument(f'--{loader_common_names.KBASE_COLLECTION_ARG_NAME}', required=True, type=str,
+                          help=loader_common_names.KBASE_COLLECTION_DESCR)
     required.add_argument(f'--{loader_common_names.LOAD_VER_ARG_NAME}', required=True, type=str,
                           help=loader_common_names.LOAD_VER_DESCR)
 
     # Optional argument
-    optional.add_argument(f'--{loader_common_names.KBASE_COLLECTION_ARG_NAME}', type=str,
-                          default=loader_common_names.DEFAULT_KBASE_COLL_NAME,
-                          help=loader_common_names.KBASE_COLLECTION_DESCR)
-
-    optional.add_argument("-o", "--output", type=argparse.FileType('w'),
-                          help=f"Output JSON file path.")
+    optional.add_argument(
+        f"--{loader_common_names.ENV_ARG_NAME}",
+        type=str,
+        choices=loader_common_names.KB_ENV + [loader_common_names.DEFAULT_ENV],
+        default='PROD',
+        help="Environment containing the data to be processed. (default: PROD)",
+    )
+    optional.add_argument('--root_dir', type=str, default=loader_common_names.ROOT_DIR,
+                          help=f'Root directory for the collections project (default: {loader_common_names.ROOT_DIR})')
 
     optional.add_argument('--input_source', type=str, choices=VALID_SOURCE, default='GTDB',
                           help='Input file source')
 
     args = parser.parse_args()
     load_files = args.load_files
+    root_dir = args.root_dir
     load_version = getattr(args, loader_common_names.LOAD_VER_ARG_NAME)
     kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
+    env = getattr(args, loader_common_names.ENV_ARG_NAME)
     source = args.input_source
-
-    # Close the output file, as the file name will only be referenced later in the code.
-    if args.output and not args.output.closed:
-        args.output.close()
 
     print('start parsing input files')
     nodes = _parse_files(load_files, source)
 
     count_docs, identical_ranks = _create_count_docs(nodes, kbase_collection, load_version)
     rank_doc = _create_rank_docs(kbase_collection, load_version, identical_ranks)
-    # Create taxa counts json file
-    count_json = args.output.name if args.output else f'{kbase_collection}_{load_version}_{GENOME_TAXA_COUNT_FILE}'
-    with open(count_json, 'w') as out_count_json:
-        convert_to_json(count_docs, out_count_json)
 
-    # Create identical ranks json file
-    root_ext = os.path.splitext(count_json)
-    with open(root_ext[0] + '_rank' + root_ext[1], 'w') as out_rank_json:
-        convert_to_json(rank_doc, out_rank_json)
+    # Create taxa counts jsonl file
+    count_jsonl = f'{kbase_collection}_{load_version}_{names.COLL_TAXA_COUNT}.jsonl'
+    create_import_files(root_dir, env, count_jsonl, count_docs)
+
+    # Create identical ranks jsonl file
+    count_ranks_jsonl = f'{kbase_collection}_{load_version}_{names.COLL_TAXA_COUNT_RANKS}.jsonl'
+    create_import_files(root_dir, env, count_ranks_jsonl, rank_doc)
 
 
 if __name__ == "__main__":

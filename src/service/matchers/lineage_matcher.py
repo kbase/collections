@@ -5,7 +5,7 @@ Matches assemblies and genomes to collections based on the GTDB lineage string.
 import logging
 
 from pydantic import BaseModel, Field, Extra
-from typing import Any, Callable
+from typing import Any
 
 from src.common.gtdb_lineage import GTDBRank, GTDBLineage, GTDBLineageError
 from src.common.storage.collection_and_field_names import FLD_GENOME_ATTRIBS_GTDB_LINEAGE
@@ -15,7 +15,6 @@ from src.service.app_state_data_structures import PickleableDependencies
 from src.service.processing import CollectionProcess, Heartbeat, HEARTBEAT_INTERVAL_SEC
 from src.service.data_products import genome_attributes
 from src.service.matchers.common_models import Matcher
-from src.service.storage_arango import ArangoStorage
 
 
 # See the workspace specs for the types listed in the matcher
@@ -67,7 +66,7 @@ async def _process_match(
         # to run against different data products
         await genome_attributes.perform_gtdb_lineage_match(
             internal_match_id, storage, lineages, truncated)
-    except Exception as e:
+    except Exception as _:
         logging.getLogger(__name__).exception(
             f"Matching process for match with internal ID {internal_match_id} failed")
         await storage.update_match_state(

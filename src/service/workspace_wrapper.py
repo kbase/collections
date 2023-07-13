@@ -80,7 +80,7 @@ class WorkspaceWrapper:
         Returns a list of the metadata, adding a special field, {WORKSPACE_UPA_PATH},
         to the metadata, with the path to the workspace object in string format, e.g. 3/2/1;6/5/4.
         """
-        # The workspace error format really sucks. Error codes are bascially a necessity for
+        # The workspace error format really sucks. Error codes are basically a necessity for
         # handling errors reasonably - trying to figure out the error type from an arbitrary
         # string is not reasonable
         allowed_types = set(allowed_types) if allowed_types else {}
@@ -102,7 +102,7 @@ class WorkspaceWrapper:
                     # Race condition - the workspace allowed get_info3 but denied on get_objects2
                     # Need to test with mocked workspace client
                     raise errors.DataPermissionError(
-                        f"The workspace service disallowed acces to object {path}"
+                        f"The workspace service disallowed access to object {path}"
                     )
                 set_upas.update([f'{path};{r}' for r in o['refs']])
             if len(set_upas) > 10000:

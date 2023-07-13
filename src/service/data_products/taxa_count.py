@@ -4,16 +4,15 @@ The taxa_count data product, which provides taxa counts for a collection at each
 
 from fastapi import APIRouter, Request, Depends, Path, Query
 from pydantic import BaseModel, Field
-from src.common.hash import md5_string
 from src.common.gtdb_lineage import GTDBTaxaCount
+from src.common.product_models.common_models import SubsetProcessStates
 from src.common.storage.db_doc_conversions import taxa_node_count_to_doc
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
-from src.service.app_state_data_structures import PickleableDependencies, CollectionsState
+from src.service.app_state_data_structures import PickleableDependencies
 from src.service import errors
 from src.service import kb_auth
 from src.service import models
-from src.service import processing
 from src.service import processing_matches
 from src.service import processing_selections
 from src.service.data_products.common_functions import (
@@ -31,7 +30,7 @@ from src.service.data_products import genome_attributes
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
-from typing import Any, Annotated
+from typing import Any
 
 
 ID = "taxa_count"
@@ -138,20 +137,10 @@ _TYPE2FIELD = {
 }
 
 
-class TaxaCounts(BaseModel):
+class TaxaCounts(SubsetProcessStates):
     """
     The taxa counts data set.
     """
-    taxa_count_match_state: models.ProcessState | None = Field(
-        example=models.ProcessState.PROCESSING,
-        description="The processing state of the match (if any) for this data product. "
-            + "This data product requires additional processing beyond the primary match."
-    )
-    taxa_count_selection_state: models.ProcessState | None = Field(
-        example=models.ProcessState.FAILED,
-        description="The processing state of the selection (if any) for this data product. "
-            + "This data product requires additional processing beyond the primary selection."
-    )
     data: list[TaxaCount] | None
 
 
@@ -251,8 +240,8 @@ def _taxa_counts(
     data: dict[str, Any] = None,
 ) -> TaxaCounts:
     return TaxaCounts(
-        taxa_count_match_state=dp_match.state if dp_match else None,
-        taxa_count_selection_state=dp_sel.state if dp_sel else None,
+        match_state=dp_match.state if dp_match else None,
+        selection_state=dp_sel.state if dp_sel else None,
         data=data,
     )
 

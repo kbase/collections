@@ -6,7 +6,7 @@ import hashlib
 import logging
 import uuid
 
-from typing import Any, Callable, Awaitable
+from typing import Callable, Awaitable
 
 from src.service.app_state_data_structures import CollectionsState, PickleableDependencies
 from src.service import data_product_specs
@@ -46,7 +46,7 @@ async def _selection_process(
         # may want to add a wrapper method to PickleableDependencies so this can be mocked
         data_product = data_product_specs.get_data_product_spec(data_product)
         await data_product.apply_selection(deps, storage, sel, coll)
-    except Exception as e:
+    except Exception as _:
         logging.getLogger(__name__).exception(
             f"Selection process for selection with internal ID {internal_selection_id} failed")
         await storage.update_selection_state(
@@ -265,7 +265,7 @@ async def save_set_to_workspace(
             f"Unsupported type {ws_type} for selection {selection_id}")
     # maybe should get DP from appstate so can be mocked
     dp = data_product_specs.get_data_product_spec(sel.data_product)
-    upamap, count = await dp.get_upas_for_selection(  # don't do anything with count for now
+    upamap, _ = await dp.get_upas_for_selection(  # don't do anything with count for now
         appstate.arangostorage, coll, sel.internal_selection_id)
     upas = upamap.get(ws_type)
     if not upas:  # more specific error needed here?
