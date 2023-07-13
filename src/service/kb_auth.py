@@ -10,7 +10,7 @@ from cacheout.lru import LRUCache
 from enum import IntEnum
 import logging
 import time
-from typing import List, Sequence, NamedTuple, Self
+from typing import List, NamedTuple, Self
 
 from src.service.arg_checkers import not_falsy as _not_falsy
 from src.service.user import UserID

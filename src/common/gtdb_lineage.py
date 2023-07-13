@@ -118,7 +118,7 @@ class GTDBLineageNode:
 
 class GTDBLineage:
     """
-    A GTDB lineage represeted as a list of lineage nodes. The lineage may be truncated, but must
+    A GTDB lineage represented as a list of lineage nodes. The lineage may be truncated, but must
     have all ranks included up to the truncation point.
 
     Instance variables:

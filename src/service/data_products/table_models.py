@@ -2,7 +2,7 @@
 Models supporting returning a table of key/value pairs, e.g. genome attributes and samples.
 """
 
-from pydantic import BaseModel, Field, Extra
+from pydantic import BaseModel, Field
 import src.common.storage.collection_and_field_names as names
 from typing import Any
 

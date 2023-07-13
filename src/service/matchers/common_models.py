@@ -2,7 +2,7 @@
 Data structures common to all matchers
 """
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 from typing import Any
 from src.service import models
 

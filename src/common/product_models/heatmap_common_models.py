@@ -5,7 +5,6 @@ Common pydantic and fastAPI models for heat map data products.
 from enum import Enum
 from pydantic import BaseModel, Field
 
-from src.service import models
 from src.common.product_models.common_models import SubsetProcessStates
 
 
@@ -70,7 +69,7 @@ class ColumnCategory(BaseModel):
             + "columns are not categorized."
     )
     columns: list[ColumnInformation] = Field(
-        descrption="The columns in the category, provided in render order."
+        description="The columns in the category, provided in render order."
     )
 
 
@@ -93,7 +92,7 @@ class HeatMapMeta(BaseModel):
 
 class Cell(BaseModel):
     """
-    Information about an indvidual cell in a heatmap.
+    Information about an individual cell in a heatmap.
     """
     cell_id: str = _FLD_CELL_ID
     col_id: str = Field(

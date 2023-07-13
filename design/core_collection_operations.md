@@ -1,6 +1,6 @@
 # Design of core collection operations
 
-This document describes an inital design of the core, general data collections operations - e.g.
+This document describes an initial design of the core, general data collections operations - e.g.
 operations that aren't specific to a particular collection.
 
 ## Assumptions
@@ -82,7 +82,7 @@ For a minimal start, more will be added later (e.g. data comparison methods, con
     semantics are up to the user.
   * In the future, we could add a schema version if the schema needs to change. For now, no
     schema version implies a schema version of 1.
-    * An altenative would just be to add a version to the product name, like `taxa_freq2`.
+    * An alternative would just be to add a version to the product name, like `taxa_freq2`.
 
 ```
 [

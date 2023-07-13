@@ -245,7 +245,7 @@ async def _process_subset(
             collspec.collection_id, collspec.collection_ver
         )
         await subset_fn(deps, storage, collspec, coll, dpid)
-    except Exception as e:
+    except Exception as _:
         logging.getLogger(__name__).exception(
             f"{dpid.type.value} process {dpid.internal_id} for data product "
             + f"{dpid.data_product} failed")

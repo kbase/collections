@@ -11,7 +11,6 @@ from pydantic import BaseModel, Field
 from src.common.git_commit import GIT_COMMIT
 from src.common.version import VERSION
 from src.service import app_state
-from src.service import app_state_data_structures
 from src.service import data_product_specs
 from src.service import errors
 from src.service import kb_auth
@@ -284,7 +283,7 @@ async def get_collection_matchers(r: Request, collection_id: str = PATH_VALIDATO
     response_model=models.Match,
     description="Match KBase workspace data against a collection.\n\n"
         + f"At most {processing_matches.MAX_UPAS} objects may be submitted. "
-        + "If sets are sumbitted, the set is expanded from the list of references in the set "
+        + "If sets are submitted, the set is expanded from the list of references in the set "
         + "returned by the workspace, ignoring any context for the references."
 )
 async def match(
@@ -369,7 +368,7 @@ async def get_selection(
     summary="Get exportable types for a selection",
     description="Get the types that are available for export to a workspace for this selection."
 )
-async def get_selection(
+async def get_selection_types(
     r: Request,
     selection_id: str = _PATH_SELECTION_ID,
 ) -> SelectionTypes:
@@ -447,7 +446,7 @@ async def save_collection(
     # Yes, this is a race condition - it's possible for 2+ users to try and save the same
     # collection/tag at the same time. If 2+ threads are able to pass this check with the
     # same coll/tag, the first one to get to arango will save and the other ones will get
-    # errors returned from arango idential to the error above.
+    # errors returned from arango identical to the error above.
     # The drawback is just that ver_num will be wasted and there will be a gap in the versions,
     # which is annoying but not a major issue. The exists check is mostly to prevent wasting the
     # ver_num if the same request is sent twice in a row.
@@ -604,7 +603,7 @@ async def delete_selection(
     "/collections/{collection_id}/versions/num/{ver_num}/matchesandselections",
     response_model=DeletedSubsets,
     summary="!!! Danger !!! Delete matches and selections for a collection",
-    description="Delete matches and selections for a paticular collection version. "
+    description="Delete matches and selections for a particular collection version. "
         + "**BE SURE YOU KNOW WHAT YOU'RE DOING**. "
         + "Deleting matches and selections when the processes are running can leave the "
         + "database in an inconsistent state and cause user errors or corrupted results. "
