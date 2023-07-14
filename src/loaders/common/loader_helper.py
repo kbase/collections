@@ -1,7 +1,9 @@
 import argparse
+import itertools
 import json
 import os
 import socket
+import stat
 import subprocess
 import time
 from collections import defaultdict
@@ -179,17 +181,37 @@ def is_upa_info_complete(upa_dir: str):
     return True
 
 
+def make_job_dir(root_dir, job_dir, username):
+    """Helper function that creates a job_dir for a user under root directory."""
+    job_dir = os.path.join(root_dir, job_dir, username)
+    os.makedirs(job_dir, exist_ok=True)
+    # only user can cread, write, or execute
+    os.chmod(job_dir, stat.S_IRWXU)
+    return job_dir
+
+
+def make_output_dir(root_dir, source_data_dir, source, env, workspace_id):
+    """Helper function that makes output directory for a specific collection under root directory."""
+    output_dir = os.path.join(root_dir, source_data_dir, source, env, str(workspace_id))
+    os.makedirs(output_dir, exist_ok=True)
+    return output_dir
+
+
 def make_collection_source_dir(
         root_dir: str,
         env: str,
         collection: str,
-        source_ver: str
+        source_ver: str,
+        upload: bool = False,
 ) -> str:
     """
     Helper function that creates a collection & source_version and link in data
     to that collection from the overall source data dir.
     """
-    csd = os.path.join(root_dir, loader_common_names.COLLECTION_SOURCE_DIR, env, collection, source_ver)
+    if upload:
+        csd = os.path.join(root_dir, loader_common_names.COLLECTION_SOURCE_DIR, env, "upload", collection, source_ver)
+    else:
+        csd = os.path.join(root_dir, loader_common_names.COLLECTION_SOURCE_DIR, env, collection, source_ver)
     os.makedirs(csd, exist_ok=True)
     return csd
 
@@ -242,6 +264,56 @@ def create_softlink_between_files(csd_file, sd_file):
             f"{csd_file} already exists and does not link to {sd_file} as expected"
         )
     os.symlink(sd_file, csd_file)
+
+
+def create_hardlink_between_files(csd_file, sd_file):
+    """
+    Creates a hardlink between two files.
+    """
+    if os.path.exists(csd_file):
+        if os.path.samefile(sd_file, csd_file):
+            return
+        raise ValueError(
+            f"{csd_file} already exists and does not link to {sd_file} as expected"
+        )
+    os.link(sd_file, csd_file)
+
+
+def list_objects(
+        wsid, conf, filter_objects_name_by, include_metadata=False, batch_size=10000
+):
+    """
+    List all objects information given a workspace ID.
+    """
+    if batch_size > 10000:
+        raise ValueError("Maximum value for listing workspace objects is 10000")
+
+    maxObjectID = conf.ws.get_workspace_info({"id": wsid})[4]
+    batch_input = [
+        [idx + 1, idx + batch_size] for idx in range(0, maxObjectID, batch_size)
+    ]
+    objs = [
+        conf.ws.list_objects(
+            list_objects_params(
+                wsid, min_id, max_id, filter_objects_name_by, include_metadata
+            )
+        )
+        for min_id, max_id in batch_input
+    ]
+    res_objs = list(itertools.chain.from_iterable(objs))
+    return res_objs
+
+
+def list_objects_params(wsid, min_id, max_id, type_str, include_metadata):
+    """Helper function that creates params needed for list_objects function."""
+    params = {
+        "ids": [wsid],
+        "minObjectID": min_id,
+        "maxObjectID": max_id,
+        "type": type_str,
+        "includeMetadata": int(include_metadata),
+    }
+    return params
 
 
 def get_ip():

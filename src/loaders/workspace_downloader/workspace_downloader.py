@@ -45,7 +45,6 @@ If kbase_collection and source_version are provided, the data will be linked to 
 e.g. /global/cfs/cdirs/kbase/collections/collectionssource/ -> ENV -> kbase_collection -> source_version -> UPA -> .fa && .meta files
 """
 import argparse
-import itertools
 import json
 import os
 import shutil
@@ -68,15 +67,8 @@ from src.loaders.common import loader_common_names, loader_helper
 # setup KB_AUTH_TOKEN as env or provide a token_filepath in --token_filepath
 # export KB_AUTH_TOKEN="your-kb-auth-token"
 
-# supported source of data
-SOURCE = "WS"
 # filename that logs genome duplicates for each assembly
 GENOME_DUPLICATE_FILE = "duplicate_genomes.json"
-
-KB_BASE_URL_MAP = {'CI': 'https://ci.kbase.us/services/',
-                   'NEXT': 'https://next.kbase.us/services/',
-                   'APPDEV': 'https://appdev.kbase.us/services/',
-                   'PROD': 'https://kbase.us/services/'}
 
 
 class BadNodeTreeError(Exception):
@@ -159,34 +151,6 @@ class Conf:
         self.container.remove()
 
 
-def _make_output_dir(root_dir, source_data_dir, source, env, workspace_id):
-    """Helper function that makes output directory for a specific collection under root directory."""
-    output_dir = os.path.join(root_dir, source_data_dir, source, env, str(workspace_id))
-    os.makedirs(output_dir, exist_ok=True)
-    return output_dir
-
-
-def _make_job_dir(root_dir, job_dir, username):
-    """Helper function that creates a job_dir for a user under root directory."""
-    job_dir = os.path.join(root_dir, job_dir, username)
-    os.makedirs(job_dir, exist_ok=True)
-    # only user can cread, write, or execute
-    os.chmod(job_dir, stat.S_IRWXU)
-    return job_dir
-
-
-def _list_objects_params(wsid, min_id, max_id, type_str, include_metadata):
-    """Helper function that creates params needed for list_objects function."""
-    params = {
-        "ids": [wsid],
-        "minObjectID": min_id,
-        "maxObjectID": max_id,
-        "type": type_str,
-        "includeMetadata": int(include_metadata),
-    }
-    return params
-
-
 def _assembly_genome_lookup(genome_objs):
     """Helper function that creates a hashmap for the genome and its assembly reference"""
     hashmap = {}
@@ -239,31 +203,6 @@ def _process_object_info(obj_info, genome_upa):
     res_dict["timestamp"] = obj_info[3]
     res_dict["genome_upa"] = genome_upa
     return res_dict
-
-
-def list_objects(
-        wsid, conf, filter_objects_name_by, include_metadata=False, batch_size=10000
-):
-    """
-    List all objects information given a workspace ID.
-    """
-    if batch_size > 10000:
-        raise ValueError("Maximum value for listing workspace objects is 10000")
-
-    maxObjectID = conf.ws.get_workspace_info({"id": wsid})[4]
-    batch_input = [
-        [idx + 1, idx + batch_size] for idx in range(0, maxObjectID, batch_size)
-    ]
-    objs = [
-        conf.ws.list_objects(
-            _list_objects_params(
-                wsid, min_id, max_id, filter_objects_name_by, include_metadata
-            )
-        )
-        for min_id, max_id in batch_input
-    ]
-    res_objs = list(itertools.chain.from_iterable(objs))
-    return res_objs
 
 
 def process_input(conf: Conf):
@@ -542,7 +481,7 @@ def main():
     retrieve_sample = args.retrieve_sample
     ignore_no_sample_error = args.ignore_no_sample_error
 
-    kb_base_url = KB_BASE_URL_MAP[env]
+    kb_base_url = loader_common_names.KB_BASE_URL_MAP[env]
 
     if bool(kbase_collection) ^ bool(source_version):
         parser.error(
@@ -556,9 +495,9 @@ def main():
     uid = os.getuid()
     username = os.getlogin()
 
-    job_dir = _make_job_dir(root_dir, loader_common_names.SDK_JOB_DIR, username)
-    output_dir = _make_output_dir(
-        root_dir, loader_common_names.SOURCE_DATA_DIR, SOURCE, env, workspace_id
+    job_dir = loader_helper.make_job_dir(root_dir, loader_common_names.SDK_JOB_DIR, username)
+    output_dir = loader_helper.make_output_dir(
+        root_dir, loader_common_names.SOURCE_DATA_DIR, loader_common_names.WS, env, workspace_id
     )
     csd = None
     if kbase_collection:
@@ -589,13 +528,13 @@ def main():
             ignore_no_sample_error
         )
 
-        genome_objs = list_objects(
+        genome_objs = loader_helper.list_objects(
             workspace_id,
             conf,
             loader_common_names.OBJECTS_NAME_GENOME,
             include_metadata=True,
         )
-        assembly_objs = list_objects(
+        assembly_objs = loader_helper.list_objects(
             workspace_id,
             conf,
             loader_common_names.OBJECTS_NAME_ASSEMBLY,

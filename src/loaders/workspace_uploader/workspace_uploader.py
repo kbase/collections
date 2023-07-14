@@ -1,11 +1,11 @@
 import argparse
+import docker
 import os
 import shutil
-import stat
 import time
 import uuid
 
-import docker
+from typing import Tuple
 
 from src.clients.AssemblyUtilClient import AssemblyUtil
 from src.clients.workspaceClient import Workspace
@@ -14,13 +14,8 @@ from src.loaders.common import loader_common_names, loader_helper
 # setup KB_AUTH_TOKEN as env or provide a token_filepath in --token_filepath
 # export KB_AUTH_TOKEN="your-kb-auth-token"
 
-# supported source of data
-SOURCE = "WS"
+UPLOAD_FILE_EXT = ["genomic.fna.gz"]  # uplaod only files that match given extensions
 
-KB_BASE_URL_MAP = {'CI': 'https://ci.kbase.us/services/',
-                   'NEXT': 'https://next.kbase.us/services/',
-                   'APPDEV': 'https://appdev.kbase.us/services/',
-                   'PROD': 'https://kbase.us/services/'}
 
 class Conf:
     def __init__(self, job_dir, kb_base_url, token_filepath):
@@ -57,7 +52,7 @@ class Conf:
         return env, vol
 
     def start_callback_server(
-            self, client, container_name, job_dir, kb_base_url, token, port
+        self, client, container_name, job_dir, kb_base_url, token, port
     ):
         env, vol = self.setup_callback_server_envs(job_dir, kb_base_url, token, port)
         self.container = client.containers.run(
@@ -75,16 +70,7 @@ class Conf:
         self.container.remove()
 
 
-def _make_job_dir(root_dir, job_dir, username):
-    """Helper function that creates a job_dir for a user under root directory."""
-    job_dir = os.path.join(root_dir, job_dir, username)
-    os.makedirs(job_dir, exist_ok=True)
-    # only user can cread, write, or execute
-    os.chmod(job_dir, stat.S_IRWXU)
-    return job_dir
-
-
-def main():
+def _get_parser():
     parser = argparse.ArgumentParser(
         description="PROTOTYPE - Download genome files from the workspace service (WSS).",
         formatter_class=loader_helper.ExplicitDefaultsHelpFormatter,
@@ -99,6 +85,16 @@ def main():
         required=True,
         type=int,
         help="Workspace addressed by the permanent ID",
+    )
+    required.add_argument(
+        f"--{loader_common_names.KBASE_COLLECTION_ARG_NAME}",
+        type=str,
+        help="Create a collection and link in data to that collection from the overall workspace source data dir",
+    )
+    required.add_argument(
+        f"--{loader_common_names.SOURCE_VER_ARG_NAME}",
+        type=str,
+        help="Create a source version and link in data to that collection from the overall workspace source data dir",
     )
 
     # Optional argument
@@ -117,34 +113,191 @@ def main():
         "--env",
         type=str,
         choices=loader_common_names.KB_ENV,
-        default='PROD',
+        default="PROD",
         help="KBase environment, defaulting to PROD",
+    )
+    optional.add_argument(
+        "--upload_file_ext",
+        type=str,
+        nargs="+",
+        default=UPLOAD_FILE_EXT,
+        help="Upload only files that match given extensions",
+    )
+    optional.add_argument(
+        "--overwrite", action="store_true", help="Overwrite existing files in workspace"
     )
     optional.add_argument(
         "--keep_job_dir",
         action="store_true",
         help="Keep SDK job directory after download task is completed",
     )
+    return parser
 
+
+def _upload_assembly_to_workspace(
+    conf: Conf,
+    workspace_name: str,
+    file_path: str,
+    assembly_name: str,
+) -> None:
+    """Upload an assembly file to workspace."""
+    success, attempts, max_attempts = False, 0, 3
+    while attempts < max_attempts and not success:
+        try:
+            time.sleep(attempts)
+            conf.asu.save_assembly_from_fasta(
+                {
+                    "file": {"path": file_path},
+                    "workspace_name": workspace_name,
+                    "assembly_name": assembly_name,
+                }
+            )
+            success = True
+        except Exception as e:
+            print(f"Error:\n{e}\nfrom attempt {attempts + 1}.\nTrying to rerun.")
+            attempts += 1
+
+    if not success:
+        raise ValueError(
+            f"Upload Failed for {file_path} after {max_attempts} attempts!"
+        )
+
+
+def _get_upa_assembly_name_mapping(conf: Conf, workspace_id: int) -> dict[str, str]:
+    """
+    Helper function to get a mapping of UPA to assembly name.
+    """
+    assembly_objs = loader_helper.list_objects(
+        workspace_id, conf, loader_common_names.OBJECTS_NAME_ASSEMBLY
+    )
+    hashmap = {
+        "{6}_{0}_{4}".format(*obj_info): obj_info[1] for obj_info in assembly_objs
+    }
+    return hashmap
+
+
+def create_entries_in_sd_workspace(
+    conf: Conf,
+    workspace_id: int,
+    success_dict: dict[str, str],
+    output_dir: str,
+) -> None:
+    """
+    Create a standard entry in sourcedata/workspace for each assembly.
+    Hardlink to the original assembly file in sourcedata/NCBI to avoid duplicating the file.
+
+    conf: Conf object
+    workspace_id: Workspace addressed by the permanent ID
+    success_dict: a dictionary of assembly name maps to file path
+    output_dir: output directory
+    """
+    upa_assembly_mapping = _get_upa_assembly_name_mapping(conf, workspace_id)
+    for upa, assembly_name in upa_assembly_mapping.items():
+        try:
+            src_file = success_dict[assembly_name]
+        except KeyError as e:
+            raise ValueError(f"Unable to find assembly {assembly_name}") from e
+
+        upa_dir = os.path.join(output_dir, upa)
+        os.makedirs(upa_dir, exist_ok=True)
+
+        dest_file = os.path.join(upa_dir, assembly_name)
+        loader_helper.create_hardlink_between_files(dest_file, src_file)
+
+
+def upload_assemblies_to_workspace(
+    conf: Conf,
+    workspace_name: str,
+    csd: str,
+    uploaded_assembly_names: list[str],
+    upload_file_ext: list[str],
+    overwrite: bool = False,
+) -> Tuple(dict[str, str], dict[str, str]):
+    """
+    Upload assemblies to workspace and avoid duplucate uploads.
+
+    conf: Conf object
+    workspace_name: workspace name
+    csd: collectionssource data directory
+    uploaded_assembly_names: a list of assembly names that have already been uploaded
+    upload_file_ext: upload only files that match given extensions
+    overwrite: whether to overwrite existing files in workspace
+    """
+    success_dict = dict()
+    fail_dict = dict()
+
+    assembly_dirs = [
+        os.path.join(csd, d)
+        for d in os.listdir(csd)
+        if os.path.isdir(os.path.join(csd, d))
+    ]
+
+    for assembly_dir in assembly_dirs:
+        assembly_files = [
+            f
+            for f in os.listdir(assembly_dir)
+            if os.path.isfile(os.path.join(assembly_dir, f))
+        ]
+
+        for assembly_file in assembly_files:
+            if assembly_file in uploaded_assembly_names and not overwrite:
+                print(
+                    f"Assembly {assembly_file} already exists in workspace {workspace_name}. Skipping."
+                )
+                continue
+
+            if assembly_file.endswith(tuple(upload_file_ext)):
+                assembly_file_path = os.path.join(assembly_dir, assembly_file)
+                try:
+                    _upload_assembly_to_workspace(
+                        conf, workspace_name, assembly_file_path, assembly_file
+                    )
+                    success_dict[assembly_file] = assembly_file_path
+                except Exception as e:
+                    print(e)
+                    fail_dict[assembly_file] = assembly_file_path
+
+    return success_dict, fail_dict
+
+
+def main():
+    parser = _get_parser()
     args = parser.parse_args()
 
     workspace_id = args.workspace_id
+    kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
+    source_version = getattr(args, loader_common_names.SOURCE_VER_ARG_NAME)
     root_dir = args.root_dir
     token_filepath = args.token_filepath
+    upload_file_ext = args.upload_file_ext
     keep_job_dir = args.keep_job_dir
-    env = args.env
+    overwrite = args.overwrite
 
-    kb_base_url = KB_BASE_URL_MAP[env]
+    env = args.env
+    kb_base_url = loader_common_names.KB_BASE_URL_MAP[env]
 
     if workspace_id <= 0:
         parser.error(f"workspace_id needs to be > 0")
- 
 
     uid = os.getuid()
     username = os.getlogin()
 
-    job_dir = _make_job_dir(root_dir, loader_common_names.SDK_JOB_DIR, username)
- 
+    job_dir = loader_helper.make_job_dir(
+        root_dir, loader_common_names.SDK_JOB_DIR, username
+    )
+    csd = loader_helper.make_collection_source_dir(
+        root_dir, env, kbase_collection, source_version
+    )
+    csd_upload = loader_helper.make_collection_source_dir(
+        root_dir, env, kbase_collection, source_version, True
+    )
+    output_dir = loader_helper.make_output_dir(
+        root_dir,
+        loader_common_names.SOURCE_DATA_DIR,
+        loader_common_names.WS,
+        env,
+        workspace_id,
+    )
 
     proc = None
     conf = None
@@ -155,19 +308,31 @@ def main():
     except Exception as e:
         raise Exception("Podman service failed to start") from e
     else:
-        # set up conf and start callback server
-        upa = "69036/370/1"
+        # set up conf, start callback server, and upload assemblies to workspace
         conf = Conf(job_dir, kb_base_url, token_filepath)
         workspace_name = conf.ws.get_workspace_info({"id": workspace_id})[1]
-        fasta_file = conf.asu.get_assembly_as_fasta({"ref": upa})
-        # conf.asu.save_assembly_from_fasta(
-        #     {"file": {"path": fasta_file['path']},
-        #      "workspace_name": workspace_name,
-        #      "assembly_name": fasta_file['assembly_name']})
-        conf.asu.save_assemblies_from_fastas(
-            {"workspace_id": workspace_id,
-            "inputs": [{"file": fasta_file['path'],
-                        "assembly_name": fasta_file['assembly_name']}]})
+        assembly_objs = loader_helper.list_objects(
+            workspace_id, conf, loader_common_names.OBJECTS_NAME_ASSEMBLY
+        )
+        uploaded_assembly_names = [obj[1] for obj in assembly_objs]
+        success_dict, fail_dict = upload_assemblies_to_workspace(
+            conf,
+            workspace_name,
+            csd,
+            uploaded_assembly_names,
+            upload_file_ext,
+            overwrite,
+        )
+
+        if fail_dict:
+            print(f"\nFailed to upload {fail_dict.values()}")
+        else:
+            print(f"\nSuccessfully upload {len(success_dict)} assemblies")
+
+        create_entries_in_sd_workspace(conf, workspace_id, success_dict, output_dir)
+        loader_helper.create_softlinks_in_csd(
+            csd_upload, output_dir, list(success_dict.keys())
+        )
 
     finally:
         # stop callback server if it is on

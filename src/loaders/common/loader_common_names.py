@@ -33,6 +33,7 @@ COMPUTE_OUTPUT_NO_BATCH = "no_batch"
 """
 File structure at NERSC for loader programs
 """
+WS = "WS"  # workspace
 
 ROOT_DIR = (
     "/global/cfs/cdirs/kbase/collections"  # root directory for the collections project
@@ -120,3 +121,8 @@ SAMPLE_PREPARED_EXT = "prepared.sample"
 # TODO DOWNLOAD if we settle on a standard file name scheme for downloaders we can get
 #               rid of this
 STANDARD_FILE_EXCLUDE_SUBSTRINGS = ['cds_from', 'rna_from', 'ERR']
+
+KB_BASE_URL_MAP = {'CI': 'https://ci.kbase.us/services/',
+                   'NEXT': 'https://next.kbase.us/services/',
+                   'APPDEV': 'https://appdev.kbase.us/services/',
+                   'PROD': 'https://kbase.us/services/'}
