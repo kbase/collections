@@ -5,6 +5,7 @@ import shutil
 import time
 import uuid
 
+from datetime import datetime
 from typing import Tuple
 
 from src.clients.AssemblyUtilClient import AssemblyUtil
@@ -18,11 +19,11 @@ UPLOAD_FILE_EXT = ["genomic.fna.gz"]  # uplaod only files that match given exten
 
 
 class Conf:
-    def __init__(self, job_dir, kb_base_url, token_filepath):
+    def __init__(self, job_dir, kb_base_url, csd, token_filepath):
         port = loader_helper.find_free_port()
         token = loader_helper.get_token(token_filepath)
         self.start_callback_server(
-            docker.from_env(), uuid.uuid4().hex, job_dir, kb_base_url, token, port
+            docker.from_env(), uuid.uuid4().hex, job_dir, kb_base_url, csd, token, port
         )
         ws_url = os.path.join(kb_base_url, "ws")
         callback_url = "http://" + loader_helper.get_ip() + ":" + str(port)
@@ -30,7 +31,7 @@ class Conf:
         self.ws = Workspace(ws_url, token=token)
         self.asu = AssemblyUtil(callback_url, token=token)
 
-    def setup_callback_server_envs(self, job_dir, kb_base_url, token, port):
+    def setup_callback_server_envs(self, job_dir, kb_base_url, csd, token, port):
         # initiate env and vol
         env = {}
         vol = {}
@@ -48,13 +49,14 @@ class Conf:
 
         vol[job_dir] = {"bind": job_dir, "mode": "rw"}
         vol[docker_host] = {"bind": "/run/docker.sock", "mode": "rw"}
+        vol[csd] = {"bind": csd, "mode": "rw"}
 
         return env, vol
 
     def start_callback_server(
-        self, client, container_name, job_dir, kb_base_url, token, port
+        self, client, container_name, job_dir, kb_base_url, csd, token, port
     ):
-        env, vol = self.setup_callback_server_envs(job_dir, kb_base_url, token, port)
+        env, vol = self.setup_callback_server_envs(job_dir, kb_base_url, csd, token, port)
         self.container = client.containers.run(
             name=container_name,
             image=loader_common_names.CALLBACK_IMAGE_NAME,
@@ -176,6 +178,50 @@ def _get_upa_assembly_name_mapping(conf: Conf, workspace_id: int) -> dict[str, s
     return hashmap
 
 
+def _fetch_assemblies_to_upload(
+    workspace_name: str,
+    csd: str,
+    uploaded_assembly_names: list[str],
+    upload_file_ext: list[str],
+    overwrite: bool = False,
+) -> Tuple(dict[str, str], dict[str, str]):
+    """
+    Helper function to help fetch assemblies to upload.
+    """
+    all_assemblies = dict()
+    wait_to_upload_assemblies = dict()
+
+    assembly_dirs = [
+        os.path.join(csd, d)
+        for d in os.listdir(csd)
+        if os.path.isdir(os.path.join(csd, d))
+    ]
+
+    for assembly_dir in assembly_dirs:
+        assembly_files = [
+            f
+            for f in os.listdir(assembly_dir)
+            if os.path.isfile(os.path.join(assembly_dir, f))
+        ]
+
+        for assembly_file in assembly_files:
+
+            assembly_file_path = os.path.join(assembly_dir, assembly_file)
+            all_assemblies[assembly_file] = assembly_file_path
+
+            if assembly_file in uploaded_assembly_names and not overwrite:
+                print(
+                    f"Assembly {assembly_file} already exists in workspace {workspace_name}. Skipping."
+                )
+                continue
+
+            if assembly_file.endswith(tuple(upload_file_ext)):
+                wait_to_upload_assemblies[assembly_file] = assembly_file_path
+
+
+    return all_assemblies, wait_to_upload_assemblies
+
+
 def create_entries_in_sd_workspace(
     conf: Conf,
     workspace_id: int,
@@ -184,7 +230,7 @@ def create_entries_in_sd_workspace(
 ) -> None:
     """
     Create a standard entry in sourcedata/workspace for each assembly.
-    Hardlink to the original assembly file in sourcedata/NCBI to avoid duplicating the file.
+    Hardlink to the original assembly file in sourcedata to avoid duplicating the file.
 
     conf: Conf object
     workspace_id: Workspace addressed by the permanent ID
@@ -206,58 +252,39 @@ def create_entries_in_sd_workspace(
 
 
 def upload_assemblies_to_workspace(
-    conf: Conf,
-    workspace_name: str,
-    csd: str,
-    uploaded_assembly_names: list[str],
-    upload_file_ext: list[str],
-    overwrite: bool = False,
-) -> Tuple(dict[str, str], dict[str, str]):
+        conf: Conf,
+        workspace_name: str,
+        assembly_files: dict[str, str],
+) -> list[str]:
     """
-    Upload assemblies to workspace and avoid duplucate uploads.
+    Upload assemblies to workspace and record failed assembly paths.
 
     conf: Conf object
-    workspace_name: workspace name
-    csd: collectionssource data directory
-    uploaded_assembly_names: a list of assembly names that have already been uploaded
-    upload_file_ext: upload only files that match given extensions
-    overwrite: whether to overwrite existing files in workspace
+    workspace_name: Workspace addressed by the permanent ID
+    assembly_files: a dictionary of assembly name maps to file path
     """
-    success_dict = dict()
-    fail_dict = dict()
 
-    assembly_dirs = [
-        os.path.join(csd, d)
-        for d in os.listdir(csd)
-        if os.path.isdir(os.path.join(csd, d))
-    ]
+    print(f'start uploading {len(assembly_files)} assembly files')
 
-    for assembly_dir in assembly_dirs:
-        assembly_files = [
-            f
-            for f in os.listdir(assembly_dir)
-            if os.path.isfile(os.path.join(assembly_dir, f))
-        ]
+    failed_paths = list()
 
-        for assembly_file in assembly_files:
-            if assembly_file in uploaded_assembly_names and not overwrite:
-                print(
-                    f"Assembly {assembly_file} already exists in workspace {workspace_name}. Skipping."
-                )
-                continue
+    counter = 1
+    for assembly_name, assembly_path in assembly_files.items():
+        if counter % 5000 == 0:
+            print(f"{round(counter / len(assembly_files), 4) * 100}% finished at {datetime.now()}")
 
-            if assembly_file.endswith(tuple(upload_file_ext)):
-                assembly_file_path = os.path.join(assembly_dir, assembly_file)
-                try:
-                    _upload_assembly_to_workspace(
-                        conf, workspace_name, assembly_file_path, assembly_file
-                    )
-                    success_dict[assembly_file] = assembly_file_path
-                except Exception as e:
-                    print(e)
-                    fail_dict[assembly_file] = assembly_file_path
+        try:
+            _upload_assembly_to_workspace(conf, workspace_name, assembly_path, assembly_name)
+        except Exception as e:
+            print(e)
+            failed_paths.append(assembly_path)
 
-    return success_dict, fail_dict
+        counter += 1
+
+    if failed_paths:
+        print(f'Failed to upload {failed_paths}')
+
+    return failed_paths
 
 
 def main():
@@ -309,14 +336,13 @@ def main():
         raise Exception("Podman service failed to start") from e
     else:
         # set up conf, start callback server, and upload assemblies to workspace
-        conf = Conf(job_dir, kb_base_url, token_filepath)
+        conf = Conf(job_dir, kb_base_url, csd, token_filepath)
         workspace_name = conf.ws.get_workspace_info({"id": workspace_id})[1]
         assembly_objs = loader_helper.list_objects(
             workspace_id, conf, loader_common_names.OBJECTS_NAME_ASSEMBLY
         )
         uploaded_assembly_names = [obj[1] for obj in assembly_objs]
-        success_dict, fail_dict = upload_assemblies_to_workspace(
-            conf,
+        all_assemblies, wait_to_upload_assemblies = _fetch_assemblies_to_upload(
             workspace_name,
             csd,
             uploaded_assembly_names,
@@ -324,15 +350,29 @@ def main():
             overwrite,
         )
 
-        if fail_dict:
-            print(f"\nFailed to upload {fail_dict.values()}")
+        if not wait_to_upload_assemblies:
+            print(f"All {len(all_assemblies)} assembly files already exist in workspace id: {workspace_id}")
+            create_entries_in_sd_workspace(conf, workspace_id, all_assemblies, output_dir)
+            loader_helper.create_softlinks_in_csd(csd_upload, output_dir, list(all_assemblies.keys()))
+            return
+
+        print(f"Originally planned to upload {len(all_assemblies)} assembly files")
+        print(
+            f"Will overwrite existing assembly files"
+            if overwrite
+            else f"Detected {len(all_assemblies) - len(wait_to_upload_assemblies)} assembly files already exist"
+        )
+
+        failed_paths = upload_assemblies_to_workspace(conf, workspace_name, wait_to_upload_assemblies)
+        success_dict = {k: v for k, v in wait_to_upload_assemblies.items() if v not in failed_paths}
+
+        if failed_paths:
+            print(f"\nFailed to upload {failed_paths}")
         else:
-            print(f"\nSuccessfully upload {len(success_dict)} assemblies")
+            print(f"\nSuccessfully upload {len(wait_to_upload_assemblies)} assemblies")
 
         create_entries_in_sd_workspace(conf, workspace_id, success_dict, output_dir)
-        loader_helper.create_softlinks_in_csd(
-            csd_upload, output_dir, list(success_dict.keys())
-        )
+        loader_helper.create_softlinks_in_csd(csd_upload, output_dir, list(success_dict.keys()))
 
     finally:
         # stop callback server if it is on
