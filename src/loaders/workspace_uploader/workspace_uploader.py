@@ -6,6 +6,7 @@ import time
 import uuid
 
 from datetime import datetime
+from pathlib import Path
 from typing import Tuple
 
 from src.clients.AssemblyUtilClient import AssemblyUtil
@@ -50,8 +51,11 @@ class Conf:
 
         vol[job_dir] = {"bind": job_dir, "mode": "rw"}
         vol[docker_host] = {"bind": "/run/docker.sock", "mode": "rw"}
-        vol[csd] = {"bind": csd, "mode": "rw"}
-        vol[work_dir] = {"bind": work_dir, "mode": "rw"}
+
+        # give it the path from the mount point inside the container
+        csd_path, work_dir_path = self._get_paths_inside_container(job_dir, csd, work_dir)
+        vol[csd] = {"bind": csd_path, "mode": "rw"}
+        vol[work_dir] = {"bind": work_dir_path, "mode": "rw"}
 
         return env, vol
 
@@ -72,6 +76,18 @@ class Conf:
     def stop_callback_server(self):
         self.container.stop()
         self.container.remove()
+
+    def _get_paths_inside_container(self, job_dir, csd, work_dir):
+        csd_parts = Path(csd).parts[-4:]
+        work_dir_parts = Path(work_dir).parts[-3:]
+        share_path = os.path.join(job_dir, "workdir", "tmp")
+        csd_path_in_container = os.path.join(share_path, Path(*csd_parts))
+        work_dir_path_in_container = os.path.join(share_path, Path(*work_dir_parts))
+
+        print("csd path inside the container: ", csd_path_in_container)
+        print("work_dir path inside the container: ", work_dir_path_in_container)
+
+        return csd_path_in_container, work_dir_path_in_container
 
 
 def _get_parser():
