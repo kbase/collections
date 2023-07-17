@@ -313,10 +313,10 @@ def main():
         root_dir, loader_common_names.SDK_JOB_DIR, username
     )
     csd = loader_helper.make_collection_source_dir(
-        root_dir, env, kbase_collection, source_version
+        root_dir, loader_common_names.DEFAULT_ENV, kbase_collection, source_version
     )
     csd_upload = loader_helper.make_collection_source_dir(
-        root_dir, env, kbase_collection, source_version, True
+        root_dir, loader_common_names.DEFAULT_ENV, kbase_collection, source_version, True
     )
     output_dir = loader_helper.make_output_dir(
         root_dir,
