@@ -41,7 +41,7 @@ jobs:
       - name: Find changed Dockerfiles
         id: find-changed-files
         run: |
-          changed_files=${{ github.event.pull_request.changed_files }}
+          changed_files=${{ github.event.pull_request.payload.files }}
           echo "Changed files: $changed_files"
 
           IFS=$'\n'
