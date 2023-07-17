@@ -7,11 +7,15 @@ on:
       - reopened
       - synchronize
       - ready_for_review
+    paths:
+      - 'src/loaders/compute_tools/**/Dockerfile'
   push:
     branches:
       - main
       - master
       - develop
+    paths:
+      - 'src/loaders/compute_tools/**/Dockerfile'
 
 jobs:
   build-push-tool-images:
@@ -31,22 +35,8 @@ jobs:
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
-          # note that the calling workflow must set `secrets: inherit`
           username: '${{ secrets.GHCR_USERNAME }}'
           password: '${{ secrets.GHCR_TOKEN }}'
-
-#      - name: Create github action tags from image tags
-#        id: tags
-#        uses: actions/github-script@v6
-#        with:
-#          result-encoding: string
-#          script: |
-#            const tags = '${{ github.event.release.tag_name }},latest'.split(',');
-#            const username = '${{ github.event.repository.owner.login }}';
-#            const repoName = '${{ github.event.repository.name }}';
-#            return tags.map((tag) => {
-#              return `ghcr.io/${username}/${repoName}:${tag}`;
-#            }).join(',');
 
       - name: Build and push tool images
         id: build-and-push
@@ -65,16 +55,12 @@ jobs:
             echo "Building and pushing $tool image..."
             echo "tagging image with $tag"
 
-            if [[ -n "$(git diff --name-only HEAD^ HEAD -- $dockerfile)" ]]; then
-              docker buildx build --file "$dockerfile" --tag "$tag" \
-                --build-arg "BUILD_DATE=${{ steps.date.outputs.date }}" \
-                --build-arg "VCS_REF=${{ github.sha }}" \
-                --build-arg "BRANCH=${{ github.ref }}" \
-                --build-arg "TAG=${{ github.ref }}" \
-                --push .
-            else
-              echo "No changes found in $dockerfile. Skipping build and push for $tool."
-            fi
+            docker buildx build --file "$dockerfile" --tag "$tag" \
+              --build-arg "BUILD_DATE=${{ steps.date.outputs.date }}" \
+              --build-arg "VCS_REF=${{ github.sha }}" \
+              --build-arg "BRANCH=${{ github.ref }}" \
+              --build-arg "TAG=${{ github.ref }}" \
+              --push .
           
           done
 
