@@ -46,7 +46,6 @@ jobs:
         id: find-changed-tools
         run: |
           changed_files=${{ steps.changed-files.outputs.all_changed_files }}
-          echo "Changed files: $changed_files"
 
           IFS=$'\n'
           tools=()
