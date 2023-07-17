@@ -38,10 +38,16 @@ jobs:
           username: '${{ secrets.GHCR_USERNAME }}'
           password: '${{ secrets.GHCR_TOKEN }}'
 
-      - name: Find changed Dockerfiles
-        id: find-changed-files
+      - name: Get Changed Files
+        id: changed-files
         run: |
-          changed_files=${{ github.event.pull_request.files }}
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...${{ github.head_ref }})
+          echo "::set-output name=changed_files::${CHANGED_FILES}"
+
+      - name: Find changed Dockerfiles
+        id: find-changed-tools
+        run: |
+          changed_files=${{ steps.changed-files.outputs.changed_files }}
           echo "Changed files: $changed_files"
 
           IFS=$'\n'
