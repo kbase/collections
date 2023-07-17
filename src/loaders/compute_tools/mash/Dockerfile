@@ -35,4 +35,5 @@ ENV PY_SCRIPT=/app/collections/src/loaders/compute_tools/mash/mash.py
 
 RUN chmod -R 777 /app/collections
 
+
 ENTRYPOINT ["/app/collections/src/loaders/compute_tools/entrypoint.sh"]
