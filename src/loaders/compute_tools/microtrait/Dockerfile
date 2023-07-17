@@ -54,5 +54,4 @@ RUN python -c "\
 from src.loaders.compute_tools.microtrait.microtrait_util import create_trait_unwrapped_genes; \
 create_trait_unwrapped_genes('${MT_RULE2TRAIT_FILE}', '${MT_RULEUNWRAPPED_FILE}', '${MT_SUBSTRATE2RULE_FILE}', '${MT_TRAIT_UNWRAPPED_FILE}')"
 
-
 ENTRYPOINT ["/app/collections/src/loaders/compute_tools/entrypoint.sh"]

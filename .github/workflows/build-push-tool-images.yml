@@ -7,8 +7,8 @@ on:
       - reopened
       - synchronize
       - ready_for_review
-    paths:
-      - 'src/loaders/compute_tools/**/Dockerfile'
+#    paths:
+#      - 'src/loaders/compute_tools/**/Dockerfile'
   push:
     branches:
       - main
