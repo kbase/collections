@@ -363,7 +363,7 @@ def main():
         print(
             f"Will overwrite existing assembly files"
             if overwrite
-            else f"Detected {len(all_assemblies) - len(wait_to_upload_assemblies)} assembly files already exist"
+            else f"Detected {len(all_assemblies) - len(wait_to_upload_assemblies)} assembly files already exist in workspace"
         )
 
         failed_paths = upload_assemblies_to_workspace(conf, workspace_name, wait_to_upload_assemblies)
