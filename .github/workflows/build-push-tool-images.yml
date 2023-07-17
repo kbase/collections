@@ -7,11 +7,15 @@ on:
       - reopened
       - synchronize
       - ready_for_review
+    paths:
+      - 'src/loaders/compute_tools/**/Dockerfile'
   push:
     branches:
       - main
       - master
       - develop
+    paths:
+      - 'src/loaders/compute_tools/**/Dockerfile'
 
 jobs:
   build-push-tool-images:
@@ -34,12 +38,25 @@ jobs:
           username: '${{ secrets.GHCR_USERNAME }}'
           password: '${{ secrets.GHCR_TOKEN }}'
 
+      - name: Find changed Dockerfiles
+        id: find-changed-files
+        run: |
+          changed_files=$(git diff --name-only ${{ github.base_ref }} ${{ github.head_ref }})
+
+          IFS=$'\n'
+          tools=()
+          for file in $changed_files; do
+            if [[ "$file" == *"/Dockerfile" ]]; then
+              tool=$(basename "$(dirname "$file")")
+              tools+=("$tool")
+            fi
+          done
+          echo "changed_tools=${tools[*]}" >> $GITHUB_ENV
+
       - name: Build and push tool images
         id: build-and-push
         run: |
-          tools=(
-            mash
-          )
+          tools=(${{ env.changed_tools }})
 
           for tool in "${tools[@]}"; do
             dockerfile="./src/loaders/compute_tools/$tool/Dockerfile"
