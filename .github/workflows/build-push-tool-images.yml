@@ -61,7 +61,7 @@ jobs:
 
           for tool in "${tools[@]}"; do
             dockerfile="./src/loaders/compute_tools/$tool/Dockerfile"
-            tag="ghcr.io/${{ github.repository_owner }}/${{ github.repository }}_$tool:latest"
+            tag="ghcr.io/${{ github.event.repository.owner.login }}/${{ github.event.repository.name }}_$tool:latest"
 
             echo "Building and pushing $tool image..."
             echo "tagging image with $tag"
