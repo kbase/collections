@@ -184,7 +184,7 @@ def _fetch_assemblies_to_upload(
     uploaded_assembly_names: list[str],
     upload_file_ext: list[str],
     overwrite: bool = False,
-) -> Tuple(dict[str, str], dict[str, str]):
+) -> Tuple[dict[str, str], dict[str, str]]:
     """
     Helper function to help fetch assemblies to upload.
     """
