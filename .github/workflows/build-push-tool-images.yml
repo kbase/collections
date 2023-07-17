@@ -1,0 +1,106 @@
+name: Build & Push Tool Image to GHCR
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+  push:
+    # run workflow when merging to main or develop
+    branches:
+      - main
+      - master
+      - develop
+
+jobs:
+  build-push-tool-images:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out GitHub Repo
+        uses: actions/checkout@v3
+
+      - name: Get current date
+        id: date
+        run: echo "date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          # note that the calling workflow must set `secrets: inherit`
+          username: '${{ secrets.GHCR_USERNAME }}'
+          password: '${{ secrets.GHCR_TOKEN }}'
+
+      - name: Create github action tags from image tags
+        id: tags
+        uses: actions/github-script@v6
+        with:
+          result-encoding: string
+          script: |
+            const tags = '${{ github.event.release.tag_name }},latest'.split(',');
+            const username = '${{ github.event.repository.owner.login }}';
+            const repoName = '${{ github.event.repository.name }}';
+            return tags.map((tag) => {
+              return `ghcr.io/${username}/${repoName}:${tag}`;
+            }).join(',');
+
+      - name: Build and push checkm2 tool image
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          file: ./src/loaders/compute_tools/checkm2/Dockerfile
+          pull: true
+          push: true
+          build-args: |
+            BUILD_DATE=${{ steps.date.outputs.date }}
+            VCS_REF=${{ github.sha }}
+            BRANCH='${{ github.ref }}'
+            TAG='${{ github.ref }}'
+          tags: '${{ steps.tags.outputs.result }}'
+
+#      - name: Build and push gtdb_tk tool image
+#        uses: docker/build-push-action@v3
+#        with:
+#          context: .
+#          file: ./src/loaders/compute_tools/gtdb_tk/Dockerfile
+#          pull: true
+#          push: true
+#          build-args: |
+#            BUILD_DATE=${{ steps.date.outputs.date }}
+#            VCS_REF=${{ github.sha }}
+#            BRANCH='${{ github.ref }}'
+#            TAG='${{ github.ref }}'
+#          tags: '${{ steps.tags.outputs.result }}'
+#
+#      - name: Build and push mash tool image
+#        uses: docker/build-push-action@v3
+#        with:
+#          context: .
+#          file: ./src/loaders/compute_tools/mash/Dockerfile
+#          pull: true
+#          push: true
+#          build-args: |
+#            BUILD_DATE=${{ steps.date.outputs.date }}
+#            VCS_REF=${{ github.sha }}
+#            BRANCH='${{ github.ref }}'
+#            TAG='${{ github.ref }}'
+#          tags: '${{ steps.tags.outputs.result }}'
+#
+#      - name: Build and push microtrait tool image
+#        uses: docker/build-push-action@v3
+#        with:
+#          context: .
+#          file: ./src/loaders/compute_tools/microtrait/Dockerfile
+#          pull: true
+#          push: true
+#          build-args: |
+#            BUILD_DATE=${{ steps.date.outputs.date }}
+#            VCS_REF=${{ github.sha }}
+#            BRANCH='${{ github.ref }}'
+#            TAG='${{ github.ref }}'
+#          tags: '${{ steps.tags.outputs.result }}'
