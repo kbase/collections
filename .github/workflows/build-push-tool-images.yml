@@ -8,7 +8,6 @@ on:
       - synchronize
       - ready_for_review
   push:
-    # run workflow when merging to main or develop
     branches:
       - main
       - master
@@ -66,66 +65,71 @@ jobs:
             echo "Building and pushing $tool image..."
             echo "tagging image with $tag"
 
-            docker buildx build --file "$dockerfile" --tag "$tag" \
-              --build-arg "BUILD_DATE=${{ steps.date.outputs.date }}" \
-              --build-arg "VCS_REF=${{ github.sha }}" \
-              --build-arg "BRANCH=${{ github.ref }}" \
-              --build-arg "TAG=${{ github.ref }}" \
-              --push .
+            if [[ -n "$(git diff --name-only HEAD^ HEAD -- $dockerfile)" ]]; then
+              docker buildx build --file "$dockerfile" --tag "$tag" \
+                --build-arg "BUILD_DATE=${{ steps.date.outputs.date }}" \
+                --build-arg "VCS_REF=${{ github.sha }}" \
+                --build-arg "BRANCH=${{ github.ref }}" \
+                --build-arg "TAG=${{ github.ref }}" \
+                --push .
+            else
+              echo "No changes found in $dockerfile. Skipping build and push for $tool."
+            fi
+          
           done
 
-      - name: Build and push checkm2 tool image
-        uses: docker/build-push-action@v3
-        with:
-          context: .
-          file: ./src/loaders/compute_tools/checkm2/Dockerfile
-          pull: true
-          push: true
-          build-args: |
-            BUILD_DATE=${{ steps.date.outputs.date }}
-            VCS_REF=${{ github.sha }}
-            BRANCH='${{ github.ref }}'
-            TAG='${{ github.ref }}'
-          tags: 'ghcr.io/${{ github.event.repository.owner.login }}/${{ github.event.repository.name }}_checkm2:latest'
-
-      - name: Build and push gtdb_tk tool image
-        uses: docker/build-push-action@v3
-        with:
-          context: .
-          file: ./src/loaders/compute_tools/gtdb_tk/Dockerfile
-          pull: true
-          push: true
-          build-args: |
-            BUILD_DATE=${{ steps.date.outputs.date }}
-            VCS_REF=${{ github.sha }}
-            BRANCH='${{ github.ref }}'
-            TAG='${{ github.ref }}'
-          tags: 'ghcr.io/${{ github.event.repository.owner.login }}/${{ github.event.repository.name }}_gtdb_tk:latest'
-
-      - name: Build and push mash tool image
-        uses: docker/build-push-action@v3
-        with:
-          context: .
-          file: ./src/loaders/compute_tools/mash/Dockerfile
-          pull: true
-          push: true
-          build-args: |
-            BUILD_DATE=${{ steps.date.outputs.date }}
-            VCS_REF=${{ github.sha }}
-            BRANCH='${{ github.ref }}'
-            TAG='${{ github.ref }}'
-          tags: 'ghcr.io/${{ github.event.repository.owner.login }}/${{ github.event.repository.name }}_mash:latest'
-
-      - name: Build and push microtrait tool image
-        uses: docker/build-push-action@v3
-        with:
-          context: .
-          file: ./src/loaders/compute_tools/microtrait/Dockerfile
-          pull: true
-          push: true
-          build-args: |
-            BUILD_DATE=${{ steps.date.outputs.date }}
-            VCS_REF=${{ github.sha }}
-            BRANCH='${{ github.ref }}'
-            TAG='${{ github.ref }}'
-          tags: 'ghcr.io/${{ github.event.repository.owner.login }}/${{ github.event.repository.name }}_microtrait:latest'
+#      - name: Build and push checkm2 tool image
+#        uses: docker/build-push-action@v3
+#        with:
+#          context: .
+#          file: ./src/loaders/compute_tools/checkm2/Dockerfile
+#          pull: true
+#          push: true
+#          build-args: |
+#            BUILD_DATE=${{ steps.date.outputs.date }}
+#            VCS_REF=${{ github.sha }}
+#            BRANCH='${{ github.ref }}'
+#            TAG='${{ github.ref }}'
+#          tags: 'ghcr.io/${{ github.event.repository.owner.login }}/${{ github.event.repository.name }}_checkm2:latest'
+#
+#      - name: Build and push gtdb_tk tool image
+#        uses: docker/build-push-action@v3
+#        with:
+#          context: .
+#          file: ./src/loaders/compute_tools/gtdb_tk/Dockerfile
+#          pull: true
+#          push: true
+#          build-args: |
+#            BUILD_DATE=${{ steps.date.outputs.date }}
+#            VCS_REF=${{ github.sha }}
+#            BRANCH='${{ github.ref }}'
+#            TAG='${{ github.ref }}'
+#          tags: 'ghcr.io/${{ github.event.repository.owner.login }}/${{ github.event.repository.name }}_gtdb_tk:latest'
+#
+#      - name: Build and push mash tool image
+#        uses: docker/build-push-action@v3
+#        with:
+#          context: .
+#          file: ./src/loaders/compute_tools/mash/Dockerfile
+#          pull: true
+#          push: true
+#          build-args: |
+#            BUILD_DATE=${{ steps.date.outputs.date }}
+#            VCS_REF=${{ github.sha }}
+#            BRANCH='${{ github.ref }}'
+#            TAG='${{ github.ref }}'
+#          tags: 'ghcr.io/${{ github.event.repository.owner.login }}/${{ github.event.repository.name }}_mash:latest'
+#
+#      - name: Build and push microtrait tool image
+#        uses: docker/build-push-action@v3
+#        with:
+#          context: .
+#          file: ./src/loaders/compute_tools/microtrait/Dockerfile
+#          pull: true
+#          push: true
+#          build-args: |
+#            BUILD_DATE=${{ steps.date.outputs.date }}
+#            VCS_REF=${{ github.sha }}
+#            BRANCH='${{ github.ref }}'
+#            TAG='${{ github.ref }}'
+#          tags: 'ghcr.io/${{ github.event.repository.owner.login }}/${{ github.event.repository.name }}_microtrait:latest'
