@@ -73,6 +73,8 @@ DEFAULT_ENV = 'NONE'  # default environment for non-kbase collections (e.g. GTDB
 SOURCE_METADATA_FILE_KEYS = ["upa", "name", "type", "timestamp"]
 # callback server docker image name
 CALLBACK_IMAGE_NAME = "scanon/callback"
+# callback server docker image for uploader
+CALLBACK_UPLOADER_IMAGE_NAME = "kbase/callback:test"  #TODO switch to kbase/callback:latest
 
 # a list of IDs provided to the computation script
 DATA_ID_COLUMN_HEADER = "genome_id"  # TODO DATA_ID change to data ID for generality

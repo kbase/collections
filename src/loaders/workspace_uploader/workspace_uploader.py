@@ -59,7 +59,7 @@ class Conf:
         env, vol = self.setup_callback_server_envs(job_dir, kb_base_url, csd, token, port)
         self.container = client.containers.run(
             name=container_name,
-            image=loader_common_names.CALLBACK_IMAGE_NAME,
+            image=loader_common_names.CALLBACK_UPLOADER_IMAGE_NAME,
             detach=True,
             network_mode="host",
             environment=env,
