@@ -8,6 +8,7 @@ on:
       - synchronize
       - ready_for_review
     paths:
+      - '.github/workflows/build-push-tool-images.yml'
       - 'src/loaders/compute_tools/**/Dockerfile'
   push:
     branches:
@@ -15,6 +16,7 @@ on:
       - master
       - develop
     paths:
+      - '.github/workflows/build-push-tool-images.yml'
       - 'src/loaders/compute_tools/**/Dockerfile'
 
 jobs:
