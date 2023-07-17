@@ -45,17 +45,15 @@ jobs:
       - name: Find changed Dockerfiles
         id: find-changed-tools
         run: |
-          changed_files=${{ steps.changed-files.outputs.all_changed_files }}
-
           IFS=$'\n'
           tools=()
-          for file in $changed_files; do
+          while IFS= read -r file; do
             if [[ "$file" == *"/Dockerfile" ]]; then
               echo "Found changed Dockerfile: $file"
               tool=$(dirname "$file")
               tools+=("$tool")
             fi
-          done
+          done <<< "${{ steps.changed-files.outputs.all_changed_files }}"
           echo "changed_tools=${tools[*]}" >> $GITHUB_ENV
 
       - name: Build and push tool images
