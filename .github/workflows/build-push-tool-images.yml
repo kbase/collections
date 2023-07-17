@@ -41,11 +41,9 @@ jobs:
       - name: Find changed Dockerfiles
         id: find-changed-files
         run: |
-          changed_files=${{ github.event.pull_request.changed_files }}
-
           IFS=$'\n'
           tools=()
-          for file in $changed_files; do
+          for file in "${{ github.event.pull_request.changed_files }}"; do
             if [[ "$file" == *"/Dockerfile" ]]; then
               tool=$(basename "$(dirname "$file")")
               tools+=("$tool")
