@@ -41,7 +41,7 @@ jobs:
       - name: Find changed Dockerfiles
         id: find-changed-files
         run: |
-          changed_files=$(git diff --name-only origin/${{ github.base_ref }} HEAD)
+          changed_files=${{ github.event.pull_request.changed_files }}
 
           IFS=$'\n'
           tools=()
