@@ -49,11 +49,14 @@ jobs:
 #              return `ghcr.io/${username}/${repoName}:${tag}`;
 #            }).join(',');
 
-      - name: Build and push checkm2 tool image
+      - name: Build and push tool images
         uses: docker/build-push-action@v3
         with:
           context: .
-          file: ./src/loaders/compute_tools/checkm2/Dockerfile
+#          file: ./src/loaders/compute_tools/checkm2/Dockerfile
+          images: |
+            ./src/loaders/compute_tools/checkm2/Dockerfile
+            ./src/loaders/compute_tools/gtdb_tk/Dockerfile
           pull: true
           push: true
           build-args: |
@@ -62,7 +65,9 @@ jobs:
             BRANCH='${{ github.ref }}'
             TAG='${{ github.ref }}'
 #          tags: '${{ steps.tags.outputs.result }}'
-          tags: 'ghcr.io/${{ github.event.repository.owner.login }}/${{ github.event.repository.name }}_checkm2:latest'
+          tags: |
+            ghcr.io/${{ github.event.repository.owner.login }}/${{ github.event.repository.name }}_checkm2:latest
+            ghcr.io/${{ github.event.repository.owner.login }}/${{ github.event.repository.name }}_gtdb_tk:latest
 
 #      - name: Build and push gtdb_tk tool image
 #        uses: docker/build-push-action@v3
@@ -76,7 +81,8 @@ jobs:
 #            VCS_REF=${{ github.sha }}
 #            BRANCH='${{ github.ref }}'
 #            TAG='${{ github.ref }}'
-#          tags: '${{ steps.tags.outputs.result }}'
+#          tags: 'ghcr.io/${{ github.event.repository.owner.login }}/${{ github.event.repository.name }}_gtdb_tk:latest'
+
 #
 #      - name: Build and push mash tool image
 #        uses: docker/build-push-action@v3
