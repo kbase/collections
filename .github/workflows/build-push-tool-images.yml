@@ -36,18 +36,18 @@ jobs:
           username: '${{ secrets.GHCR_USERNAME }}'
           password: '${{ secrets.GHCR_TOKEN }}'
 
-      - name: Create github action tags from image tags
-        id: tags
-        uses: actions/github-script@v6
-        with:
-          result-encoding: string
-          script: |
-            const tags = '${{ github.event.release.tag_name }},latest'.split(',');
-            const username = '${{ github.event.repository.owner.login }}';
-            const repoName = '${{ github.event.repository.name }}';
-            return tags.map((tag) => {
-              return `ghcr.io/${username}/${repoName}:${tag}`;
-            }).join(',');
+#      - name: Create github action tags from image tags
+#        id: tags
+#        uses: actions/github-script@v6
+#        with:
+#          result-encoding: string
+#          script: |
+#            const tags = '${{ github.event.release.tag_name }},latest'.split(',');
+#            const username = '${{ github.event.repository.owner.login }}';
+#            const repoName = '${{ github.event.repository.name }}';
+#            return tags.map((tag) => {
+#              return `ghcr.io/${username}/${repoName}:${tag}`;
+#            }).join(',');
 
       - name: Build and push checkm2 tool image
         uses: docker/build-push-action@v3
@@ -61,7 +61,8 @@ jobs:
             VCS_REF=${{ github.sha }}
             BRANCH='${{ github.ref }}'
             TAG='${{ github.ref }}'
-          tags: '${{ steps.tags.outputs.result }}'
+#          tags: '${{ steps.tags.outputs.result }}'
+          tag: 'ghcr.io/${username}/${repoName}_checkm2:latest'
 
 #      - name: Build and push gtdb_tk tool image
 #        uses: docker/build-push-action@v3
