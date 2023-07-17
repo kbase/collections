@@ -7,15 +7,11 @@ on:
       - reopened
       - synchronize
       - ready_for_review
-#    paths:
-#      - 'src/loaders/compute_tools/**/Dockerfile'
   push:
     branches:
       - main
       - master
       - develop
-#    paths:
-#      - 'src/loaders/compute_tools/**/Dockerfile'
 
 jobs:
   build-push-tool-images:
@@ -35,17 +31,31 @@ jobs:
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
+          # note that the calling workflow must set `secrets: inherit`
           username: '${{ secrets.GHCR_USERNAME }}'
           password: '${{ secrets.GHCR_TOKEN }}'
+
+#      - name: Create github action tags from image tags
+#        id: tags
+#        uses: actions/github-script@v6
+#        with:
+#          result-encoding: string
+#          script: |
+#            const tags = '${{ github.event.release.tag_name }},latest'.split(',');
+#            const username = '${{ github.event.repository.owner.login }}';
+#            const repoName = '${{ github.event.repository.name }}';
+#            return tags.map((tag) => {
+#              return `ghcr.io/${username}/${repoName}:${tag}`;
+#            }).join(',');
 
       - name: Build and push tool images
         id: build-and-push
         run: |
           tools=(
+            checkm2
+            gtdb_tk
             mash
-#            microtrait
-#            checkm2
-#            gtdb_tk
+            microtrait
           )
 
           for tool in "${tools[@]}"; do
