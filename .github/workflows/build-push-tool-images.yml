@@ -14,8 +14,8 @@ on:
       - main
       - master
       - develop
-    paths:
-      - 'src/loaders/compute_tools/**/Dockerfile'
+#    paths:
+#      - 'src/loaders/compute_tools/**/Dockerfile'
 
 jobs:
   build-push-tool-images:
