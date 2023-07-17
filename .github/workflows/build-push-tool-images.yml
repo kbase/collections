@@ -62,7 +62,7 @@ jobs:
             BRANCH='${{ github.ref }}'
             TAG='${{ github.ref }}'
 #          tags: '${{ steps.tags.outputs.result }}'
-          tag: 'ghcr.io/${username}/${repoName}_checkm2:latest'
+          tags: 'ghcr.io/${username}/${repoName}_checkm2:latest'
 
 #      - name: Build and push gtdb_tk tool image
 #        uses: docker/build-push-action@v3
