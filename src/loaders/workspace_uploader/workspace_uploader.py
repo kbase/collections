@@ -9,8 +9,9 @@ from datetime import datetime
 from typing import Tuple
 
 from src.clients.AssemblyUtilClient import AssemblyUtil
-from src.clients.workspaceClient import Workspace
+from src.clients.workspaceClient import Workspace 
 from src.loaders.common import loader_common_names, loader_helper
+from src.loaders.ncbi_downloader import ncbi_downloader_helper
 
 # setup KB_AUTH_TOKEN as env or provide a token_filepath in --token_filepath
 # export KB_AUTH_TOKEN="your-kb-auth-token"
@@ -19,11 +20,11 @@ UPLOAD_FILE_EXT = ["genomic.fna.gz"]  # uplaod only files that match given exten
 
 
 class Conf:
-    def __init__(self, job_dir, kb_base_url, csd, token_filepath):
+    def __init__(self, job_dir, work_dir, kb_base_url, csd, token_filepath):
         port = loader_helper.find_free_port()
         token = loader_helper.get_token(token_filepath)
         self.start_callback_server(
-            docker.from_env(), uuid.uuid4().hex, job_dir, kb_base_url, csd, token, port
+            docker.from_env(), uuid.uuid4().hex, job_dir, work_dir, kb_base_url, csd, token, port
         )
         ws_url = os.path.join(kb_base_url, "ws")
         callback_url = "http://" + loader_helper.get_ip() + ":" + str(port)
@@ -31,7 +32,7 @@ class Conf:
         self.ws = Workspace(ws_url, token=token)
         self.asu = AssemblyUtil(callback_url, token=token)
 
-    def setup_callback_server_envs(self, job_dir, kb_base_url, csd, token, port):
+    def setup_callback_server_envs(self, job_dir, work_dir, kb_base_url, csd, token, port):
         # initiate env and vol
         env = {}
         vol = {}
@@ -50,13 +51,14 @@ class Conf:
         vol[job_dir] = {"bind": job_dir, "mode": "rw"}
         vol[docker_host] = {"bind": "/run/docker.sock", "mode": "rw"}
         vol[csd] = {"bind": csd, "mode": "rw"}
+        vol[work_dir] = {"bind": work_dir, "mode": "rw"}
 
         return env, vol
 
     def start_callback_server(
-        self, client, container_name, job_dir, kb_base_url, csd, token, port
+        self, client, container_name, job_dir, work_dir, kb_base_url, csd, token, port
     ):
-        env, vol = self.setup_callback_server_envs(job_dir, kb_base_url, csd, token, port)
+        env, vol = self.setup_callback_server_envs(job_dir, work_dir, kb_base_url, csd, token, port)
         self.container = client.containers.run(
             name=container_name,
             image=loader_common_names.CALLBACK_UPLOADER_IMAGE_NAME,
@@ -309,6 +311,7 @@ def main():
     uid = os.getuid()
     username = os.getlogin()
 
+    work_dir = ncbi_downloader_helper.get_work_dir(root_dir)
     job_dir = loader_helper.make_job_dir(
         root_dir, loader_common_names.SDK_JOB_DIR, username
     )
@@ -336,7 +339,7 @@ def main():
         raise Exception("Podman service failed to start") from e
     else:
         # set up conf, start callback server, and upload assemblies to workspace
-        conf = Conf(job_dir, kb_base_url, csd, token_filepath)
+        conf = Conf(job_dir, work_dir, kb_base_url, csd, token_filepath)
         workspace_name = conf.ws.get_workspace_info({"id": workspace_id})[1]
         assembly_objs = loader_helper.list_objects(
             workspace_id, conf, loader_common_names.OBJECTS_NAME_ASSEMBLY
