@@ -42,10 +42,10 @@ jobs:
         id: build-and-push
         run: |
           tools=(
-            checkm2
-            gtdb_tk
             mash
-            microtrait
+#            microtrait
+#            checkm2
+#            gtdb_tk
           )
 
           for tool in "${tools[@]}"; do
