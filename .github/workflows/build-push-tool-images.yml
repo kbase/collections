@@ -51,7 +51,7 @@ jobs:
           tools=()
           for file in $changed_files; do
             if [[ "$file" == *"/Dockerfile" ]]; then
-              tool=$(basename "$(dirname "$file")")
+              tool=$(dirname "$file" | xargs -I {} find {} -type f -name Dockerfile -print -quit | xargs -I {} dirname {})
               tools+=("$tool")
             fi
           done
