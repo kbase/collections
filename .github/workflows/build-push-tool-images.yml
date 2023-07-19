@@ -44,25 +44,25 @@ jobs:
         id: extract_version
         run: |
           current_version=$(python src/loaders/compute_tools/tool_version.py 'src/loaders/compute_tools/mash/versions.yaml')
-          echo "::set-output name=version::$current_version"
+          echo "{version}={$current_version}" >> $GITHUB_OUTPUT
 
       - name: Retrieve latest tool version
+        id: extract_tool_version
         run: |
-          echo "Current version: ${{ steps.extract_version.outputs.version }}"
+          tool_name="mash"
+          tool_version="${tool_name}_${{ steps.extract_version.outputs.version }}"
+          echo "{tool_version}={$tool_version}" >> $GITHUB_OUTPUT
+          echo "Current tool version: $tool_version"
 
       - name: Build and push tool images
         id: build-and-push
         run: |
           tools=(
-            mash
-            gtdb_tk
-            checkm2
-            microtrait)
+            mash)
 
           for tool in "${tools[@]}"; do
             dockerfile="./src/loaders/compute_tools/$tool/Dockerfile"
-            tool_ver="$tool_${{ steps.extract_version.outputs.version }}"
-            tag="ghcr.io/${{ github.event.repository.owner.login }}/${{ github.event.repository.name }}:$tool_ver"
+            tag="ghcr.io/${{ github.event.repository.owner.login }}/${{ github.event.repository.name }}:${{ steps.extract_tool_version.outputs.$tool_version }}"
 
             echo "Building and pushing $tool image..."
             echo "tagging image with $tag"
