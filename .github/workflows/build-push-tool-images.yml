@@ -43,7 +43,7 @@ jobs:
       - name: Run version monitor
         id: extract_version
         run: |
-          current_version=$(python tool_version.py 'src/loaders/compute_tools/mash/versions.yaml')
+          current_version=$(python src/loaders/compute_tools/tool_version.py 'src/loaders/compute_tools/mash/versions.yaml')
           echo "::set-output name=version::$current_version"
 
       - name: Retrieve latest tool version
