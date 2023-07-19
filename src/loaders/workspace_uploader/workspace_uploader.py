@@ -300,9 +300,9 @@ def _prepare_skd_job_dir_to_upload(job_dir: str, wait_to_upload_assemblies: dict
 
 
 def create_entries_in_sd_workspace(
-    upa_assembly_mapping: dict[str, str],
-    all_assemblies: dict[str, str],
-    output_dir: str,
+        upa_assembly_mapping: dict[str, str],
+        all_assemblies: dict[str, str],
+        output_dir: str,
 ) -> None:
     """
     Create a standard entry in sourcedata/workspace for each assembly.
