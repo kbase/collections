@@ -5,7 +5,7 @@ import yaml
 
 def extract_latest_version(file_path: str) -> str:
     """
-    Extracts the latest version from a YAML file based on the date specified.
+    Extracts the latest version from a YAML file by referencing the latest date specified within the file.
 
     Args:
         file_path (str): The path to the YAML file.

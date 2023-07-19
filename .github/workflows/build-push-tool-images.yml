@@ -56,4 +56,5 @@ jobs:
             --build-arg "VCS_REF=${{ github.sha }}" \
             --build-arg "BRANCH=${{ github.ref }}" \
             --build-arg "TAG=${{ github.ref }}" \
+            --build-arg "VERSION=${{ steps.extract_tool_version.outputs.tool_version }}" \
             --push .
