@@ -1,4 +1,4 @@
-name: Build & Push Mash Image to GHCR
+name: Build & Push Microtrait Image to GHCR
 
 on:
   pull_request:
@@ -8,8 +8,8 @@ on:
       - synchronize
       - ready_for_review
     paths:
-      - 'src/loaders/compute_tools/mash/versions.yaml'
-      - '.github/workflows/build-push-mash-image.yml'
+      - 'src/loaders/compute_tools/microtrait/versions.yaml'
+      - '.github/workflows/build-push-microtrait-image.yml'
       - '.github/workflows/build-push-tool-images.yml'
 
   push:
@@ -18,14 +18,14 @@ on:
       - master
       - develop
     paths:
-      - 'src/loaders/compute_tools/mash/versions.yaml'
-      - '.github/workflows/build-push-mash-image.yml'
+      - 'src/loaders/compute_tools/microtrait/versions.yaml'
+      - '.github/workflows/build-push-microtrait-image.yml'
       - '.github/workflows/build-push-tool-images.yml'
 
 jobs:
   trigger-build-push:
     uses: ./.github/workflows/build-push-tool-images.yml
     with:
-      tool_name: mash
-      version_file: 'src/loaders/compute_tools/mash/versions.yaml'
+      tool_name: microtrait
+      version_file: 'src/loaders/compute_tools/microtrait/versions.yaml'
     secrets: inherit
