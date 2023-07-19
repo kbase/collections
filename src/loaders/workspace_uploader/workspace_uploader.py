@@ -6,7 +6,6 @@ import time
 import uuid
 
 from datetime import datetime
-from pathlib import Path
 from typing import Tuple
 
 from src.clients.AssemblyUtilClient import AssemblyUtil
@@ -18,14 +17,16 @@ from src.loaders.ncbi_downloader import ncbi_downloader_helper
 # export KB_AUTH_TOKEN="your-kb-auth-token"
 
 UPLOAD_FILE_EXT = ["genomic.fna.gz"]  # uplaod only files that match given extensions
+JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER = "/kb/module/work/tmp"
+DATA_DIR = "DATA_DIR"
 
 
 class Conf:
-    def __init__(self, job_dir, work_dir, kb_base_url, csd, token_filepath):
+    def __init__(self, job_dir, kb_base_url, token_filepath):
         port = loader_helper.find_free_port()
         token = loader_helper.get_token(token_filepath)
         self.start_callback_server(
-            docker.from_env(), uuid.uuid4().hex, job_dir, work_dir, kb_base_url, csd, token, port
+            docker.from_env(), uuid.uuid4().hex, job_dir, kb_base_url, token, port
         )
         ws_url = os.path.join(kb_base_url, "ws")
         callback_url = "http://" + loader_helper.get_ip() + ":" + str(port)
@@ -33,7 +34,7 @@ class Conf:
         self.ws = Workspace(ws_url, token=token)
         self.asu = AssemblyUtil(callback_url, token=token)
 
-    def setup_callback_server_envs(self, job_dir, work_dir, kb_base_url, csd, token, port):
+    def setup_callback_server_envs(self, job_dir, kb_base_url, token, port):
         # initiate env and vol
         env = {}
         vol = {}
@@ -52,17 +53,12 @@ class Conf:
         vol[job_dir] = {"bind": job_dir, "mode": "rw"}
         vol[docker_host] = {"bind": "/run/docker.sock", "mode": "rw"}
 
-        # give it the path from the mount point inside the container
-        csd_path, work_dir_path = self._get_paths_inside_container(job_dir, csd, work_dir)
-        vol[csd] = {"bind": csd_path, "mode": "rw"}
-        vol[work_dir] = {"bind": work_dir_path, "mode": "rw"}
-
         return env, vol
 
     def start_callback_server(
-        self, client, container_name, job_dir, work_dir, kb_base_url, csd, token, port
+        self, client, container_name, job_dir, kb_base_url, token, port
     ):
-        env, vol = self.setup_callback_server_envs(job_dir, work_dir, kb_base_url, csd, token, port)
+        env, vol = self.setup_callback_server_envs(job_dir, kb_base_url, token, port)
         self.container = client.containers.run(
             name=container_name,
             image=loader_common_names.CALLBACK_UPLOADER_IMAGE_NAME,
@@ -76,18 +72,6 @@ class Conf:
     def stop_callback_server(self):
         self.container.stop()
         self.container.remove()
-
-    def _get_paths_inside_container(self, job_dir, csd, work_dir):
-        csd_parts = Path(csd).parts[-4:]
-        work_dir_parts = Path(work_dir).parts[-3:]
-        share_path = os.path.join(job_dir, "workdir", "tmp")
-        csd_path_in_container = os.path.join(share_path, Path(*csd_parts))
-        work_dir_path_in_container = os.path.join(share_path, Path(*work_dir_parts))
-
-        print("csd path inside the container: ", csd_path_in_container)
-        print("work_dir path inside the container: ", work_dir_path_in_container)
-
-        return csd_path_in_container, work_dir_path_in_container
 
 
 def _get_parser():
@@ -154,6 +138,27 @@ def _get_parser():
     return parser
 
 
+def _sanitize_data_dir(job_dir: str) -> str:
+    """
+    Create a temporary directory for storing uploaded files.
+    """
+    data_dir = os.path.join(job_dir, "workdir/tmp", DATA_DIR)
+    if os.path.exists(data_dir):
+        shutil.rmtree(data_dir)
+    os.makedirs(data_dir)
+    return data_dir
+
+
+def _get_source_file(assembly_dir: str, assembly_file: str) -> str:
+    """
+    Get the sourcedata file path from the assembly directory.
+    """
+    if not os.path.islink(assembly_dir):
+        raise ValueError(f"{assembly_dir} is not a symlink")
+    src_file = os.path.join(os.readlink(assembly_dir), assembly_file)
+    return src_file
+
+
 def _upload_assembly_to_workspace(
     conf: Conf,
     workspace_name: str,
@@ -185,7 +190,7 @@ def _upload_assembly_to_workspace(
 
 def _get_upa_assembly_name_mapping(conf: Conf, workspace_id: int) -> dict[str, str]:
     """
-    Helper function to get a mapping of UPA to assembly name.
+    Create a mapping of UPA to assembly name.
     """
     assembly_objs = loader_helper.list_objects(
         workspace_id, conf, loader_common_names.OBJECTS_NAME_ASSEMBLY
@@ -204,7 +209,7 @@ def _fetch_assemblies_to_upload(
     overwrite: bool = False,
 ) -> Tuple[dict[str, str], dict[str, str]]:
     """
-    Helper function to help fetch assemblies to upload.
+    Help fetch assemblies to upload.
     """
     all_assemblies = dict()
     wait_to_upload_assemblies = dict()
@@ -224,20 +229,31 @@ def _fetch_assemblies_to_upload(
 
         for assembly_file in assembly_files:
 
-            assembly_file_path = os.path.join(assembly_dir, assembly_file)
-            all_assemblies[assembly_file] = assembly_file_path
-
-            if assembly_file in uploaded_assembly_names and not overwrite:
-                print(
-                    f"Assembly {assembly_file} already exists in workspace {workspace_name}. Skipping."
-                )
-                continue
-
             if assembly_file.endswith(tuple(upload_file_ext)):
-                wait_to_upload_assemblies[assembly_file] = assembly_file_path
+                all_assemblies[assembly_file] = assembly_dir
 
+                if assembly_file in uploaded_assembly_names and not overwrite:
+                    print(
+                        f"Assembly {assembly_file} already exists in workspace {workspace_name}. Skipping."
+                    )
+                    continue
+
+                wait_to_upload_assemblies[assembly_file] = assembly_dir
 
     return all_assemblies, wait_to_upload_assemblies
+
+
+def _prepare_skd_job_dir_to_upload(job_dir: str, wait_to_upload_assemblies: dict[str, str]) -> dict[str, str]:
+    """
+    Prepare SDK job directory to upload.
+    """
+    data_dir = _sanitize_data_dir(job_dir)
+    for assembly_file, assembly_dir in wait_to_upload_assemblies.items():
+        src_file = _get_source_file(assembly_dir, assembly_file)
+        dest_file = os.path.join(data_dir, assembly_file)
+        loader_helper.create_hardlink_between_files(dest_file, src_file)
+
+    return data_dir
 
 
 def create_entries_in_sd_workspace(
@@ -256,53 +272,58 @@ def create_entries_in_sd_workspace(
     output_dir: output directory
     """
     upa_assembly_mapping = _get_upa_assembly_name_mapping(conf, workspace_id)
-    for upa, assembly_name in upa_assembly_mapping.items():
+    for upa, assembly_file in upa_assembly_mapping.items():
         try:
-            src_file = success_dict[assembly_name]
+            assembly_dir = success_dict[assembly_file]
         except KeyError as e:
-            raise ValueError(f"Unable to find assembly {assembly_name}") from e
+            raise ValueError(f"Unable to find assembly {assembly_file}") from e
+
+        src_file = _get_source_file(assembly_dir, assembly_file)
 
         upa_dir = os.path.join(output_dir, upa)
         os.makedirs(upa_dir, exist_ok=True)
 
-        dest_file = os.path.join(upa_dir, assembly_name)
+        dest_file = os.path.join(upa_dir, assembly_file)
         loader_helper.create_hardlink_between_files(dest_file, src_file)
 
 
 def upload_assemblies_to_workspace(
         conf: Conf,
         workspace_name: str,
-        assembly_files: dict[str, str],
+        data_dir: str,
 ) -> list[str]:
     """
-    Upload assemblies to workspace and record failed assembly paths.
+    Upload assemblies to workspace and record failed assembly names.
 
     conf: Conf object
     workspace_name: Workspace addressed by the permanent ID
-    assembly_files: a dictionary of assembly name maps to file path
+    data_dir: directory of assemblies to upload
     """
 
+    assembly_files = os.listdir(data_dir)
     print(f'start uploading {len(assembly_files)} assembly files')
 
-    failed_paths = list()
+    failed_assemblies = list()
 
     counter = 1
-    for assembly_name, assembly_path in assembly_files.items():
+    for assembly_name in assembly_files:
+
         if counter % 5000 == 0:
             print(f"{round(counter / len(assembly_files), 4) * 100}% finished at {datetime.now()}")
 
+        assembly_path = os.path.join(JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER, DATA_DIR, assembly_name)
         try:
             _upload_assembly_to_workspace(conf, workspace_name, assembly_path, assembly_name)
         except Exception as e:
             print(e)
-            failed_paths.append(assembly_path)
+            failed_assemblies.append(assembly_name)
 
         counter += 1
 
-    if failed_paths:
-        print(f'Failed to upload {failed_paths}')
+    if failed_assemblies:
+        print(f'Failed to upload {failed_assemblies} in folder {data_dir}')
 
-    return failed_paths
+    return failed_assemblies
 
 
 def main():
@@ -327,7 +348,6 @@ def main():
     uid = os.getuid()
     username = os.getlogin()
 
-    work_dir = ncbi_downloader_helper.get_work_dir(root_dir)
     job_dir = loader_helper.make_job_dir(
         root_dir, loader_common_names.SDK_JOB_DIR, username
     )
@@ -355,7 +375,7 @@ def main():
         raise Exception("Podman service failed to start") from e
     else:
         # set up conf, start callback server, and upload assemblies to workspace
-        conf = Conf(job_dir, work_dir, kb_base_url, csd, token_filepath)
+        conf = Conf(job_dir, kb_base_url, token_filepath)
         workspace_name = conf.ws.get_workspace_info({"id": workspace_id})[1]
         assembly_objs = loader_helper.list_objects(
             workspace_id, conf, loader_common_names.OBJECTS_NAME_ASSEMBLY
@@ -382,11 +402,12 @@ def main():
             else f"Detected {len(all_assemblies) - len(wait_to_upload_assemblies)} assembly files already exist in workspace"
         )
 
-        failed_paths = upload_assemblies_to_workspace(conf, workspace_name, wait_to_upload_assemblies)
-        success_dict = {k: v for k, v in wait_to_upload_assemblies.items() if v not in failed_paths}
+        data_dir = _prepare_skd_job_dir_to_upload(job_dir, wait_to_upload_assemblies)
+        failed_assemblies = upload_assemblies_to_workspace(conf, workspace_name, data_dir)
+        success_dict = {k: v for k, v in wait_to_upload_assemblies.items() if k not in failed_assemblies}
 
-        if failed_paths:
-            print(f"\nFailed to upload {failed_paths}")
+        if failed_assemblies:
+            print(f"\nFailed to upload {failed_assemblies}")
         else:
             print(f"\nSuccessfully upload {len(wait_to_upload_assemblies)} assemblies")
 
