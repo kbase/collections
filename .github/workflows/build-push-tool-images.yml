@@ -40,27 +40,37 @@ jobs:
           username: '${{ secrets.GHCR_USERNAME }}'
           password: '${{ secrets.GHCR_TOKEN }}'
 
-      - name: Build and push tool images
-        id: build-and-push
+      - name: Run version monitor
+        id: extract_version
         run: |
-          tools=(
-            mash
-            gtdb_tk
-            checkm2
-            microtrait)
+          current_version=$(python tool_version.py 'src/loaders/compute_tools/mash/versions.yaml')
+          echo "::set-output name=version::$current_version"
 
-          for tool in "${tools[@]}"; do
-            dockerfile="./src/loaders/compute_tools/$tool/Dockerfile"
-            tag="ghcr.io/${{ github.event.repository.owner.login }}/${{ github.event.repository.name }}:$tool"
+      - name: Retrieve latest tool version
+        run: |
+          echo "Current version: ${{ steps.extract_version.outputs.version }}"
 
-            echo "Building and pushing $tool image..."
-            echo "tagging image with $tag"
-
-            docker buildx build --file "$dockerfile" --tag "$tag" \
-              --build-arg "BUILD_DATE=${{ steps.date.outputs.date }}" \
-              --build-arg "VCS_REF=${{ github.sha }}" \
-              --build-arg "BRANCH=${{ github.ref }}" \
-              --build-arg "TAG=${{ github.ref }}" \
-              --push .
-          
-          done
+#      - name: Build and push tool images
+#        id: build-and-push
+#        run: |
+#          tools=(
+#            mash
+#            gtdb_tk
+#            checkm2
+#            microtrait)
+#
+#          for tool in "${tools[@]}"; do
+#            dockerfile="./src/loaders/compute_tools/$tool/Dockerfile"
+#            tag="ghcr.io/${{ github.event.repository.owner.login }}/${{ github.event.repository.name }}:$tool"
+#
+#            echo "Building and pushing $tool image..."
+#            echo "tagging image with $tag"
+#
+#            docker buildx build --file "$dockerfile" --tag "$tag" \
+#              --build-arg "BUILD_DATE=${{ steps.date.outputs.date }}" \
+#              --build-arg "VCS_REF=${{ github.sha }}" \
+#              --build-arg "BRANCH=${{ github.ref }}" \
+#              --build-arg "TAG=${{ github.ref }}" \
+#              --push .
+#
+#          done
