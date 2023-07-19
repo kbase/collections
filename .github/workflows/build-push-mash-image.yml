@@ -1,0 +1,31 @@
+name: Build & Push Mash Image to GHCR
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+    paths:
+      - 'src/loaders/compute_tools/mash/versions.yaml'
+      - '.github/workflows/build-push-mash-image.yml'
+
+  push:
+    branches:
+      - main
+      - master
+      - develop
+    paths:
+      - 'src/loaders/compute_tools/mash/versions.yaml'
+      - '.github/workflows/build-push-mash-image.yml'
+
+jobs:
+  trigger-build-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Build & Push Tool Image workflow
+        uses: ./.github/workflows/build-push-tool-images.yml
+        with:
+          tool_name: mash
+          version_file: 'src/loaders/compute_tools/mash/versions.yaml'

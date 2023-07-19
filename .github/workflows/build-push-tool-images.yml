@@ -18,6 +18,16 @@ on:
     paths:
       - '.github/workflows/build-push-tool-images.yml'
       - 'src/loaders/compute_tools/**/Dockerfile'
+  workflow_call:
+    inputs:
+      tool_name:
+        description: 'Name of the tool to build and push'
+        required: true
+        type: string
+      version_file:
+        description: 'Path to the version file'
+        required: true
+        type: string
 
 jobs:
   build-push-tool-images:
@@ -40,17 +50,11 @@ jobs:
           username: '${{ secrets.GHCR_USERNAME }}'
           password: '${{ secrets.GHCR_TOKEN }}'
 
-      - name: Run version monitor
-        id: extract_version
-        run: |
-          current_version=$(python src/loaders/compute_tools/tool_version.py 'src/loaders/compute_tools/mash/versions.yaml')
-          echo "{version}={$current_version}" >> $GITHUB_OUTPUT
-
       - name: Retrieve latest tool version
         id: extract_tool_version
         run: |
-          tool_name="mash"
-          current_version=$(python src/loaders/compute_tools/tool_version.py 'src/loaders/compute_tools/mash/versions.yaml')
+          tool_name="${{ inputs.tool_name }}"
+          current_version=$(python src/loaders/compute_tools/tool_version.py ${{ inputs.version_file }})
           tool_version="${tool_name}_${current_version}"
           echo "Current tool version: $tool_version"
           echo "tool_version=$tool_version" >> $GITHUB_OUTPUT
