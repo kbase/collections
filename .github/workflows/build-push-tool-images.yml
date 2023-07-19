@@ -45,21 +45,15 @@ jobs:
       - name: Build and push tool images
         id: build-and-push
         run: |
-          tools=(
-            mash)
+          dockerfile="./src/loaders/compute_tools/$tool/Dockerfile"
+          tag="ghcr.io/${{ github.event.repository.owner.login }}/${{ github.event.repository.name }}:${{ steps.extract_tool_version.outputs.tool_version }}"
 
-          for tool in "${tools[@]}"; do
-            dockerfile="./src/loaders/compute_tools/$tool/Dockerfile"
-            tag="ghcr.io/${{ github.event.repository.owner.login }}/${{ github.event.repository.name }}:${{ steps.extract_tool_version.outputs.tool_version }}"
+          echo "Building and pushing $tool image..."
+          echo "tagging image with $tag"
 
-            echo "Building and pushing $tool image..."
-            echo "tagging image with $tag"
-
-            docker buildx build --file "$dockerfile" --tag "$tag" \
-              --build-arg "BUILD_DATE=${{ steps.date.outputs.date }}" \
-              --build-arg "VCS_REF=${{ github.sha }}" \
-              --build-arg "BRANCH=${{ github.ref }}" \
-              --build-arg "TAG=${{ github.ref }}" \
-              --push .
-
-          done
+          docker buildx build --file "$dockerfile" --tag "$tag" \
+            --build-arg "BUILD_DATE=${{ steps.date.outputs.date }}" \
+            --build-arg "VCS_REF=${{ github.sha }}" \
+            --build-arg "BRANCH=${{ github.ref }}" \
+            --build-arg "TAG=${{ github.ref }}" \
+            --push .
