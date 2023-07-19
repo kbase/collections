@@ -50,27 +50,28 @@ jobs:
         run: |
           echo "Current version: ${{ steps.extract_version.outputs.version }}"
 
-#      - name: Build and push tool images
-#        id: build-and-push
-#        run: |
-#          tools=(
-#            mash
-#            gtdb_tk
-#            checkm2
-#            microtrait)
-#
-#          for tool in "${tools[@]}"; do
-#            dockerfile="./src/loaders/compute_tools/$tool/Dockerfile"
-#            tag="ghcr.io/${{ github.event.repository.owner.login }}/${{ github.event.repository.name }}:$tool"
-#
-#            echo "Building and pushing $tool image..."
-#            echo "tagging image with $tag"
-#
-#            docker buildx build --file "$dockerfile" --tag "$tag" \
-#              --build-arg "BUILD_DATE=${{ steps.date.outputs.date }}" \
-#              --build-arg "VCS_REF=${{ github.sha }}" \
-#              --build-arg "BRANCH=${{ github.ref }}" \
-#              --build-arg "TAG=${{ github.ref }}" \
-#              --push .
-#
-#          done
+      - name: Build and push tool images
+        id: build-and-push
+        run: |
+          tools=(
+            mash
+            gtdb_tk
+            checkm2
+            microtrait)
+
+          for tool in "${tools[@]}"; do
+            dockerfile="./src/loaders/compute_tools/$tool/Dockerfile"
+            tool_ver = "$tool_${{ steps.extract_version.outputs.version }}"
+            tag="ghcr.io/${{ github.event.repository.owner.login }}/${{ github.event.repository.name }}:$tool_ver"
+
+            echo "Building and pushing $tool image..."
+            echo "tagging image with $tag"
+
+            docker buildx build --file "$dockerfile" --tag "$tag" \
+              --build-arg "BUILD_DATE=${{ steps.date.outputs.date }}" \
+              --build-arg "VCS_REF=${{ github.sha }}" \
+              --build-arg "BRANCH=${{ github.ref }}" \
+              --build-arg "TAG=${{ github.ref }}" \
+              --push .
+
+          done
