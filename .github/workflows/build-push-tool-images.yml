@@ -41,6 +41,7 @@ jobs:
           tool_version="${tool_name}_${current_version}"
           echo "Current tool version: $tool_version"
           echo "tool_version=$tool_version" >> $GITHUB_OUTPUT
+          echo "version_str=$current_version" >> $GITHUB_OUTPUT
 
       - name: Build and push tool images
         id: build-and-push
@@ -56,5 +57,5 @@ jobs:
             --build-arg "VCS_REF=${{ github.sha }}" \
             --build-arg "BRANCH=${{ github.ref }}" \
             --build-arg "TAG=${{ github.ref }}" \
-            --build-arg "VERSION=${{ steps.extract_tool_version.outputs.tool_version }}" \
+            --build-arg "VERSION=${{ steps.extract_tool_version.outputs.version_str }}" \
             --push .
