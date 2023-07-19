@@ -395,13 +395,13 @@ def main():
             loader_helper.create_softlinks_in_csd(csd_upload, output_dir, list(all_assemblies.keys()))
             return
 
-        print(f"Originally planned to upload {len(all_assemblies)} assembly files")
-        print(
-            f"Will overwrite existing assembly files"
-            if overwrite
-            else f"Detected {len(all_assemblies) - len(wait_to_upload_assemblies)} assembly files already exist in workspace"
-        )
+        as_len = len(all_assemblies)
+        wtu_len = len(wait_to_upload_assemblies)
+        print(f"Originally planned to upload {as_len} assembly files")
+        print(f"Will overwrite existing assembly files" if overwrite else
+              f"Detected {as_len - wtu_len} assembly files already exist in workspace")
 
+        start = time.time()
         data_dir = _prepare_skd_job_dir_to_upload(job_dir, wait_to_upload_assemblies)
         failed_assemblies = upload_assemblies_to_workspace(conf, workspace_name, data_dir)
         success_dict = {k: v for k, v in wait_to_upload_assemblies.items() if k not in failed_assemblies}
@@ -409,7 +409,7 @@ def main():
         if failed_assemblies:
             print(f"\nFailed to upload {failed_assemblies}")
         else:
-            print(f"\nSuccessfully upload {len(wait_to_upload_assemblies)} assemblies")
+            print(f"\nSuccessfully upload {wtu_len} assemblies, average {(time.time() - start) / wtu_len}s/assembly.")
 
         create_entries_in_sd_workspace(conf, workspace_id, success_dict, output_dir)
         loader_helper.create_softlinks_in_csd(csd_upload, output_dir, list(success_dict.keys()))
