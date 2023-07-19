@@ -50,7 +50,8 @@ jobs:
         id: extract_tool_version
         run: |
           tool_name="mash"
-          tool_version="${tool_name}_${{ steps.extract_version.outputs.version }}"
+          current_version=$(python src/loaders/compute_tools/tool_version.py 'src/loaders/compute_tools/mash/versions.yaml')
+          tool_version="${tool_name}_${current_version}"
           echo "{tool_version}={$tool_version}" >> $GITHUB_OUTPUT
           echo "Current tool version: $tool_version"
 
