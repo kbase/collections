@@ -45,10 +45,10 @@ jobs:
       - name: Build and push tool images
         id: build-and-push
         run: |
-          dockerfile="./src/loaders/compute_tools/$tool/Dockerfile"
+          dockerfile="./src/loaders/compute_tools/${{ inputs.tool_name }}/Dockerfile"
           tag="ghcr.io/${{ github.event.repository.owner.login }}/${{ github.event.repository.name }}:${{ steps.extract_tool_version.outputs.tool_version }}"
 
-          echo "Building and pushing $tool image..."
+          echo "Building and pushing ${{ inputs.tool_name }} image..."
           echo "tagging image with $tag"
 
           docker buildx build --file "$dockerfile" --tag "$tag" \
