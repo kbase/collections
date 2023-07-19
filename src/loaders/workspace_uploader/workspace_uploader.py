@@ -11,7 +11,6 @@ from typing import Tuple
 from src.clients.AssemblyUtilClient import AssemblyUtil
 from src.clients.workspaceClient import Workspace 
 from src.loaders.common import loader_common_names, loader_helper
-from src.loaders.ncbi_downloader import ncbi_downloader_helper
 
 # setup KB_AUTH_TOKEN as env or provide a token_filepath in --token_filepath
 # export KB_AUTH_TOKEN="your-kb-auth-token"
@@ -243,7 +242,7 @@ def _fetch_assemblies_to_upload(
     return all_assemblies, wait_to_upload_assemblies
 
 
-def _prepare_skd_job_dir_to_upload(job_dir: str, wait_to_upload_assemblies: dict[str, str]) -> dict[str, str]:
+def _prepare_skd_job_dir_to_upload(job_dir: str, wait_to_upload_assemblies: dict[str, str]) -> str:
     """
     Prepare SDK job directory to upload.
     """
@@ -257,8 +256,7 @@ def _prepare_skd_job_dir_to_upload(job_dir: str, wait_to_upload_assemblies: dict
 
 
 def create_entries_in_sd_workspace(
-    conf: Conf,
-    workspace_id: int,
+    upa_assembly_mapping: dict[str, str],
     success_dict: dict[str, str],
     output_dir: str,
 ) -> None:
@@ -271,7 +269,6 @@ def create_entries_in_sd_workspace(
     success_dict: a dictionary of assembly name maps to file path
     output_dir: output directory
     """
-    upa_assembly_mapping = _get_upa_assembly_name_mapping(conf, workspace_id)
     for upa, assembly_file in upa_assembly_mapping.items():
         try:
             assembly_dir = success_dict[assembly_file]
@@ -391,8 +388,9 @@ def main():
 
         if not wait_to_upload_assemblies:
             print(f"All {len(all_assemblies)} assembly files already exist in workspace id: {workspace_id}")
-            create_entries_in_sd_workspace(conf, workspace_id, all_assemblies, output_dir)
-            loader_helper.create_softlinks_in_csd(csd_upload, output_dir, list(all_assemblies.keys()))
+            upa_assembly_mapping = _get_upa_assembly_name_mapping(conf, workspace_id)
+            create_entries_in_sd_workspace(upa_assembly_mapping, all_assemblies, output_dir)
+            loader_helper.create_softlinks_in_csd(csd_upload, output_dir, list(upa_assembly_mapping.keys()))
             return
 
         as_len = len(all_assemblies)
@@ -411,8 +409,9 @@ def main():
         else:
             print(f"\nSuccessfully upload {wtus_len} assemblies, average {(time.time() - start) / wtus_len}s/assembly.")
 
-        create_entries_in_sd_workspace(conf, workspace_id, success_dict, output_dir)
-        loader_helper.create_softlinks_in_csd(csd_upload, output_dir, list(success_dict.keys()))
+        upa_assembly_mapping = _get_upa_assembly_name_mapping(conf, workspace_id)
+        create_entries_in_sd_workspace(upa_assembly_mapping, success_dict, output_dir)
+        loader_helper.create_softlinks_in_csd(csd_upload, output_dir, list(upa_assembly_mapping.keys()))
 
     finally:
         # stop callback server if it is on
