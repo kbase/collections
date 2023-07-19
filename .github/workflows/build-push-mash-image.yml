@@ -24,6 +24,9 @@ jobs:
   trigger-build-push:
     runs-on: ubuntu-latest
     steps:
+      - name: Check out GitHub Repo
+        uses: actions/checkout@v3
+
       - name: Trigger Build & Push Tool Image workflow
         uses: ./.github/workflows/build-push-tool-images.yml
         with:
