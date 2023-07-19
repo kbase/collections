@@ -1,23 +1,6 @@
 name: Build & Push Tool Image to GHCR
 
 on:
-  pull_request:
-    types:
-      - opened
-      - reopened
-      - synchronize
-      - ready_for_review
-    paths:
-      - '.github/workflows/build-push-tool-images.yml'
-      - 'src/loaders/compute_tools/**/Dockerfile'
-  push:
-    branches:
-      - main
-      - master
-      - develop
-    paths:
-      - '.github/workflows/build-push-tool-images.yml'
-      - 'src/loaders/compute_tools/**/Dockerfile'
   workflow_call:
     inputs:
       tool_name:
