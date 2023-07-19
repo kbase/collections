@@ -1,3 +1,47 @@
+"""
+usage: workspace_uploader.py [-h] --workspace_id WORKSPACE_ID [--kbase_collection KBASE_COLLECTION] [--source_ver SOURCE_VER]
+                             [--root_dir ROOT_DIR] [--token_filepath TOKEN_FILEPATH] [--env {CI,NEXT,APPDEV,PROD}]
+                             [--upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]] [--overwrite] [--keep_job_dir]
+
+PROTOTYPE - Upload assembly files to the workspace service (WSS).
+
+options:
+  -h, --help            show this help message and exit
+
+required named arguments:
+  --workspace_id WORKSPACE_ID
+                        Workspace addressed by the permanent ID
+  --kbase_collection KBASE_COLLECTION
+                        Create a collection and link in data to that collection from the overall workspace source data dir
+  --source_ver SOURCE_VER
+                        Create a source version and link in data to that collection from the overall workspace source data dir
+
+optional arguments:
+  --root_dir ROOT_DIR   Root directory. (default: /global/cfs/cdirs/kbase/collections)
+  --token_filepath TOKEN_FILEPATH
+                        A file path that stores KBase token
+  --env {CI,NEXT,APPDEV,PROD}
+                        KBase environment, defaulting to PROD (default: PROD)
+  --upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]
+                        Upload only files that match given extensions (default: ['genomic.fna.gz'])
+  --overwrite           Overwrite existing files in workspace
+  --keep_job_dir        Keep SDK job directory after upload task is completed
+
+e.g.
+PYTHONPATH=. python src/loaders/workspace_uploader/workspace_uploader.py --workspace_id 69046 --kbase_collection GTDB --source_ver 207 --env CI --keep_job_dir
+
+NOTE:
+NERSC file structure for WS:
+
+/global/cfs/cdirs/kbase/collections/sourcedata/ -> WS -> ENV -> workspace ID -> UPA -> .fna.gz file
+
+e.g.
+/global/cfs/cdirs/kbase/collections/sourcedata/WS -> CI -> 69046 -> 69046_18_1 -> GCF_000979115.1_gtlEnvA5udCFS_genomic.fna.gz
+                                                                    69046_20_1 -> GCF_000970165.1_ASM97016v1_genomic.fna.gz
+
+The data will be linked to the collections source directory:
+e.g. /global/cfs/cdirs/kbase/collections/collectionssource/ -> ENV -> upload -> kbase_collection -> source_ver -> UPA -> .fna.gz file
+"""
 import argparse
 import docker
 import os
@@ -132,7 +176,7 @@ def _get_parser():
     optional.add_argument(
         "--keep_job_dir",
         action="store_true",
-        help="Keep SDK job directory after download task is completed",
+        help="Keep SDK job directory after upload task is completed",
     )
     return parser
 
@@ -266,7 +310,7 @@ def create_entries_in_sd_workspace(
 
     upa_assembly_mapping: a dictionary of UPA to assembly name
     all_assemblies: a dictionary of assembly name to file path
-    output_dir: output directory
+    output_dir: output directory to create entries in workspace
     """
     for upa, assembly_file in upa_assembly_mapping.items():
         try:
@@ -292,7 +336,7 @@ def upload_assemblies_to_workspace(
     Upload assemblies to workspace and record failed assembly names.
 
     conf: Conf object
-    workspace_name: Workspace addressed by the permanent ID
+    workspace_name: a string used as a name for a workspace
     data_dir: directory of assemblies to upload
     """
 
@@ -331,6 +375,12 @@ def create_entries_in_ws_and_softlinks_in_csd(
 ) -> None:
     """
     Create standard entries in workspace and softlinks in collectionssource directory.
+
+    conf: Conf object
+    workspace_id: the unique, permanent numerical ID of a workspace
+    csd_upload: directory of assemblies that have been uploaded to workspace
+    output_dir: output directory to create entries in workspace
+    all_assemblies: a dictionary of assembly name to file path
     """
     upa_assembly_mapping = _get_upa_assembly_name_mapping(conf, workspace_id)
     create_entries_in_sd_workspace(upa_assembly_mapping, all_assemblies, output_dir)
