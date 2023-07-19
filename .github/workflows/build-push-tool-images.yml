@@ -52,8 +52,8 @@ jobs:
           tool_name="mash"
           current_version=$(python src/loaders/compute_tools/tool_version.py 'src/loaders/compute_tools/mash/versions.yaml')
           tool_version="${tool_name}_${current_version}"
-          echo "{tool_version}={$tool_version}" >> $GITHUB_OUTPUT
           echo "Current tool version: $tool_version"
+          echo "tool_version=$tool_version" >> $GITHUB_OUTPUT
 
       - name: Build and push tool images
         id: build-and-push
