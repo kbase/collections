@@ -33,14 +33,14 @@ PYTHONPATH=. python src/loaders/workspace_uploader/workspace_uploader.py --works
 NOTE:
 NERSC file structure for WS:
 
-/global/cfs/cdirs/kbase/collections/sourcedata/ -> WS -> ENV -> workspace ID -> UPA -> .fna.gz file
+/global/cfs/cdirs/kbase/collections/sourcedata/ -> WS -> ENV -> workspace ID -> genome_id -> .fna.gz file
 
 e.g.
-/global/cfs/cdirs/kbase/collections/sourcedata/WS -> CI -> 69046 -> 69046_18_1 -> GCF_000979115.1_gtlEnvA5udCFS_genomic.fna.gz
-                                                                    69046_20_1 -> GCF_000970165.1_ASM97016v1_genomic.fna.gz
+/global/cfs/cdirs/kbase/collections/sourcedata/WS -> CI -> 69046 -> GCF_000979115.1 -> GCF_000979115.1_gtlEnvA5udCFS_genomic.fna.gz
+                                                                    GCF_000970165.1 -> GCF_000970165.1_ASM97016v1_genomic.fna.gz
 
 The data will be linked to the collections source directory:
-e.g. /global/cfs/cdirs/kbase/collections/collectionssource/ -> ENV -> upload -> kbase_collection -> source_ver -> UPA -> .fna.gz file
+e.g. /global/cfs/cdirs/kbase/collections/collectionssource/ -> ENV -> upload -> kbase_collection -> source_ver -> genome_id -> .fna.gz file
 """
 import argparse
 import docker
@@ -231,17 +231,15 @@ def _upload_assembly_to_workspace(
         )
 
 
-def _get_upa_assembly_name_mapping(conf: Conf, workspace_id: int) -> dict[str, str]:
+def _get_assembly_names_from_workspace(conf: Conf, workspace_id: int) -> list[str]:
     """
-    Get a mapping of UPA to assembly name from workspace.
+    Get all assembly names from a workspace.
     """
     assembly_objs = loader_helper.list_objects(
         workspace_id, conf, loader_common_names.OBJECTS_NAME_ASSEMBLY
     )
-    hashmap = {
-        "{6}_{0}_{4}".format(*obj_info): obj_info[1] for obj_info in assembly_objs
-    }
-    return hashmap
+    assembly_names = [obj_info[1] for obj_info in assembly_objs]
+    return assembly_names
 
 
 def _fetch_assemblies_to_upload(
@@ -300,7 +298,7 @@ def _prepare_skd_job_dir_to_upload(job_dir: str, wait_to_upload_assemblies: dict
 
 
 def create_entries_in_sd_workspace(
-        upa_assembly_mapping: dict[str, str],
+        assembly_names: list[str],
         all_assemblies: dict[str, str],
         output_dir: str,
 ) -> None:
@@ -308,22 +306,23 @@ def create_entries_in_sd_workspace(
     Create a standard entry in sourcedata/workspace for each assembly.
     Hardlink to the original assembly file in sourcedata to avoid duplicating the file.
 
-    upa_assembly_mapping: a dictionary of UPA to assembly name
+    assembly_names: assembly names from workspace
     all_assemblies: a dictionary of assembly name to file path
     output_dir: output directory to create entries in workspace
     """
-    for upa, assembly_file in upa_assembly_mapping.items():
+    for assembly_name in assembly_names:
         try:
-            assembly_dir = all_assemblies[assembly_file]
+            assembly_dir_path_in_csd = all_assemblies[assembly_name]
         except KeyError as e:
-            raise ValueError(f"Unable to find assembly {assembly_file}") from e
+            raise ValueError(f"Unable to find assembly {assembly_name}") from e
 
-        src_file = _get_source_file(assembly_dir, assembly_file)
+        src_file = _get_source_file(assembly_dir_path_in_csd, assembly_name)
 
-        upa_dir = os.path.join(output_dir, upa)
-        os.makedirs(upa_dir, exist_ok=True)
+        assembly_dir = os.path.basename(assembly_dir_path_in_csd)
+        assembly_dir_path_in_ws = os.path.join(output_dir, assembly_dir)
+        os.makedirs(assembly_dir_path_in_ws, exist_ok=True)
 
-        dest_file = os.path.join(upa_dir, assembly_file)
+        dest_file = os.path.join(assembly_dir_path_in_ws, assembly_name)
         loader_helper.create_hardlink_between_files(dest_file, src_file)
 
 
@@ -383,9 +382,9 @@ def create_entries_in_ws_and_softlinks_in_csd(
     output_dir: output directory to create entries in workspace
     all_assemblies: a dictionary of assembly name to file path
     """
-    upa_assembly_mapping = _get_upa_assembly_name_mapping(conf, workspace_id)
-    create_entries_in_sd_workspace(upa_assembly_mapping, all_assemblies, output_dir)
-    loader_helper.create_softlinks_in_csd(csd_upload, output_dir, list(upa_assembly_mapping.keys()))
+    assembly_names = _get_assembly_names_from_workspace(conf, workspace_id)
+    create_entries_in_sd_workspace(assembly_names, all_assemblies, output_dir)
+    loader_helper.create_softlinks_in_csd(csd_upload, output_dir, assembly_names)
 
 
 def main():
@@ -439,10 +438,8 @@ def main():
         # set up conf, start callback server, and upload assemblies to workspace
         conf = Conf(job_dir, kb_base_url, token_filepath)
         workspace_name = conf.ws.get_workspace_info({"id": workspace_id})[1]
-        assembly_objs = loader_helper.list_objects(
-            workspace_id, conf, loader_common_names.OBJECTS_NAME_ASSEMBLY
-        )
-        uploaded_assembly_names = [obj[1] for obj in assembly_objs]
+
+        uploaded_assembly_names = _get_assembly_names_from_workspace(conf, workspace_id)
         all_assemblies, wait_to_upload_assemblies = _fetch_assemblies_to_upload(
             workspace_name,
             csd,
