@@ -468,7 +468,8 @@ def main():
         if failed_assemblies:
             print(f"\nFailed to upload {failed_assemblies}")
         else:
-            print(f"\nSuccessfully upload {wtus_len} assemblies, average {(time.time() - start) / wtus_len}s/assembly.")
+            upload_speed = (time.time() - start) / wtus_len
+            print(f"\nSuccessfully upload {wtus_len} assemblies, average {upload_speed:.2f}s/assembly.")
 
         create_entries_in_ws_and_softlinks_in_csd(conf, workspace_id, csd_upload, output_dir, all_assemblies)
 
