@@ -75,7 +75,7 @@ class Conf:
 
 def _get_parser():
     parser = argparse.ArgumentParser(
-        description="PROTOTYPE - Download genome files from the workspace service (WSS).",
+        description="PROTOTYPE - Upload assembly files to the workspace service (WSS).",
         formatter_class=loader_helper.ExplicitDefaultsHelpFormatter,
     )
 
@@ -189,7 +189,7 @@ def _upload_assembly_to_workspace(
 
 def _get_upa_assembly_name_mapping(conf: Conf, workspace_id: int) -> dict[str, str]:
     """
-    Create a mapping of UPA to assembly name.
+    Get a mapping of UPA to assembly name from workspace.
     """
     assembly_objs = loader_helper.list_objects(
         workspace_id, conf, loader_common_names.OBJECTS_NAME_ASSEMBLY
@@ -257,21 +257,20 @@ def _prepare_skd_job_dir_to_upload(job_dir: str, wait_to_upload_assemblies: dict
 
 def create_entries_in_sd_workspace(
     upa_assembly_mapping: dict[str, str],
-    success_dict: dict[str, str],
+    all_assemblies: dict[str, str],
     output_dir: str,
 ) -> None:
     """
     Create a standard entry in sourcedata/workspace for each assembly.
     Hardlink to the original assembly file in sourcedata to avoid duplicating the file.
 
-    conf: Conf object
-    workspace_id: Workspace addressed by the permanent ID
-    success_dict: a dictionary of assembly name maps to file path
+    upa_assembly_mapping: a dictionary of UPA to assembly name
+    all_assemblies: a dictionary of assembly name to file path
     output_dir: output directory
     """
     for upa, assembly_file in upa_assembly_mapping.items():
         try:
-            assembly_dir = success_dict[assembly_file]
+            assembly_dir = all_assemblies[assembly_file]
         except KeyError as e:
             raise ValueError(f"Unable to find assembly {assembly_file}") from e
 
@@ -321,6 +320,21 @@ def upload_assemblies_to_workspace(
         print(f'Failed to upload {failed_assemblies} in folder {data_dir}')
 
     return failed_assemblies
+
+
+def create_entries_in_ws_and_softlinks_in_csd(
+        conf: Conf,
+        workspace_id: int,
+        csd_upload: str,
+        output_dir: str,
+        all_assemblies: dict[str, str],
+) -> None:
+    """
+    Create standard entries in workspace and softlinks in collectionssource directory.
+    """
+    upa_assembly_mapping = _get_upa_assembly_name_mapping(conf, workspace_id)
+    create_entries_in_sd_workspace(upa_assembly_mapping, all_assemblies, output_dir)
+    loader_helper.create_softlinks_in_csd(csd_upload, output_dir, list(upa_assembly_mapping.keys()))
 
 
 def main():
@@ -388,9 +402,7 @@ def main():
 
         if not wait_to_upload_assemblies:
             print(f"All {len(all_assemblies)} assembly files already exist in workspace id: {workspace_id}")
-            upa_assembly_mapping = _get_upa_assembly_name_mapping(conf, workspace_id)
-            create_entries_in_sd_workspace(upa_assembly_mapping, all_assemblies, output_dir)
-            loader_helper.create_softlinks_in_csd(csd_upload, output_dir, list(upa_assembly_mapping.keys()))
+            create_entries_in_ws_and_softlinks_in_csd(conf, workspace_id, csd_upload, output_dir, all_assemblies)
             return
 
         as_len = len(all_assemblies)
@@ -402,16 +414,13 @@ def main():
         start = time.time()
         data_dir = _prepare_skd_job_dir_to_upload(job_dir, wait_to_upload_assemblies)
         failed_assemblies = upload_assemblies_to_workspace(conf, workspace_name, data_dir)
-        success_dict = {k: v for k, v in wait_to_upload_assemblies.items() if k not in failed_assemblies}
 
         if failed_assemblies:
             print(f"\nFailed to upload {failed_assemblies}")
         else:
             print(f"\nSuccessfully upload {wtus_len} assemblies, average {(time.time() - start) / wtus_len}s/assembly.")
 
-        upa_assembly_mapping = _get_upa_assembly_name_mapping(conf, workspace_id)
-        create_entries_in_sd_workspace(upa_assembly_mapping, success_dict, output_dir)
-        loader_helper.create_softlinks_in_csd(csd_upload, output_dir, list(upa_assembly_mapping.keys()))
+        create_entries_in_ws_and_softlinks_in_csd(conf, workspace_id, csd_upload, output_dir, all_assemblies)
 
     finally:
         # stop callback server if it is on
