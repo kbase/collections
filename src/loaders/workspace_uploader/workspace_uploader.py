@@ -33,14 +33,14 @@ PYTHONPATH=. python src/loaders/workspace_uploader/workspace_uploader.py --works
 NOTE:
 NERSC file structure for WS:
 
-/global/cfs/cdirs/kbase/collections/sourcedata/ -> WS -> ENV -> workspace ID -> genome_id -> .fna.gz file
+/global/cfs/cdirs/kbase/collections/sourcedata/ -> WS -> ENV -> workspace ID -> assembly_id -> .fna.gz file
 
 e.g.
 /global/cfs/cdirs/kbase/collections/sourcedata/WS -> CI -> 69046 -> GCF_000979115.1 -> GCF_000979115.1_gtlEnvA5udCFS_genomic.fna.gz
                                                                     GCF_000970165.1 -> GCF_000970165.1_ASM97016v1_genomic.fna.gz
 
 The data will be linked to the collections source directory:
-e.g. /global/cfs/cdirs/kbase/collections/collectionssource/ -> ENV -> upload -> kbase_collection -> source_ver -> genome_id -> .fna.gz file
+e.g. /global/cfs/cdirs/kbase/collections/collectionssource/ -> ENV -> upload -> kbase_collection -> source_ver -> assembly_id -> .fna.gz file
 """
 import argparse
 import docker
@@ -301,7 +301,7 @@ def create_entries_in_sd_workspace(
         assembly_names: list[str],
         all_assemblies: dict[str, str],
         output_dir: str,
-) -> None:
+) -> list[str]:
     """
     Create a standard entry in sourcedata/workspace for each assembly.
     Hardlink to the original assembly file in sourcedata to avoid duplicating the file.
@@ -310,20 +310,24 @@ def create_entries_in_sd_workspace(
     all_assemblies: a dictionary of assembly name to file path
     output_dir: output directory to create entries in workspace
     """
+    assembly_ids = list()
     for assembly_name in assembly_names:
         try:
-            assembly_dir_path_in_csd = all_assemblies[assembly_name]
+            assembly_dir_in_csd = all_assemblies[assembly_name]
         except KeyError as e:
             raise ValueError(f"Unable to find assembly {assembly_name}") from e
 
-        src_file = _get_source_file(assembly_dir_path_in_csd, assembly_name)
+        src_file = _get_source_file(assembly_dir_in_csd, assembly_name)
 
-        assembly_dir = os.path.basename(assembly_dir_path_in_csd)
-        assembly_dir_path_in_ws = os.path.join(output_dir, assembly_dir)
-        os.makedirs(assembly_dir_path_in_ws, exist_ok=True)
+        assembly_id = os.path.basename(assembly_dir_in_csd)
+        assembly_ids.append(assembly_id)
+        assembly_dir_in_ws = os.path.join(output_dir, assembly_id)
+        os.makedirs(assembly_dir_in_ws, exist_ok=True)
 
-        dest_file = os.path.join(assembly_dir_path_in_ws, assembly_name)
+        dest_file = os.path.join(assembly_dir_in_ws, assembly_name)
         loader_helper.create_hardlink_between_files(dest_file, src_file)
+
+    return assembly_ids
 
 
 def upload_assemblies_to_workspace(
@@ -383,8 +387,8 @@ def create_entries_in_ws_and_softlinks_in_csd(
     all_assemblies: a dictionary of assembly name to file path
     """
     assembly_names = _get_assembly_names_from_workspace(conf, workspace_id)
-    create_entries_in_sd_workspace(assembly_names, all_assemblies, output_dir)
-    loader_helper.create_softlinks_in_csd(csd_upload, output_dir, assembly_names)
+    assembly_ids = create_entries_in_sd_workspace(assembly_names, all_assemblies, output_dir)
+    loader_helper.create_softlinks_in_csd(csd_upload, output_dir, assembly_ids)
 
 
 def main():
