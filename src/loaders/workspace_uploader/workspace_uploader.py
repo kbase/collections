@@ -451,7 +451,7 @@ def main():
         )
 
         if not wait_to_upload_assemblies:
-            print(f"All {len(all_assemblies)} assembly files already exist in workspace id: {workspace_id}")
+            print(f"All {len(all_assemblies)} assembly files already exist in workspace {workspace_id}")
             create_entries_in_ws_and_softlinks_in_csd(conf, workspace_id, csd_upload, output_dir, all_assemblies)
             return
 
