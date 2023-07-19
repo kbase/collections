@@ -343,7 +343,7 @@ def upload_assemblies_to_workspace(
     assembly_files = os.listdir(data_dir)
     print(f'start uploading {len(assembly_files)} assembly files')
 
-    failed_assemblies = list()
+    failed_paths = list()
 
     counter = 1
     for assembly_name in assembly_files:
@@ -356,14 +356,15 @@ def upload_assemblies_to_workspace(
             _upload_assembly_to_workspace(conf, workspace_name, assembly_path, assembly_name)
         except Exception as e:
             print(e)
-            failed_assemblies.append(assembly_name)
+            failed_path = os.path.join(data_dir, assembly_name)
+            failed_paths.append(failed_path)
 
         counter += 1
 
-    if failed_assemblies:
-        print(f'Failed to upload {failed_assemblies} in folder {data_dir}')
+    if failed_paths:
+        print(f'Failed to upload {failed_paths}')
 
-    return failed_assemblies
+    return failed_paths
 
 
 def create_entries_in_ws_and_softlinks_in_csd(
@@ -463,13 +464,13 @@ def main():
 
         start = time.time()
         data_dir = _prepare_skd_job_dir_to_upload(job_dir, wait_to_upload_assemblies)
-        failed_assemblies = upload_assemblies_to_workspace(conf, workspace_name, data_dir)
+        failed_paths = upload_assemblies_to_workspace(conf, workspace_name, data_dir)
 
-        if failed_assemblies:
-            print(f"\nFailed to upload {failed_assemblies}")
-        else:
-            upload_speed = (time.time() - start) / wtus_len
-            print(f"\nSuccessfully upload {wtus_len} assemblies, average {upload_speed:.2f}s/assembly.")
+        if failed_paths:
+            print(f"\nFailed to upload {failed_paths}")
+        
+        upload_speed = (time.time() - start) / (wtus_len - len(failed_paths))
+        print(f"\nSuccessfully upload {wtus_len - len(failed_paths)} assemblies, average {upload_speed:.2f}s/assembly.")
 
         create_entries_in_ws_and_softlinks_in_csd(conf, workspace_id, csd_upload, output_dir, all_assemblies)
 
