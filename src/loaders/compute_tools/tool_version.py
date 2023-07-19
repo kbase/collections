@@ -3,10 +3,21 @@ import sys
 import yaml
 
 
-def extract_latest_version(file_path: str):
+def extract_latest_version(file_path: str) -> str:
+    """
+    Extracts the latest version from a YAML file based on the date specified.
+
+    Args:
+        file_path (str): The path to the YAML file.
+
+    Returns:
+        str: The latest version extracted from the YAML file.
+    """
+
     with open(file_path, 'r') as file:
         data = yaml.safe_load(file)
         versions = data['versions']
+        # Find the latest version based on the 'date' key
         latest_version = max(versions, key=lambda x: x['date'])
         return latest_version['version']
 
