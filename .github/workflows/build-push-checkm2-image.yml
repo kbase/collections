@@ -1,0 +1,31 @@
+name: Build & Push CheckM2 Image to GHCR
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+    paths:
+      - 'src/loaders/compute_tools/checkm2/versions.yaml'
+      - '.github/workflows/build-push-checkm2-image.yml'
+      - '.github/workflows/build-push-tool-images.yml'
+
+  push:
+    branches:
+      - main
+      - master
+      - develop
+    paths:
+      - 'src/loaders/compute_tools/checkm2/versions.yaml'
+      - '.github/workflows/build-push-checkm2-image.yml'
+      - '.github/workflows/build-push-tool-images.yml'
+
+jobs:
+  trigger-build-push:
+    uses: ./.github/workflows/build-push-tool-images.yml
+    with:
+      tool_name: checkm2
+      version_file: 'src/loaders/compute_tools/checkm2/versions.yaml'
+    secrets: inherit
