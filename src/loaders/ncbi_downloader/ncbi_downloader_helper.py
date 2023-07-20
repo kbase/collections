@@ -38,8 +38,8 @@ def _download_genome_file(
                 dir_list = host.listdir(host.curdir)
                 gene_dir_list = [i for i in dir_list if i.startswith(gene_id)]
                 if len(gene_dir_list) != 1:
-                    raise ValueError(f"One and only one directory starts with {gene_id} "
-                                     f"must be present in https://ftp.ncbi.nlm.nih.gov{gene_dir}")
+                    raise ValueError(f"One and only one directory that starts with {gene_id} "
+                                     f"must be present in https://{ncbi_domain}{gene_dir}")
                 gene_dir_name = gene_dir_list[0]
                 host.chdir(gene_dir_name)
                 gene_file_list = host.listdir(host.curdir)
