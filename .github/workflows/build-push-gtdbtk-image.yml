@@ -1,0 +1,31 @@
+name: Build & Push GTDB-TK Image to GHCR
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+    paths:
+      - 'src/loaders/compute_tools/gtdb_tk/versions.yaml'
+      - '.github/workflows/build-push-gtdbtk-image.yml'
+      - '.github/workflows/build-push-tool-images.yml'
+
+  push:
+    branches:
+      - main
+      - master
+      - develop
+    paths:
+      - 'src/loaders/compute_tools/gtdb_tk/versions.yaml'
+      - '.github/workflows/build-push-gtdbtk-image.yml'
+      - '.github/workflows/build-push-tool-images.yml'
+
+jobs:
+  trigger-build-push:
+    uses: ./.github/workflows/build-push-tool-images.yml
+    with:
+      tool_name: gtdb_tk
+      version_file: 'src/loaders/compute_tools/gtdb_tk/versions.yaml'
+    secrets: inherit

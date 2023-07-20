@@ -1,0 +1,61 @@
+name: Build & Push Tool Image to GHCR
+
+on:
+  workflow_call:
+    inputs:
+      tool_name:
+        description: 'Name of the tool to build and push'
+        required: true
+        type: string
+      version_file:
+        description: 'Path to the version file'
+        required: true
+        type: string
+
+jobs:
+  build-push-tool-images:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out GitHub Repo
+        uses: actions/checkout@v3
+
+      - name: Get current date
+        id: date
+        run: echo "date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: '${{ secrets.GHCR_USERNAME }}'
+          password: '${{ secrets.GHCR_TOKEN }}'
+
+      - name: Retrieve latest tool version
+        id: extract_tool_version
+        run: |
+          tool_name="${{ inputs.tool_name }}"
+          current_version=$(python src/loaders/compute_tools/tool_version.py ${{ inputs.version_file }})
+          tool_version="${tool_name}_${current_version}"
+          echo "Current tool version: $tool_version"
+          echo "tool_version=$tool_version" >> $GITHUB_OUTPUT
+          echo "version_str=$current_version" >> $GITHUB_OUTPUT
+
+      - name: Build and push tool images
+        id: build-and-push
+        run: |
+          dockerfile="./src/loaders/compute_tools/${{ inputs.tool_name }}/Dockerfile"
+          tag="ghcr.io/${{ github.event.repository.owner.login }}/${{ github.event.repository.name }}:${{ steps.extract_tool_version.outputs.tool_version }}"
+
+          echo "Building and pushing ${{ inputs.tool_name }} image..."
+          echo "tagging image with $tag"
+
+          docker buildx build --file "$dockerfile" --tag "$tag" \
+            --build-arg "BUILD_DATE=${{ steps.date.outputs.date }}" \
+            --build-arg "VCS_REF=${{ github.sha }}" \
+            --build-arg "BRANCH=${{ github.ref }}" \
+            --build-arg "TAG=${{ github.ref }}" \
+            --build-arg "VERSION=${{ steps.extract_tool_version.outputs.version_str }}" \
+            --push .
