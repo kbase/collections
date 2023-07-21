@@ -269,7 +269,7 @@ class LineageVersionError(CollectionError):
         super().__init__(ErrorType.LINEAGE_VERSION_ERROR, message)
 
 
-class NoDataExceptionError(CollectionError):
+class NoDataError(CollectionError):
     """
     An error thrown when expected data does not exist.
     """
@@ -278,7 +278,7 @@ class NoDataExceptionError(CollectionError):
         super().__init__(error_type, message)
 
 
-class NoDataFoundError(NoDataExceptionError):
+class NoDataFoundError(NoDataError):
     """
     An generic error thrown when requested data does not exist. 
     """
@@ -287,7 +287,7 @@ class NoDataFoundError(NoDataExceptionError):
         super().__init__(ErrorType.NO_DATA_FOUND, message)
 
 
-class NoSuchCollectionError(NoDataExceptionError):
+class NoSuchCollectionError(NoDataError):
     """
     An error thrown when a collection does not exist.
     """
@@ -296,7 +296,7 @@ class NoSuchCollectionError(NoDataExceptionError):
         super().__init__(ErrorType.NO_SUCH_COLLECTION, message)
 
 
-class NoSuchCollectionVersionError(NoDataExceptionError):
+class NoSuchCollectionVersionError(NoDataError):
     """
     An error thrown when a collection version does not exist.
     """
@@ -305,7 +305,7 @@ class NoSuchCollectionVersionError(NoDataExceptionError):
         super().__init__(ErrorType.NO_SUCH_COLLECTION_VERSION, message)
 
 
-class NoSuchMatchError(NoDataExceptionError):
+class NoSuchMatchError(NoDataError):
     """
     An error thrown when a match does not exist.
     """
@@ -314,7 +314,7 @@ class NoSuchMatchError(NoDataExceptionError):
         super().__init__(ErrorType.NO_SUCH_MATCH, message)
 
 
-class NoSuchSelectionError(NoDataExceptionError):
+class NoSuchSelectionError(NoDataError):
     """
     An error thrown when a selection does not exist.
     """
