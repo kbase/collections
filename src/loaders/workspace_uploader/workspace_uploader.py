@@ -246,7 +246,7 @@ def _upload_assembly_to_workspace(
 
 def _read_yaml_file(root_dir: str, workspace_id: int, env: str) -> list[str]:
     """
-    Get all assembly names from the uploaded.yaml file.
+    Get all assembly names that have been uploaded to workspace from the uploaded.yaml file.
     """
 
     if env not in loader_common_names.KB_ENV:
@@ -263,32 +263,37 @@ def _read_yaml_file(root_dir: str, workspace_id: int, env: str) -> list[str]:
     if workspace_id not in data[env]:
         data[env][workspace_id] = list()
 
-    assembly_names = data[env][workspace_id]
-    return data, assembly_names
+    return data[env][workspace_id]
 
 
 def _update_yaml_file(
         root_dir: str,
         workspace_id: int,
         env: str,
-        new_assemly_names: list[str]
+        new_assemly_names: list[str],
+        overwrite: bool = False,
 ) -> list[str]:
     """
     Update the uploaded.yaml file with newly uploaded assemblies.
     """
     data, assembly_names = _read_yaml_file(root_dir, workspace_id, env)
-    intersection = set(assembly_names).intersection(set(new_assemly_names))
-    if intersection:
-        raise ValueError(f"Detected assembly names {intersection} already exist in the uploaded.yaml file")
-    for new_assembly_name in new_assemly_names:
-        data[env][workspace_id].append(new_assembly_name)
+
+    if not overwrite:
+        intersection = set(assembly_names).intersection(set(new_assemly_names))
+        if intersection:
+            raise ValueError(f"Detected assembly names {intersection} that wait to be uploaded "
+                             f"already exist in the uploaded.yaml file")
+        for new_assembly_name in new_assemly_names:
+            data[env][workspace_id].append(new_assembly_name)
+    else:
+        all_assembly_names = list(set(assembly_names).union(set(new_assemly_names)))
+        data[env][workspace_id] = all_assembly_names
 
     file_path = _get_yaml_file_path(root_dir)
     with open(file_path, "w") as file:
         yaml.dump(data, file)
 
-    assembly_names = data[env][workspace_id]
-    return assembly_names
+    return data[env][workspace_id]
 
 
 def _fetch_assemblies_to_upload(
@@ -519,7 +524,7 @@ def main():
         print(f"\nSuccessfully upload {wtus_len - len(failed_names)} assemblies, average {upload_speed:.2f}s/assembly.")
 
         new_assembly_names = [name for name in wait_to_upload_assemblies if name not in failed_names]
-        uploaded_assembly_names = _update_yaml_file(root_dir, workspace_id, env, new_assembly_names)
+        uploaded_assembly_names = _update_yaml_file(root_dir, workspace_id, env, new_assembly_names, overwrite)
         create_entries_in_ws_and_softlinks_in_csd(csd_upload, output_dir, uploaded_assembly_names, all_assemblies)
 
     finally:
