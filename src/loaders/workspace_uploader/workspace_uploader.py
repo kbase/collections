@@ -246,7 +246,7 @@ def _upload_assembly_to_workspace(
 
 def _read_yaml_file(root_dir: str, workspace_id: int, env: str) -> list[str]:
     """
-    Get all assembly names that have been uploaded to workspace from the uploaded.yaml file.
+    Get all assembly names from the uploaded.yaml file.
     """
 
     if env not in loader_common_names.KB_ENV:
