@@ -258,10 +258,10 @@ def _read_yaml_file(root_dir: str, workspace_id: int, env: str) -> list[str]:
         data = yaml.safe_load(file)
 
     if not data:
-        data = {env: {}}
+        data = {env: dict()}
 
     if workspace_id not in data[env]:
-        data[env][workspace_id] = []
+        data[env][workspace_id] = list()
 
     assembly_names = data[env][workspace_id]
     return data, assembly_names
@@ -395,7 +395,7 @@ def upload_assemblies_to_workspace(
     assembly_files = os.listdir(data_dir)
     print(f'start uploading {len(assembly_files)} assembly files')
 
-    failed_paths = list()
+    failed_names = list()
 
     counter = 1
     for assembly_name in assembly_files:
@@ -408,15 +408,14 @@ def upload_assemblies_to_workspace(
             _upload_assembly_to_workspace(conf, workspace_name, assembly_path, assembly_name)
         except Exception as e:
             print(e)
-            failed_path = os.path.join(data_dir, assembly_name)
-            failed_paths.append(failed_path)
+            failed_names.append(assembly_name)
 
         counter += 1
 
-    if failed_paths:
-        print(f'Failed to upload {failed_paths}')
+    if failed_names:
+        print(f'Failed to upload {failed_names}')
 
-    return failed_paths
+    return failed_names
 
 
 def create_entries_in_ws_and_softlinks_in_csd(
@@ -511,15 +510,15 @@ def main():
 
         start = time.time()
         data_dir = _prepare_skd_job_dir_to_upload(job_dir, wait_to_upload_assemblies)
-        failed_paths = upload_assemblies_to_workspace(conf, workspace_name, data_dir)
+        failed_names = upload_assemblies_to_workspace(conf, workspace_name, data_dir)
 
-        if failed_paths:
-            print(f"\nFailed to upload {failed_paths}")
+        if failed_names:
+            print(f"\nFailed to upload {failed_names}")
         
-        upload_speed = (time.time() - start) / (wtus_len - len(failed_paths))
-        print(f"\nSuccessfully upload {wtus_len - len(failed_paths)} assemblies, average {upload_speed:.2f}s/assembly.")
+        upload_speed = (time.time() - start) / (wtus_len - len(failed_names))
+        print(f"\nSuccessfully upload {wtus_len - len(failed_names)} assemblies, average {upload_speed:.2f}s/assembly.")
 
-        new_assembly_names = [key for key in wait_to_upload_assemblies if key not in failed_paths]
+        new_assembly_names = [name for name in wait_to_upload_assemblies if name not in failed_names]
         uploaded_assembly_names = _update_yaml_file(root_dir, workspace_id, env, new_assembly_names)
         create_entries_in_ws_and_softlinks_in_csd(csd_upload, output_dir, uploaded_assembly_names, all_assemblies)
 
