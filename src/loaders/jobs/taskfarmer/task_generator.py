@@ -6,6 +6,7 @@ import shutil
 import src.loaders.jobs.taskfarmer.taskfarmer_common as tf_common
 from src.loaders.common import loader_common_names
 from src.loaders.common.loader_helper import make_collection_source_dir
+from src.loaders.compute_tools.tool_version import extract_latest_version
 from src.loaders.jobs.taskfarmer.taskfarmer_task_mgr import TFTaskManager, PreconditionError
 
 '''
@@ -62,7 +63,8 @@ MAX_NODE_NUM = 100  # maximum number of nodes to use
 # TODO: make this configurable based on tool used. At present, we have set the value to 4 for optimal performance with GTDB-Tk.
 NODE_THREADS = 4
 
-REGISTRY = 'tiangu01'  # public Docker Hub registry to pull images from
+REGISTRY = 'ghcr.io/kbase/collections'
+VERSION_FILE = 'versions.yaml'
 
 # TODO GTDB update readme to specify to get correct version of data, not just latest
 # TODO REPRODUCIBILITY need to version the databases and use the correct version with the
@@ -110,13 +112,19 @@ def _write_to_file(file_path, content):
         file.write(content)
 
 
-def _fetch_image(registry, image_name, job_dir, tag='latest', force_pull=True):
+def _fetch_image(registry, tool, job_dir, force_pull=True):
     """
     Fetches the specified Shifter image if it is not already present on the system.
 
     When force_pull is set to True, the image is always pulled from the registry
     """
-    image_str = f"{registry}/{image_name}:{tag}"
+
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    compute_tools_dir = os.path.join(current_dir, '../../compute_tools')
+    version_file = os.path.join(compute_tools_dir, tool, VERSION_FILE)
+    tool_img_ver = extract_latest_version(version_file)
+    tool_img_tag = f'{tool}_{tool_img_ver}'
+    image_str = f'{registry}:{tool_img_tag}'
 
     if not force_pull:
         # Check if the image is already present on the system
@@ -132,7 +140,7 @@ def _fetch_image(registry, image_name, job_dir, tag='latest', force_pull=True):
             if len(parts) != 6:
                 continue
             if parts[5] == image_str:
-                print(f"Shifter image {image_name}:{tag} from registry {registry} already exists.")
+                print(f"Shifter image {tool_img_tag} from registry {registry} already exists.")
                 return parts[5]
 
     # Pull the image from the registry
@@ -365,7 +373,7 @@ def main():
     job_dir = task_mgr.job_dir
     _create_job_dir(job_dir, destroy_old_job_dir=args.force)
 
-    image_str = _fetch_image(REGISTRY, tool, job_dir, tag=args.image_tag, force_pull=not args.use_cached_image)
+    image_str = _fetch_image(REGISTRY, tool, job_dir, force_pull=not args.use_cached_image)
     wrapper_file = _create_shifter_wrapper(job_dir, image_str)
     task_list_file, n_jobs = _create_task_list(
         env,
