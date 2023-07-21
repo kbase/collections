@@ -282,7 +282,7 @@ def _update_yaml_file(
     if not overwrite:
         intersection = set(assembly_names).intersection(set(new_assemly_names))
         if intersection:
-            raise ValueError(f"Detected assembly names {intersection} that wait to be uploaded "
+            raise ValueError(f"Detected assembly names {intersection} waiting to be uploaded "
                              f"already exist in the uploaded.yaml file")
         for new_assembly_name in new_assemly_names:
             data[env][workspace_id].append(new_assembly_name)
