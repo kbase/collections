@@ -244,7 +244,11 @@ def _upload_assembly_to_workspace(
         )
 
 
-def _read_yaml_file(root_dir: str, workspace_id: int, env: str) -> list[str]:
+def _read_yaml_file(
+        root_dir: str,
+        workspace_id: int,
+        env: str
+) -> Tuple[dict[str, dict[int, list[str]]], list[str]]:
     """
     Get all assembly names from the uploaded.yaml file.
     """
