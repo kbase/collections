@@ -263,7 +263,8 @@ def _read_yaml_file(root_dir: str, workspace_id: int, env: str) -> list[str]:
     if workspace_id not in data[env]:
         data[env][workspace_id] = list()
 
-    return data[env][workspace_id]
+    assembly_names = data[env][workspace_id]
+    return data, assembly_names
 
 
 def _update_yaml_file(
@@ -293,7 +294,8 @@ def _update_yaml_file(
     with open(file_path, "w") as file:
         yaml.dump(data, file)
 
-    return data[env][workspace_id]
+    assembly_names = data[env][workspace_id]
+    return assembly_names
 
 
 def _fetch_assemblies_to_upload(
