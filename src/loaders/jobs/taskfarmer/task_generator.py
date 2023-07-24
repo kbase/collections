@@ -14,7 +14,7 @@ from src.loaders.jobs.taskfarmer.taskfarmer_task_mgr import TFTaskManager, Preco
 Create the required documents and scripts for the TaskFarmer Workflow Manager and provide the option to execute tasks.
 
 usage: task_generator.py [-h] --tool {gtdb_tk,checkm2,microtrait,mash} --kbase_collection KBASE_COLLECTION --source_ver SOURCE_VER [--env {CI,NEXT,APPDEV,PROD,NONE}]
-                         [--load_ver LOAD_VER] [--root_dir ROOT_DIR] [--image_tag IMAGE_TAG] [--use_cached_image] [--submit_job] [--force] [--source_file_ext SOURCE_FILE_EXT]
+                         [--load_ver LOAD_VER] [--root_dir ROOT_DIR] [--submit_job] [--force] [--source_file_ext SOURCE_FILE_EXT]
 
 options:
   -h, --help            show this help message and exit
@@ -32,9 +32,6 @@ optional arguments:
                         Environment containing the data to be processed. (default: PROD)
   --load_ver LOAD_VER   KBase load version (e.g. r207.kbase.1). (defaults to the source version)
   --root_dir ROOT_DIR   Root directory for the collections project. (default: /global/cfs/cdirs/kbase/collections)
-  --image_tag IMAGE_TAG
-                        Docker/Shifter image tag. (default: latest)
-  --use_cached_image    Use an existing image without pulling
   --submit_job          Submit job to slurm
   --force               Force overwrite of existing job directory
   --source_file_ext SOURCE_FILE_EXT
@@ -65,6 +62,7 @@ NODE_THREADS = 4
 
 REGISTRY = 'ghcr.io/kbase/collections'
 VERSION_FILE = 'versions.yaml'
+COMPUTE_TOOLS_DIR = '../../compute_tools'  # relative to task_generator.py
 
 # TODO GTDB update readme to specify to get correct version of data, not just latest
 # TODO REPRODUCIBILITY need to version the databases and use the correct version with the
@@ -81,9 +79,6 @@ CHECKM2_DB = '/global/cfs/cdirs/kbase/collections/libraries/CheckM2_database'
 # volume mapping for the Docker containers
 TOOL_VOLUME_MAP = {'checkm2': {CHECKM2_DB: '/CheckM2_database'},
                    'gtdb_tk': {GTDBTK_DATA_PATH: '/gtdbtk_reference_data'}}
-
-# Docker image tags for the tools
-DEFAULT_IMG_TAG = 'latest'
 
 
 def _pull_image(image_str, job_dir):
@@ -120,7 +115,7 @@ def _fetch_image(registry, tool, job_dir, force_pull=True):
     """
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    compute_tools_dir = os.path.join(current_dir, '../../compute_tools')
+    compute_tools_dir = os.path.join(current_dir, COMPUTE_TOOLS_DIR)
     version_file = os.path.join(compute_tools_dir, tool, VERSION_FILE)
     tool_img_ver = extract_latest_version(version_file)
     tool_img_tag = f'{tool}_{tool_img_ver}'
@@ -341,10 +336,6 @@ def main():
                           help=loader_common_names.LOAD_VER_DESCR + ' (defaults to the source version)')
     optional.add_argument('--root_dir', type=str, default=loader_common_names.ROOT_DIR,
                           help=f'Root directory for the collections project. (default: {loader_common_names.ROOT_DIR})')
-    optional.add_argument('--image_tag', type=str, default=DEFAULT_IMG_TAG,
-                          help=f'Docker/Shifter image tag. (default: {DEFAULT_IMG_TAG})')
-    optional.add_argument('--use_cached_image', action='store_true',
-                          help='Use an existing image without pulling')
     optional.add_argument('--submit_job', action='store_true', help='Submit job to slurm')
     optional.add_argument('--force', action='store_true', help='Force overwrite of existing job directory')
     optional.add_argument('--source_file_ext', type=str, default='.fa',
@@ -373,7 +364,7 @@ def main():
     job_dir = task_mgr.job_dir
     _create_job_dir(job_dir, destroy_old_job_dir=args.force)
 
-    image_str = _fetch_image(REGISTRY, tool, job_dir, force_pull=not args.use_cached_image)
+    image_str = _fetch_image(REGISTRY, tool, job_dir)
     wrapper_file = _create_shifter_wrapper(job_dir, image_str)
     task_list_file, n_jobs = _create_task_list(
         env,
