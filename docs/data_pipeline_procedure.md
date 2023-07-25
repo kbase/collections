@@ -25,6 +25,11 @@
          ```text
          collectionssource/[env]/[kbase_collection]/[source_ver]/[UPA]/
          ```
+       * KBase SDK job directory
+         ```text
+         sdk_job_dir/[username]/
+         ```
+         (preserved with `--keep_job_dir` option, otherwise removed automatically)
 
    * NCBI Downloader
      * Example usage
