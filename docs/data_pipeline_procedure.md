@@ -68,11 +68,12 @@
        ```text
        task_farmer_jobs/[job_dir]/
        ```
+       * job_dir is formatted as `[kbase_collection]_[load_ver]_[tool]`
        * including files utilized by TaskFarmer
-         * shifter_wrapper.sh
-         * submit_taskfarmer.sl
-         * tasks.txt
-         * genome_id_x.tsv
+         * [shifter_wrapper.sh](https://docs.nersc.gov/jobs/workflow/taskfarmer/#step-1-write-a-wrapper-wrappersh)
+         * [submit_taskfarmer.sl](https://docs.nersc.gov/jobs/workflow/taskfarmer/#step-3-create-a-batch-script-submit_taskfarmersl)
+         * [tasks.txt](https://docs.nersc.gov/jobs/workflow/taskfarmer/#step-2-create-a-task-list-taskstxt)
+         * genome_id_x.tsv: utilized by tool compute script to retrieve source file, which is generated per task
          * result/log files created by TaskFarmer
      * Taskfarmer jobs tracking file
        ```text
