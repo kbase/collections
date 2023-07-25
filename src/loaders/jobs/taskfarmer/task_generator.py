@@ -107,11 +107,9 @@ def _write_to_file(file_path, content):
         file.write(content)
 
 
-def _fetch_image(registry, tool, job_dir, force_pull=True):
+def _fetch_image(registry, tool, job_dir):
     """
     Fetches the specified Shifter image if it is not already present on the system.
-
-    When force_pull is set to True, the image is always pulled from the registry
     """
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -120,23 +118,6 @@ def _fetch_image(registry, tool, job_dir, force_pull=True):
     tool_img_ver = extract_latest_version(version_file)
     tool_img_tag = f'{tool}_{tool_img_ver}'
     image_str = f'{registry}:{tool_img_tag}'
-
-    if not force_pull:
-        # Check if the image is already present on the system
-        si_std_out_file, si_std_err_file, si_exit_code = tf_common.run_nersc_command(
-            ["shifterimg", "images"], job_dir, log_file_prefix='shifterimg_images')
-
-        with open(si_std_out_file, "r") as f:
-            si_std_out = f.read()
-
-        images = si_std_out.split("\n")
-        for image in images:
-            parts = image.split()
-            if len(parts) != 6:
-                continue
-            if parts[5] == image_str:
-                print(f"Shifter image {tool_img_tag} from registry {registry} already exists.")
-                return parts[5]
 
     # Pull the image from the registry
     _pull_image(image_str, job_dir)
