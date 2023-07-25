@@ -17,7 +17,7 @@
          ```text
          sourcedata/WS/[env]/[workspace_id]/[UPA]/
          ```
-       * Metadata files
+       * Metadata file
          ```text
          sourcedata/WS/[env]/[workspace_id]/[UPA]/[UPA].meta
          ```
@@ -38,7 +38,7 @@
          ```text
          sourcedata/NCBI/NONE/[ncbi_genome_id]/
          ```
-       * Metadata files
+       * Metadata file
          ```text
          None
          ```
@@ -63,6 +63,12 @@
        ```text
        task_farmer_jobs/[job_dir]/
        ```
+       * including files utilized by TaskFarmer
+         * shifter_wrapper.sh
+         * submit_taskfarmer.sl
+         * tasks.txt
+         * genome_id_x.tsv
+         * result/log files created by TaskFarmer
      * Taskfarmer jobs tracking file
        ```text
        task_farmer_jobs/task_info.jsonl
