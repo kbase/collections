@@ -7,13 +7,15 @@ from pydantic import BaseModel, Field
 import src.common.storage.collection_and_field_names as names
 from src.common.product_models.common_models import SubsetProcessStates
 from src.service import app_state
+from src.service import errors
 from src.service import kb_auth
 from src.service import models
 from src.service.data_products.common_functions import (
     remove_collection_keys,
     count_simple_collection_list,
     remove_marked_subset,
-    query_table
+    query_table,
+    get_load_version
 )
 from src.service.data_products import common_models
 from src.service.data_products.data_product_processing import (
@@ -39,6 +41,8 @@ from typing import Any, Annotated
 ID = "samples"
 
 _ROUTER = APIRouter(tags=["Samples"], prefix=f"/{ID}")
+
+_MAX_SAMPLE_IDS = 1000
 
 
 class SamplesSpec(common_models.DataProductSpec):
@@ -82,6 +86,12 @@ SAMPLES_SPEC = SamplesSpec(
                 [
                     names.FLD_COLLECTION_ID,
                     names.FLD_LOAD_VERSION,
+                    names.FLD_KB_SAMPLE_ID,
+                    # Find samples
+                ],
+                [
+                    names.FLD_COLLECTION_ID,
+                    names.FLD_LOAD_VERSION,
                     names.FLD_SAMPLE_LONGITUDE,
                     names.FLD_SAMPLE_LATITUDE,
                     # for aggregating on location
@@ -119,11 +129,15 @@ class SamplesTable(TableAttributes, SubsetProcessStates):
 
 class SampleLocation(BaseModel):
     """
-    A location of one or more samples containing one or more genomes.
+    A location of one or more samples containing one or more genomes, and optionally
+    the IDs of the samples.
     """
     lat: float = Field(example=36.1, description="The latitude of the location in degrees.")
     lon: float = Field(example=-28.2, description="The longitude of the location in degrees.")
     count: int = Field(example=3, description="The number of genomes found at the location.")
+    ids: list[str] | None = Field(
+        example=["993eeea2-5323-44dd-80d5-18b1f7cb57bf"],
+        description="The sample IDs found at the location.")
 
 
 class SampleLocations(SubsetProcessStates):
@@ -132,6 +146,15 @@ class SampleLocations(SubsetProcessStates):
     """
     locs: list[SampleLocation] | None = None
 
+
+class Samples(BaseModel):
+    """
+    A list of samples with their attributes.
+    """
+    samples: list[dict[str, Any]] = Field(
+        example=[{names.FLD_KB_SAMPLE_ID: "993eeea2-5323-44dd-80d5-18b1f7cb57bf"}],
+        description="The sample attributes as a list of dictionaries, one sample per list entry."
+    )
 
 
 # At some point we're going to want to filter/sort on fields. We may want a list of fields
@@ -269,6 +292,12 @@ def _get_subset_id(subset_process: models.DataProductProcess, subset_prefix: str
 async def get_sample_locations(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
+    include_sample_ids: Annotated[bool, Query(
+        description="Whether to include the sample IDs present at each location.\n\n"
+            + "**WARNING**: If there are many samples in the collection, this call may take a long "
+            + "time and a lot of memory. In the future it may be disallowed for collections with "
+            + "large numbers of samples."
+    )] = False,
     match_id: Annotated[str | None, Query(
         description="A match ID to set the view to the match rather than "
             + "the entire collection. Authentication is required. If a match ID is "
@@ -301,7 +330,8 @@ async def get_sample_locations(
     )
     if status_only:
         return _location_response(dp_match=dp_match, dp_sel=dp_sel)
-    return await _query(appstate.arangostorage, collection_id, load_ver, dp_match, dp_sel)
+    return await _query_location(
+        appstate.arangostorage, collection_id, load_ver, dp_match, dp_sel, include_sample_ids)
 
 
 def _location_response(
@@ -316,12 +346,13 @@ def _location_response(
     )
 
 
-async def _query(
+async def _query_location(
     storage: ArangoStorage,
     collection_id: str,
     load_ver: str,
     dp_match: models.DataProductProcess = None,
     dp_sel: models.DataProductProcess = None,
+    include_sample_ids = False,
 ):
     internal_match_id = _get_subset_id(dp_match, MATCH_ID_PREFIX)
     internal_selection_id = _get_subset_id(dp_sel, SELECTION_ID_PREFIX)
@@ -347,23 +378,108 @@ async def _query(
         aql += f"""
             FILTER @internal_selection_id IN d.{names.FLD_MATCHES_SELECTIONS}
         """
-    aql += f"""
-        COLLECT lat = d.{names.FLD_SAMPLE_LATITUDE}, lon = d.{names.FLD_SAMPLE_LONGITUDE}
-            WITH COUNT INTO count
-        RETURN {{
-            "lat": lat,
-            "lon": lon,
-            "count": count
-        }}
-    """
+    if include_sample_ids:
+        aql += f"""
+            COLLECT lat = d.{names.FLD_SAMPLE_LATITUDE}, lon = d.{names.FLD_SAMPLE_LONGITUDE}
+                AGGREGATE sampleids = UNIQUE(d.{names.FLD_KB_SAMPLE_ID}), count = COUNT(d)
+            RETURN {{
+                "lat": lat,
+                "lon": lon,
+                "count": count,
+                "sampleids": sampleids
+            }}
+        """
+    else:
+        aql += f"""
+            COLLECT lat = d.{names.FLD_SAMPLE_LATITUDE}, lon = d.{names.FLD_SAMPLE_LONGITUDE}
+                WITH COUNT INTO count
+            RETURN {{
+                "lat": lat,
+                "lon": lon,
+                "count": count
+            }}
+        """
     res = []
     cur = await storage.execute_aql(aql, bind_vars=bind_vars)
     try:
         async for d in cur:
-            res.append(SampleLocation(lat=d["lat"], lon=d["lon"], count=d["count"]))
+            if include_sample_ids:
+                res.append(SampleLocation(
+                    lat=d["lat"], lon=d["lon"], count=d["count"], ids=d["sampleids"]
+                ))
+            else:
+                res.append(SampleLocation(lat=d["lat"], lon=d["lon"], count=d["count"]))
     finally:
         await cur.close(ignore_missing=True)
     return _location_response(dp_match=dp_match, dp_sel=dp_sel, locs=res)
+
+
+@_ROUTER.get(
+    "/byid",
+    response_model=Samples,
+    summary=f"Get samples by ID.",
+    description=f"Provide specific sample IDs and get the sample attributes for those IDs.\n\n"
+        + "Authentication is not required unless overriding the load version, in which case "
+        + "service administration permissions are required.\n\n",
+)
+async def get_samples_by_id(
+    r: Request,
+    collection_id: Annotated[str, PATH_VALIDATOR_COLLECTION_ID],
+    sample_ids: Annotated[str, Query(
+        example="993eeea2-5323-44dd-80d5-18b1f7cb57bf, 2e72b2de-d72f-4e0a-9192-2b961d61aa22",
+        description=f"A list of sample IDs, separated by commas. At most {_MAX_SAMPLE_IDS} "
+            + "sample IDs are allowed."
+    )],
+    load_ver_override: common_models.QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
+    user: kb_auth.KBaseUser = Depends(_OPT_AUTH),
+):
+    storage = app_state.get_app_state(r).arangostorage
+    _, load_ver = await get_load_version(
+        storage, collection_id, ID, load_ver_override, user)
+    if not sample_ids or not sample_ids.strip():
+        return Samples(samples=[])
+    sample_ids = {s.strip() for s in sample_ids.split(",")}
+    if len(sample_ids) > _MAX_SAMPLE_IDS:
+        raise errors.IllegalParameterError(
+            f"No more than {_MAX_SAMPLE_IDS} sample IDs are allowed")
+    bind_vars = {
+        f"@coll": names.COLL_SAMPLES,
+        "coll_id": collection_id,
+        "load_ver": load_ver,
+        "sampleids": list(sample_ids)
+    }
+    aql = f"""
+        FOR id IN @sampleids
+            LET doc = (
+                FOR d IN @@coll
+                    FILTER d.{names.FLD_COLLECTION_ID} == @coll_id
+                    FILTER d.{names.FLD_LOAD_VERSION} == @load_ver
+                    FILTER d.{names.FLD_KB_SAMPLE_ID} == id
+                    LIMIT 1
+                    RETURN d
+            )
+            FILTER doc[0] != null
+            RETURN doc[0]
+    """
+    res = []
+    found_ids = set()
+    cur = await storage.execute_aql(aql, bind_vars=bind_vars)
+    try:
+        async for d in cur:
+            d = _remove_keys(d)
+            d.pop(names.FLD_KBASE_ID)
+            res.append(d)
+            found_ids.add(d[names.FLD_KB_SAMPLE_ID])
+    finally:
+        await cur.close(ignore_missing=True)
+    if sample_ids - found_ids:
+        err = f"Some provided sample IDs were not found in {collection_id} load version {load_ver}"
+        if len(sample_ids) <= 10:
+            err += f": {sorted(sample_ids)}"
+        else:
+            err += f"; showing 10: {list(sorted(sample_ids))[:10]}"
+        raise errors.NoDataFoundError(err)
+    return Samples(samples=res)
 
 
 @_ROUTER.get(
