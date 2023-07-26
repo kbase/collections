@@ -107,7 +107,7 @@
      * Example usage
        ```commandline
        python src/loaders/genome_collection/compute_genome_taxa_count.py \
-         ../import_files/$env/GROW_tian_test_taskfarmer_checkm2_gtdb_tk_kbcoll_genome_attribs.jsonl \
+         ../import_files/$env/GROW_2023.06_checkm2_gtdb_tk_kbcoll_genome_attribs.jsonl \
          --load_ver $load_ver \
          --kbase_collection $kbase_collection \
          --env $env \
