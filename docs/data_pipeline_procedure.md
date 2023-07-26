@@ -89,16 +89,33 @@
        collectionsdata/[env]/[kbase_collection]/[load_ver]/[tool]/[batch_dir]/genome_metadata.tsv
        ```
 ## Parse Tool Results
-   * Example usage
-     ```commandline
-     python src/loaders/genome_collection/parse_tool_results.py \
-       --env $env \
-       --kbase_collection $kbase_collection \
-       --source_ver $source_ver \
-       --load_ver $load_ver
-     ```
-   * Generated files/metafiles
-     * Parsed JSONL files for ArangoDB import
-       ```text
-       import_files/[env]/
+   * Parse tool computation results
+     * Example usage
+       ```commandline
+       python src/loaders/genome_collection/parse_tool_results.py \
+         --env $env \
+         --kbase_collection $kbase_collection \
+         --source_ver $source_ver \
+         --load_ver $load_ver
        ```
+     * Generated files/metafiles
+       * Parsed JSONL files for ArangoDB import
+         ```text
+         import_files/[env]/
+         ```
+   * Parse genome taxa count
+     * Example usage
+       ```commandline
+       python src/loaders/genome_collection/compute_genome_taxa_count.py \
+         ../import_files/$env/GROW_tian_test_taskfarmer_checkm2_gtdb_tk_kbcoll_genome_attribs.jsonl \
+         --load_ver $load_ver \
+         --kbase_collection $kbase_collection \
+         --env $env \
+         --root_dir $root_dir \
+         --input_source genome_attributes
+       ```
+     * Generated files/metafiles
+       * Parsed JSONL files for ArangoDB import
+         ```text
+         import_files/[env]/
+         ```
