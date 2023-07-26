@@ -32,14 +32,14 @@ PYTHONPATH=. python src/loaders/workspace_uploader/workspace_uploader.py --works
 NOTE:
 NERSC file structure for WS:
 
-/global/cfs/cdirs/kbase/collections/sourcedata/ -> WS -> ENV -> workspace ID -> assembly_id -> .fna.gz file
+/global/cfs/cdirs/kbase/collections/sourcedata/ -> WS -> ENV -> workspace ID -> UPA -> .fna.gz file
 
 e.g.
-/global/cfs/cdirs/kbase/collections/sourcedata/WS -> CI -> 69046 -> GCF_000979115.1 -> GCF_000979115.1_gtlEnvA5udCFS_genomic.fna.gz
-                                                                    GCF_000970165.1 -> GCF_000970165.1_ASM97016v1_genomic.fna.gz
+/global/cfs/cdirs/kbase/collections/sourcedata/WS -> CI -> 69046 -> 69046_58_1 -> GCF_000979115.1_gtlEnvA5udCFS_genomic.fna.gz
+                                                                    69046_60_1 -> GCF_000970165.1_ASM97016v1_genomic.fna.gz
 
 The data will be linked to the collections source directory:
-e.g. /global/cfs/cdirs/kbase/collections/collectionssource/ -> ENV -> upload -> kbase_collection -> source_ver -> assembly_id -> .fna.gz file
+e.g. /global/cfs/cdirs/kbase/collections/collectionssource/ -> ENV -> kbase_collection -> source_ver -> UPA -> .fna.gz file
 """
 import argparse
 import docker
@@ -240,21 +240,6 @@ def _upload_assembly_to_workspace(
         )
 
 
-def _check_assembly_name(
-        assembly_name: str,
-        env: str,
-        workspace_id: int,
-        data: dict[str, dict[int, list[str]]],
-) -> bool:
-    """
-    Check if an assembly name exists in the uploaded.yaml file.
-    """
-    assembly_dicts = data[env][workspace_id]
-    if assembly_name in [assembly_dict["file_name"] for assembly_dict in assembly_dicts]:
-        return True
-    return False
-
-
 def _read_yaml_file(
         root_dir: str,
         env: str,
@@ -263,7 +248,7 @@ def _read_yaml_file(
         assembly_name: str, 
 ) -> Tuple[dict[str, dict[int, list[str]]], bool]:
     """
-    Get metadata and upload status from the uploaded.yaml file.
+    Get metadata and upload status of an assembly from the uploaded.yaml file.
     """
 
     uploaded = False
