@@ -215,7 +215,7 @@ def main():
             collection_source_dir,
             work_dir,
             genome_ids_unprocessed,
-            taxonomy_files
+            taxonomy_files,
         )
         return
 
@@ -247,7 +247,7 @@ def main():
         collection_source_dir,
         work_dir,
         list(genome_ids_clean),
-        taxonomy_files
+        taxonomy_files,
     )
 
 

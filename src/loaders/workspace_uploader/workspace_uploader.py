@@ -244,7 +244,7 @@ def _check_assembly_name(
         assembly_name: str,
         env: str,
         workspace_id: int,
-        data: dict[str, dict[int, list[str]]]
+        data: dict[str, dict[int, list[str]]],
 ) -> bool:
     """
     Check if an assembly name exists in the uploaded.yaml file.
@@ -281,7 +281,8 @@ def _read_yaml_file(
     if workspace_id not in data[env]:
         data[env][workspace_id] = list()
 
-    if _check_assembly_name(assembly_name, env, workspace_id, data):
+    assembly_dicts = data[env][workspace_id]
+    if assembly_name in [assembly_dict["file_name"] for assembly_dict in assembly_dicts]:
         uploaded = True
     return data, uploaded
 
@@ -297,10 +298,12 @@ def _update_yaml_file(
     """
     Update the uploaded.yaml file in target genome_dir with newly uploaded assembly names and upa info.
     """
-    data, _ = _read_yaml_file(root_dir, env, workspace_id, assembly_dir_name, assembly_name)
-    data_dict = {"file_name": assembly_name, "upa": upa}
-    if _check_assembly_name(assembly_name, env, workspace_id, data):
+    data, uploaded = _read_yaml_file(root_dir, env, workspace_id, assembly_dir_name, assembly_name)
+
+    if uploaded:
         raise ValueError(f"Assembly {assembly_name} already exists in workspace {workspace_id}")
+
+    data_dict = {"file_name": assembly_name, "upa": upa}
     data[env][workspace_id].append(data_dict)
 
     file_path = _get_yaml_file_path(root_dir, assembly_dir_name)
@@ -314,7 +317,7 @@ def _fetch_assemblies_to_upload(
         workspace_id: int,
         collection_source_dir: str,
         upload_file_ext: list[str],
-) -> Tuple[dict[str, str], dict[str, str]]:
+) -> Tuple[int, dict[str, str]]:
     """
     Help fetch assemblies to upload.
     """
