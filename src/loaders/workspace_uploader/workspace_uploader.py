@@ -1,7 +1,7 @@
 """
 usage: workspace_uploader.py [-h] --workspace_id WORKSPACE_ID [--kbase_collection KBASE_COLLECTION] [--source_ver SOURCE_VER]
                              [--root_dir ROOT_DIR] [--token_filepath TOKEN_FILEPATH] [--env {CI,NEXT,APPDEV,PROD}]
-                             [--upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]] [--overwrite] [--keep_job_dir]
+                             [--upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]] [--keep_job_dir]
 
 PROTOTYPE - Upload assembly files to the workspace service (WSS).
 
@@ -24,7 +24,6 @@ optional arguments:
                         KBase environment, defaulting to PROD (default: PROD)
   --upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]
                         Upload only files that match given extensions (default: ['genomic.fna.gz'])
-  --overwrite           Overwrite existing files in workspace
   --keep_job_dir        Keep SDK job directory after upload task is completed
 
 e.g.
@@ -135,7 +134,7 @@ def _get_parser():
         "--workspace_id",
         required=True,
         type=int,
-        help="Workspace addressed by the permanent ID",
+        help="Target workspace addressed by the permanent ID",
     )
     required.add_argument(
         f"--{loader_common_names.KBASE_COLLECTION_ARG_NAME}",
@@ -175,9 +174,6 @@ def _get_parser():
         help="Upload only files that match given extensions",
     )
     optional.add_argument(
-        "--overwrite", action="store_true", help="Overwrite existing files in workspace"
-    )
-    optional.add_argument(
         "--keep_job_dir",
         action="store_true",
         help="Keep SDK job directory after upload task is completed",
@@ -185,11 +181,11 @@ def _get_parser():
     return parser
 
 
-def _get_yaml_file_path(root_dir: str) -> str:
+def _get_yaml_file_path(root_dir: str, assembly_dir_name: str) -> str:
     """
     Get the uploaded.yaml file path from NCBI/sourcedata directory.
     """
-    file_path = os.path.join(get_work_dir(root_dir), UPLOADED_YAML)
+    file_path = os.path.join(get_work_dir(root_dir), assembly_dir_name, UPLOADED_YAML)
     Path(file_path).touch(exist_ok=True)
     return file_path
 
@@ -244,19 +240,37 @@ def _upload_assembly_to_workspace(
         )
 
 
+def _check_assembly_name(
+        assembly_name: str,
+        env: str,
+        workspace_id: int,
+        data: dict[str, dict[int, list[str]]]
+) -> bool:
+    """
+    Check if an assembly name exists in the uploaded.yaml file.
+    """
+    assembly_dicts = data[env][workspace_id]
+    if assembly_name in [assembly_dict["file_name"] for assembly_dict in assembly_dicts]:
+        return True
+    return False
+
+
 def _read_yaml_file(
         root_dir: str,
+        env: str,
         workspace_id: int,
-        env: str
-) -> Tuple[dict[str, dict[int, list[str]]], list[str]]:
+        assembly_dir_name: str,
+        assembly_name: str, 
+) -> Tuple[dict[str, dict[int, list[str]]], bool]:
     """
-    Get all assembly names from the uploaded.yaml file.
+    Get metadata and upload status from the uploaded.yaml file.
     """
 
+    uploaded = False
     if env not in loader_common_names.KB_ENV:
         raise ValueError(f"Currently only support these {loader_common_names.KB_ENV} envs for upload")
 
-    file_path = _get_yaml_file_path(root_dir)
+    file_path = _get_yaml_file_path(root_dir, assembly_dir_name)
 
     with open(file_path, "r") as file:
         data = yaml.safe_load(file)
@@ -267,58 +281,50 @@ def _read_yaml_file(
     if workspace_id not in data[env]:
         data[env][workspace_id] = list()
 
-    assembly_names = data[env][workspace_id]
-    return data, assembly_names
+    if _check_assembly_name(assembly_name, env, workspace_id, data):
+        uploaded = True
+    return data, uploaded
 
 
 def _update_yaml_file(
         root_dir: str,
-        workspace_id: int,
         env: str,
-        new_assemly_names: list[str],
-        overwrite: bool = False,
-) -> list[str]:
+        workspace_id: int,
+        upa: str,
+        assembly_dir_name: str,
+        assembly_name: str,
+) -> None:
     """
-    Update the uploaded.yaml file with newly uploaded assemblies.
+    Update the uploaded.yaml file in target genome_dir with newly uploaded assembly names and upa info.
     """
-    data, assembly_names = _read_yaml_file(root_dir, workspace_id, env)
+    data, _ = _read_yaml_file(root_dir, env, workspace_id, assembly_dir_name, assembly_name)
+    data_dict = {"file_name": assembly_name, "upa": upa}
+    if _check_assembly_name(assembly_name, env, workspace_id, data):
+        raise ValueError(f"Assembly {assembly_name} already exists in workspace {workspace_id}")
+    data[env][workspace_id].append(data_dict)
 
-    if not overwrite:
-        intersection = set(assembly_names).intersection(set(new_assemly_names))
-        if intersection:
-            raise ValueError(f"Detected assembly names {intersection} waiting to be uploaded "
-                             f"already exist in the uploaded.yaml file")
-        for new_assembly_name in new_assemly_names:
-            data[env][workspace_id].append(new_assembly_name)
-    else:
-        all_assembly_names = list(set(assembly_names).union(set(new_assemly_names)))
-        data[env][workspace_id] = all_assembly_names
-
-    file_path = _get_yaml_file_path(root_dir)
+    file_path = _get_yaml_file_path(root_dir, assembly_dir_name)
     with open(file_path, "w") as file:
         yaml.dump(data, file)
 
-    assembly_names = data[env][workspace_id]
-    return assembly_names
-
 
 def _fetch_assemblies_to_upload(
-    workspace_name: str,
-    csd: str,
-    uploaded_assembly_names: list[str],
-    upload_file_ext: list[str],
-    overwrite: bool = False,
+        root_dir: str,
+        env: str,
+        workspace_id: int,
+        collection_source_dir: str,
+        upload_file_ext: list[str],
 ) -> Tuple[dict[str, str], dict[str, str]]:
     """
     Help fetch assemblies to upload.
     """
-    all_assemblies = dict()
+    count = 0
     wait_to_upload_assemblies = dict()
 
     assembly_dirs = [
-        os.path.join(csd, d)
-        for d in os.listdir(csd)
-        if os.path.isdir(os.path.join(csd, d))
+        os.path.join(collection_source_dir, d)
+        for d in os.listdir(collection_source_dir)
+        if os.path.isdir(os.path.join(collection_source_dir, d))
     ]
 
     for assembly_dir in assembly_dirs:
@@ -328,20 +334,24 @@ def _fetch_assemblies_to_upload(
             if os.path.isfile(os.path.join(assembly_dir, f))
         ]
 
+        assembly_dir_name = os.path.basename(assembly_dir)
+
         for assembly_file in assembly_files:
 
             if assembly_file.endswith(tuple(upload_file_ext)):
-                all_assemblies[assembly_file] = assembly_dir
 
-                if assembly_file in uploaded_assembly_names and not overwrite:
+                count += 1
+                _, uploaded = _read_yaml_file(root_dir, env, workspace_id, assembly_dir_name, assembly_file)
+
+                if uploaded:
                     print(
-                        f"Assembly {assembly_file} already exists in workspace {workspace_name}. Skipping."
+                        f"Assembly {assembly_file} already exists in workspace {workspace_id}. Skipping."
                     )
                     continue
 
                 wait_to_upload_assemblies[assembly_file] = assembly_dir
 
-    return all_assemblies, wait_to_upload_assemblies
+    return count, wait_to_upload_assemblies
 
 
 def _prepare_skd_job_dir_to_upload(job_dir: str, wait_to_upload_assemblies: dict[str, str]) -> str:
@@ -357,37 +367,64 @@ def _prepare_skd_job_dir_to_upload(job_dir: str, wait_to_upload_assemblies: dict
     return data_dir
 
 
-def create_entries_in_sd_workspace(
+def _get_assembly_name_upa_mapping(conf: Conf, workspace_id: int) -> dict[str, str]:
+    """
+    Get a mapping of UPA to assembly name from target workspace.
+    """
+    assembly_objs = loader_helper.list_objects(
+        workspace_id, conf, loader_common_names.OBJECTS_NAME_ASSEMBLY
+    )
+    hashmap = {obj_info[1]: "{6}_{0}_{4}".format(*obj_info) for obj_info in assembly_objs}
+    return hashmap
+ 
+
+def create_entries_in_sourcedata_workspace(
+        conf: Conf,
+        root_dir: str,
+        env: str,
+        workspace_id: int,
         assembly_names: list[str],
-        all_assemblies: dict[str, str],
+        assembly_name_to_dir: dict[str, str],
         output_dir: str,
 ) -> list[str]:
     """
     Create a standard entry in sourcedata/workspace for each assembly.
     Hardlink to the original assembly file in sourcedata to avoid duplicating the file.
+    Update the uploaded.yaml file in the genome directory with assembly names and upa info.
 
-    assembly_names: assembly names from workspace
-    all_assemblies: a dictionary of assembly name to file path
+    conf: Conf object
+    root_dir: root directory
+    env: KBase environment
+    workspace_id: target workspace addressed by the permanent ID
+    assembly_names: a list of assembly names newly uploaded to the target workspace
+    assembly_name_to_dir: a dictionary of assembly name to its directory path
     output_dir: output directory to create entries in workspace
     """
-    assembly_ids = list()
+    upas = list()
+    assembly_name_to_upa = _get_assembly_name_upa_mapping(conf, workspace_id)
     for assembly_name in assembly_names:
         try:
-            assembly_dir_in_csd = all_assemblies[assembly_name]
+            assembly_dir = assembly_name_to_dir[assembly_name]
         except KeyError as e:
             raise ValueError(f"Unable to find assembly {assembly_name}") from e
 
-        src_file = _get_source_file(assembly_dir_in_csd, assembly_name)
+        src_file = _get_source_file(assembly_dir, assembly_name)
+        assembly_dir_name = os.path.basename(assembly_dir)
 
-        assembly_id = os.path.basename(assembly_dir_in_csd)
-        assembly_ids.append(assembly_id)
-        assembly_dir_in_ws = os.path.join(output_dir, assembly_id)
-        os.makedirs(assembly_dir_in_ws, exist_ok=True)
+        try:
+            upa = assembly_name_to_upa[assembly_name]
+        except KeyError as e:
+            raise ValueError(f"Unable to find assembly {assembly_name} from target workspace") from e
+        
+        upa_dir = os.path.join(output_dir, upa)
+        os.makedirs(upa_dir, exist_ok=True)
+        upas.append(upa)
 
-        dest_file = os.path.join(assembly_dir_in_ws, assembly_name)
+        dest_file = os.path.join(upa_dir, assembly_name)
         loader_helper.create_hardlink_between_files(dest_file, src_file)
+        _update_yaml_file(root_dir, env, workspace_id, upa, assembly_dir_name, assembly_name)
 
-    return assembly_ids
+    return upas
 
 
 def upload_assemblies_to_workspace(
@@ -429,24 +466,6 @@ def upload_assemblies_to_workspace(
     return failed_names
 
 
-def create_entries_in_ws_and_softlinks_in_csd(
-        csd_upload: str,
-        output_dir: str,
-        assembly_names: list[str],
-        all_assemblies: dict[str, str],
-) -> None:
-    """
-    Create standard entries in workspace and softlinks in collectionssource directory.
-
-    csd_upload: directory of assemblies that have been uploaded to workspace
-    output_dir: output directory to create entries in workspace
-    assembly_names: a list of assembly names that exist in target workspace
-    all_assemblies: a dictionary of assembly name to file path
-    """
-    assembly_ids = create_entries_in_sd_workspace(assembly_names, all_assemblies, output_dir)
-    loader_helper.create_softlinks_in_csd(csd_upload, output_dir, assembly_ids)
-
-
 def main():
     parser = _get_parser()
     args = parser.parse_args()
@@ -458,7 +477,6 @@ def main():
     token_filepath = args.token_filepath
     upload_file_ext = args.upload_file_ext
     keep_job_dir = args.keep_job_dir
-    overwrite = args.overwrite
 
     env = args.env
     kb_base_url = loader_common_names.KB_BASE_URL_MAP[env]
@@ -469,22 +487,12 @@ def main():
     uid = os.getuid()
     username = os.getlogin()
 
-    job_dir = loader_helper.make_job_dir(
-        root_dir, loader_common_names.SDK_JOB_DIR, username
-    )
-    csd = loader_helper.make_collection_source_dir(
+    job_dir = loader_helper.make_job_dir(root_dir, username)
+    collection_source_dir = loader_helper.make_collection_source_dir(
         root_dir, loader_common_names.DEFAULT_ENV, kbase_collection, source_version
     )
-    csd_upload = loader_helper.make_collection_source_dir(
-        root_dir, loader_common_names.DEFAULT_ENV, kbase_collection, source_version, True
-    )
-    output_dir = loader_helper.make_output_dir(
-        root_dir,
-        loader_common_names.SOURCE_DATA_DIR,
-        loader_common_names.WS,
-        env,
-        workspace_id,
-    )
+    upload_dir = loader_helper.make_collection_source_dir(root_dir, env, kbase_collection, source_version)
+    output_dir = loader_helper.make_sourcedata_ws_dir(root_dir, env, workspace_id)
 
     proc = None
     conf = None
@@ -499,25 +507,21 @@ def main():
         conf = Conf(job_dir, kb_base_url, token_filepath)
         workspace_name = conf.ws.get_workspace_info({"id": workspace_id})[1]
 
-        _, uploaded_assembly_names = _read_yaml_file(root_dir, workspace_id, env)
-        all_assemblies, wait_to_upload_assemblies = _fetch_assemblies_to_upload(
-            workspace_name,
-            csd,
-            uploaded_assembly_names,
+        count, wait_to_upload_assemblies = _fetch_assemblies_to_upload(
+            root_dir,
+            env, 
+            workspace_id, 
+            collection_source_dir,
             upload_file_ext,
-            overwrite,
         )
 
         if not wait_to_upload_assemblies:
-            print(f"All {len(all_assemblies)} assembly files already exist in workspace {workspace_id}")
-            create_entries_in_ws_and_softlinks_in_csd(csd_upload, output_dir, uploaded_assembly_names, all_assemblies)
+            print(f"All {count} assembly files already exist in workspace {workspace_id}")
             return
 
-        as_len = len(all_assemblies)
         wtus_len = len(wait_to_upload_assemblies)
-        print(f"Originally planned to upload {as_len} assembly files")
-        print(f"Will overwrite existing assembly files" if overwrite else
-              f"Detected {as_len - wtus_len} assembly files already exist in workspace")
+        print(f"Originally planned to upload {count} assembly files")
+        print(f"Detected {count - wtus_len} assembly files already exist in workspace")
 
         start = time.time()
         data_dir = _prepare_skd_job_dir_to_upload(job_dir, wait_to_upload_assemblies)
@@ -526,12 +530,21 @@ def main():
         if failed_names:
             print(f"\nFailed to upload {failed_names}")
         
-        upload_speed = (time.time() - start) / (wtus_len - len(failed_names))
-        print(f"\nSuccessfully upload {wtus_len - len(failed_names)} assemblies, average {upload_speed:.2f}s/assembly.")
+        assembly_count = wtus_len - len(failed_names)
+        upload_speed = (time.time() - start) / assembly_count
+        print(f"\nSuccessfully upload {assembly_count} assemblies, average {upload_speed:.2f}s/assembly.")
 
         new_assembly_names = [name for name in wait_to_upload_assemblies if name not in failed_names]
-        uploaded_assembly_names = _update_yaml_file(root_dir, workspace_id, env, new_assembly_names, overwrite)
-        create_entries_in_ws_and_softlinks_in_csd(csd_upload, output_dir, uploaded_assembly_names, all_assemblies)
+        upas = create_entries_in_sourcedata_workspace(
+            conf,
+            root_dir,
+            env,
+            workspace_id,
+            new_assembly_names,
+            wait_to_upload_assemblies,
+            output_dir,
+        )
+        loader_helper.create_softlinks_in_collection_source_dir(upload_dir, output_dir, upas)
 
     finally:
         # stop callback server if it is on

@@ -194,7 +194,7 @@ def main():
         parser.error(f"minimum thread is 1 and maximum thread is {cpu_count()}")
 
     work_dir = ncbi_downloader_helper.get_work_dir(root_dir)
-    csd = loader_helper.make_collection_source_dir(
+    collection_source_dir = loader_helper.make_collection_source_dir(
         root_dir,
         loader_common_names.DEFAULT_ENV,
         KBASE_COLLECTION,
@@ -211,7 +211,12 @@ def main():
     )
     if not genome_ids:
         print(f"All {len(genome_ids_unprocessed)} genomes files already exist in {work_dir}")
-        loader_helper.create_softlinks_in_csd(csd, work_dir, genome_ids_unprocessed, taxonomy_files)
+        loader_helper.create_softlinks_in_collection_source_dir(
+            collection_source_dir,
+            work_dir,
+            genome_ids_unprocessed,
+            taxonomy_files
+        )
         return
 
     print(f"Originally planned to download {len(genome_ids_unprocessed)} genome files")
@@ -238,7 +243,12 @@ def main():
         print(f"\nSuccessfully downloaded {len(genome_ids)} genome files")
 
     genome_ids_clean = set(genome_ids) - set(failed_ids)
-    loader_helper.create_softlinks_in_csd(csd, work_dir, list(genome_ids_clean), taxonomy_files)
+    loader_helper.create_softlinks_in_collection_source_dir(
+        collection_source_dir,
+        work_dir,
+        list(genome_ids_clean),
+        taxonomy_files
+    )
 
 
 if __name__ == "__main__":

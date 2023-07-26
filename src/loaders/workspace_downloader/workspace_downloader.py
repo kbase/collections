@@ -495,13 +495,11 @@ def main():
     uid = os.getuid()
     username = os.getlogin()
 
-    job_dir = loader_helper.make_job_dir(root_dir, loader_common_names.SDK_JOB_DIR, username)
-    output_dir = loader_helper.make_output_dir(
-        root_dir, loader_common_names.SOURCE_DATA_DIR, loader_common_names.WS, env, workspace_id
-    )
-    csd = None
+    job_dir = loader_helper.make_job_dir(root_dir, username)
+    output_dir = loader_helper.make_sourcedata_ws_dir(root_dir, env, workspace_id)
+    collection_source_dir = None
     if kbase_collection:
-        csd = loader_helper.make_collection_source_dir(
+        collection_source_dir = loader_helper.make_collection_source_dir(
             root_dir,
             env,
             kbase_collection,
@@ -567,11 +565,15 @@ def main():
         conf.pools.join()
 
         # create a softlink from the relevant directory under collectionssource
-        if csd:
-            loader_helper.create_softlinks_in_csd(csd, output_dir, upas)
-            assert len(os.listdir(csd)) == len(
+        if collection_source_dir:
+            loader_helper.create_softlinks_in_collection_source_dir(
+                collection_source_dir,
+                output_dir,
+                upas,
+            )
+            assert len(os.listdir(collection_source_dir)) == len(
                 assembly_objs
-            ), f"directory count in {csd} is not equal to object count"
+            ), f"directory count in {collection_source_dir} is not equal to object count"
 
     finally:
         # stop callback server if it is on
