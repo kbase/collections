@@ -367,12 +367,12 @@ def _get_assembly_name_upa_mapping(conf: Conf, workspace_id: int) -> dict[str, s
  
 
 def create_entries_in_sourcedata_workspace(
-        conf: Conf,
         root_dir: str,
         env: str,
         workspace_id: int,
         assembly_names: list[str],
         assembly_name_to_dir: dict[str, str],
+        assembly_name_to_upa: dict[str, str],
         output_dir: str,
 ) -> list[str]:
     """
@@ -380,16 +380,15 @@ def create_entries_in_sourcedata_workspace(
     Hardlink to the original assembly file in sourcedata to avoid duplicating the file.
     Update the uploaded.yaml file in the genome directory with assembly names and upa info.
 
-    conf: Conf object
     root_dir: root directory
     env: KBase environment
     workspace_id: target workspace addressed by the permanent ID
     assembly_names: a list of assembly names newly uploaded to the target workspace
     assembly_name_to_dir: a dictionary of assembly name to its directory path
+    assembly_name_to_upa: a dictionary of assembly name to its UPA
     output_dir: output directory to create entries in workspace
     """
     upas = list()
-    assembly_name_to_upa = _get_assembly_name_upa_mapping(conf, workspace_id)
     for assembly_name in assembly_names:
         try:
             assembly_dir = assembly_name_to_dir[assembly_name]
@@ -523,13 +522,14 @@ def main():
         print(f"\nSuccessfully upload {assembly_count} assemblies, average {upload_speed:.2f}s/assembly.")
 
         new_assembly_names = [name for name in wait_to_upload_assemblies if name not in failed_names]
+        assembly_name_to_upa = _get_assembly_name_upa_mapping(conf, workspace_id)
         upas = create_entries_in_sourcedata_workspace(
-            conf,
             root_dir,
             env,
             workspace_id,
             new_assembly_names,
             wait_to_upload_assemblies,
+            assembly_name_to_upa,
             output_dir,
         )
         loader_helper.create_softlinks_in_collection_source_dir(upload_dir, output_dir, upas)
