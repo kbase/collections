@@ -489,7 +489,7 @@ def main():
         # start podman service
         proc = loader_helper.start_podman_service(uid)
     except Exception as e:
-        raise Exception("Podman service failed to start") from e
+        print(e)
     else:
         # set up conf, start callback server, and upload assemblies to workspace
         conf = Conf(job_dir, kb_base_url, token_filepath)

@@ -513,7 +513,7 @@ def main():
         # start podman service
         proc = loader_helper.start_podman_service(uid)
     except Exception as e:
-        raise Exception("Podman service failed to start") from e
+        print(e)
     else:
         # set up conf and start callback server
         conf = Conf(

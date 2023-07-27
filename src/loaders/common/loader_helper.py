@@ -149,7 +149,7 @@ def get_token(token_filepath):
 
 def start_podman_service(uid: int):
     """
-    Start podman service. Used by workspace_downloader.py script.
+    Start podman service. Used by workspace_downloader.py and workspace_uploader.py scripts.
 
     uid - the integer unix user ID of the user running the service.
     """
@@ -159,7 +159,8 @@ def start_podman_service(uid: int):
     time.sleep(1)
     return_code = proc.poll()
     if return_code:
-        raise ValueError(f"The command {command} failed with return code {return_code}")
+        raise ValueError(f"The command {command} failed with return code {return_code}. "
+                         f"Podman service failed to start")
     os.environ["DOCKER_HOST"] = DOCKER_HOST.format(uid)
     return proc
 
