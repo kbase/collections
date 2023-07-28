@@ -10,7 +10,7 @@ options:
 
 required named arguments:
   --workspace_id WORKSPACE_ID
-                        Workspace addressed by the permanent ID
+                        Target workspace addressed by the permanent ID
   --kbase_collection KBASE_COLLECTION
                         Create a collection and link in data to that collection from the overall workspace source data dir
   --source_ver SOURCE_VER
