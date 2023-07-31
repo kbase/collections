@@ -12,16 +12,21 @@ required named arguments:
   --workspace_id WORKSPACE_ID
                         Target workspace addressed by the permanent ID
   --kbase_collection KBASE_COLLECTION
-                        Create a collection and link in data to that collection from the overall workspace source data dir
+                        The name of the collection being processed
+                        Specifies where the files to be found exist (in the default NONE environment)
+                        and the name of the collection to be created in the specific KBase environment in the 'collectionsource' directory
   --source_ver SOURCE_VER
-                        Create a source version and link in data to that collection from the overall workspace source data dir
+                        The source version of the collection being processed
+                        Specifies where the files to be found exist (in the default NONE environment)
+                        and the source version of the collection to be created in the specific KBase environment in the 'collectionsource' directory
 
 optional arguments:
   --root_dir ROOT_DIR   Root directory. (default: /global/cfs/cdirs/kbase/collections)
   --token_filepath TOKEN_FILEPATH
-                        A file path that stores KBase token
+                        A file path that stores a KBase token appropriate for the KBase environment
+                        If not provided, the token must be provided in the `KB_AUTH_TOKEN` environment variable
   --env {CI,NEXT,APPDEV,PROD}
-                        KBase environment, defaulting to PROD (default: PROD)
+                        KBase environment (default: PROD)
   --upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]
                         Upload only files that match given extensions (default: ['genomic.fna.gz'])
   --keep_job_dir        Keep SDK job directory after upload task is completed
@@ -56,7 +61,6 @@ from typing import Tuple
 from src.clients.AssemblyUtilClient import AssemblyUtil
 from src.clients.workspaceClient import Workspace 
 from src.loaders.common import loader_common_names, loader_helper
-from src.loaders.ncbi_downloader.ncbi_downloader_helper import get_work_dir
 
 # setup KB_AUTH_TOKEN as env or provide a token_filepath in --token_filepath
 # export KB_AUTH_TOKEN="your-kb-auth-token"
@@ -139,12 +143,12 @@ def _get_parser():
     required.add_argument(
         f"--{loader_common_names.KBASE_COLLECTION_ARG_NAME}",
         type=str,
-        help="Create a collection and link in data to that collection from the overall workspace source data dir",
+        help="The name of the collection being processed",
     )
     required.add_argument(
         f"--{loader_common_names.SOURCE_VER_ARG_NAME}",
         type=str,
-        help="Create a source version and link in data to that collection from the overall workspace source data dir",
+        help="The source version of the collection being processed",
     )
 
     # Optional argument
@@ -157,7 +161,7 @@ def _get_parser():
     optional.add_argument(
         "--token_filepath",
         type=str,
-        help="A file path that stores KBase token",
+        help="A file path that stores a KBase token",
     )
     optional.add_argument(
         "--env",
@@ -181,11 +185,11 @@ def _get_parser():
     return parser
 
 
-def _get_yaml_file_path(root_dir: str, assembly_dir_name: str) -> str:
+def _get_yaml_file_path(assembly_dir: str) -> str:
     """
-    Get the uploaded.yaml file path from NCBI/sourcedata directory.
+    Get the uploaded.yaml file path from collections source directory.
     """
-    file_path = os.path.join(get_work_dir(root_dir), assembly_dir_name, UPLOADED_YAML)
+    file_path = os.path.join(assembly_dir, UPLOADED_YAML)
     Path(file_path).touch(exist_ok=True)
     return file_path
 
@@ -222,7 +226,7 @@ def _upload_assembly_to_workspace(
     while attempts < max_attempts and not success:
         try:
             time.sleep(attempts)
-            conf.asu.save_assembly_from_fasta(
+            conf.asu.save_assembly_from_fasta2(
                 {
                     "file": {"path": file_path},
                     "workspace_name": workspace_name,
@@ -240,11 +244,10 @@ def _upload_assembly_to_workspace(
         )
 
 
-def _read_yaml_file(
-        root_dir: str,
-        env: str,
+def _read_upload_status_yaml_file(
+        upload_env_key: str,
         workspace_id: int,
-        assembly_dir_name: str,
+        assembly_dir: str,
         assembly_name: str, 
 ) -> Tuple[dict[str, dict[int, list[str]]], bool]:
     """
@@ -252,53 +255,50 @@ def _read_yaml_file(
     """
 
     uploaded = False
-    if env not in loader_common_names.KB_ENV:
+    if upload_env_key not in loader_common_names.KB_ENV:
         raise ValueError(f"Currently only support these {loader_common_names.KB_ENV} envs for upload")
 
-    file_path = _get_yaml_file_path(root_dir, assembly_dir_name)
+    file_path = _get_yaml_file_path(assembly_dir)
 
     with open(file_path, "r") as file:
         data = yaml.safe_load(file)
 
     if not data:
-        data = {env: dict()}
+        data = {upload_env_key: dict()}
 
-    if workspace_id not in data[env]:
-        data[env][workspace_id] = list()
+    if workspace_id not in data[upload_env_key]:
+        data[upload_env_key][workspace_id] = dict()
 
-    assembly_dicts = data[env][workspace_id]
-    if assembly_name in [assembly_dict["file_name"] for assembly_dict in assembly_dicts]:
+    assembly_dict = data[upload_env_key][workspace_id]
+    if assembly_dict and assembly_dict["file_name"] == assembly_name:
         uploaded = True
     return data, uploaded
 
 
-def _update_yaml_file(
-        root_dir: str,
-        env: str,
+def _update_upload_status_yaml_file(
+        upload_env_key: str,
         workspace_id: int,
         upa: str,
-        assembly_dir_name: str,
+        assembly_dir: str,
         assembly_name: str,
 ) -> None:
     """
     Update the uploaded.yaml file in target genome_dir with newly uploaded assembly names and upa info.
     """
-    data, uploaded = _read_yaml_file(root_dir, env, workspace_id, assembly_dir_name, assembly_name)
+    data, uploaded = _read_upload_status_yaml_file(upload_env_key, workspace_id, assembly_dir, assembly_name)
 
     if uploaded:
         raise ValueError(f"Assembly {assembly_name} already exists in workspace {workspace_id}")
 
-    data_dict = {"file_name": assembly_name, "upa": upa}
-    data[env][workspace_id].append(data_dict)
+    data[upload_env_key][workspace_id] = {"file_name": assembly_name, "upa": upa}
 
-    file_path = _get_yaml_file_path(root_dir, assembly_dir_name)
+    file_path = _get_yaml_file_path(assembly_dir)
     with open(file_path, "w") as file:
         yaml.dump(data, file)
 
 
 def _fetch_assemblies_to_upload(
-        root_dir: str,
-        env: str,
+        upload_env_key: str,
         workspace_id: int,
         collection_source_dir: str,
         upload_file_ext: list[str],
@@ -306,6 +306,9 @@ def _fetch_assemblies_to_upload(
     """
     Help fetch assemblies to upload.
     """
+    if upload_file_ext != UPLOAD_FILE_EXT:
+        raise ValueError(f"Currently only support assembly files to upload")
+
     count = 0
     wait_to_upload_assemblies = dict()
 
@@ -316,28 +319,30 @@ def _fetch_assemblies_to_upload(
     ]
 
     for assembly_dir in assembly_dirs:
-        assembly_files = [
+
+        assembly_file_list = [
             f
             for f in os.listdir(assembly_dir)
             if os.path.isfile(os.path.join(assembly_dir, f))
+            and os.path.join(assembly_dir, f).endswith(tuple(upload_file_ext))
         ]
 
-        assembly_dir_name = os.path.basename(assembly_dir)
+        if len(assembly_file_list) != 1:
+            raise ValueError(f"One and only one assembly file that ends with {upload_file_ext} "
+                    f"must be present in {assembly_dir} directory")
 
-        for assembly_file in assembly_files:
+        count += 1
+        assembly_name = assembly_file_list[0]
 
-            if assembly_file.endswith(tuple(upload_file_ext)):
+        _, uploaded = _read_upload_status_yaml_file(upload_env_key, workspace_id, assembly_dir, assembly_name)
 
-                count += 1
-                _, uploaded = _read_yaml_file(root_dir, env, workspace_id, assembly_dir_name, assembly_file)
+        if uploaded:
+            print(
+                f"Assembly {assembly_name} already exists in workspace {workspace_id}. Skipping."
+            )
+            continue
 
-                if uploaded:
-                    print(
-                        f"Assembly {assembly_file} already exists in workspace {workspace_id}. Skipping."
-                    )
-                    continue
-
-                wait_to_upload_assemblies[assembly_file] = assembly_dir
+        wait_to_upload_assemblies[assembly_name] = assembly_dir
 
     return count, wait_to_upload_assemblies
 
@@ -366,9 +371,8 @@ def _get_assembly_name_upa_mapping(conf: Conf, workspace_id: int) -> dict[str, s
     return hashmap
  
 
-def create_entries_in_sourcedata_workspace(
-        root_dir: str,
-        env: str,
+def _create_entries_in_sourcedata_workspace(
+        upload_env_key: str,
         workspace_id: int,
         assembly_names: list[str],
         assembly_name_to_dir: dict[str, str],
@@ -379,14 +383,6 @@ def create_entries_in_sourcedata_workspace(
     Create a standard entry in sourcedata/workspace for each assembly.
     Hardlink to the original assembly file in sourcedata to avoid duplicating the file.
     Update the uploaded.yaml file in the genome directory with assembly names and upa info.
-
-    root_dir: root directory
-    env: KBase environment
-    workspace_id: target workspace addressed by the permanent ID
-    assembly_names: a list of assembly names newly uploaded to the target workspace
-    assembly_name_to_dir: a dictionary of assembly name to its directory path
-    assembly_name_to_upa: a dictionary of assembly name to its UPA
-    output_dir: output directory to create entries in workspace
     """
     upas = list()
     for assembly_name in assembly_names:
@@ -396,7 +392,6 @@ def create_entries_in_sourcedata_workspace(
             raise ValueError(f"Unable to find assembly {assembly_name}") from e
 
         src_file = _get_source_file(assembly_dir, assembly_name)
-        assembly_dir_name = os.path.basename(assembly_dir)
 
         try:
             upa = assembly_name_to_upa[assembly_name]
@@ -409,22 +404,18 @@ def create_entries_in_sourcedata_workspace(
 
         dest_file = os.path.join(upa_dir, assembly_name)
         loader_helper.create_hardlink_between_files(dest_file, src_file)
-        _update_yaml_file(root_dir, env, workspace_id, upa, assembly_dir_name, assembly_name)
+        _update_upload_status_yaml_file(upload_env_key, workspace_id, upa, assembly_dir, assembly_name)
 
     return upas
 
 
-def upload_assemblies_to_workspace(
+def _upload_assemblies_to_workspace(
         conf: Conf,
         workspace_name: str,
         data_dir: str,
 ) -> list[str]:
     """
     Upload assemblies to workspace and record failed assembly names.
-
-    conf: Conf object
-    workspace_name: a string used as a name for a workspace
-    data_dir: directory of assemblies to upload
     """
 
     assembly_files = os.listdir(data_dir)
@@ -443,6 +434,7 @@ def upload_assemblies_to_workspace(
             _upload_assembly_to_workspace(conf, workspace_name, assembly_path, assembly_name)
         except Exception as e:
             print(e)
+            print(f"Failed assembly name: {assembly_name}")
             failed_names.append(assembly_name)
 
         counter += 1
@@ -487,15 +479,12 @@ def main():
     try:
         # start podman service
         proc = loader_helper.start_podman_service(uid)
-    except Exception as e:
-        print(e)
-    else:
+
         # set up conf, start callback server, and upload assemblies to workspace
         conf = Conf(job_dir, kb_base_url, token_filepath)
         workspace_name = conf.ws.get_workspace_info({"id": workspace_id})[1]
 
         count, wait_to_upload_assemblies = _fetch_assemblies_to_upload(
-            root_dir,
             env, 
             workspace_id, 
             collection_source_dir,
@@ -512,7 +501,7 @@ def main():
 
         start = time.time()
         data_dir = _prepare_skd_job_dir_to_upload(job_dir, wait_to_upload_assemblies)
-        failed_names = upload_assemblies_to_workspace(conf, workspace_name, data_dir)
+        failed_names = _upload_assemblies_to_workspace(conf, workspace_name, data_dir)
 
         if failed_names:
             print(f"\nFailed to upload {failed_names}")
@@ -523,8 +512,7 @@ def main():
 
         new_assembly_names = [name for name in wait_to_upload_assemblies if name not in failed_names]
         assembly_name_to_upa = _get_assembly_name_upa_mapping(conf, workspace_id)
-        upas = create_entries_in_sourcedata_workspace(
-            root_dir,
+        upas = _create_entries_in_sourcedata_workspace(
             env,
             workspace_id,
             new_assembly_names,
