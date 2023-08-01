@@ -1,7 +1,7 @@
 """
 usage: workspace_uploader.py [-h] --workspace_id WORKSPACE_ID [--kbase_collection KBASE_COLLECTION] [--source_ver SOURCE_VER]
                              [--root_dir ROOT_DIR] [--token_filepath TOKEN_FILEPATH] [--env {CI,NEXT,APPDEV,PROD}]
-                             [--upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]] [--keep_job_dir]
+                             [--upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]] [--threads THREADS] [--keep_job_dir]
 
 PROTOTYPE - Upload assembly files to the workspace service (WSS).
 
@@ -29,6 +29,7 @@ optional arguments:
                         KBase environment (default: PROD)
   --upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]
                         Upload only files that match given extensions (default: ['genomic.fna.gz'])
+  --threads THREADS     Number of threads
   --keep_job_dir        Keep SDK job directory after upload task is completed
 
 e.g.
@@ -47,6 +48,9 @@ The data will be linked to the collections source directory:
 e.g. /global/cfs/cdirs/kbase/collections/collectionssource/ -> ENV -> kbase_collection -> source_ver -> UPA -> .fna.gz file
 """
 import argparse
+import itertools
+import math
+import multiprocessing
 import docker
 import os
 import shutil
@@ -65,6 +69,7 @@ from src.loaders.common import loader_common_names, loader_helper
 # setup KB_AUTH_TOKEN as env or provide a token_filepath in --token_filepath
 # export KB_AUTH_TOKEN="your-kb-auth-token"
 
+SYSTEM_UTILIZATION = 0.5  # Fraction amount of system cores can be utilized
 UPLOAD_FILE_EXT = ["genomic.fna.gz"]  # uplaod only files that match given extensions
 JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER = "/kb/module/work/tmp"
 DATA_DIR = "DATA_DIR"
@@ -177,6 +182,7 @@ def _get_parser():
         default=UPLOAD_FILE_EXT,
         help="Upload only files that match given extensions",
     )
+    optional.add_argument("--threads", type=int, help="Number of threads")
     optional.add_argument(
         "--keep_job_dir",
         action="store_true",
@@ -350,10 +356,7 @@ def _fetch_assemblies_to_upload(
     return count, wait_to_upload_assemblies
 
 
-def _prepare_assembly_files_in_skd_job_dir_to_upload(
-        job_dir: str,
-        wait_to_upload_assemblies: dict[str, str],
-) -> list[str]:
+def _prepare_skd_job_dir_to_upload(job_dir: str, wait_to_upload_assemblies: dict[str, str]) -> str:
     """
     Prepare SDK job directory to upload.
     """
@@ -363,7 +366,7 @@ def _prepare_assembly_files_in_skd_job_dir_to_upload(
         dest_file = os.path.join(data_dir, assembly_file)
         loader_helper.create_hardlink_between_files(dest_file, src_file)
 
-    return os.listdir(data_dir)
+    return data_dir
 
 
 def _create_entries_in_sourcedata_workspace(
@@ -440,6 +443,56 @@ def _upload_assemblies_to_workspace(
     return assembly_name_to_upa, failed_names
 
 
+def _process_batch_result(
+        batch_results: list[Tuple[dict[str, str], list[str]]],
+) -> Tuple[dict[str, str], list[str]]:
+    """
+    Process batch results and return assembly name to upa mapping and failed assembly names.
+    """
+    assembly_name_to_upa_dicts = [batch_result[0] for batch_result in batch_results]
+    failed_names_lists = [batch_result[1] for batch_result in batch_results]
+    assembly_name_to_upa = {k: v for d in assembly_name_to_upa_dicts for k, v in d.items()}
+    failed_names = list(itertools.chain.from_iterable(failed_names_lists))
+    return assembly_name_to_upa, failed_names
+
+
+#TODO: make this function more generic for reuse.
+# NCBI downloader also makes use of threading stuff in a similar way.
+def upload_assembly_files_in_parallel(
+        conf: Conf,
+        workspace_name: str,
+        assembly_files: list[str],
+        system_utilization: float,
+        threads: int = None,
+) -> list[Tuple[dict[str, str], list[str]]]:
+    """
+    Upload assembly files to the target workspace in parallel using multiprocessing
+
+    conf: Conf object
+    assembly_files: list of assembly file names.
+    system_utilization: fraction of CPU cores to use.
+    threads: number of threads to use. Takes precedence over system_utilization if supplied.
+    """
+    if not threads:
+        threads = max(int(multiprocessing.cpu_count() * min(system_utilization, 1)), 1)
+    threads = max(1, threads)
+
+    print(f"Start uploading {len(assembly_files)} assembly files with {threads} threads\n")
+
+    chunk_size = math.ceil(len(assembly_files) / threads)  # distribute assembly files evenly across threads
+    batch_input = [
+        (
+            conf,
+            workspace_name,
+            assembly_files[i : i + chunk_size],
+        )
+        for i in range(0, len(assembly_files), chunk_size)
+    ]
+    pool = multiprocessing.Pool(processes=threads)
+    batch_results = pool.starmap(_upload_assemblies_to_workspace, batch_input)
+    return batch_results
+
+
 def main():
     parser = _get_parser()
     args = parser.parse_args()
@@ -450,6 +503,7 @@ def main():
     root_dir = args.root_dir
     token_filepath = args.token_filepath
     upload_file_ext = args.upload_file_ext
+    threads = args.threads
     keep_job_dir = args.keep_job_dir
 
     env = args.env
@@ -495,8 +549,15 @@ def main():
         print(f"Detected {count - wtus_len} assembly files already exist in workspace")
 
         start = time.time()
-        assembly_files = _prepare_assembly_files_in_skd_job_dir_to_upload(job_dir, wait_to_upload_assemblies)
-        assembly_name_to_upa, failed_names = _upload_assemblies_to_workspace(conf, workspace_name, assembly_files)
+        data_dir = _prepare_skd_job_dir_to_upload(job_dir, wait_to_upload_assemblies)
+        batch_results = upload_assembly_files_in_parallel(
+            conf,
+            workspace_name,
+            os.listdir(data_dir),
+            SYSTEM_UTILIZATION,
+            threads,
+        )
+        assembly_name_to_upa, failed_names = _process_batch_result(batch_results)
 
         if failed_names:
             print(f"\nFailed to upload {failed_names}")
