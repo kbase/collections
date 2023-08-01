@@ -226,7 +226,7 @@ def _upload_assembly_to_workspace(
     while attempts < max_attempts and not success:
         try:
             time.sleep(attempts)
-            conf.asu.save_assembly_from_fasta2(
+            assembly_ref = conf.asu.save_assembly_from_fasta2(
                 {
                     "file": {"path": file_path},
                     "workspace_name": workspace_name,
@@ -242,6 +242,9 @@ def _upload_assembly_to_workspace(
         raise ValueError(
             f"Upload Failed for {file_path} after {max_attempts} attempts!"
         )
+
+    upa = assembly_ref["upa"].replace("/", "_")
+    return upa
 
 
 def _read_upload_status_yaml_file(
@@ -347,7 +350,10 @@ def _fetch_assemblies_to_upload(
     return count, wait_to_upload_assemblies
 
 
-def _prepare_skd_job_dir_to_upload(job_dir: str, wait_to_upload_assemblies: dict[str, str]) -> str:
+def _prepare_assembly_files_in_skd_job_dir_to_upload(
+        job_dir: str,
+        wait_to_upload_assemblies: dict[str, str],
+) -> list[str]:
     """
     Prepare SDK job directory to upload.
     """
@@ -357,19 +363,8 @@ def _prepare_skd_job_dir_to_upload(job_dir: str, wait_to_upload_assemblies: dict
         dest_file = os.path.join(data_dir, assembly_file)
         loader_helper.create_hardlink_between_files(dest_file, src_file)
 
-    return data_dir
+    return os.listdir(data_dir)
 
-
-def _get_assembly_name_upa_mapping(conf: Conf, workspace_id: int) -> dict[str, str]:
-    """
-    Get a mapping of UPA to assembly name from target workspace.
-    """
-    assembly_objs = loader_helper.list_objects(
-        workspace_id, conf, loader_common_names.OBJECTS_NAME_ASSEMBLY
-    )
-    hashmap = {obj_info[1]: "{6}_{0}_{4}".format(*obj_info) for obj_info in assembly_objs}
-    return hashmap
- 
 
 def _create_entries_in_sourcedata_workspace(
         upload_env_key: str,
@@ -412,16 +407,15 @@ def _create_entries_in_sourcedata_workspace(
 def _upload_assemblies_to_workspace(
         conf: Conf,
         workspace_name: str,
-        data_dir: str,
+        assembly_files: list[str],
 ) -> list[str]:
     """
     Upload assemblies to workspace and record failed assembly names.
     """
-
-    assembly_files = os.listdir(data_dir)
     print(f'start uploading {len(assembly_files)} assembly files')
 
     failed_names = list()
+    assembly_name_to_upa = dict()
 
     counter = 1
     for assembly_name in assembly_files:
@@ -431,18 +425,19 @@ def _upload_assemblies_to_workspace(
 
         assembly_path = os.path.join(JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER, DATA_DIR, assembly_name)
         try:
-            _upload_assembly_to_workspace(conf, workspace_name, assembly_path, assembly_name)
+            upa = _upload_assembly_to_workspace(conf, workspace_name, assembly_path, assembly_name)
         except Exception as e:
             print(e)
             print(f"Failed assembly name: {assembly_name}")
             failed_names.append(assembly_name)
 
         counter += 1
+        assembly_name_to_upa[assembly_name] = upa
 
     if failed_names:
         print(f'Failed to upload {failed_names}')
 
-    return failed_names
+    return assembly_name_to_upa, failed_names
 
 
 def main():
@@ -500,8 +495,8 @@ def main():
         print(f"Detected {count - wtus_len} assembly files already exist in workspace")
 
         start = time.time()
-        data_dir = _prepare_skd_job_dir_to_upload(job_dir, wait_to_upload_assemblies)
-        failed_names = _upload_assemblies_to_workspace(conf, workspace_name, data_dir)
+        assembly_files = _prepare_assembly_files_in_skd_job_dir_to_upload(job_dir, wait_to_upload_assemblies)
+        assembly_name_to_upa, failed_names = _upload_assemblies_to_workspace(conf, workspace_name, assembly_files)
 
         if failed_names:
             print(f"\nFailed to upload {failed_names}")
@@ -511,7 +506,6 @@ def main():
         print(f"\nSuccessfully upload {assembly_count} assemblies, average {upload_speed:.2f}s/assembly.")
 
         new_assembly_names = [name for name in wait_to_upload_assemblies if name not in failed_names]
-        assembly_name_to_upa = _get_assembly_name_upa_mapping(conf, workspace_id)
         upas = _create_entries_in_sourcedata_workspace(
             env,
             workspace_id,
