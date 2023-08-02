@@ -11,9 +11,10 @@ from src.loaders.compute_tools.tool_common import (
     run_command,
 )
 from src.loaders.compute_tools.tool_result_parser import (
-    _read_genome_attri_result,
-    _create_jsonl_files,
-    _create_metadata_file, TOOL_GENOME_ATTRI_FILE,
+    TOOL_GENOME_ATTRI_FILE,
+    create_metadata_file,
+    create_jsonl_files,
+    read_genome_attri_result,
 )
 
 # The following features will be extracted from the CheckM2 result quality_report.tsv file as computed genome attributes
@@ -26,7 +27,7 @@ def _run_checkm2(
         output_dir: Path,
         threads: int,
         debug: bool,
-        meta: Dict[str, str],
+        meta: Dict[str, Dict[str, str]],
 ):
     size = len(ids_to_files)
     print(f'Start executing checkM2 for {size} genomes')
@@ -54,20 +55,20 @@ def _run_checkm2(
 
 def _process_checkm2_result(
         output_dir: Path,
-        meta: Dict[str, str],
+        meta: Dict[str, Dict[str, str]],
 ):
     # create metadata file before parsing the result
-    _create_metadata_file(meta, output_dir)
+    create_metadata_file(meta, output_dir)
 
     tool_file_name, genome_id_col = 'quality_report.tsv', 'Name'
-    docs = _read_genome_attri_result(
+    docs = read_genome_attri_result(
         output_dir,
         tool_file_name,
         SELECTED_CHECKM2_FEATURES,
         genome_id_col)
 
     output = output_dir / TOOL_GENOME_ATTRI_FILE
-    _create_jsonl_files(output, docs)
+    create_jsonl_files(output, docs)
 
 
 def main():

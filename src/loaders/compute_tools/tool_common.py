@@ -369,7 +369,7 @@ class ToolRunner:
             self,
             threads: int,
             tool_callable: Callable[..., None],
-            args: List[Tuple[Any]],
+            args: List[Tuple[Any, ...]],
             start: datetime.datetime,
             total: bool,
     ):
@@ -442,6 +442,7 @@ def _create_metadata_file(
         meta: Dict[str, Dict[str, Union[str, Path]]],
         batch_dir: Path
 ):
+    # TODO: remove method once non-batched tool result parsers are implemented with the tool computation module
     # create tab separated metadata file with tool generated genome identifier,
     # original genome id and source genome file info.
 
