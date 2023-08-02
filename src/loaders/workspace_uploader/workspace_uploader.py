@@ -448,7 +448,7 @@ def upload_assembly_files_in_parallel(
     num_workers: number of workers to use for multiprocessing.
     """
     assembly_files_len = len(assembly_files)
-    print(f'start uploading {len(assembly_files)} assembly files')
+    print(f"Start uploading {assembly_files_len} assembly files with {num_workers} workers\n")
 
     input_queue = Queue()
     output_queue = Queue()
@@ -478,8 +478,8 @@ def upload_assembly_files_in_parallel(
         input_queue.put(None)
 
     results = [output_queue.get() for _ in range(assembly_files_len)]
-    assembly_name_to_upa = {k: v for k, v in results if v is not None}
-    failed_names = [k for k, v in results if v is None]
+    assembly_name_to_upa = {assembly_name: upa for assembly_name, upa in results if upa is not None}
+    failed_names = [assembly_name for assembly_name, upa in results if upa is None]
 
     # Join the processes
     for worker in workers:
