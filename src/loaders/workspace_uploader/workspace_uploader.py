@@ -53,7 +53,7 @@ import shutil
 import time
 import uuid
 from datetime import datetime
-from multiprocessing import Process, Queue, cpu_count
+from multiprocessing import Pool, Queue, cpu_count
 from pathlib import Path
 from typing import Tuple
 
@@ -74,7 +74,7 @@ UPLOADED_YAML = "uploaded.yaml"
 
 
 class Conf:
-    def __init__(self, job_dir, kb_base_url, token_filepath):
+    def __init__(self, job_dir, kb_base_url, token_filepath, workers):
         port = loader_helper.find_free_port()
         token = loader_helper.get_token(token_filepath)
         self.start_callback_server(
@@ -85,6 +85,10 @@ class Conf:
         print("callback_url:", callback_url)
         self.ws = Workspace(ws_url, token=token)
         self.asu = AssemblyUtil(callback_url, token=token)
+
+        self.input_queue = Queue()
+        self.output_queue = Queue()
+        self.pools = Pool(workers, process_input, [self])
 
     def setup_callback_server_envs(self, job_dir, kb_base_url, token, port):
         # initiate env and vol
@@ -409,24 +413,24 @@ def _create_entries_in_sourcedata_workspace(
     return upas
 
 
-def _process_input(input_queue: Queue, output_queue: Queue) -> None:
+def process_input(conf: Conf) -> None:
     """
     Process input from input_queue and put the result in output_queue.
     """
     while True:
-        task = input_queue.get(block=True)
+        task = conf.input_queue.get(block=True)
         if not task:
             print("Stopping")
             break
 
         upa = None
-        conf, workspace_name, assembly_path, assembly_name = task
+        workspace_name, assembly_path, assembly_name = task
         try:
             upa = _upload_assembly_to_workspace(conf, workspace_name, assembly_path, assembly_name)
         except Exception as e:
             print(e)
             print(f"Failed assembly name: {assembly_name}")
-        output_queue.put((assembly_name, upa))
+        conf.output_queue.put((assembly_name, upa))
 
 
 def upload_assembly_files_in_parallel(
@@ -446,18 +450,6 @@ def upload_assembly_files_in_parallel(
     assembly_files_len = len(assembly_files)
     print(f"Start uploading {assembly_files_len} assembly files with {num_workers} workers\n")
 
-    input_queue = Queue()
-    output_queue = Queue()
-
-    workers = [
-        Process(target=_process_input, args=(input_queue, output_queue))
-        for _ in range(num_workers)
-    ]
-
-    # Start the processes
-    for worker in workers:
-        worker.start()
-
     # Put the assembly files in the input_queue
     counter = 1
     for assembly_name in assembly_files:
@@ -466,20 +458,20 @@ def upload_assembly_files_in_parallel(
             print(f"{round(counter / len(assembly_files), 4) * 100}% finished at {datetime.now()}")
 
         assembly_path = os.path.join(JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER, DATA_DIR, assembly_name)
-        input_queue.put((conf, workspace_name, assembly_path, assembly_name))
+        conf.input_queue.put((workspace_name, assembly_path, assembly_name))
         counter += 1
 
     # Signal the workers to terminate when they finish uploading assembly files
     for _ in range(num_workers):
-        input_queue.put(None)
+        conf.input_queue.put(None)
 
-    results = [output_queue.get() for _ in range(assembly_files_len)]
+    results = [conf.output_queue.get() for _ in range(assembly_files_len)]
     assembly_name_to_upa = {assembly_name: upa for assembly_name, upa in results if upa is not None}
     failed_names = [assembly_name for assembly_name, upa in results if upa is None]
 
     # Join the processes
-    for worker in workers:
-        worker.join()
+    conf.pools.close()
+    conf.pools.join()
 
     return assembly_name_to_upa, failed_names
 
@@ -523,7 +515,7 @@ def main():
         proc = loader_helper.start_podman_service(uid)
 
         # set up conf, start callback server, and upload assemblies to workspace
-        conf = Conf(job_dir, kb_base_url, token_filepath)
+        conf = Conf(job_dir, kb_base_url, token_filepath, workers)
         workspace_name = conf.ws.get_workspace_info({"id": workspace_id})[1]
 
         count, wait_to_upload_assemblies = _fetch_assemblies_to_upload(
