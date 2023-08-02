@@ -27,39 +27,6 @@ def create_jsonl_files(
         writer.write_all(docs)
 
 
-def create_metadata_file(
-        meta: Dict[str, Dict[str, str]],
-        batch_dir: Path,
-) -> None:
-    """
-    create tab separated metadata file with tool generated genome identifier,
-    original genome id and source genome file info.
-
-    :param meta: a dictionary of genome metadata information
-    :param batch_dir: the directory where the tool result files are stored
-    :return: None
-    """
-
-    # create tool genome identifier metadata file
-    genome_meta_file_path = os.path.join(batch_dir, loader_common_names.GENOME_METADATA_FILE)
-    with open(genome_meta_file_path, "w") as meta_file:
-        meta_file.write(f"{loader_common_names.META_TOOL_IDENTIFIER}\t"
-                        + f"{loader_common_names.META_DATA_ID}\t"
-                        + f"{loader_common_names.META_SOURCE_DIR}\t"
-                        + f"{loader_common_names.META_SOURCE_FILE}\t"
-                        + f"{loader_common_names.META_UNCOMPRESSED_FILE}\t"
-                        + f"{loader_common_names.META_FILE_NAME}\n")
-        for genome_id, genome_meta_info in meta.items():
-            meta_file.write(
-                f'{genome_meta_info[loader_common_names.META_TOOL_IDENTIFIER]}\t'
-                + f'{genome_id}\t'
-                + f'{genome_meta_info[loader_common_names.META_SOURCE_DIR]}\t'
-                + f'{genome_meta_info[loader_common_names.META_SOURCE_FILE]}\t'
-                + f'{genome_meta_info.get(loader_common_names.META_UNCOMPRESSED_FILE, "")}\t'
-                + f'{genome_meta_info[loader_common_names.META_FILE_NAME]}\n'
-            )
-
-
 def read_genome_attri_result(
         batch_result_dir: Path,
         tool_file_name: str,

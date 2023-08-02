@@ -9,10 +9,10 @@ from src.loaders.compute_tools.tool_common import (
     GenomeTuple,
     ToolRunner,
     run_command,
+    create_metadata_file,
 )
 from src.loaders.compute_tools.tool_result_parser import (
     TOOL_GENOME_ATTRI_FILE,
-    create_metadata_file,
     create_jsonl_files,
     read_genome_attri_result,
 )
