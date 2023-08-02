@@ -67,7 +67,6 @@ from src.loaders.common import loader_common_names, loader_helper
 # setup KB_AUTH_TOKEN as env or provide a token_filepath in --token_filepath
 # export KB_AUTH_TOKEN="your-kb-auth-token"
 
-SYSTEM_UTILIZATION = 0.5  # Fraction amount of system cores can be utilized
 UPLOAD_FILE_EXT = ["genomic.fna.gz"]  # uplaod only files that match given extensions
 JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER = "/kb/module/work/tmp"
 DATA_DIR = "DATA_DIR"
@@ -410,12 +409,9 @@ def _create_entries_in_sourcedata_workspace(
     return upas
 
 
-def process_input(input_queue: Queue, output_queue: Queue) -> None:
+def _process_input(input_queue: Queue, output_queue: Queue) -> None:
     """
     Process input from input_queue and put the result in output_queue.
-
-    input_queue: Queue object
-    output_queue: Queue object
     """
     while True:
         task = input_queue.get(block=True)
@@ -443,9 +439,9 @@ def upload_assembly_files_in_parallel(
     Upload assembly files to the target workspace in parallel using multiprocessing
 
     conf: Conf object
-    assembly_files: list of assembly file names.
-    system_utilization: fraction of CPU cores to use.
-    num_workers: number of workers to use for multiprocessing.
+    workspace_name: target workspace name
+    assembly_files: list of assembly files to upload
+    num_workers: number of workers to use for multiprocessing
     """
     assembly_files_len = len(assembly_files)
     print(f"Start uploading {assembly_files_len} assembly files with {num_workers} workers\n")
@@ -454,7 +450,7 @@ def upload_assembly_files_in_parallel(
     output_queue = Queue()
 
     workers = [
-        Process(target=process_input, args=(input_queue, output_queue))
+        Process(target=_process_input, args=(input_queue, output_queue))
         for _ in range(num_workers)
     ]
 
