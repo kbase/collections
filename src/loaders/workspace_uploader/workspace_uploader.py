@@ -1,7 +1,7 @@
 """
 usage: workspace_uploader.py [-h] --workspace_id WORKSPACE_ID [--kbase_collection KBASE_COLLECTION] [--source_ver SOURCE_VER]
                              [--root_dir ROOT_DIR] [--token_filepath TOKEN_FILEPATH] [--env {CI,NEXT,APPDEV,PROD}]
-                             [--upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]] [--threads THREADS] [--keep_job_dir]
+                             [--upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]] [--workers WORKERS] [--keep_job_dir]
 
 PROTOTYPE - Upload assembly files to the workspace service (WSS).
 
@@ -29,7 +29,7 @@ optional arguments:
                         KBase environment (default: PROD)
   --upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]
                         Upload only files that match given extensions (default: ['genomic.fna.gz'])
-  --threads THREADS     Number of threads
+  --workers WORKERS     Number of workers for multiprocessing (default: 5)
   --keep_job_dir        Keep SDK job directory after upload task is completed
 
 e.g.
@@ -48,22 +48,20 @@ The data will be linked to the collections source directory:
 e.g. /global/cfs/cdirs/kbase/collections/collectionssource/ -> ENV -> kbase_collection -> source_ver -> UPA -> .fna.gz file
 """
 import argparse
-import itertools
-import math
-import multiprocessing
-import docker
 import os
 import shutil
 import time
 import uuid
-import yaml
-
 from datetime import datetime
+from multiprocessing import Process, Queue, cpu_count
 from pathlib import Path
 from typing import Tuple
 
+import docker
+import yaml
+
 from src.clients.AssemblyUtilClient import AssemblyUtil
-from src.clients.workspaceClient import Workspace 
+from src.clients.workspaceClient import Workspace
 from src.loaders.common import loader_common_names, loader_helper
 
 # setup KB_AUTH_TOKEN as env or provide a token_filepath in --token_filepath
@@ -182,7 +180,12 @@ def _get_parser():
         default=UPLOAD_FILE_EXT,
         help="Upload only files that match given extensions",
     )
-    optional.add_argument("--threads", type=int, help="Number of threads")
+    optional.add_argument(
+        "--workers",
+        type=int,
+        default=5,
+        help="Number of workers for multiprocessing",
+    )
     optional.add_argument(
         "--keep_job_dir",
         action="store_true",
@@ -226,7 +229,7 @@ def _upload_assembly_to_workspace(
     workspace_name: str,
     file_path: str,
     assembly_name: str,
-) -> None:
+) -> str:
     """Upload an assembly file to workspace."""
     success, attempts, max_attempts = False, 0, 3
     while attempts < max_attempts and not success:
@@ -407,19 +410,59 @@ def _create_entries_in_sourcedata_workspace(
     return upas
 
 
-def _upload_assemblies_to_workspace(
+def process_input(input_queue: Queue, output_queue: Queue) -> None:
+    """
+    Process input from input_queue and put the result in output_queue.
+
+    input_queue: Queue object
+    output_queue: Queue object
+    """
+    while True:
+        task = input_queue.get(block=True)
+        if not task:
+            print("Stopping")
+            break
+
+        upa = None
+        conf, workspace_name, assembly_path, assembly_name = task
+        try:
+            upa = _upload_assembly_to_workspace(conf, workspace_name, assembly_path, assembly_name)
+        except Exception as e:
+            print(e)
+            print(f"Failed assembly name: {assembly_name}")
+        output_queue.put((assembly_name, upa))
+
+
+def upload_assembly_files_in_parallel(
         conf: Conf,
         workspace_name: str,
         assembly_files: list[str],
-) -> list[str]:
+        num_workers: int,
+) -> Tuple[dict[str, str], list[str]]:
     """
-    Upload assemblies to workspace and record failed assembly names.
+    Upload assembly files to the target workspace in parallel using multiprocessing
+
+    conf: Conf object
+    assembly_files: list of assembly file names.
+    system_utilization: fraction of CPU cores to use.
+    num_workers: number of workers to use for multiprocessing.
     """
+    assembly_files_len = len(assembly_files)
     print(f'start uploading {len(assembly_files)} assembly files')
 
-    failed_names = list()
-    assembly_name_to_upa = dict()
+    input_queue = Queue()
+    output_queue = Queue()
 
+    workers = [
+        Process(target=process_input, args=(input_queue, output_queue))
+        for _ in range(num_workers)
+    ]
+
+    # Start the processes
+    for worker in workers:
+        worker.start()
+
+    # Put the assembly files in the input_queue
     counter = 1
     for assembly_name in assembly_files:
 
@@ -427,70 +470,22 @@ def _upload_assemblies_to_workspace(
             print(f"{round(counter / len(assembly_files), 4) * 100}% finished at {datetime.now()}")
 
         assembly_path = os.path.join(JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER, DATA_DIR, assembly_name)
-        try:
-            upa = _upload_assembly_to_workspace(conf, workspace_name, assembly_path, assembly_name)
-        except Exception as e:
-            print(e)
-            print(f"Failed assembly name: {assembly_name}")
-            failed_names.append(assembly_name)
-
+        input_queue.put((conf, workspace_name, assembly_path, assembly_name))
         counter += 1
-        assembly_name_to_upa[assembly_name] = upa
 
-    if failed_names:
-        print(f'Failed to upload {failed_names}')
+    # Signal the workers to terminate when they finish uploading assembly files
+    for _ in range(num_workers):
+        input_queue.put(None)
+
+    results = [output_queue.get() for _ in range(assembly_files_len)]
+    assembly_name_to_upa = {k: v for k, v in results if v is not None}
+    failed_names = [k for k, v in results if v is None]
+
+    # Join the processes
+    for worker in workers:
+        worker.join()
 
     return assembly_name_to_upa, failed_names
-
-
-def _process_batch_result(
-        batch_results: list[Tuple[dict[str, str], list[str]]],
-) -> Tuple[dict[str, str], list[str]]:
-    """
-    Process batch results and return assembly name to upa mapping and failed assembly names.
-    """
-    assembly_name_to_upa_dicts = [batch_result[0] for batch_result in batch_results]
-    failed_names_lists = [batch_result[1] for batch_result in batch_results]
-    assembly_name_to_upa = {k: v for d in assembly_name_to_upa_dicts for k, v in d.items()}
-    failed_names = list(itertools.chain.from_iterable(failed_names_lists))
-    return assembly_name_to_upa, failed_names
-
-
-#TODO: make this function more generic for reuse.
-# NCBI downloader also makes use of threading stuff in a similar way.
-def upload_assembly_files_in_parallel(
-        conf: Conf,
-        workspace_name: str,
-        assembly_files: list[str],
-        system_utilization: float,
-        threads: int = None,
-) -> list[Tuple[dict[str, str], list[str]]]:
-    """
-    Upload assembly files to the target workspace in parallel using multiprocessing
-
-    conf: Conf object
-    assembly_files: list of assembly file names.
-    system_utilization: fraction of CPU cores to use.
-    threads: number of threads to use. Takes precedence over system_utilization if supplied.
-    """
-    if not threads:
-        threads = max(int(multiprocessing.cpu_count() * min(system_utilization, 1)), 1)
-    threads = max(1, threads)
-
-    print(f"Start uploading {len(assembly_files)} assembly files with {threads} threads\n")
-
-    chunk_size = math.ceil(len(assembly_files) / threads)  # distribute assembly files evenly across threads
-    batch_input = [
-        (
-            conf,
-            workspace_name,
-            assembly_files[i : i + chunk_size],
-        )
-        for i in range(0, len(assembly_files), chunk_size)
-    ]
-    pool = multiprocessing.Pool(processes=threads)
-    batch_results = pool.starmap(_upload_assemblies_to_workspace, batch_input)
-    return batch_results
 
 
 def main():
@@ -503,7 +498,7 @@ def main():
     root_dir = args.root_dir
     token_filepath = args.token_filepath
     upload_file_ext = args.upload_file_ext
-    threads = args.threads
+    workers = args.workers
     keep_job_dir = args.keep_job_dir
 
     env = args.env
@@ -511,6 +506,8 @@ def main():
 
     if workspace_id <= 0:
         parser.error(f"workspace_id needs to be > 0")
+    if workers < 1 or workers > cpu_count():
+        parser.error(f"minimum worker is 1 and maximum worker is {cpu_count()}")
 
     uid = os.getuid()
     username = os.getlogin()
@@ -550,14 +547,7 @@ def main():
 
         start = time.time()
         data_dir = _prepare_skd_job_dir_to_upload(job_dir, wait_to_upload_assemblies)
-        batch_results = upload_assembly_files_in_parallel(
-            conf,
-            workspace_name,
-            os.listdir(data_dir),
-            SYSTEM_UTILIZATION,
-            threads,
-        )
-        assembly_name_to_upa, failed_names = _process_batch_result(batch_results)
+        assembly_name_to_upa, failed_names = upload_assembly_files_in_parallel(conf, workspace_name, os.listdir(data_dir), workers)
 
         if failed_names:
             print(f"\nFailed to upload {failed_names}")
