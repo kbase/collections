@@ -48,7 +48,6 @@ import argparse
 import json
 import os
 import shutil
-import stat
 import time
 import uuid
 from collections import defaultdict
@@ -512,9 +511,7 @@ def main():
     try:
         # start podman service
         proc = loader_helper.start_podman_service(uid)
-    except Exception as e:
-        print(e)
-    else:
+
         # set up conf and start callback server
         conf = Conf(
             job_dir,
