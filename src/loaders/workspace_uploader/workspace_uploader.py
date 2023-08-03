@@ -86,6 +86,7 @@ class Conf:
         self.ws = Workspace(ws_url, token=token)
         self.asu = AssemblyUtil(callback_url, token=token)
 
+        self.workers = workers
         self.input_queue = Queue()
         self.output_queue = Queue()
         self.pools = Pool(workers, process_input, [self])
@@ -437,7 +438,6 @@ def upload_assembly_files_in_parallel(
         conf: Conf,
         workspace_name: str,
         assembly_files: list[str],
-        num_workers: int,
 ) -> Tuple[dict[str, str], list[str]]:
     """
     Upload assembly files to the target workspace in parallel using multiprocessing
@@ -445,10 +445,9 @@ def upload_assembly_files_in_parallel(
     conf: Conf object
     workspace_name: target workspace name
     assembly_files: list of assembly files to upload
-    num_workers: number of workers to use for multiprocessing
     """
     assembly_files_len = len(assembly_files)
-    print(f"Start uploading {assembly_files_len} assembly files with {num_workers} workers\n")
+    print(f"Start uploading {assembly_files_len} assembly files with {conf.workers} workers\n")
 
     # Put the assembly files in the input_queue
     counter = 1
@@ -462,14 +461,14 @@ def upload_assembly_files_in_parallel(
         counter += 1
 
     # Signal the workers to terminate when they finish uploading assembly files
-    for _ in range(num_workers):
+    for _ in range(conf.workers):
         conf.input_queue.put(None)
 
     results = [conf.output_queue.get() for _ in range(assembly_files_len)]
     assembly_name_to_upa = {assembly_name: upa for assembly_name, upa in results if upa is not None}
     failed_names = [assembly_name for assembly_name, upa in results if upa is None]
 
-    # Join the processes
+    # Close and join the processes
     conf.pools.close()
     conf.pools.join()
 
@@ -535,14 +534,15 @@ def main():
 
         start = time.time()
         data_dir = _prepare_skd_job_dir_to_upload(job_dir, wait_to_upload_assemblies)
-        assembly_name_to_upa, failed_names = upload_assembly_files_in_parallel(conf, workspace_name, os.listdir(data_dir), workers)
+        assembly_name_to_upa, failed_names = upload_assembly_files_in_parallel(conf, workspace_name, os.listdir(data_dir))
 
         if failed_names:
             print(f"\nFailed to upload {failed_names}")
         
         assembly_count = wtus_len - len(failed_names)
         upload_speed = (time.time() - start) / assembly_count
-        print(f"\nSuccessfully upload {assembly_count} assemblies, average {upload_speed:.2f}s/assembly.")
+        print(f"\nSuccessfully upload {assembly_count} assemblies with {conf.workers} workers, "
+              f"average {upload_speed:.2f}s/assembly.")
 
         new_assembly_names = [name for name in wait_to_upload_assemblies if name not in failed_names]
         upas = _create_entries_in_sourcedata_workspace(
