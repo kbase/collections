@@ -541,8 +541,7 @@ def main():
         
         assembly_count = wtus_len - len(failed_names)
         upload_speed = (time.time() - start) / assembly_count
-        print(f"\nSuccessfully upload {assembly_count} assemblies with {conf.workers} workers, "
-              f"average {upload_speed:.2f}s/assembly.")
+        print(f"\nSuccessfully upload {assembly_count} assemblies with {workers} workers, average {upload_speed:.2f}s/assembly.")
 
         new_assembly_names = [name for name in wait_to_upload_assemblies if name not in failed_names]
         upas = _create_entries_in_sourcedata_workspace(
