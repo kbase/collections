@@ -6,10 +6,9 @@ from typing import Dict, List, Set
 import jsonlines
 import pandas as pd
 
+from src.common.storage.field_names import FLD_KBASE_ID
 from src.loaders.compute_tools.tool_common import GenomeTuple
 
-# used as collection_and_field_names.FLD_KBASE_ID
-TOOL_KBASE_ID = "kbase_id"
 TOOL_GENOME_ATTRI_FILE = "genome_attribs.jsonl"
 
 
@@ -85,7 +84,7 @@ def _create_doc(row, genome_id, features, prefix):
 
     # initialize the document with the genome_id
     doc = {
-        TOOL_KBASE_ID: genome_id,
+        FLD_KBASE_ID: genome_id,
     }
 
     # distinguish the selected fields from the original metadata by adding a common prefix to their names
