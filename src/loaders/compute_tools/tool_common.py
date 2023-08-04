@@ -374,7 +374,7 @@ class ToolRunner:
             self,
             threads: int,
             tool_callable: Callable[..., None],
-            args: List[Tuple[dict[str, GenomeTuple], Path, int, bool]],
+            args: List[Tuple[Dict[str, GenomeTuple], Path, int, bool]],
             start: datetime.datetime,
             total: bool,
     ):
