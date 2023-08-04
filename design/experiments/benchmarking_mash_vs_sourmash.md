@@ -441,3 +441,107 @@ sys	0m0.201s
 ```
 
 Comparable to mash as expected from the previous result. with a +2m penalty to sketch construction
+
+## Other mash experiments
+
+### Sketch individually vs 1 file with 10k sketches
+
+```
+gaprice@perlmutter:login27:~/mash/mash/individual> ipython
+Python 3.9.7 (default, Sep 16 2021, 13:09:58) 
+Type 'copyright', 'credits' or 'license' for more information
+IPython 7.31.1 -- An enhanced Interactive Python. Type '?' for help.
+
+In [1]: with open("../../GTDB_v214_SeanJ_first10k.txt") as flist:
+   ...:     files = [f for f in flist.read().split("\n") if f]
+   ...: 
+
+In [2]: len(files)
+Out[2]: 10000
+
+In [3]: import pathlib
+
+In [4]: mash = "/global/homes/g/gaprice/mash/mash-Linux64-v2.3/mash"
+
+In [5]: import subprocess
+
+In [7]: def mashify(mash, files):
+   ...:     for f in files:
+   ...:         p = pathlib.Path(f)
+   ...:         n = p.name
+   ...:         subprocess.run([mash, "sketch", "-k", "19", "-s", "10000", "-o",
+   ...:  str(n), f])
+   ...: 
+
+In [8]: %time mashify(mash, files)
+Sketching /global/cfs/cdirs/kbase/jungbluth/Projects/Project_Pangenome_GTDB/GTDB_v214_download/ftp.ncbi.nlm.nih.gov/genomes/all/./GCA/018/630/415/GCA_018630415.1_ASM1863041v1/GCA_018630415.1_ASM1863041v1_genomic.fna.gz...
+Writing to GCA_018630415.1_ASM1863041v1_genomic.fna.gz.msh...
+
+*snip*
+
+Sketching /global/cfs/cdirs/kbase/jungbluth/Projects/Project_Pangenome_GTDB/GTDB_v214_download/ftp.ncbi.nlm.nih.gov/genomes/all/./GCA/002/415/565/GCA_002415565.1_ASM241556v1/GCA_002415565.1_ASM241556v1_genomic.fna.gz...
+Writing to GCA_002415565.1_ASM241556v1_genomic.fna.gz.msh...
+CPU times: user 1.35 s, sys: 20.7 s, total: 22.1 s
+Wall time: 22min 15s
+
+In [9]: exit
+gaprice@perlmutter:login27:~/mash/mash/individual> ls | wc -l
+10000
+```
+
+Not a huge amount slower than sketching into a single file, and comparable to sourmash
+
+## Search against 10k individual files vs. 1 large file
+
+```
+In [1]: import subprocess
+
+In [2]: mshfiles = !ls
+
+In [3]: mshfiles[0]
+Out[3]: 'GCA_002002485.1_ASM200248v1_genomic.fna.gz.msh'
+
+In [4]: mshfiles[-1]
+Out[4]: 'GCA_018993265.1_ASM1899326v1_genomic.fna.gz.msh'
+
+In [5]: queryfile = "/global/homes/g/gaprice/mash/GCA_018630415.1_ASM1863041v1_g
+   ...: enomic.fna.msh"
+
+In [6]: mash = "/global/homes/g/gaprice/mash/mash-Linux64-v2.3/mash"
+
+In [7]: def search_mash(mash, query, files):
+   ...:     ret = []
+   ...:     for f in files:
+   ...:         proc = subprocess.run([
+   ...:             mash,
+   ...:             "dist",
+   ...:             "-d", "0.5",
+   ...:             query,
+   ...:             f
+   ...:         ],
+   ...:             capture_output=True
+   ...:         )
+   ...:         ret.append((proc.stdout, proc.stderr))
+   ...:     return ret
+   ...: 
+
+In [8]: %time ret = search_mash(mash, queryfile, mshfiles)
+CPU times: user 1.86 s, sys: 10.8 s, total: 12.6 s
+Wall time: 57.6 s
+
+In [9]: ret[0]
+Out[9]: 
+(b'/global/cfs/cdirs/kbase/jungbluth/Projects/Project_Pangenome_GTDB/GTDB_v214_download/ftp.ncbi.nlm.nih.gov/genomes/all/./GCA/018/630/415/GCA_018630415.1_ASM1863041v1/GCA_018630415.1_ASM1863041v1_genomic.fna.gz\t/global/cfs/cdirs/kbase/jungbluth/Projects/Project_Pangenome_GTDB/GTDB_v214_download/ftp.ncbi.nlm.nih.gov/genomes/all/./GCA/002/002/485/GCA_002002485.1_ASM200248v1/GCA_002002485.1_ASM200248v1_genomic.fna.gz\t0.448279\t0.047489\t1/10000\n',
+ b'')
+
+In [10]: {r[1] for r in ret}
+Out[10]: {b''}
+
+In [12]: ret[1]
+Out[12]: (b'', b'')
+
+In [13]: len({r[0] for r in ret}) - 1
+Out[13]: 4448
+```
+
+Comparable to sourmash w/o a SBT, although a bit faster
