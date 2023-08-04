@@ -157,8 +157,7 @@ def _process_gtdb_result(
             genome_id_col,
             ids_to_files)
 
-        if docs:
-            gtdb_tk_docs.extend(docs)
+        gtdb_tk_docs.extend(docs)
 
     output = output_dir / TOOL_GENOME_ATTRI_FILE
     create_jsonl_files(output, gtdb_tk_docs)
