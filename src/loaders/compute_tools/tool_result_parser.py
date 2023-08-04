@@ -43,19 +43,21 @@ def read_genome_attri_result(
     :param features: a list of features to be retrieved from the tool result file
     :param genome_id_col: the column name of the genome id in the tool result file
     :param ids_to_files: a dictionary of tool genome ids to the corresponding GenomeTuple
-    :param prefix: the prefix to append to the genome id from the tool result file
+    :param prefix: the prefix to prepend to the genome id from the tool result file
 
     :return: a dictionary of genome attributes
     """
     tool_genome_map = {tool_id: genome_tuple.data_id for tool_id, genome_tuple in ids_to_files.items()}
 
     tool_file = os.path.join(batch_result_dir, tool_file_name)
-    docs = list()
-    if os.path.exists(tool_file):
-        df = _read_tsv_as_df(tool_file, features, genome_id_col=genome_id_col)
-        docs = df.apply(_row_to_doc, args=(features, tool_genome_map,
-                                           genome_id_col, prefix), axis=1).to_list()
-        docs = [doc for doc in docs if doc]
+
+    if not os.path.isfile(tool_file):
+        raise FileNotFoundError(f'Tool result file not found: {tool_file}')
+
+    df = _read_tsv_as_df(tool_file, features, genome_id_col=genome_id_col)
+    docs = df.apply(_row_to_doc, args=(features, tool_genome_map,
+                                       genome_id_col, prefix), axis=1).to_list()
+    docs = [doc for doc in docs if doc]
 
     return docs
 

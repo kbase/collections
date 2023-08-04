@@ -62,16 +62,16 @@ class ToolRunner:
     ):
         """
         Create the runner.
-        
+
         Before calling the runner, the required input files for each tooling should be already
         downloaded in the source directory. The ID of each data unit is taken from the directory
         names in the source folder.
 
         The runner will compute and save result files to
         `[root_dir/collectionsdata/[kbase_collection]/[load_ver]/[tool_name]`.
-        
+
         Expects arguments on the command line as:
-        
+
         PROTOTYPE - Run a computational tool on a set of data.
 
         options:
@@ -374,7 +374,7 @@ class ToolRunner:
             self,
             threads: int,
             tool_callable: Callable[..., None],
-            args: List[Tuple[Any, ...]],
+            args: List[Tuple[dict[str, GenomeTuple], Path, int, bool]],
             start: datetime.datetime,
             total: bool,
     ):
