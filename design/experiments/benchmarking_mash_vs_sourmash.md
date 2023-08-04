@@ -6,6 +6,12 @@ These tests are not at all statistically meaningful; n=1 in all cases.
 
 Run using Sean J.'s download of GTDB v214.
 
+## Summary graphs
+
+![Mash vs. Sourmash result count](./mash_vs_sourmash_result_count.png)
+
+![Mash vs. Sourmash performance](./mash_vs_sourmash_performance.png)
+
 ## Data setup
 
 ```
