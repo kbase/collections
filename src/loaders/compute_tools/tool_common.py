@@ -330,6 +330,7 @@ class ToolRunner:
         # distribute genome ids evenly across batches
         chunk_size = math.ceil(len(self._data_ids) / num_batches)
         batch_input = []
+        metas = []
         unzipped_files_to_delete = list()
         for batch_number, i in enumerate(range(0, len(self._data_ids), chunk_size)):
             data_ids = self._data_ids[i: i + chunk_size]
@@ -348,6 +349,7 @@ class ToolRunner:
             if unzip:
                 unzipped_files_to_delete.extend(_unzip_files(meta))
 
+            metas.append((meta, batch_dir))
             ids_to_files = dict()
             for data_id, m in meta.items():
                 # use the uncompressed file if it exists, otherwise use the source file
@@ -355,7 +357,7 @@ class ToolRunner:
                                     m[loader_common_names.META_SOURCE_FILE])
                 ids_to_files[m[loader_common_names.META_TOOL_IDENTIFIER]] = GenomeTuple(source_file, data_id)
 
-            batch_input.append((ids_to_files, batch_dir, self._program_threads, self._debug, meta))
+            batch_input.append((ids_to_files, batch_dir, self._program_threads, self._debug))
 
         try:
             self._execute(num_batches, tool_callable, batch_input, start, True)
@@ -364,6 +366,9 @@ class ToolRunner:
                 print(f"Deleting {len(unzipped_files_to_delete)} unzipped files: {unzipped_files_to_delete[:5]}...")
                 for file in unzipped_files_to_delete:
                     os.remove(file)
+
+        for meta in metas:
+            create_metadata_file(*meta)
 
     def _execute(
             self,
