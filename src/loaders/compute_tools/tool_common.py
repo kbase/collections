@@ -62,16 +62,16 @@ class ToolRunner:
     ):
         """
         Create the runner.
-        
+
         Before calling the runner, the required input files for each tooling should be already
         downloaded in the source directory. The ID of each data unit is taken from the directory
         names in the source folder.
 
         The runner will compute and save result files to
         `[root_dir/collectionsdata/[kbase_collection]/[load_ver]/[tool_name]`.
-        
+
         Expects arguments on the command line as:
-        
+
         PROTOTYPE - Run a computational tool on a set of data.
 
         options:
@@ -304,7 +304,7 @@ class ToolRunner:
                 for file in unzipped_files_to_delete:
                     os.remove(file)
 
-        _create_metadata_file(genomes_meta, batch_dir)
+        create_metadata_file(genomes_meta, batch_dir)
 
     def parallel_batch_execution(self, tool_callable: Callable[[Dict[str, GenomeTuple], Path, int, bool], None],
                                  unzip=False):
@@ -368,13 +368,13 @@ class ToolRunner:
                     os.remove(file)
 
         for meta in metas:
-            _create_metadata_file(*meta)
+            create_metadata_file(*meta)
 
     def _execute(
             self,
             threads: int,
             tool_callable: Callable[..., None],
-            args: List[Tuple[Any]],
+            args: List[Tuple[Dict[str, GenomeTuple], Path, int, bool]],
             start: datetime.datetime,
             total: bool,
     ):
@@ -443,12 +443,18 @@ def run_command(command: List[str], log_dir: Path = None):
         raise ValueError(f'The command {command} failed with exit code {exit_code}')
 
 
-def _create_metadata_file(
-        meta: Dict[str, Dict[str, Union[str, Path]]],
-        batch_dir: Path
-):
-    # create tab separated metadata file with tool generated genome identifier,
-    # original genome id and source genome file info.
+def create_metadata_file(
+        meta: Dict[str, Dict[str, str]],
+        batch_dir: Path,
+) -> None:
+    """
+    create tab separated metadata file with tool generated genome identifier,
+    original genome id and source genome file info.
+
+    :param meta: a dictionary of genome metadata information
+    :param batch_dir: the directory where the tool result files are stored
+    :return: None
+    """
 
     # create tool genome identifier metadata file
     genome_meta_file_path = os.path.join(batch_dir, loader_common_names.GENOME_METADATA_FILE)
