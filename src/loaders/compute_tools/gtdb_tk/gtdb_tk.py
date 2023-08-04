@@ -6,7 +6,7 @@ import os
 import re
 import time
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict
 
 import pandas as pd
 
@@ -20,9 +20,7 @@ from src.loaders.compute_tools.tool_common import (
     write_fatal_tuples_to_dict,
 )
 from src.loaders.compute_tools.tool_result_parser import (
-    TOOL_GENOME_ATTRI_FILE,
-    create_jsonl_files,
-    read_genome_attri_result,
+    process_genome_attri_result,
 )
 
 # GTDB specific constants
@@ -139,28 +137,12 @@ def _run_gtdb_tk(
 
     write_fatal_tuples_to_dict(fatal_tuples, output_dir)
 
-    _process_gtdb_result(output_dir, ids_to_files, summary_files)
-
-
-def _process_gtdb_result(
-        output_dir: Path,
-        ids_to_files: Dict[str, GenomeTuple],
-        summary_files: List[str],
-):
-    genome_id_col = loader_common_names.GTDB_GENOME_ID_COL
-    gtdb_tk_docs = list()
-    for tool_file_name in summary_files:
-        docs = read_genome_attri_result(
-            output_dir,
-            tool_file_name,
-            SELECTED_GTDBTK_SUMMARY_FEATURES,
-            genome_id_col,
-            ids_to_files)
-
-        gtdb_tk_docs.extend(docs)
-
-    output = output_dir / TOOL_GENOME_ATTRI_FILE
-    create_jsonl_files(output, gtdb_tk_docs)
+    process_genome_attri_result(output_dir,
+                                SELECTED_GTDBTK_SUMMARY_FEATURES,
+                                loader_common_names.GTDB_GENOME_ID_COL,
+                                ids_to_files,
+                                summary_files,
+                                )
 
 
 def main():
