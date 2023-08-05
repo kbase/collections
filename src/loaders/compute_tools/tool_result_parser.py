@@ -36,7 +36,7 @@ def process_genome_attri_result(
 
     genome_attri_docs = list()
     for tool_file_name in result_files:
-        docs = read_genome_attri_result(
+        docs = _read_genome_attri_result(
             output_dir,
             tool_file_name,
             features,
@@ -65,7 +65,7 @@ def create_jsonl_files(
         writer.write_all(docs)
 
 
-def read_genome_attri_result(
+def _read_genome_attri_result(
         batch_result_dir: Path,
         tool_file_name: str,
         features: Set[str],
