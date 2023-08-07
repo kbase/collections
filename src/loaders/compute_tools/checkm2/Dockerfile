@@ -9,7 +9,7 @@ RUN conda config --add channels conda-forge
 # install CheckM2
 ARG PYTHON_VER=3.8
 RUN conda create -n $CONDA_ENV python=$PYTHON_VER checkm2=$CHECKM2_VER
-RUN conda install -n $CONDA_ENV rpy2=3.5.10
+RUN conda install -n $CONDA_ENV pandas=1.4.0 jsonlines=3.1.0
 
 RUN echo "source activate $CONDA_ENV" >> ~/.bashrc
 

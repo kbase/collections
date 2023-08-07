@@ -13,3 +13,4 @@ arangoimport_data_files
 .pydevproject
 .pytest_cache
 htmlcov
+.ipynb_checkpoints
