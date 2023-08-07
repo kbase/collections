@@ -12,6 +12,8 @@ Run using Sean J.'s download of GTDB v214.
 
 ![Mash vs. Sourmash performance](./mash_vs_sourmash_performance.png)
 
+![Mash vs. Sourmash result histogram](./mash_vs_sourmash_result_hist.png)
+
 ## Data setup
 
 ```
@@ -551,3 +553,71 @@ Out[13]: 4448
 ```
 
 Comparable to sourmash w/o a SBT, although a bit faster
+
+## Match histogram calculations
+
+### Mash
+
+Capture sketching output
+
+```
+gaprice@perlmutter:login13:~/mash> time /global/homes/g/gaprice/mash/mash-Linux64-v2.3/mash dist -d 0.5 GCA_018630415.1_ASM1863041v1_genomic.fna.msh GTDB_v214_10k.sketch.msh > GTDB_v214_10k.sketch.msh.out
+
+real	0m2.503s
+user	0m1.438s
+sys	0m0.871s
+gaprice@perlmutter:login13:~/mash> wc -l GTDB_v214_10k.sketch.msh.out 
+4448 GTDB_v214_10k.sketch.msh.out
+```
+
+Calculate histogram
+
+```
+(py3.9playground) crushingismybusiness@andbusinessisgood:~/SCIENCE/minhash/sourmash_vs_mash$ ipython
+Python 3.9.16 (main, Dec  7 2022, 01:11:58) 
+Type 'copyright', 'credits' or 'license' for more information
+IPython 8.12.0 -- An enhanced Interactive Python. Type '?' for help.
+
+In [1]: with open("/home/crushingismybusiness/SCIENCE/minhash/sourmash_vs_mash/GTDB_v214_10k.sketch.msh.out") as f:
+   ...:     scores = []
+   ...:     for l in f:
+   ...:         scores.append(float(l.split("\t")[2]))
+   ...: 
+
+In [2]: import numpy as np
+
+In [3]: np.histogram(scores, range=(0, 0.5))
+Out[3]: 
+(array([  34,    0,    0,    1,   10,    3,   62,  826, 3512,    0]),
+ array([0.  , 0.05, 0.1 , 0.15, 0.2 , 0.25, 0.3 , 0.35, 0.4 , 0.45, 0.5 ]))
+```
+
+### Sourmash
+
+Made a text file containing only the match lines from the sourmash output.
+
+```
+(py3.9playground) crushingismybusiness@andbusinessisgood:~/SCIENCE/minhash/sourmash_vs_mash$ ipython
+Python 3.9.16 (main, Dec  7 2022, 01:11:58) 
+Type 'copyright', 'credits' or 'license' for more information
+IPython 8.12.0 -- An enhanced Interactive Python. Type '?' for help.
+
+In [1]: with open("/home/crushingismybusiness/SCIENCE/minhash/sourmash_vs_mash/GTDB_v214_10k.sourmash.similarites.txt") as f:
+   ...:     sourmash_scores = []
+   ...:     for l in f:
+   ...:         sourmash_scores.append(float(l.split()[0].strip().replace("%", "")))
+   ...: 
+
+In [2]: len(sourmash_scores)
+Out[2]: 28
+
+# Make the scores look like mash distance scores
+In [3]: sourmash_scores = [(100.0 - x) / 100.0 for x in sourmash_scores]
+
+In [5]: import numpy as np
+
+In [6]: np.histogram(sourmash_scores, range=(0, 0.5))
+Out[6]: 
+(array([ 3,  2,  0,  0,  0,  0,  0,  0,  1, 22]),
+ array([0.  , 0.05, 0.1 , 0.15, 0.2 , 0.25, 0.3 , 0.35, 0.4 , 0.45, 0.5 ]))
+```
