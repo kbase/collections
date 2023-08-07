@@ -16,7 +16,7 @@ optional arguments:
                         Create a collection and link in data to that collection from the overall workspace source data dir
   --source_version SOURCE_VERSION
                         Create a source version and link in data to that collection from the overall workspace source data dir
-  --root_dir ROOT_DIR   Root directory. (default: /global/cfs/cdirs/kbase/collections)
+  --root_dir ROOT_DIR   Root directory for the collections project. (default: /global/cfs/cdirs/kbase/collections)
   --env {CI,NEXT,APPDEV,PROD}
                         KBase environment, defaulting to PROD (default: PROD)
   --workers WORKERS     Number of workers for multiprocessing (default: 5)
@@ -428,10 +428,10 @@ def main():
         help="Create a source version and link in data to that collection from the overall workspace source data dir",
     )
     optional.add_argument(
-        "--root_dir",
+        f"--{loader_common_names.ROOT_DIR_ARG_NAME}",
         type=str,
         default=loader_common_names.ROOT_DIR,
-        help="Root directory.",
+        help=loader_common_names.ROOT_DIR_DESCR
     )
     optional.add_argument(
         f"--{loader_common_names.ENV_ARG_NAME}",
@@ -472,7 +472,7 @@ def main():
     workspace_id = args.workspace_id
     kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
     source_version = getattr(args, loader_common_names.SOURCE_VER_ARG_NAME)
-    root_dir = args.root_dir
+    root_dir = getattr(args, loader_common_names.ROOT_DIR_ARG_NAME)
     env = args.env
     workers = args.workers
     token_filepath = args.token_filepath

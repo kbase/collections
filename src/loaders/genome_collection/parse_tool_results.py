@@ -939,8 +939,12 @@ def main():
                           help=f'Extract results from tools. '
                                f'(default: retrieve all available sub-directories in the '
                                f'[{loader_common_names.LOAD_VER_ARG_NAME}] directory)')
-    optional.add_argument('--root_dir', type=str, default=loader_common_names.ROOT_DIR,
-                          help=f'Root directory for the collections project. (default: {loader_common_names.ROOT_DIR})')
+    optional.add_argument(
+        f'--{loader_common_names.ROOT_DIR_ARG_NAME}',
+        type=str,
+        default=loader_common_names.ROOT_DIR,
+        help=f'{loader_common_names.ROOT_DIR_DESCR} (default: {loader_common_names.ROOT_DIR})'
+    )
     optional.add_argument('--check_genome', action="store_true",
                           help='Ensure a corresponding genome exists for every assembly')
     optional.add_argument(
@@ -955,9 +959,9 @@ def main():
     kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
     source_ver = getattr(args, loader_common_names.SOURCE_VER_ARG_NAME)
     load_ver = getattr(args, loader_common_names.LOAD_VER_ARG_NAME)
+    root_dir = getattr(args, loader_common_names.ROOT_DIR_ARG_NAME)
     if not load_ver:
         load_ver = source_ver
-    root_dir = args.root_dir
     check_genome = args.check_genome
 
     if not args.skip_retrieve_sample:

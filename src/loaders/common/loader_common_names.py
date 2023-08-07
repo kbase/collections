@@ -5,6 +5,11 @@ by the loaders programs located in the src/loaders directory.
 
 # Arguments Descriptions
 
+# Name for root directory argument
+ROOT_DIR_ARG_NAME = "root_dir"
+# Description of the --root_dir argument in various loaders programs.
+ROOT_DIR_DESCR = "Root directory for the collections project."
+
 # Name for load version argument
 LOAD_VER_ARG_NAME = "load_ver"
 # Description of the --load_ver argument in various loaders programs.

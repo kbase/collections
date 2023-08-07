@@ -31,7 +31,7 @@ required named arguments:
 optional arguments:
   --env {CI,NEXT,APPDEV,PROD,NONE}
                         Environment containing the data to be processed. (default: PROD)
-  --root_dir ROOT_DIR   Root directory for the collections project (default: /global/cfs/cdirs/kbase/collections)
+  --root_dir ROOT_DIR   Root directory for the collections project. (default: /global/cfs/cdirs/kbase/collections)
   --input_source {GTDB,genome_attributes}
                         Input file source
  
@@ -122,15 +122,19 @@ def main():
         default='PROD',
         help="Environment containing the data to be processed. (default: PROD)",
     )
-    optional.add_argument('--root_dir', type=str, default=loader_common_names.ROOT_DIR,
-                          help=f'Root directory for the collections project (default: {loader_common_names.ROOT_DIR})')
+    optional.add_argument(
+        f'--{loader_common_names.ROOT_DIR_ARG_NAME}',
+        type=str,
+        default=loader_common_names.ROOT_DIR,
+        help=f'{loader_common_names.ROOT_DIR_DESCR} (default: {loader_common_names.ROOT_DIR})'
+    )
 
     optional.add_argument('--input_source', type=str, choices=VALID_SOURCE, default='GTDB',
                           help='Input file source')
 
     args = parser.parse_args()
     load_files = args.load_files
-    root_dir = args.root_dir
+    root_dir = getattr(args, loader_common_names.ROOT_DIR_ARG_NAME)
     load_version = getattr(args, loader_common_names.LOAD_VER_ARG_NAME)
     kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
     env = getattr(args, loader_common_names.ENV_ARG_NAME)

@@ -21,7 +21,7 @@ required named arguments:
                         and the source version of the collection to be created in the specific KBase environment in the 'collectionsource' directory
 
 optional arguments:
-  --root_dir ROOT_DIR   Root directory. (default: /global/cfs/cdirs/kbase/collections)
+  --root_dir ROOT_DIR   Root directory for the collections project. (default: /global/cfs/cdirs/kbase/collections)
   --token_filepath TOKEN_FILEPATH
                         A file path that stores a KBase token appropriate for the KBase environment
                         If not provided, the token must be provided in the `KB_AUTH_TOKEN` environment variable
@@ -163,10 +163,10 @@ def _get_parser():
 
     # Optional argument
     optional.add_argument(
-        "--root_dir",
+        f"--{loader_common_names.ROOT_DIR_ARG_NAME}",
         type=str,
         default=loader_common_names.ROOT_DIR,
-        help="Root directory.",
+        help=loader_common_names.ROOT_DIR_DESCR
     )
     optional.add_argument(
         "--token_filepath",
@@ -464,7 +464,7 @@ def _upload_assembly_files_in_parallel(
         upload_env_key: environment variable key in uploaded.yaml file
         workspace_name: taregt workspace name
         workspace_id: target workspace id
-        upload_dir: a directory in collectionssrouce that create new directories linking to sourcedata
+        upload_dir: a directory in collectionssrouce that creates new directories linking to sourcedata
         output_dir: a directory to create standard entries in sourcedata/workspace for uploaded assemblies
         temp_dir: a temporary directory that stores the assembly files to upload
         wait_to_upload_assemblies: a dictionary that maps assembly file name to assembly directory
@@ -518,7 +518,7 @@ def main():
     workspace_id = args.workspace_id
     kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
     source_version = getattr(args, loader_common_names.SOURCE_VER_ARG_NAME)
-    root_dir = args.root_dir
+    root_dir = getattr(args, loader_common_names.ROOT_DIR_ARG_NAME)
     token_filepath = args.token_filepath
     upload_file_ext = args.upload_file_ext
     workers = args.workers
