@@ -69,7 +69,6 @@ from src.loaders.common import loader_common_names, loader_helper
 
 UPLOAD_FILE_EXT = ["genomic.fna.gz"]  # uplaod only files that match given extensions
 JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER = "/kb/module/work/tmp"
-DATA_DIR = "DATA_DIR"
 UPLOADED_YAML = "uploaded.yaml"
 
 
@@ -89,7 +88,7 @@ class Conf:
         self.workers = workers
         self.input_queue = Queue()
         self.output_queue = Queue()
-        self.pools = Pool(workers, process_input, [self])
+        self.pools = Pool(workers, _process_input, [self])
 
     def setup_callback_server_envs(self, job_dir, kb_base_url, token, port):
         # initiate env and vol
@@ -150,12 +149,16 @@ def _get_parser():
     required.add_argument(
         f"--{loader_common_names.KBASE_COLLECTION_ARG_NAME}",
         type=str,
-        help="The name of the collection being processed",
+        help="The name of the collection being processed. "
+             "Specifies where the files to be found uploaded (in the default NONE environment) "
+             "and the name of the collection to be created in the specific KBase environment in the 'collectionsource' directory.",
     )
     required.add_argument(
         f"--{loader_common_names.SOURCE_VER_ARG_NAME}",
         type=str,
-        help="The source version of the collection being processed",
+        help="The source version of the collection being processed. "
+             "Specifies where the files to be found uploaded (in the default NONE environment) "
+             "and the source version of the collection to be created in the specific KBase environment in the 'collectionsource' directory.",
     )
 
     # Optional argument
@@ -168,14 +171,15 @@ def _get_parser():
     optional.add_argument(
         "--token_filepath",
         type=str,
-        help="A file path that stores a KBase token",
+        help="A file path that stores a KBase token appropriate for the KBase environment. "
+             "If not provided, the token must be provided in the `KB_AUTH_TOKEN` environment variable.",
     )
     optional.add_argument(
         "--env",
         type=str,
         choices=loader_common_names.KB_ENV,
         default="PROD",
-        help="KBase environment, defaulting to PROD",
+        help="KBase environment",
     )
     optional.add_argument(
         "--upload_file_ext",
@@ -207,15 +211,14 @@ def _get_yaml_file_path(assembly_dir: str) -> str:
     return file_path
 
 
-def _sanitize_data_dir(job_dir: str) -> str:
+def _create_data_dir(job_dir: str) -> Tuple[str, str]:
     """
     Create a temporary directory for storing uploaded files.
     """
-    data_dir = os.path.join(job_dir, "workdir/tmp", DATA_DIR)
-    if os.path.exists(data_dir):
-        shutil.rmtree(data_dir)
+    tmp_dir = "data_dir_{}".format(str(uuid.uuid4()))
+    data_dir = os.path.join(job_dir, "workdir/tmp", tmp_dir)
     os.makedirs(data_dir)
-    return data_dir
+    return data_dir, tmp_dir
 
 
 def _get_source_file(assembly_dir: str, assembly_file: str) -> str:
@@ -322,9 +325,6 @@ def _fetch_assemblies_to_upload(
     """
     Help fetch assemblies to upload.
     """
-    if upload_file_ext != UPLOAD_FILE_EXT:
-        raise ValueError(f"Currently only support assembly files to upload")
-
     count = 0
     wait_to_upload_assemblies = dict()
 
@@ -340,7 +340,7 @@ def _fetch_assemblies_to_upload(
             f
             for f in os.listdir(assembly_dir)
             if os.path.isfile(os.path.join(assembly_dir, f))
-            and os.path.join(assembly_dir, f).endswith(tuple(upload_file_ext))
+            and f.endswith(tuple(upload_file_ext))
         ]
 
         if len(assembly_file_list) != 1:
@@ -367,54 +367,47 @@ def _prepare_skd_job_dir_to_upload(job_dir: str, wait_to_upload_assemblies: dict
     """
     Prepare SDK job directory to upload.
     """
-    data_dir = _sanitize_data_dir(job_dir)
+    data_dir, temp_dir = _create_data_dir(job_dir)
     for assembly_file, assembly_dir in wait_to_upload_assemblies.items():
         src_file = _get_source_file(assembly_dir, assembly_file)
         dest_file = os.path.join(data_dir, assembly_file)
         loader_helper.create_hardlink_between_files(dest_file, src_file)
 
-    return data_dir
+    return temp_dir
 
 
-def _create_entries_in_sourcedata_workspace(
+def _post_process(
         upload_env_key: str,
         workspace_id: int,
-        assembly_names: list[str],
-        assembly_name_to_dir: dict[str, str],
-        assembly_name_to_upa: dict[str, str],
+        assembly_dir: str,
+        assembly_name: str,
+        upload_dir: str,
         output_dir: str,
+        upa: str,
 ) -> list[str]:
     """
     Create a standard entry in sourcedata/workspace for each assembly.
     Hardlink to the original assembly file in sourcedata to avoid duplicating the file.
-    Update the uploaded.yaml file in the genome directory with assembly names and upa info.
+    Update the uploaded.yaml file in the genome directory with the assembly name and upa info.
+    Creates a softlink from new_dir in collectionssrouce to the contents of target_dir in sourcedata.
     """
-    upas = list()
-    for assembly_name in assembly_names:
-        try:
-            assembly_dir = assembly_name_to_dir[assembly_name]
-        except KeyError as e:
-            raise ValueError(f"Unable to find assembly {assembly_name}") from e
+    # Create a standard entry in sourcedata/workspace
+    # hardlink to the original assembly file in sourcedata
+    src_file = _get_source_file(assembly_dir, assembly_name)
+    target_dir = os.path.join(output_dir, upa)
+    os.makedirs(target_dir, exist_ok=True)
+    dest_file = os.path.join(target_dir, f"{upa}.fna.gz")
+    loader_helper.create_hardlink_between_files(dest_file, src_file)
 
-        src_file = _get_source_file(assembly_dir, assembly_name)
+    # Update the uploaded.yaml file
+    _update_upload_status_yaml_file(upload_env_key, workspace_id, upa, assembly_dir, assembly_name)
 
-        try:
-            upa = assembly_name_to_upa[assembly_name]
-        except KeyError as e:
-            raise ValueError(f"Unable to find assembly {assembly_name} from target workspace") from e
-        
-        upa_dir = os.path.join(output_dir, upa)
-        os.makedirs(upa_dir, exist_ok=True)
-        upas.append(upa)
-
-        dest_file = os.path.join(upa_dir, assembly_name)
-        loader_helper.create_hardlink_between_files(dest_file, src_file)
-        _update_upload_status_yaml_file(upload_env_key, workspace_id, upa, assembly_dir, assembly_name)
-
-    return upas
+    # Creates a softlink from new_dir to the contents of upa_dir.
+    new_dir = os.path.join(upload_dir, upa)
+    loader_helper.create_softlink_between_dirs(new_dir, target_dir)
 
 
-def process_input(conf: Conf) -> None:
+def _process_input(conf: Conf) -> None:
     """
     Process input from input_queue and put the result in output_queue.
     """
@@ -425,39 +418,83 @@ def process_input(conf: Conf) -> None:
             break
 
         upa = None
-        workspace_name, assembly_path, assembly_name = task
+        (
+            upload_env_key,
+            workspace_name,
+            workspace_id,
+            assembly_path,
+            assembly_dir,
+            assembly_name,
+            upload_dir,
+            output_dir,
+        ) = task
+
         try:
             upa = _upload_assembly_to_workspace(conf, workspace_name, assembly_path, assembly_name)
+            _post_process(
+                upload_env_key,
+                workspace_id,
+                assembly_dir,
+                assembly_name,
+                upload_dir,
+                output_dir,
+                upa
+            )
         except Exception as e:
+            print(f"Failed assembly name: {assembly_name}. Exception:")
             print(e)
-            print(f"Failed assembly name: {assembly_name}")
         conf.output_queue.put((assembly_name, upa))
 
 
-def upload_assembly_files_in_parallel(
+def _upload_assembly_files_in_parallel(
         conf: Conf,
+        upload_env_key: str,
         workspace_name: str,
-        assembly_files: list[str],
-) -> Tuple[dict[str, str], list[str]]:
+        workspace_id: int,
+        upload_dir: str,
+        output_dir: str,
+        temp_dir: str,
+        wait_to_upload_assemblies: dict[str, str],
+) -> list[str]:
     """
-    Upload assembly files to the target workspace in parallel using multiprocessing
+    Upload assembly files to the target workspace in parallel using multiprocessing.
 
-    conf: Conf object
-    workspace_name: target workspace name
-    assembly_files: list of assembly files to upload
+    Parameters:
+        conf: Conf object
+        upload_env_key: environment variable key in uploaded.yaml file
+        workspace_name: taregt workspace name
+        workspace_id: target workspace id
+        upload_dir: a directory in collectionssrouce that create new directories linking to sourcedata
+        output_dir: a directory to create standard entries in sourcedata/workspace for uploaded assemblies
+        temp_dir: a temporary directory that stores the assembly files to upload
+        wait_to_upload_assemblies: a dictionary that maps assembly file name to assembly directory
+
+    Returns:
+        a list of assembly names that failed to upload
     """
-    assembly_files_len = len(assembly_files)
+    assembly_files_len = len(wait_to_upload_assemblies)
     print(f"Start uploading {assembly_files_len} assembly files with {conf.workers} workers\n")
 
     # Put the assembly files in the input_queue
     counter = 1
-    for assembly_name in assembly_files:
+    for assembly_name, assembly_dir in wait_to_upload_assemblies.items():
 
         if counter % 5000 == 0:
-            print(f"{round(counter / len(assembly_files), 4) * 100}% finished at {datetime.now()}")
+            print(f"{round(counter / assembly_files_len, 4) * 100}% have been added to the queue {datetime.now()}")
 
-        assembly_path = os.path.join(JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER, DATA_DIR, assembly_name)
-        conf.input_queue.put((workspace_name, assembly_path, assembly_name))
+        assembly_path = os.path.join(JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER, temp_dir, assembly_name)
+        conf.input_queue.put(
+            (
+                upload_env_key,
+                workspace_name,
+                workspace_id,
+                assembly_path,
+                assembly_dir,
+                assembly_name,
+                upload_dir,
+                output_dir,
+            )
+        )
         counter += 1
 
     # Signal the workers to terminate when they finish uploading assembly files
@@ -465,14 +502,13 @@ def upload_assembly_files_in_parallel(
         conf.input_queue.put(None)
 
     results = [conf.output_queue.get() for _ in range(assembly_files_len)]
-    assembly_name_to_upa = {assembly_name: upa for assembly_name, upa in results if upa is not None}
     failed_names = [assembly_name for assembly_name, upa in results if upa is None]
 
     # Close and join the processes
     conf.pools.close()
     conf.pools.join()
 
-    return assembly_name_to_upa, failed_names
+    return failed_names
 
 
 def main():
@@ -532,27 +568,27 @@ def main():
         print(f"Originally planned to upload {count} assembly files")
         print(f"Detected {count - wtus_len} assembly files already exist in workspace")
 
-        start = time.time()
-        data_dir = _prepare_skd_job_dir_to_upload(job_dir, wait_to_upload_assemblies)
-        assembly_name_to_upa, failed_names = upload_assembly_files_in_parallel(conf, workspace_name, os.listdir(data_dir))
+        temp_dir = _prepare_skd_job_dir_to_upload(job_dir, wait_to_upload_assemblies)
+        print(f"{wtus_len} assemblies in {temp_dir} are ready to upload to workspace {workspace_id}")
 
-        if failed_names:
-            print(f"\nFailed to upload {failed_names}")
+        start = time.time()
+        failed_names = _upload_assembly_files_in_parallel(
+            conf,
+            env,
+            workspace_name,
+            workspace_id,
+            upload_dir,
+            output_dir,
+            temp_dir,
+            wait_to_upload_assemblies,
+        )
         
         assembly_count = wtus_len - len(failed_names)
         upload_speed = (time.time() - start) / assembly_count
         print(f"\nSuccessfully upload {assembly_count} assemblies with {workers} workers, average {upload_speed:.2f}s/assembly.")
 
-        new_assembly_names = [name for name in wait_to_upload_assemblies if name not in failed_names]
-        upas = _create_entries_in_sourcedata_workspace(
-            env,
-            workspace_id,
-            new_assembly_names,
-            wait_to_upload_assemblies,
-            assembly_name_to_upa,
-            output_dir,
-        )
-        loader_helper.create_softlinks_in_collection_source_dir(upload_dir, output_dir, upas)
+        if failed_names:
+            raise ValueError(f"\nFailed to upload {failed_names}")
 
     finally:
         # stop callback server if it is on
