@@ -35,6 +35,10 @@ coverage = "==7.2.7"
 pytest-cov = "==4.1.0"
 ipython = "==8.14.0"
 pytest-asyncio = "==0.21.0"
+# currently for design/experiments/store_mongo.py
+pymongo = "4.4.1"
+# later version of dns python has an import problem with httpcore
+dnspython = "==2.3.0"
 
 [requires]
 python_version = "3.11"
