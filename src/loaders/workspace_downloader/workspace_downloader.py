@@ -48,20 +48,14 @@ import argparse
 import json
 import os
 import shutil
-import time
-import uuid
 from collections import defaultdict
-from multiprocessing import Pool, Queue, cpu_count
+from multiprocessing import cpu_count
 from pathlib import Path
 from typing import Any
 
-import docker
-
 import src.common.storage.collection_and_field_names as names
-from src.clients.AssemblyUtilClient import AssemblyUtil
-from src.clients.SampleServiceClient import SampleService
-from src.clients.workspaceClient import Workspace
 from src.loaders.common import loader_common_names, loader_helper
+from src.loaders.workspace_downloader.workspace_downloader_helper import Conf
 
 # setup KB_AUTH_TOKEN as env or provide a token_filepath in --token_filepath
 # export KB_AUTH_TOKEN="your-kb-auth-token"
@@ -76,78 +70,6 @@ class BadNodeTreeError(Exception):
 
 class NoDataLinkError(Exception):
     pass
-
-
-class Conf:
-    def __init__(
-            self,
-            job_dir,
-            output_dir,
-            workers,
-            kb_base_url,
-            token_filepath,
-            retrieve_sample,
-            ignore_no_sample_error
-    ):
-        port = loader_helper.find_free_port()
-        self.token = loader_helper.get_token(token_filepath)
-        self.retrieve_sample = retrieve_sample
-        self.ignore_no_sample_error = ignore_no_sample_error
-        self.start_callback_server(
-            docker.from_env(), uuid.uuid4().hex, job_dir, kb_base_url, self.token, port
-        )
-
-        ws_url = os.path.join(kb_base_url, "ws")
-        self.sample_url = os.path.join(kb_base_url, "sampleservice")
-        callback_url = "http://" + loader_helper.get_ip() + ":" + str(port)
-        print("callback_url:", callback_url)
-
-        self.ws = Workspace(ws_url, token=self.token)
-        self.asu = AssemblyUtil(callback_url, token=self.token)
-        self.ss = SampleService(self.sample_url, token=self.token)
-        self.queue = Queue()
-        self.pth = output_dir
-        self.job_dir = job_dir
-        self.pools = Pool(workers, process_input, [self])
-
-    def setup_callback_server_envs(self, job_dir, kb_base_url, token, port):
-        # initiate env and vol
-        env = {}
-        vol = {}
-
-        # used by the callback server
-        env["KB_AUTH_TOKEN"] = token
-        env["KB_BASE_URL"] = kb_base_url
-        env["JOB_DIR"] = job_dir
-        env["CALLBACK_PORT"] = port
-
-        # setup volumes required for docker container
-        docker_host = os.environ["DOCKER_HOST"]
-        if docker_host.startswith("unix:"):
-            docker_host = docker_host[5:]
-
-        vol[job_dir] = {"bind": job_dir, "mode": "rw"}
-        vol[docker_host] = {"bind": "/run/docker.sock", "mode": "rw"}
-
-        return env, vol
-
-    def start_callback_server(
-            self, client, container_name, job_dir, kb_base_url, token, port
-    ):
-        env, vol = self.setup_callback_server_envs(job_dir, kb_base_url, token, port)
-        self.container = client.containers.run(
-            name=container_name,
-            image=loader_common_names.CALLBACK_IMAGE_NAME,
-            detach=True,
-            network_mode="host",
-            environment=env,
-            volumes=vol,
-        )
-        time.sleep(2)
-
-    def stop_callback_server(self):
-        self.container.stop()
-        self.container.remove()
 
 
 def _assembly_genome_lookup(genome_objs):
@@ -204,18 +126,18 @@ def _process_object_info(obj_info, genome_upa):
     return res_dict
 
 
-def process_input(conf: Conf):
+def _process_input(conf: Conf):
     """
     Download .fa and .meta files from workspace and save a copy under output_dir.
     """
     while True:
-        task = conf.queue.get(block=True)
+        task = conf.input_queue.get(block=True)
         if not task:
             print("Stopping")
             break
         upa, obj_info, genome_upa = task
 
-        upa_dir = os.path.join(conf.pth, upa)
+        upa_dir = os.path.join(conf.output_dir, upa)
         metafile = os.path.join(upa_dir, f"{upa}.meta")
         if not os.path.isdir(upa_dir) or not loader_helper.is_upa_info_complete(upa_dir):
 
@@ -516,11 +438,13 @@ def main():
         conf = Conf(
             job_dir,
             output_dir,
-            workers,
             kb_base_url,
             token_filepath,
+            loader_common_names.CALLBACK_IMAGE_NAME,
+            workers,
+            _process_input,
             retrieve_sample,
-            ignore_no_sample_error
+            ignore_no_sample_error,
         )
 
         genome_objs = loader_helper.list_objects(
@@ -553,10 +477,10 @@ def main():
             upa = "{6}_{0}_{4}".format(*obj_info)
             upas.append(upa)
             genome_upa = assembly_genome_map[upa.replace("_", "/")]
-            conf.queue.put([upa, obj_info, genome_upa])
+            conf.input_queue.put([upa, obj_info, genome_upa])
 
         for i in range(workers + 1):
-            conf.queue.put(None)
+            conf.input_queue.put(None)
 
         conf.pools.close()
         conf.pools.join()

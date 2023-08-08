@@ -53,16 +53,14 @@ import shutil
 import time
 import uuid
 from datetime import datetime
-from multiprocessing import Pool, Queue, cpu_count
+from multiprocessing import cpu_count
 from pathlib import Path
 from typing import Tuple
 
-import docker
 import yaml
 
-from src.clients.AssemblyUtilClient import AssemblyUtil
-from src.clients.workspaceClient import Workspace
 from src.loaders.common import loader_common_names, loader_helper
+from src.loaders.workspace_downloader.workspace_downloader_helper import Conf
 
 # setup KB_AUTH_TOKEN as env or provide a token_filepath in --token_filepath
 # export KB_AUTH_TOKEN="your-kb-auth-token"
@@ -70,64 +68,6 @@ from src.loaders.common import loader_common_names, loader_helper
 UPLOAD_FILE_EXT = ["genomic.fna.gz"]  # uplaod only files that match given extensions
 JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER = "/kb/module/work/tmp"
 UPLOADED_YAML = "uploaded.yaml"
-
-
-class Conf:
-    def __init__(self, job_dir, kb_base_url, token_filepath, workers):
-        port = loader_helper.find_free_port()
-        token = loader_helper.get_token(token_filepath)
-        self.start_callback_server(
-            docker.from_env(), uuid.uuid4().hex, job_dir, kb_base_url, token, port
-        )
-        ws_url = os.path.join(kb_base_url, "ws")
-        callback_url = "http://" + loader_helper.get_ip() + ":" + str(port)
-        print("callback_url:", callback_url)
-        self.ws = Workspace(ws_url, token=token)
-        self.asu = AssemblyUtil(callback_url, token=token)
-
-        self.workers = workers
-        self.input_queue = Queue()
-        self.output_queue = Queue()
-        self.pools = Pool(workers, _process_input, [self])
-
-    def setup_callback_server_envs(self, job_dir, kb_base_url, token, port):
-        # initiate env and vol
-        env = {}
-        vol = {}
-
-        # used by the callback server
-        env["KB_AUTH_TOKEN"] = token
-        env["KB_BASE_URL"] = kb_base_url
-        env["JOB_DIR"] = job_dir
-        env["CALLBACK_PORT"] = port
-
-        # setup volumes required for docker container
-        docker_host = os.environ["DOCKER_HOST"]
-        if docker_host.startswith("unix:"):
-            docker_host = docker_host[5:]
-
-        vol[job_dir] = {"bind": job_dir, "mode": "rw"}
-        vol[docker_host] = {"bind": "/run/docker.sock", "mode": "rw"}
-
-        return env, vol
-
-    def start_callback_server(
-        self, client, container_name, job_dir, kb_base_url, token, port
-    ):
-        env, vol = self.setup_callback_server_envs(job_dir, kb_base_url, token, port)
-        self.container = client.containers.run(
-            name=container_name,
-            image=loader_common_names.CALLBACK_UPLOADER_IMAGE_NAME,
-            detach=True,
-            network_mode="host",
-            environment=env,
-            volumes=vol,
-        )
-        time.sleep(2)
-
-    def stop_callback_server(self):
-        self.container.stop()
-        self.container.remove()
 
 
 def _get_parser():
@@ -426,7 +366,6 @@ def _process_input(conf: Conf) -> None:
             assembly_dir,
             assembly_name,
             upload_dir,
-            output_dir,
         ) = task
 
         try:
@@ -437,7 +376,7 @@ def _process_input(conf: Conf) -> None:
                 assembly_dir,
                 assembly_name,
                 upload_dir,
-                output_dir,
+                conf.output_dir,
                 upa
             )
         except Exception as e:
@@ -452,7 +391,6 @@ def _upload_assembly_files_in_parallel(
         workspace_name: str,
         workspace_id: int,
         upload_dir: str,
-        output_dir: str,
         temp_dir: str,
         wait_to_upload_assemblies: dict[str, str],
 ) -> list[str]:
@@ -465,7 +403,6 @@ def _upload_assembly_files_in_parallel(
         workspace_name: taregt workspace name
         workspace_id: target workspace id
         upload_dir: a directory in collectionssrouce that creates new directories linking to sourcedata
-        output_dir: a directory to create standard entries in sourcedata/workspace for uploaded assemblies
         temp_dir: a temporary directory that stores the assembly files to upload
         wait_to_upload_assemblies: a dictionary that maps assembly file name to assembly directory
 
@@ -492,7 +429,6 @@ def _upload_assembly_files_in_parallel(
                 assembly_dir,
                 assembly_name,
                 upload_dir,
-                output_dir,
             )
         )
         counter += 1
@@ -550,7 +486,15 @@ def main():
         proc = loader_helper.start_podman_service(uid)
 
         # set up conf, start callback server, and upload assemblies to workspace
-        conf = Conf(job_dir, kb_base_url, token_filepath, workers)
+        conf = Conf(
+            job_dir,
+            output_dir,
+            kb_base_url,
+            token_filepath,
+            loader_common_names.CALLBACK_UPLOADER_IMAGE_NAME,
+            workers,
+            _process_input,
+        )
         workspace_name = conf.ws.get_workspace_info({"id": workspace_id})[1]
 
         count, wait_to_upload_assemblies = _fetch_assemblies_to_upload(
