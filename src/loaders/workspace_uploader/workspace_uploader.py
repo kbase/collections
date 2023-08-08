@@ -371,7 +371,7 @@ def _process_input(conf: Conf) -> None:
         ) = task
 
         if counter % 3000 == 0:
-            print(f"{round(counter / assembly_files_len, 4) * 100}% assemblies have been processed")
+            print(f"{counter / assembly_files_len * 100:.2f}% assemblies have been processed")
 
         try:
             upa = _upload_assembly_to_workspace(conf, workspace_name, assembly_path, assembly_name)
@@ -422,7 +422,7 @@ def _upload_assembly_files_in_parallel(
     for assembly_name, assembly_dir in wait_to_upload_assemblies.items():
 
         if counter % 5000 == 0:
-            print(f"{round(counter / assembly_files_len, 4) * 100}% have been added to the queue {datetime.now()}")
+            print(f"{counter / assembly_files_len * 100:.2f}% jobs have been added to the queue {datetime.now()}")
 
         assembly_path = os.path.join(JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER, temp_dir, assembly_name)
         conf.input_queue.put(
