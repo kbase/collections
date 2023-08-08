@@ -13,11 +13,11 @@ required named arguments:
                         Target workspace addressed by the permanent ID
   --kbase_collection KBASE_COLLECTION
                         The name of the collection being processed
-                        Specifies where the files to be found exist (in the default NONE environment)
+                        Specifies where the files to be uploaded exist (in the default NONE environment)
                         and the name of the collection to be created in the specific KBase environment in the 'collectionsource' directory
   --source_ver SOURCE_VER
                         The source version of the collection being processed
-                        Specifies where the files to be found exist (in the default NONE environment)
+                        Specifies where the files to be uploaded exist (in the default NONE environment)
                         and the source version of the collection to be created in the specific KBase environment in the 'collectionsource' directory
 
 optional arguments:
@@ -90,14 +90,14 @@ def _get_parser():
         f"--{loader_common_names.KBASE_COLLECTION_ARG_NAME}",
         type=str,
         help="The name of the collection being processed. "
-             "Specifies where the files to be found uploaded (in the default NONE environment) "
+             "Specifies where the files to be found uploaded exist (in the default NONE environment) "
              "and the name of the collection to be created in the specific KBase environment in the 'collectionsource' directory.",
     )
     required.add_argument(
         f"--{loader_common_names.SOURCE_VER_ARG_NAME}",
         type=str,
         help="The source version of the collection being processed. "
-             "Specifies where the files to be found uploaded (in the default NONE environment) "
+             "Specifies where the files to be found uploaded exist (in the default NONE environment) "
              "and the source version of the collection to be created in the specific KBase environment in the 'collectionsource' directory.",
     )
 
