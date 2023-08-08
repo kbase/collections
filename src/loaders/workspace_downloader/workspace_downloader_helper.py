@@ -20,7 +20,7 @@ class Conf:
             token_filepath: str,
             image_str: str,
             workers: int,
-            worker_function: Callable[[Conf], None],
+            worker_function: Callable,
             retrieve_sample: bool = False,
             ignore_no_sample_error: bool = False,
     ):
