@@ -14,7 +14,7 @@ required named arguments:
 optional arguments:
   --kbase_collection KBASE_COLLECTION
                         Create a collection and link in data to that collection from the overall workspace source data dir
-  --source_version SOURCE_VERSION
+  --source_ver SOURCE_VER
                         Create a source version and link in data to that collection from the overall workspace source data dir
   --root_dir ROOT_DIR   Root directory for the collections project. (default: /global/cfs/cdirs/kbase/collections)
   --env {CI,NEXT,APPDEV,PROD}
