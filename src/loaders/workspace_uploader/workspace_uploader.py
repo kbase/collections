@@ -41,8 +41,8 @@ NERSC file structure for WS:
 /global/cfs/cdirs/kbase/collections/sourcedata/ -> WS -> ENV -> workspace ID -> UPA -> .fna.gz file
 
 e.g.
-/global/cfs/cdirs/kbase/collections/sourcedata/WS -> CI -> 69046 -> 69046_58_1 -> GCF_000979115.1_gtlEnvA5udCFS_genomic.fna.gz
-                                                                    69046_60_1 -> GCF_000970165.1_ASM97016v1_genomic.fna.gz
+/global/cfs/cdirs/kbase/collections/sourcedata/WS -> CI -> 69046 -> 69046_58_1 -> 69046_58_1.fna.gz
+                                                                    69046_60_1 -> 69046_60_1.fna.gz
 
 The data will be linked to the collections source directory:
 e.g. /global/cfs/cdirs/kbase/collections/collectionssource/ -> ENV -> kbase_collection -> source_ver -> UPA -> .fna.gz file
