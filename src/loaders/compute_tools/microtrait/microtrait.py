@@ -10,10 +10,11 @@ from rpy2 import robjects
 
 from src.loaders.common import loader_common_names
 from src.loaders.compute_tools.tool_common import (
-    FatalTuple, 
+    FatalTuple,
     ToolRunner,
     write_fatal_tuples_to_dict,
 )
+from src.loaders.compute_tools.tool_result_parser import create_jsonl_files
 
 # the name of the component used for extracting traits from microtrait's 'extract.traits' result
 TRAIT_COUNTS_ATGRANULARITY = 'trait_counts_atgranularity3'
@@ -47,7 +48,12 @@ def _r_table_to_df(r_table):
     return df
 
 
-def _run_microtrait(tool_safe_data_id: str, data_id: str, fna_file: Path, genome_dir: Path, debug: bool):
+def _run_microtrait(
+        tool_safe_data_id: str,
+        data_id: str,
+        fna_file: Path,
+        genome_dir: Path,
+        debug: bool):
     # run microtrait.extract_traits on the genome file
     # https://github.com/ukaraoz/microtrait
 
@@ -78,8 +84,8 @@ def _run_microtrait(tool_safe_data_id: str, data_id: str, fna_file: Path, genome
         error_message = "Microtrait output no data"
         fatal_tuples = [FatalTuple(data_id, error_message, str(fna_file), None)]
         write_fatal_tuples_to_dict(fatal_tuples, genome_dir)
-        return 
-    # example trait_counts_df from trait_counts_atgranularity3
+        return
+        # example trait_counts_df from trait_counts_atgranularity3
     # microtrait_trait-name,microtrait_trait-value,microtrait_trait-displaynameshort,microtrait_trait-displaynamelong,microtrait_trait-strategy,microtrait_trait-type,microtrait_trait-granularity,microtrait_trait-version,microtrait_trait-displayorder,microtrait_trait-value1
     # Resource Acquisition:Substrate uptake:aromatic acid transport,1,Aromatic acid transport,Resource Acquisition:Substrate uptake:aromatic acid transport,Resource Acquisition,count,3,production,1,1
     # Resource Acquisition:Substrate uptake:biopolymer transport,3,Biopolymer transport,Resource Acquisition:Substrate uptake:biopolymer transport,Resource Acquisition,count,3,production,2,3
@@ -105,7 +111,8 @@ def _run_microtrait(tool_safe_data_id: str, data_id: str, fna_file: Path, genome
     else:
         raise ValueError('Please set environment variable MT_TRAIT_UNWRAPPED_FILE')
 
-    trait_counts_df.to_csv(os.path.join(genome_dir, loader_common_names.TRAIT_COUNTS_FILE), index=False)
+    trait_counts_result = genome_dir / loader_common_names.TRAIT_COUNTS_FILE
+    create_jsonl_files(trait_counts_result, trait_counts_df.to_dict(orient='records'))
 
 
 def main():

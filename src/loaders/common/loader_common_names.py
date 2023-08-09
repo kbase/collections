@@ -51,8 +51,8 @@ IMPORT_DIR = 'import_files'
 # original genome id and source genome file info
 GENOME_METADATA_FILE = "genome_metadata.tsv"
 
-# the name of the CSV file where we store the trait counts
-TRAIT_COUNTS_FILE = 'trait_counts.csv'
+# the name of the JSONL file where we store the trait counts
+TRAIT_COUNTS_FILE = 'trait_counts.jsonl'
 SYS_TRAIT_ID = 'trait_id'  # unique identifier for a trait
 DETECTED_GENE_SCORE_COL = 'detected_genes_score'  # column name for the detected genes score
 
