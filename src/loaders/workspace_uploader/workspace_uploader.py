@@ -67,6 +67,7 @@ from src.loaders.workspace_downloader.workspace_downloader_helper import Conf
 
 UPLOAD_FILE_EXT = ["genomic.fna.gz"]  # uplaod only files that match given extensions
 JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER = "/kb/module/work/tmp"
+DATA_DIR = "data_dir"
 UPLOADED_YAML = "uploaded.yaml"
 
 
@@ -90,14 +91,14 @@ def _get_parser():
         f"--{loader_common_names.KBASE_COLLECTION_ARG_NAME}",
         type=str,
         help="The name of the collection being processed. "
-             "Specifies where the files to be found uploaded exist (in the default NONE environment) "
+             "Specifies where the files to be uploaded exist (in the default NONE environment) "
              "and the name of the collection to be created in the specific KBase environment in the 'collectionsource' directory.",
     )
     required.add_argument(
         f"--{loader_common_names.SOURCE_VER_ARG_NAME}",
         type=str,
         help="The source version of the collection being processed. "
-             "Specifies where the files to be found uploaded exist (in the default NONE environment) "
+             "Specifies where the files to be uploaded exist (in the default NONE environment) "
              "and the source version of the collection to be created in the specific KBase environment in the 'collectionsource' directory.",
     )
 
@@ -155,10 +156,9 @@ def _create_data_dir(job_dir: str) -> Tuple[str, str]:
     """
     Create a temporary directory for storing uploaded files.
     """
-    tmp_dir = "data_dir_{}".format(str(uuid.uuid4()))
-    data_dir = os.path.join(job_dir, "workdir/tmp", tmp_dir)
+    data_dir = os.path.join(job_dir, "workdir/tmp", DATA_DIR)
     os.makedirs(data_dir)
-    return data_dir, tmp_dir
+    return data_dir
 
 
 def _get_source_file(assembly_dir: str, assembly_file: str) -> str:
@@ -173,7 +173,7 @@ def _get_source_file(assembly_dir: str, assembly_file: str) -> str:
 
 def _upload_assembly_to_workspace(
     conf: Conf,
-    workspace_name: str,
+    workspace_id: int,
     file_path: str,
     assembly_name: str,
 ) -> str:
@@ -185,7 +185,7 @@ def _upload_assembly_to_workspace(
             assembly_ref = conf.asu.save_assembly_from_fasta2(
                 {
                     "file": {"path": file_path},
-                    "workspace_name": workspace_name,
+                    "workspace_id": workspace_id,
                     "assembly_name": assembly_name,
                 }
             )
@@ -307,13 +307,13 @@ def _prepare_skd_job_dir_to_upload(job_dir: str, wait_to_upload_assemblies: dict
     """
     Prepare SDK job directory to upload.
     """
-    data_dir, temp_dir = _create_data_dir(job_dir)
+    data_dir = _create_data_dir(job_dir)
     for assembly_file, assembly_dir in wait_to_upload_assemblies.items():
         src_file = _get_source_file(assembly_dir, assembly_file)
         dest_file = os.path.join(data_dir, assembly_file)
         loader_helper.create_hardlink_between_files(dest_file, src_file)
 
-    return temp_dir
+    return data_dir
 
 
 def _post_process(
@@ -360,7 +360,6 @@ def _process_input(conf: Conf) -> None:
         upa = None
         (
             upload_env_key,
-            workspace_name,
             workspace_id,
             assembly_path,
             assembly_dir,
@@ -371,10 +370,12 @@ def _process_input(conf: Conf) -> None:
         ) = task
 
         if counter % 3000 == 0:
-            print(f"{counter / assembly_files_len * 100:.2f}% assemblies have been processed")
+            print(f"Assemblies processed: {counter}/{assembly_files_len}, "
+                  f"Percentage: {counter / assembly_files_len * 100:.2f}, "
+                  f"Time: {datetime.now()}")
 
         try:
-            upa = _upload_assembly_to_workspace(conf, workspace_name, assembly_path, assembly_name)
+            upa = _upload_assembly_to_workspace(conf, workspace_id, assembly_path, assembly_name)
             _post_process(
                 upload_env_key,
                 workspace_id,
@@ -393,10 +394,8 @@ def _process_input(conf: Conf) -> None:
 def _upload_assembly_files_in_parallel(
         conf: Conf,
         upload_env_key: str,
-        workspace_name: str,
         workspace_id: int,
         upload_dir: str,
-        temp_dir: str,
         wait_to_upload_assemblies: dict[str, str],
 ) -> list[str]:
     """
@@ -405,10 +404,8 @@ def _upload_assembly_files_in_parallel(
     Parameters:
         conf: Conf object
         upload_env_key: environment variable key in uploaded.yaml file
-        workspace_name: taregt workspace name
         workspace_id: target workspace id
         upload_dir: a directory in collectionssrouce that creates new directories linking to sourcedata
-        temp_dir: a temporary directory that stores the assembly files to upload
         wait_to_upload_assemblies: a dictionary that maps assembly file name to assembly directory
 
     Returns:
@@ -418,17 +415,18 @@ def _upload_assembly_files_in_parallel(
     print(f"Start uploading {assembly_files_len} assembly files with {conf.workers} workers\n")
 
     # Put the assembly files in the input_queue
-    counter = 1
+    counter = 0
     for assembly_name, assembly_dir in wait_to_upload_assemblies.items():
 
         if counter % 5000 == 0:
-            print(f"{counter / assembly_files_len * 100:.2f}% jobs have been added to the queue {datetime.now()}")
+            print(f"Jobs added to the queue: {counter}/{assembly_files_len}, "
+                  f"Percentage: {counter / assembly_files_len * 100:.2f}, "
+                  f"Time: {datetime.now()}")
 
-        assembly_path = os.path.join(JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER, temp_dir, assembly_name)
+        assembly_path = os.path.join(JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER, DATA_DIR, assembly_name)
         conf.input_queue.put(
             (
                 upload_env_key,
-                workspace_name,
                 workspace_id,
                 assembly_path,
                 assembly_dir,
@@ -502,7 +500,6 @@ def main():
             workers,
             _process_input,
         )
-        workspace_name = conf.ws.get_workspace_info({"id": workspace_id})[1]
 
         count, wait_to_upload_assemblies = _fetch_assemblies_to_upload(
             env, 
@@ -519,17 +516,15 @@ def main():
         print(f"Originally planned to upload {count} assembly files")
         print(f"Detected {count - wtus_len} assembly files already exist in workspace")
 
-        temp_dir = _prepare_skd_job_dir_to_upload(job_dir, wait_to_upload_assemblies)
-        print(f"{wtus_len} assemblies in {temp_dir} are ready to upload to workspace {workspace_id}")
+        data_dir = _prepare_skd_job_dir_to_upload(job_dir, wait_to_upload_assemblies)
+        print(f"{wtus_len} assemblies in {data_dir} are ready to upload to workspace {workspace_id}")
 
         start = time.time()
         failed_names = _upload_assembly_files_in_parallel(
             conf,
             env,
-            workspace_name,
             workspace_id,
             upload_dir,
-            temp_dir,
             wait_to_upload_assemblies,
         )
         

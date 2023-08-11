@@ -6,6 +6,7 @@ import socket
 import stat
 import subprocess
 import time
+import uuid
 from collections import defaultdict
 from contextlib import closing
 from pathlib import Path
@@ -187,7 +188,7 @@ def is_upa_info_complete(upa_dir: str):
 
 def make_job_dir(root_dir, username):
     """Helper function that creates a job_dir for a user under root directory."""
-    job_dir = os.path.join(root_dir, SDK_JOB_DIR, username)
+    job_dir = os.path.join(root_dir, SDK_JOB_DIR, username, uuid.uuid4().hex)
     os.makedirs(job_dir, exist_ok=True)
     # only user can read, write, or execute
     os.chmod(job_dir, stat.S_IRWXU)
