@@ -104,4 +104,41 @@ Quite a bit slower than storing the files in documents.
 
 A 2nd run was about the same time, < 100ms difference.
 
-TODO download from hot and cold mongo instances
+
+### Download from a just started mongo instance
+
+E.g. no data cached in memory.
+
+```
+(collections) crushingismybusiness@andbusinessisgood:~/github/kbase/collections$ rm sigtemp/*; time python design/experiments/store_mongo.py getgfs ~/SCIENCE/minhash/sourmash_storage/sourmash/GCA_018630415.1_ASM1863041v1_genomic.fna.gz.sig ./sigtemp
+
+== This is sourmash version 4.8.2. ==
+
+*snip*
+
+real	0m43.280s
+user	0m33.833s
+sys	0m2.754s
+```
+
+Another run was within 100ms.
+
+Again, quite a bit slower than storing in MongoDB documents.
+
+### Download from a warm mongo instance
+
+E.g. some or all of the data is cached in memory.
+
+```
+(collections) crushingismybusiness@andbusinessisgood:~/github/kbase/collections$ rm sigtemp/*; time python design/experiments/store_mongo.py getgfs ~/SCIENCE/minhash/sourmash_storage/sourmash/GCA_018630415.1_ASM1863041v1_genomic.fna.gz.sig ./sigtemp
+
+== This is sourmash version 4.8.2. ==
+
+*snip*
+
+real	0m39.238s
+user	0m33.466s
+sys	0m2.965s
+```
+
+Another run was within 100ms.

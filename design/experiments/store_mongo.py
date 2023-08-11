@@ -8,6 +8,7 @@
 import os
 import pymongo
 import gridfs
+import shutil
 import subprocess
 import sys
 
@@ -48,7 +49,20 @@ def sketch(coll: pymongo.collection.Collection, query_signature: Path, work_dir:
     for d in coll.find({}, {KEY_FILE_LEN: 0}):
         with open(work_dir / d[KEY_FILE_NAME], "wb") as f:
             f.write(d[KEY_FILE_SIGNATURE])
-    subprocess.run(["sourmash", "search", "-n", "0", "-t", "0.5", str(query_signature), str(work_dir)])
+    _sketch(query_signature, work_dir)
+
+
+def _sketch(query_signature: Path, work_dir: Path):
+    subprocess.run(
+        ["sourmash", "search", "-n", "0", "-t", "0.5", str(query_signature), str(work_dir)])
+
+
+def sketch_gfs(db: pymongo.database.Database, query_signature: Path, work_dir: Path):
+    gfs = gridfs.GridFS(db)
+    for d in db["fs.files"].find({}, {"_id": 1, "filename": 1}):
+        with open(work_dir / d["filename"], "wb") as out, gfs.get(d["_id"]) as gfile:
+            shutil.copyfileobj(gfile, out)
+    _sketch(query_signature, work_dir)
 
 
 def main():
@@ -63,6 +77,9 @@ def main():
         elif sys.argv[1] == "get":
             # args = query signature location, dir to download target signatures
             sketch(db.get_collection(COLL_NAME), Path(sys.argv[2]), Path(sys.argv[3]))
+        elif sys.argv[1] == "getgfs":
+            # args = query signature location, dir to download target signatures
+            sketch_gfs(db, Path(sys.argv[2]), Path(sys.argv[3]))
         else:
             raise ValueError("unknown command: " + sys.argv[1])
 
