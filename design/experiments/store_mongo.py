@@ -7,6 +7,7 @@
 
 import os
 import pymongo
+import gridfs
 import subprocess
 import sys
 
@@ -23,15 +24,24 @@ KEY_FILE_LEN = "len"
 
 def store(coll: pymongo.collection.Collection, sig_path: Path):
     for p in os.listdir(sig_path):
-        p = Path(p)
+        p = sig_path / p
         if p.suffix == EXT_SIG:
-            with open(sig_path / p, "rb") as f:
+            with open(p, "rb") as f:
                 b = f.read()
                 coll.insert_one({
                     KEY_FILE_SIGNATURE: b,
-                    KEY_FILE_NAME: str(p),
+                    KEY_FILE_NAME: str(p.name),
                     KEY_FILE_LEN: len(b),
                 })
+
+
+def store_gfs(db: pymongo.database.Database, sig_path: Path):
+    gfs = gridfs.GridFS(db)
+    for p in os.listdir(sig_path):
+        p = sig_path / p
+        if p.suffix == EXT_SIG:
+            with open(p, "rb") as f:
+                gfs.put(f, filename=str(p.name))
 
 
 def sketch(coll: pymongo.collection.Collection, query_signature: Path, work_dir: Path):
@@ -47,9 +57,14 @@ def main():
         if sys.argv[1] == "store":
             # args = signature location
             store(db.get_collection(COLL_NAME), Path(sys.argv[2]))
+        elif sys.argv[1] == "storegfs":
+            # args = signature location
+            store_gfs(db, Path(sys.argv[2]))
         elif sys.argv[1] == "get":
             # args = query signature location, dir to download target signatures
             sketch(db.get_collection(COLL_NAME), Path(sys.argv[2]), Path(sys.argv[3]))
+        else:
+            raise ValueError("unknown command: " + sys.argv[1])
 
 
 if __name__ == "__main__":
