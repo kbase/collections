@@ -139,12 +139,12 @@ class HeatMap(SubsetProcessStates):
     )
     min_value: float | None = Field(
         example=32.4,
-        description="The minimum cell value in the row in this heatmap "
+        description="The minimum cell value in the rows in this heatmap "
             + "or null if there are no rows."
     )
     max_value: float | None = Field(
         example=71.8,
-        description="The maximum cell value in the row in this heatmap "
+        description="The maximum cell value in the rows in this heatmap "
             + "or null if there are no rows."
     )
     count: int | None = Field(

@@ -20,6 +20,8 @@ TODO - need a docker upgrade on docker03
 
 Store the files in MongoDB documents as binary data. All work is done on a personal laptop.
 
+Metagenome sketches can be >1G per Chris N, so this option won't work for them.
+
 Mongo version is 3.6.12 (which is reasonably close to KBase's version, which is severely out
 of date).
 
@@ -33,7 +35,55 @@ sys	0m1.526s
 
 Checked MongoDB and there were 10K documents with the expected contents.
 
-TODO pull down and search the files after shutting down Mongo to drop any caches.
+### Run sourmash stand alone
+
+The signatures were downloaded from mongo into `./sigtemp`.
+
+```
+(collections) crushingismybusiness@andbusinessisgood:~/github/kbase/collections$ time sourmash search -n 0 -t 0.5  ~/SCIENCE/minhash/sourmash_storage/sourmash/GCA_018630415.1_ASM1863041v1_genomic.fna.gz.sig ./sigtemp
+
+== This is sourmash version 4.8.2. ==
+
+*snip*
+
+real	0m28.609s
+user	0m28.182s
+sys	0m1.075s
+```
+
+A 2nd run was + ~100ms.
+
+### Download from a just started mongo instance
+
+E.g. no data cached in memory.
+
+```
+(collections) crushingismybusiness@andbusinessisgood:~/github/kbase/collections$ rm sigtemp/*
+(collections) crushingismybusiness@andbusinessisgood:~/github/kbase/collections$ time python design/experiments/store_mongo.py get ~/SCIENCE/minhash/sourmash_storage/sourmash/GCA_018630415.1_ASM1863041v1_genomic.fna.gz.sig ./sigtemp
+
+== This is sourmash version 4.8.2. ==
+
+*snip*
+
+real	0m34.742s
+user	0m29.125s
+sys	0m2.116s
+```
+
+### Download from a warmed up mongo instance
+
+E.g. some or all of the data is cached in memory.
+
+```
+(collections) crushingismybusiness@andbusinessisgood:~/github/kbase/collections$ rm sigtemp/*
+(collections) crushingismybusiness@andbusinessisgood:~/github/kbase/collections$ time python design/experiments/store_mongo.py get ~/SCIENCE/minhash/sourmash_storage/sourmash/GCA_018630415.1_ASM1863041v1_genomic.fna.gz.sig ./sigtemp
+
+*snip*
+
+real	0m31.743s
+user	0m29.171s
+sys	0m2.151s
+```
 
 ## MongoDB GridFS
 
