@@ -51,7 +51,6 @@ import argparse
 import os
 import shutil
 import time
-import uuid
 from datetime import datetime
 from multiprocessing import cpu_count
 from pathlib import Path
@@ -262,9 +261,6 @@ def _fetch_assemblies_to_upload(
         collection_source_dir: str,
         upload_file_ext: list[str],
 ) -> Tuple[int, dict[str, str]]:
-    """
-    Help fetch assemblies to upload.
-    """
     count = 0
     wait_to_upload_assemblies = dict()
 
@@ -319,7 +315,7 @@ def _prepare_skd_job_dir_to_upload(job_dir: str, wait_to_upload_assemblies: dict
 def _post_process(
         upload_env_key: str,
         workspace_id: int,
-        assembly_dir: str,
+        host_assembly_dir: str,
         assembly_name: str,
         upload_dir: str,
         output_dir: str,
@@ -329,11 +325,11 @@ def _post_process(
     Create a standard entry in sourcedata/workspace for each assembly.
     Hardlink to the original assembly file in sourcedata to avoid duplicating the file.
     Update the uploaded.yaml file in the genome directory with the assembly name and upa info.
-    Creates a softlink from new_dir in collectionssrouce to the contents of target_dir in sourcedata.
+    Creates a softlink from new_dir in collectionssource to the contents of target_dir in sourcedata.
     """
     # Create a standard entry in sourcedata/workspace
     # hardlink to the original assembly file in sourcedata
-    src_file = _get_source_file(assembly_dir, assembly_name)
+    src_file = _get_source_file(host_assembly_dir, assembly_name)
     target_dir = os.path.join(output_dir, upa)
     os.makedirs(target_dir, exist_ok=True)
     dest_file = os.path.join(target_dir, f"{upa}.fna.gz")
@@ -361,25 +357,22 @@ def _process_input(conf: Conf) -> None:
         (
             upload_env_key,
             workspace_id,
-            assembly_path,
-            assembly_dir,
+            container_internal_assembly_path,
+            host_assembly_dir,
             assembly_name,
             upload_dir,
             counter,
             assembly_files_len,
         ) = task
 
-        if counter % 3000 == 0:
-            print(f"Assemblies processed: {counter}/{assembly_files_len}, "
-                  f"Percentage: {counter / assembly_files_len * 100:.2f}, "
-                  f"Time: {datetime.now()}")
-
         try:
-            upa = _upload_assembly_to_workspace(conf, workspace_id, assembly_path, assembly_name)
+            upa = _upload_assembly_to_workspace(
+                conf, workspace_id, container_internal_assembly_path, assembly_name
+            )
             _post_process(
                 upload_env_key,
                 workspace_id,
-                assembly_dir,
+                host_assembly_dir,
                 assembly_name,
                 upload_dir,
                 conf.output_dir,
@@ -388,7 +381,13 @@ def _process_input(conf: Conf) -> None:
         except Exception as e:
             print(f"Failed assembly name: {assembly_name}. Exception:")
             print(e)
+
         conf.output_queue.put((assembly_name, upa))
+
+        if counter % 3000 == 0:
+            print(f"Assemblies processed: {counter}/{assembly_files_len}, "
+                  f"Percentage: {counter / assembly_files_len * 100:.2f}%, "
+                  f"Time: {datetime.now()}")
 
 
 def _upload_assembly_files_in_parallel(
@@ -405,7 +404,7 @@ def _upload_assembly_files_in_parallel(
         conf: Conf object
         upload_env_key: environment variable key in uploaded.yaml file
         workspace_id: target workspace id
-        upload_dir: a directory in collectionssrouce that creates new directories linking to sourcedata
+        upload_dir: a directory in collectionssource that creates new directories linking to sourcedata
         wait_to_upload_assemblies: a dictionary that maps assembly file name to assembly directory
 
     Returns:
@@ -415,27 +414,30 @@ def _upload_assembly_files_in_parallel(
     print(f"Start uploading {assembly_files_len} assembly files with {conf.workers} workers\n")
 
     # Put the assembly files in the input_queue
-    counter = 0
-    for assembly_name, assembly_dir in wait_to_upload_assemblies.items():
+    counter = 1
+    for assembly_name, host_assembly_dir in wait_to_upload_assemblies.items():
 
-        if counter % 5000 == 0:
-            print(f"Jobs added to the queue: {counter}/{assembly_files_len}, "
-                  f"Percentage: {counter / assembly_files_len * 100:.2f}, "
-                  f"Time: {datetime.now()}")
-
-        assembly_path = os.path.join(JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER, DATA_DIR, assembly_name)
+        container_internal_assembly_path = os.path.join(
+            JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER, DATA_DIR, assembly_name
+        )
         conf.input_queue.put(
             (
                 upload_env_key,
                 workspace_id,
-                assembly_path,
-                assembly_dir,
+                container_internal_assembly_path,
+                host_assembly_dir,
                 assembly_name,
                 upload_dir,
                 counter,
                 assembly_files_len,
             )
         )
+
+        if counter % 5000 == 0:
+            print(f"Jobs added to the queue: {counter}/{assembly_files_len}, "
+                  f"Percentage: {counter / assembly_files_len * 100:.2f}%, "
+                  f"Time: {datetime.now()}")
+
         counter += 1
 
     # Signal the workers to terminate when they finish uploading assembly files
@@ -494,11 +496,10 @@ def main():
         conf = Conf(
             job_dir,
             output_dir,
+            _process_input,
             kb_base_url,
             token_filepath,
-            loader_common_names.CALLBACK_UPLOADER_IMAGE_NAME,
             workers,
-            _process_input,
         )
 
         count, wait_to_upload_assemblies = _fetch_assemblies_to_upload(
@@ -529,8 +530,11 @@ def main():
         )
         
         assembly_count = wtus_len - len(failed_names)
-        upload_speed = (time.time() - start) / assembly_count
-        print(f"\nSuccessfully upload {assembly_count} assemblies with {workers} workers, average {upload_speed:.2f}s/assembly.")
+        upload_time = (time.time() - start) / 60
+        assy_per_min = assembly_count / upload_time
+
+        print(f"\n{workers} workers took {upload_time:.2f} minutes to upload {assembly_count} assemblies, "
+              f"averaging {assy_per_min:.2f} assemblies per minute")
 
         if failed_names:
             raise ValueError(f"\nFailed to upload {failed_names}")

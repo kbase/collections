@@ -10,17 +10,18 @@ from src.clients.AssemblyUtilClient import AssemblyUtil
 from src.clients.SampleServiceClient import SampleService
 from src.clients.workspaceClient import Workspace
 from src.loaders.common import loader_helper
+from src.loaders.common.loader_common_names import CALLBACK_UPLOADER_IMAGE_NAME
+
 
 class Conf:
     def __init__(
             self,
             job_dir: str,
             output_dir: str,
-            kb_base_url: str,
-            token_filepath: str,
-            image_str: str,
-            workers: int,
             worker_function: Callable,
+            kb_base_url: str = "https://ci.kbase.us/services/",
+            token_filepath: str | None = None,
+            workers: int = 5,
             retrieve_sample: bool = False,
             ignore_no_sample_error: bool = False,
     ):
@@ -33,7 +34,6 @@ class Conf:
             uuid.uuid4().hex,
             job_dir,
             kb_base_url,
-            image_str,
             token,
             port,
         )
@@ -76,12 +76,12 @@ class Conf:
         return env, vol
 
     def start_callback_server(
-            self, client, container_name, job_dir, kb_base_url, image_str, token, port
-    ):
+            self, client, container_name, job_dir, kb_base_url, token, port
+        ):
         env, vol = self.setup_callback_server_envs(job_dir, kb_base_url, token, port)
         self.container = client.containers.run(
             name=container_name,
-            image=image_str,
+            image=CALLBACK_UPLOADER_IMAGE_NAME,
             detach=True,
             network_mode="host",
             environment=env,

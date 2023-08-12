@@ -438,11 +438,10 @@ def main():
         conf = Conf(
             job_dir,
             output_dir,
+            _process_input,
             kb_base_url,
             token_filepath,
-            loader_common_names.CALLBACK_IMAGE_NAME,
             workers,
-            _process_input,
             retrieve_sample,
             ignore_no_sample_error,
         )
