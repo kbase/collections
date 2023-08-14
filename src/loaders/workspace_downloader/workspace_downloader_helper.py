@@ -2,7 +2,7 @@ import os
 import time
 import uuid
 from multiprocessing import Pool, Queue
-from typing import Callable
+from typing import Callable, Tuple, Union
 
 import docker
 
@@ -10,10 +10,13 @@ from src.clients.AssemblyUtilClient import AssemblyUtil
 from src.clients.SampleServiceClient import SampleService
 from src.clients.workspaceClient import Workspace
 from src.loaders.common import loader_helper
-from src.loaders.common.loader_common_names import CALLBACK_UPLOADER_IMAGE_NAME
+from src.loaders.common.loader_common_names import CALLBACK_IMAGE_NAME
 
 
 class Conf:
+    """
+    Configuration class for the workspace downloader and workspace uploader scripts.
+    """
     def __init__(
             self,
             job_dir: str,
@@ -24,7 +27,20 @@ class Conf:
             workers: int = 5,
             retrieve_sample: bool = False,
             ignore_no_sample_error: bool = False,
-    ):
+    ) -> None:
+        """
+        Initialize the configuration class.
+
+        Args:
+            job_dir (str): The directory for SDK jobs per user.
+            output_dir (str): The directory for a specific workspace id under sourcedata/ws.
+            worker_function (Callable): The function that will be called by the workers.
+            kb_base_url (str): The url of the KBase services.
+            token_filepath (str): The file path that stores a KBase token appropriate for the KBase environment.
+            workers (int): The number of workers to use for multiprocessing.
+            retrieve_sample (bool): Whether to retrieve sample for each genome object.
+            ignore_no_sample_error (bool): Whether to ignore the error when no sample data is found.
+        """
         port = loader_helper.find_free_port()
         token = loader_helper.get_token(token_filepath)
         self.retrieve_sample = retrieve_sample
@@ -54,7 +70,25 @@ class Conf:
         self.job_data_dir = loader_helper.make_job_data_dir(job_dir)
         self.pools = Pool(workers, worker_function, [self])
 
-    def setup_callback_server_envs(self, job_dir, kb_base_url, token, port):
+    def setup_callback_server_envs(
+            self,
+            job_dir,
+            kb_base_url,
+            token,
+            port
+    ) -> Tuple[dict[str, Union[int, str]], dict[str, dict[str, str]]]:
+        """
+        Setup the environment variables and volumes for the callback server.
+
+        Args:
+            job_dir (str): The directory for SDK jobs per user.
+            kb_base_url (str): The url of the KBase services.
+            token (str): The KBase token.
+            port (int): The port number for the callback server.
+
+        Returns:
+            tuple: A tuple of the environment variables and volumes for the callback server.
+        """
         # initiate env and vol
         env = {}
         vol = {}
@@ -76,12 +110,29 @@ class Conf:
         return env, vol
 
     def start_callback_server(
-            self, client, container_name, job_dir, kb_base_url, token, port
-        ):
+            self,
+            client,
+            container_name,
+            job_dir,
+            kb_base_url,
+            token,
+            port,
+    ) -> None:
+        """
+        Start the callback server.
+
+        Args:
+            client (docker.client): The docker client.
+            container_name (str): The name of the container.
+            job_dir (str): The directory for SDK jobs per user.
+            kb_base_url (str): The url of the KBase services.
+            token (str): The KBase token.
+            port (int): The port number for the callback server.
+        """
         env, vol = self.setup_callback_server_envs(job_dir, kb_base_url, token, port)
         self.container = client.containers.run(
             name=container_name,
-            image=CALLBACK_UPLOADER_IMAGE_NAME,
+            image=CALLBACK_IMAGE_NAME,
             detach=True,
             network_mode="host",
             environment=env,
@@ -90,5 +141,8 @@ class Conf:
         time.sleep(2)
 
     def stop_callback_server(self):
+        """
+        Stop the callback server.
+        """
         self.container.stop()
         self.container.remove()
