@@ -32,14 +32,16 @@ need to be deleted and unzipped in different directory to prevent the memory cac
 
 TODO - need a docker upgrade on docker03
 
-## MongoDB BinData local
+## MongoDB
+
+Mongo version is 3.6.12 (which is reasonably close to KBase's version, which is severely out
+of date).
+
+### MongoDB BinData local
 
 Store the files in MongoDB documents as binary data. All work is done on a personal laptop.
 
 Metagenome sketches can be >1G per Chris N, so this option won't work for them.
-
-Mongo version is 3.6.12 (which is reasonably close to KBase's version, which is severely out
-of date).
 
 ```
 (collections) crushingismybusiness@andbusinessisgood:~/github/kbase/collections$ time python design/experiments/store_mongo.py store ~/SCIENCE/minhash/sourmash_storage/sourmash/individual/
@@ -48,10 +50,7 @@ real	0m17.772s
 user	0m3.169s
 sys	0m1.526s
 ```
-
-Checked MongoDB and there were 10K documents with the expected contents.
-
-### Download from a just started mongo instance
+#### Download from a just started mongo instance
 
 E.g. no data cached in memory.
 
@@ -68,7 +67,7 @@ user	0m29.125s
 sys	0m2.116s
 ```
 
-### Download from a warmed up mongo instance
+#### Download from a warmed up mongo instance
 
 E.g. some or all of the data is cached in memory.
 
@@ -83,7 +82,7 @@ user	0m29.171s
 sys	0m2.151s
 ```
 
-## MongoDB GridFS local
+### MongoDB GridFS local
 
 Store the files in MongoDB GridFS. All work is done on a personal laptop.
 
@@ -105,7 +104,7 @@ Quite a bit slower than storing the files in documents.
 A 2nd run was about the same time, < 100ms difference.
 
 
-### Download from a just started mongo instance
+#### Download from a just started mongo instance
 
 E.g. no data cached in memory.
 
@@ -125,7 +124,7 @@ Another run was within 100ms.
 
 Again, quite a bit slower than storing in MongoDB documents.
 
-### Download from a warm mongo instance
+#### Download from a warm mongo instance
 
 E.g. some or all of the data is cached in memory.
 
@@ -142,3 +141,63 @@ sys	0m2.965s
 ```
 
 Another run was within 100ms.
+
+## ArangoDB
+
+Arango version is 3.9.1 (which is reasonably close to KBase's version)
+
+ArangoDB is not suited for large files: https://github.com/arangodb/arangodb/issues/10754
+
+### ArangoDB int64 array encoded local
+
+Store the files in ArangoDB documents as arrays of int64s. All work is done on a personal laptop.
+
+See https://github.com/arangodb/arangodb/issues/107#issuecomment-1068482185
+
+```
+(collections) crushingismybusiness@andbusinessisgood:~/github/kbase/collections$ time python design/experiments/store_arango.py store ~/SCIENCE/minhash/sourmash_storage/sourmash/individual/
+
+real	1m30.463s
+user	1m7.892s
+sys	0m5.257s
+```
+
+A 2nd run was about the same time, < 1s difference.
+
+#### Download from a just started Arango instance
+
+E.g. no data cached in memory.
+
+```
+(collections) crushingismybusiness@andbusinessisgood:~/github/kbase/collections$ rm sigtemp/*; time python design/experiments/store_arango.py get ~/SCIENCE/minhash/sourmash_storage/sourmash/GCA_018630415.1_ASM1863041v1_genomic.fna.gz.sig ./sigtemp
+
+== This is sourmash version 4.8.2. ==
+
+ *snip*
+
+real	2m9.695s
+user	1m25.670s
+sys	0m9.754s
+
+```
+
+A 2nd run was about the same time, < 1s difference.
+
+#### Download from a warm Arango instance
+
+E.g. some or all of the data is cached in memory.
+
+```
+(collections) crushingismybusiness@andbusinessisgood:~/github/kbase/collections$ rm sigtemp/*; time python design/experiments/store_arango.py get ~/SCIENCE/minhash/sourmash_storage/sourmash/GCA_018630415.1_ASM1863041v1_genomic.fna.gz.sig ./sigtemp
+
+== This is sourmash version 4.8.2. ==
+
+*snip*
+
+real	2m4.447s
+user	1m25.940s
+sys	0m9.657s
+```
+
+A 2nd run was about the same time, < 2s difference.
+```
