@@ -49,9 +49,9 @@ class Conf:
 
         self.workers = workers
         self.output_dir = output_dir
-        self.job_dir = job_dir
         self.input_queue = Queue()
         self.output_queue = Queue()
+        self.job_data_dir = loader_helper.make_job_data_dir(job_dir)
         self.pools = Pool(workers, worker_function, [self])
 
     def setup_callback_server_envs(self, job_dir, kb_base_url, token, port):

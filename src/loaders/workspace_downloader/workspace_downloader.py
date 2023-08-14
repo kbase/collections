@@ -149,7 +149,7 @@ def _process_input(conf: Conf):
             # get_assembly_as_fasta writes the file to /kb/module/workdir/tmp/<filename> inside the container.
             # workdir is shared between the container and the external file system
             # Any file path get_assembly_as_fasta returns will be relative to inside the container, and so is not useful for this script
-            cfn = os.path.join(conf.job_dir, "workdir/tmp", upa)
+            cfn = os.path.join(conf.job_data_dir, upa)
             # upa file is downloaded to cfn
             conf.asu.get_assembly_as_fasta({"ref": upa.replace("_", "/"), "filename": upa})
 

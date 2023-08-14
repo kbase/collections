@@ -195,6 +195,13 @@ def make_job_dir(root_dir, username):
     return job_dir
 
 
+def make_job_data_dir(job_dir):
+    """Helper function that creates a temporary directory for sharing files beteween the host and container."""
+    data_dir = os.path.join(job_dir, "workdir/tmp")
+    os.makedirs(data_dir)
+    return data_dir
+
+
 def make_sourcedata_ws_dir(root_dir, env, workspace_id):
     """Helper function that creates a output directory for a specific workspace id under root directory."""
     output_dir = os.path.join(root_dir, SOURCE_DATA_DIR, WS, env, str(workspace_id))

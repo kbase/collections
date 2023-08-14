@@ -66,7 +66,6 @@ from src.loaders.workspace_downloader.workspace_downloader_helper import Conf
 
 UPLOAD_FILE_EXT = ["genomic.fna.gz"]  # uplaod only files that match given extensions
 JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER = "/kb/module/work/tmp"
-DATA_DIR = "data_dir"
 UPLOADED_YAML = "uploaded.yaml"
 
 
@@ -149,15 +148,6 @@ def _get_yaml_file_path(assembly_dir: str) -> str:
     file_path = os.path.join(assembly_dir, UPLOADED_YAML)
     Path(file_path).touch(exist_ok=True)
     return file_path
-
-
-def _create_data_dir(job_dir: str) -> Tuple[str, str]:
-    """
-    Create a temporary directory for storing uploaded files.
-    """
-    data_dir = os.path.join(job_dir, "workdir/tmp", DATA_DIR)
-    os.makedirs(data_dir)
-    return data_dir
 
 
 def _get_source_file(assembly_dir: str, assembly_file: str) -> str:
@@ -299,17 +289,16 @@ def _fetch_assemblies_to_upload(
     return count, wait_to_upload_assemblies
 
 
-def _prepare_skd_job_dir_to_upload(job_dir: str, wait_to_upload_assemblies: dict[str, str]) -> str:
+def _prepare_skd_job_dir_to_upload(conf: Conf, wait_to_upload_assemblies: dict[str, str]) -> str:
     """
     Prepare SDK job directory to upload.
     """
-    data_dir = _create_data_dir(job_dir)
     for assembly_file, assembly_dir in wait_to_upload_assemblies.items():
         src_file = _get_source_file(assembly_dir, assembly_file)
-        dest_file = os.path.join(data_dir, assembly_file)
+        dest_file = os.path.join(conf.job_data_dir, assembly_file)
         loader_helper.create_hardlink_between_files(dest_file, src_file)
 
-    return data_dir
+    return conf.job_data_dir
 
 
 def _post_process(
@@ -336,7 +325,7 @@ def _post_process(
     loader_helper.create_hardlink_between_files(dest_file, src_file)
 
     # Update the uploaded.yaml file
-    _update_upload_status_yaml_file(upload_env_key, workspace_id, upa, assembly_dir, assembly_name)
+    _update_upload_status_yaml_file(upload_env_key, workspace_id, upa, host_assembly_dir, assembly_name)
 
     # Creates a softlink from new_dir to the contents of upa_dir.
     new_dir = os.path.join(upload_dir, upa)
@@ -418,7 +407,7 @@ def _upload_assembly_files_in_parallel(
     for assembly_name, host_assembly_dir in wait_to_upload_assemblies.items():
 
         container_internal_assembly_path = os.path.join(
-            JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER, DATA_DIR, assembly_name
+            JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER, assembly_name
         )
         conf.input_queue.put(
             (
