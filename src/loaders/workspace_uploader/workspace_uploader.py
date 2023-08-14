@@ -506,7 +506,7 @@ def main():
         print(f"Originally planned to upload {count} assembly files")
         print(f"Detected {count - wtus_len} assembly files already exist in workspace")
 
-        data_dir = _prepare_skd_job_dir_to_upload(job_dir, wait_to_upload_assemblies)
+        data_dir = _prepare_skd_job_dir_to_upload(conf, wait_to_upload_assemblies)
         print(f"{wtus_len} assemblies in {data_dir} are ready to upload to workspace {workspace_id}")
 
         start = time.time()
