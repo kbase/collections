@@ -14,3 +14,4 @@ arangoimport_data_files
 .pytest_cache
 htmlcov
 .ipynb_checkpoints
+/sigtemp/
