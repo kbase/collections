@@ -103,7 +103,6 @@ Quite a bit slower than storing the files in documents.
 
 A 2nd run was about the same time, < 100ms difference.
 
-
 #### Download from a just started mongo instance
 
 E.g. no data cached in memory.
@@ -178,7 +177,6 @@ E.g. no data cached in memory.
 real	2m9.695s
 user	1m25.670s
 sys	0m9.754s
-
 ```
 
 A 2nd run was about the same time, < 1s difference.
@@ -200,4 +198,51 @@ sys	0m9.657s
 ```
 
 A 2nd run was about the same time, < 2s difference.
+
+### ArangoDB base64 encoded local
+
+Store the files in ArangoDB documents encoded in base64. All work is done on a personal laptop.
+
 ```
+(collections) crushingismybusiness@andbusinessisgood:~/github/kbase/collections$ time python design/experiments/store_arango.py storeb64 ~/SCIENCE/minhash/sourmash_storage/sourmash/individual/
+
+real	0m30.922s
+user	0m22.180s
+sys	0m1.986s
+```
+
+A 2nd run was about the same, <200ms difference.
+
+#### Download from a just started Arango instance
+
+E.g. no data cached in memory.
+
+```
+(collections) crushingismybusiness@andbusinessisgood:~/github/kbase/collections$ rm sigtemp/*; time python design/experiments/store_arango.py getb64 ~/SCIENCE/minhash/sourmash_storage/sourmash/GCA_018630415.1_ASM1863041v1_genomic.fna.gz.sig ./sigtemp
+
+== This is sourmash version 4.8.2. ==
+
+*snip*
+
+real	1m10.236s
+user	0m39.937s
+sys	0m4.082s
+```
+
+A 2nd run was about the same, <1s difference.
+
+#### Download from a warm Arango instance
+
+E.g. some or all of the data is cached in memory.
+
+```
+(collections) crushingismybusiness@andbusinessisgood:~/github/kbase/collections$ rm sigtemp/*; time python design/experiments/store_arango.py getb64 ~/SCIENCE/minhash/sourmash_storage/sourmash/GCA_018630415.1_ASM1863041v1_genomic.fna.gz.sig ./sigtemp
+
+*snip*
+
+real	1m0.230s
+user	0m39.881s
+sys	0m3.976s
+```
+
+A 2nd run was about the same, <1s difference.
