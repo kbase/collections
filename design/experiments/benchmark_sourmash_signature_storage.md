@@ -12,7 +12,7 @@ Run using Sean J.'s download of GTDB v214. Uses files from a previous analysis
 
 ![Sourmash storage benchmarking](./sourmash_storage_benchmarking.png)
 
-* local: all software run on a laptop
+* local: all software runs on a laptop
 * cold: database just started
 * warm: data has been fetched from the database at least once
 * BinData: files stored as binary blobs in MongoDB documents (16MB max size)
