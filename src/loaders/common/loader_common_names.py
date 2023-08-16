@@ -53,9 +53,27 @@ GENOME_METADATA_FILE = "genome_metadata.tsv"
 
 # the name of the CSV file where we store the trait counts
 TRAIT_COUNTS_FILE = 'trait_counts.csv'
+
+# The following features are used to create the heatmap metadata and rows
 SYS_TRAIT_ID = 'trait_id'  # unique identifier for a trait
+SYS_TRAIT_INDEX = 'trait_index'
+SYS_TRAIT_NAME = 'trait_name'
+SYS_TRAIT_DESCRIPTION = 'trait_description'
+SYS_TRAIT_CATEGORY = 'trait_category'
+SYS_TRAIT_VALUE = 'trait_value'
+SYS_TRAIT_TYPE = 'trait_type'
+
+SYS_DEFAULT_TRAIT_VALUE = 0  # default value (0 or False) for a trait if the value is missing/not available
+
+
 DETECTED_GENE_SCORE_COL = 'detected_genes_score'  # column name for the detected genes score
 
+# The following features will be extracted from the MicroTrait result file as heatmap data
+MICROTRAIT_TRAIT_DISPLAYNAME_SHORT = 'microtrait_trait-displaynameshort'  # used as column name of the trait
+MICROTRAIT_TRAIT_DISPLAYNAME_LONG = 'microtrait_trait-displaynamelong'  # used as description of the trait
+MICROTRAIT_TRAIT_VALUE = 'microtrait_trait-value'  # value of the trait (can be integer or 0/1 as boolean)
+MICROTRAIT_TRAIT_TYPE = 'microtrait_trait-type'  # type of trait (count or binary)
+MICROTRAIT_TRAIT_ORDER = 'microtrait_trait-displayorder'  # order of the trait defined by the granularity table used as the index of trait
 # column name for the trait unique identifier defined in the granularity trait count table
 MICROTRAIT_TRAIT_NAME = 'microtrait_trait-name'
 UNWRAPPED_GENE_COL = 'unwrapped_genes'  # column name that contains parsed gene name from unwrapped rule

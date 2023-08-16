@@ -8,13 +8,17 @@ from pydantic import BaseModel, Field
 
 from src.common.product_models.common_models import SubsetProcessStates
 
-from src.common.product_models.field_names import *
-
 # these fields need to match the fields in the models below.
 FIELD_HEATMAP_DATA = "data"
 FIELD_HEATMAP_MIN_VALUE = "min_value"
 FIELD_HEATMAP_MAX_VALUE = "max_value"
 FIELD_HEATMAP_COUNT = "count"
+FIELD_HEATMAP_KBASE_ID = 'kbase_id'
+FIELD_HEATMAP_VALUES = 'values'
+FIELD_HEATMAP_ROW_CELLS = "cells"
+FIELD_HEATMAP_CELL_ID = 'cell_id'
+FIELD_HEATMAP_COL_ID = 'col_id'
+FIELD_HEATMAP_CELL_VALUE = "val"
 
 _FLD_CELL_ID = Field(
     example="4",
