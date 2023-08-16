@@ -302,3 +302,36 @@ FLD_SAMPLE_GEO = '_geo_spatial'
 
 FLD_KB_SAMPLE_ID = "kbase_sample_id"
 """ Key name for KBase sample id """
+
+
+### biolog
+
+_BIOLOG_COLL_PREFIX = COLLECTION_PREFIX + "biolog_"
+
+COLL_BIOLOG_META: Annotated[
+    str,
+    COLL_ANNOTATION,
+    {
+        COLL_ANNOKEY_DESCRIPTION: "A collection holding Biolog heatmap metadata.",
+        COLL_ANNOKEY_SUGGESTED_SHARDS: 1,
+    }
+    
+] = _BIOLOG_COLL_PREFIX  + "meta"
+
+COLL_BIOLOG_DATA: Annotated[
+    str,
+    COLL_ANNOTATION,
+    {
+        COLL_ANNOKEY_DESCRIPTION: "A collection holding Biolog heatmap data.",
+        COLL_ANNOKEY_SUGGESTED_SHARDS: 3,
+    }
+] = _BIOLOG_COLL_PREFIX + "data"
+
+COLL_BIOLOG_CELLS: Annotated[
+    str,
+    COLL_ANNOTATION,
+    {
+        COLL_ANNOKEY_DESCRIPTION: "A collection holding Biolog heatmap cell detail data.",
+        COLL_ANNOKEY_SUGGESTED_SHARDS: 3,
+    }
+] = _BIOLOG_COLL_PREFIX + "cells"
