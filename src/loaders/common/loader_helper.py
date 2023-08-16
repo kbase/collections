@@ -196,7 +196,18 @@ def make_job_dir(root_dir, username):
 
 
 def make_job_data_dir(job_dir):
-    """Helper function that creates a temporary directory for sharing files beteween the host and container."""
+    """
+    Helper function that creates a temporary directory for sharing files between the host, callback server, and container.
+    
+    SDK modules (like AssemblyUtil) have the shared directory mounted in the container at `/kb/module/work`. The
+    scratch directory provided to the SDK module `*Impl.py` code is `/kb/module/work/tmp`. The SDK code is expected
+    to read and write shared files there.
+    
+    The callback server mounts `<job_dir>\workdir` as the host shared directory into the SDK module.
+    
+    `<job_dir>` is also mounted into the callback server and it writes job information (e.g. the token and job configuration) 
+    into `<job_dir>\workdir` 
+    """
     data_dir = os.path.join(job_dir, "workdir/tmp")
     os.makedirs(data_dir)
     return data_dir
