@@ -125,7 +125,7 @@ class HeatMapRow(BaseModel):
         description="The cells in the row of the heatmap in render order."
     )
     meta: dict[str, str] | None = Field(
-        examples=[{"media": "Spizizen minimal media + 0.5mM biotin"}],
+        examples=[{"growth_media": "Spizizen minimal media + 0.5mM biotin"}],
         description="Arbitrary metadata about the data in the row"
     )
 
