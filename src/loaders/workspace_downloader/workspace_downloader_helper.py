@@ -35,8 +35,9 @@ class Conf:
             job_dir (str): The directory for SDK jobs per user.
             output_dir (str): The directory for a specific workspace id under sourcedata/ws.
             worker_function (Callable): The function that will be called by the workers.
-            kb_base_url (str): The url of the KBase services.
-            token_filepath (str): The file path that stores a KBase token appropriate for the KBase environment.
+            kb_base_url (str): The base url of the KBase services.
+            token_filepath (str): The file path that stores a KBase token appropriate for the KBase environment. 
+                                If not supplied, the token must be provided in the environment variable KB_AUTH_TOKEN.
             workers (int): The number of workers to use for multiprocessing.
             retrieve_sample (bool): Whether to retrieve sample for each genome object.
             ignore_no_sample_error (bool): Whether to ignore the error when no sample data is found.
@@ -45,7 +46,7 @@ class Conf:
         token = loader_helper.get_token(token_filepath)
         self.retrieve_sample = retrieve_sample
         self.ignore_no_sample_error = ignore_no_sample_error
-        self.start_callback_server(
+        self._start_callback_server(
             docker.from_env(),
             uuid.uuid4().hex,
             job_dir,
@@ -70,19 +71,19 @@ class Conf:
         self.job_data_dir = loader_helper.make_job_data_dir(job_dir)
         self.pools = Pool(workers, worker_function, [self])
 
-    def setup_callback_server_envs(
+    def _setup_callback_server_envs(
             self,
-            job_dir,
-            kb_base_url,
-            token,
-            port
+            job_dir: str,
+            kb_base_url: str,
+            token: str,
+            port: int,
     ) -> Tuple[dict[str, Union[int, str]], dict[str, dict[str, str]]]:
         """
         Setup the environment variables and volumes for the callback server.
 
         Args:
             job_dir (str): The directory for SDK jobs per user.
-            kb_base_url (str): The url of the KBase services.
+            kb_base_url (str): The base url of the KBase services.
             token (str): The KBase token.
             port (int): The port number for the callback server.
 
@@ -109,14 +110,14 @@ class Conf:
 
         return env, vol
 
-    def start_callback_server(
+    def _start_callback_server(
             self,
-            client,
-            container_name,
-            job_dir,
-            kb_base_url,
-            token,
-            port,
+            client: docker.client,
+            container_name: str,
+            job_dir: str,
+            kb_base_url: str,
+            token: str,
+            port: int,
     ) -> None:
         """
         Start the callback server.
@@ -125,11 +126,11 @@ class Conf:
             client (docker.client): The docker client.
             container_name (str): The name of the container.
             job_dir (str): The directory for SDK jobs per user.
-            kb_base_url (str): The url of the KBase services.
+            kb_base_url (str): The base url of the KBase services.
             token (str): The KBase token.
             port (int): The port number for the callback server.
         """
-        env, vol = self.setup_callback_server_envs(job_dir, kb_base_url, token, port)
+        env, vol = self._setup_callback_server_envs(job_dir, kb_base_url, token, port)
         self.container = client.containers.run(
             name=container_name,
             image=CALLBACK_IMAGE_NAME,
@@ -140,7 +141,7 @@ class Conf:
         )
         time.sleep(2)
 
-    def stop_callback_server(self):
+    def stop_callback_server(self) -> None:
         """
         Stop the callback server.
         """
