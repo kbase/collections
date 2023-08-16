@@ -8,8 +8,8 @@ RUN conda config --add channels bioconda
 RUN conda config --add channels conda-forge
 
 RUN conda create -n $CONDA_ENV python=$PYTHON_VER
-RUN conda install -n $CONDA_ENV -c conda-forge -c bioconda pandas gtdbtk=$GTDB_VER
-RUN conda install -n $CONDA_ENV numpy=1.23.1 rpy2=3.5.10
+RUN conda install -n $CONDA_ENV -c conda-forge -c bioconda gtdbtk=$GTDB_VER
+RUN conda install -n $CONDA_ENV numpy=1.23.1 jsonlines=3.1.0 pandas=2.0.3
 
 RUN echo "source activate $CONDA_ENV" >> ~/.bashrc
 

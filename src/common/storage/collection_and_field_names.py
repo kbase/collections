@@ -11,6 +11,7 @@ variables below for examples.
 """
 
 from typing import Annotated
+from src.common.storage.field_names import *
 
 # collection variables should be prefixed with COLL_, fields prefixed with FLD_.
 
@@ -27,9 +28,6 @@ FLD_COLLECTION_ID = "coll"
 
 FLD_LOAD_VERSION = "load_ver"
 """ The name of the key that has a load version as its value. """
-
-FLD_KBASE_ID = "kbase_id"
-""" A special key in load data that can be used to relate data across different data products. """
 
 FLD_DATA_PRODUCT = "data_product"
 """ The name of the key that has a data product ID as its value. """
