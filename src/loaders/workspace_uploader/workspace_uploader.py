@@ -309,7 +309,7 @@ def _post_process(
         upload_dir: str,
         output_dir: str,
         upa: str,
-) -> list[str]:
+) -> None:
     """
     Create a standard entry in sourcedata/workspace for each assembly.
     Hardlink to the original assembly file in sourcedata to avoid duplicating the file.
