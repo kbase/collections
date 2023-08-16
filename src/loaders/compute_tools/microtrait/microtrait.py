@@ -16,15 +16,17 @@ from src.common.product_models.field_names import (
     FIELD_HEATMAP_CELL_ID,
     FIELD_HEATMAP_COL_ID,
     FIELD_HEATMAP_CELL_VALUE)
-from src.common.storage.collection_and_field_names import COLL_MICROTRAIT_META
 from src.loaders.common import loader_common_names
 from src.loaders.compute_tools.tool_common import (
     FatalTuple,
     ToolRunner,
     write_fatal_tuples_to_dict,
 )
-from src.loaders.compute_tools.tool_result_parser import create_jsonl_files, MICROTRAIT_META, MICROTRAIT_CELLS, \
-    MICROTRAIT_DATA
+from src.loaders.compute_tools.tool_result_parser import (
+    create_jsonl_files,
+    MICROTRAIT_META,
+    MICROTRAIT_CELLS,
+    MICROTRAIT_DATA)
 
 # the name of the component used for extracting traits from microtrait's 'extract.traits' result
 TRAIT_COUNTS_ATGRANULARITY = 'trait_counts_atgranularity3'
