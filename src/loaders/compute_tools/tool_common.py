@@ -91,7 +91,8 @@ class ToolRunner:
                                 (default: PROD)
           --load_ver LOAD_VER   KBase load version (e.g. r207.kbase.1). (defaults to
                                 the source version)
-          --root_dir ROOT_DIR   Root directory.
+          --root_dir ROOT_DIR   Root directory for the collections project.
+                                (default: /global/cfs/cdirs/kbase/collections)
           --threads THREADS     Total number of threads used by the script. (default:
                                 half of system cpu count)
           --program_threads PROGRAM_THREADS
@@ -127,11 +128,12 @@ class ToolRunner:
         kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
         source_ver = getattr(args, loader_common_names.SOURCE_VER_ARG_NAME)
         load_ver = getattr(args, loader_common_names.LOAD_VER_ARG_NAME)
+        root_dir = getattr(args, loader_common_names.ROOT_DIR_ARG_NAME)
         if not load_ver:
             load_ver = source_ver
 
         self._allow_missing_files = kbase_collection in _IGNORE_MISSING_FILES_COLLECTIONS
-        self._source_data_dir = Path(args.root_dir,
+        self._source_data_dir = Path(root_dir,
                                      loader_common_names.COLLECTION_SOURCE_DIR,
                                      env,
                                      kbase_collection,
@@ -149,7 +151,7 @@ class ToolRunner:
         self._threads = max(1, self._threads)
 
         self._work_dir = Path(
-            Path(args.root_dir),
+            Path(root_dir),
             loader_common_names.COLLECTION_DATA_DIR,
             env,
             kbase_collection,
@@ -186,9 +188,11 @@ class ToolRunner:
             f'--{loader_common_names.LOAD_VER_ARG_NAME}', type=str,
             help=loader_common_names.LOAD_VER_DESCR + ' (defaults to the source version)'
         )
-
         optional.add_argument(
-            '--root_dir', type=str, default=loader_common_names.ROOT_DIR, help='Root directory.'
+            f'--{loader_common_names.ROOT_DIR_ARG_NAME}',
+            type=str,
+            default=loader_common_names.ROOT_DIR,
+            help=f'{loader_common_names.ROOT_DIR_DESCR} (default: {loader_common_names.ROOT_DIR})'
         )
         optional.add_argument(
             '--threads', type=int,

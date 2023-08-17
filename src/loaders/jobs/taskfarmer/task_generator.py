@@ -331,8 +331,12 @@ def main():
 
     optional.add_argument(f'--{loader_common_names.LOAD_VER_ARG_NAME}', type=str,
                           help=loader_common_names.LOAD_VER_DESCR + ' (defaults to the source version)')
-    optional.add_argument('--root_dir', type=str, default=loader_common_names.ROOT_DIR,
-                          help=f'Root directory for the collections project. (default: {loader_common_names.ROOT_DIR})')
+    optional.add_argument(
+        f'--{loader_common_names.ROOT_DIR_ARG_NAME}',
+        type=str,
+        default=loader_common_names.ROOT_DIR,
+        help=f'{loader_common_names.ROOT_DIR_DESCR} (default: {loader_common_names.ROOT_DIR})'
+    )
     optional.add_argument('--submit_job', action='store_true', help='Submit job to slurm')
     optional.add_argument('--force', action='store_true', help='Force overwrite of existing job directory')
     optional.add_argument('--source_file_ext', type=str, default='.fa',
@@ -345,10 +349,10 @@ def main():
     kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
     source_ver = getattr(args, loader_common_names.SOURCE_VER_ARG_NAME)
     load_ver = getattr(args, loader_common_names.LOAD_VER_ARG_NAME)
+    root_dir = getattr(args, loader_common_names.ROOT_DIR_ARG_NAME)
     if not load_ver:
         load_ver = source_ver
 
-    root_dir = args.root_dir
     source_data_dir = make_collection_source_dir(root_dir, env, kbase_collection, source_ver)
     source_file_ext = args.source_file_ext
 
