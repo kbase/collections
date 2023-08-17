@@ -7,6 +7,7 @@ import logging
 from pydantic import BaseModel, Field, Extra
 from typing import Any
 
+from src.common.constants import GTDB_UNCLASSIFIED_PREFIX
 from src.common.gtdb_lineage import GTDBRank, GTDBLineage, GTDBLineageError
 from src.common.storage.collection_and_field_names import FLD_GENOME_ATTRIBS_GTDB_LINEAGE
 from src.service import errors
@@ -111,6 +112,8 @@ class GTDBLineageMatcher(Matcher):
                 raise errors.MissingLineageError(
                     f"Object {upa} is missing lineage metadata in key {_GTDB_LINEAGE_METADATA_KEY}"
                 )
+            if lin.startswith(GTDB_UNCLASSIFIED_PREFIX):
+                continue  # skip unclassified organisms
             try:
                 lin = GTDBLineage(lin, force_complete=False).truncate_to_rank(rank)
             except GTDBLineageError as e:
