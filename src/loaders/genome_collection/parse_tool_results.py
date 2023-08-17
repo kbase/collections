@@ -125,13 +125,13 @@ _SYS_DEFAULT_TRAIT_VALUE = 0  # default value (0 or False) for a trait if the va
 # microtrait_trait-displaynamelong column as the column description, and
 # microtrait_trait-value as the cell value
 _MICROTRAIT_TO_SYS_TRAIT_MAP = {
-    loader_common_names.MICROTRAIT_TRAIT_NAME: loader_common_names.SYS_TRAIT_ID,
+    # loader_common_names.MICROTRAIT_TRAIT_NAME: loader_common_names.SYS_TRAIT_ID,
     _MICROTRAIT_TRAIT_DISPLAYNAME_SHORT: _SYS_TRAIT_NAME,
     _MICROTRAIT_TRAIT_DISPLAYNAME_LONG: _SYS_TRAIT_DESCRIPTION,
     _MICROTRAIT_TRAIT_VALUE: _SYS_TRAIT_VALUE,
     _MICROTRAIT_TRAIT_TYPE: _SYS_TRAIT_TYPE,
     _MICROTRAIT_TRAIT_ORDER: _SYS_TRAIT_INDEX,
-    loader_common_names.DETECTED_GENE_SCORE_COL: loader_common_names.DETECTED_GENE_SCORE_COL,
+    # loader_common_names.DETECTED_GENE_SCORE_COL: loader_common_names.DETECTED_GENE_SCORE_COL,
 }
 
 # The suffix for the sequence metadata file name for Assembly Homology service
