@@ -126,7 +126,8 @@ def test_prepare_skd_job_dir_to_upload(setup_and_teardown):
     }
 
     conf = Mock()
-    job_dir = loader_helper.make_job_dir(tmp_dir, os.getlogin())
+    username = "kbase"
+    job_dir = loader_helper.make_job_dir(tmp_dir, username)
     conf.job_data_dir = loader_helper.make_job_data_dir(job_dir)
     data_dir = workspace_uploader._prepare_skd_job_dir_to_upload(conf, wait_to_upload_assemblies)
     
