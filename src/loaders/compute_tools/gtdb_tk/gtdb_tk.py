@@ -22,9 +22,9 @@ from src.loaders.compute_tools.tool_common import (
 from src.loaders.compute_tools.tool_result_parser import (
     process_genome_attri_result,
 )
+from src.common.constants import GTDB_UNCLASSIFIED_PREFIX
 
 # GTDB specific constants
-GTDB_UNCLASSIFIED = "Unclassified"
 GTDB_FILTER_FILE_PATTERN = "gtdbtk.*.filtered.tsv"
 GTDB_FAIL_GENOME_FILE = "gtdbtk.failed_genomes.tsv"
 
@@ -115,7 +115,7 @@ def _run_gtdb_tk(
         for tool_safe_data_id, classify_res in zip(summary_df[loader_common_names.GTDB_GENOME_ID_COL],
                                                    summary_df[loader_common_names.GTDB_CLASSIFICATION_COL]):
             tool_safe_data_ids.add(tool_safe_data_id)
-            if classify_res.startswith(GTDB_UNCLASSIFIED):
+            if classify_res.startswith(GTDB_UNCLASSIFIED_PREFIX):
                 error_message = f"GTDB_tk classification failed: {classify_res}"
                 fatal_tuple = create_fatal_tuple(tool_safe_data_id, ids_to_files, error_message)
                 fatal_tuples.append(fatal_tuple)
