@@ -259,6 +259,7 @@ async def _create_match_process(
     matcher - the matcher to use.
     ww - a workspace wrapper initialized with the credentials of the user
     upas - the UPAs of the workspace objects to include in the match.
+    user_parameters - the user provided parameteres for the match
     collection_parameters - the parameters for the match provided by the collection data
         (as opposed to user provided parameters.)
 

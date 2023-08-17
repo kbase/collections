@@ -8,6 +8,22 @@ These tests are not at all statistically meaningful; n=1 in all cases.
 Run using Sean J.'s download of GTDB v214. Uses files from a previous analysis
 [here](./benchmarking_mash_vs_sourmash.md).
 
+## Summary
+
+![Sourmash storage benchmarking](./sourmash_storage_benchmarking.png)
+
+* local: all software runs on a laptop
+* cold: database just started
+* warm: data has been fetched from the database at least once
+* BinData: files stored as binary blobs in MongoDB documents (16MB max size)
+* `array[int64]`: files encoded as an array of int64 and stored in Arango documents.
+  * Arango's `Velocypack` storage makes this an efficient encoding if transport and storage
+    all use `Velocypack` but the `python` client uses JSON transport which really slows
+    things down.
+* `base64`: files encoded in base64 and stored in Arango documents.
+* There is no hardcoded limit to Arango document sizes but they recommend no more than 50-75MB.
+
+
 ## Run sourmash stand alone
 
 ```

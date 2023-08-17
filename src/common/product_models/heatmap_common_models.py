@@ -124,6 +124,10 @@ class HeatMapRow(BaseModel):
     cells: list[Cell] = Field(
         description="The cells in the row of the heatmap in render order."
     )
+    meta: dict[str, str] | None = Field(
+        examples=[{"growth_media": "Spizizen minimal media + 0.5mM biotin"}],
+        description="Arbitrary metadata about the data in the row"
+    )
 
 
 class HeatMap(SubsetProcessStates):
