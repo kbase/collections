@@ -10,12 +10,16 @@ import pandas as pd
 from rpy2 import robjects
 
 from src.common.product_models.heatmap_common_models import (
-    FIELD_HEATMAP_KBASE_ID,
     FIELD_HEATMAP_VALUES,
     FIELD_HEATMAP_ROW_CELLS,
     FIELD_HEATMAP_CELL_ID,
     FIELD_HEATMAP_COL_ID,
-    FIELD_HEATMAP_CELL_VALUE)
+    FIELD_HEATMAP_CELL_VALUE,
+    FIELD_HEATMAP_NAME,
+    FIELD_HEATMAP_DESCR,
+    FIELD_HEATMAP_TYPE,
+    FIELD_HEATMAP_CATEGORY)
+from src.common.storage.field_names import FLD_KBASE_ID
 from src.loaders.common import loader_common_names
 from src.loaders.compute_tools.tool_common import (
     FatalTuple,
@@ -33,19 +37,31 @@ TRAIT_COUNTS_ATGRANULARITY = 'trait_counts_atgranularity3'
 _GENE_NAME_COL = 'hmm_name'  # column name from the genes_detected_table file that contains the gene name
 _GENE_SCORE_COL = 'gene_score'  # column name from the genes_detected_table file that contains the gene score
 
+# The following features will be extracted from the MicroTrait result file as heatmap data
+_MICROTRAIT_TRAIT_DISPLAYNAME_SHORT = 'microtrait_trait-displaynameshort'  # used as column name of the trait
+_MICROTRAIT_TRAIT_DISPLAYNAME_LONG = 'microtrait_trait-displaynamelong'  # used as description of the trait
+_MICROTRAIT_TRAIT_VALUE = 'microtrait_trait-value'  # value of the trait (can be integer or 0/1 as boolean)
+_MICROTRAIT_TRAIT_TYPE = 'microtrait_trait-type'  # type of trait (count or binary)
+_MICROTRAIT_TRAIT_ORDER = 'microtrait_trait-displayorder'  # order of the trait defined by the granularity table used as the index of trait
+_MICROTRAIT_TRAIT_NAME = 'microtrait_trait-name'  # column name for the trait unique identifier defined in the granularity trait count table
+
+_SYS_DEFAULT_TRAIT_VALUE = 0  # default value (0 or False) for a trait if the value is missing/not available
+
+_DETECTED_GENE_SCORE_COL = 'detected_genes_score'  # column name for the detected genes score
+
 # The map between the MicroTrait trait names and the corresponding system trait names
 # Use the microtrait_trait-name column as the unique identifier for a trait globally,
 # the microtrait_trait-displaynameshort column as the column name,
 # microtrait_trait-displaynamelong column as the column description, and
 # microtrait_trait-value as the cell value
 _MICROTRAIT_TO_SYS_TRAIT_MAP = {
-    loader_common_names.MICROTRAIT_TRAIT_NAME: loader_common_names.SYS_TRAIT_ID,
-    loader_common_names.MICROTRAIT_TRAIT_DISPLAYNAME_SHORT: loader_common_names.SYS_TRAIT_NAME,
-    loader_common_names.MICROTRAIT_TRAIT_DISPLAYNAME_LONG: loader_common_names.SYS_TRAIT_DESCRIPTION,
-    loader_common_names.MICROTRAIT_TRAIT_VALUE: loader_common_names.SYS_TRAIT_VALUE,
-    loader_common_names.MICROTRAIT_TRAIT_TYPE: loader_common_names.SYS_TRAIT_TYPE,
-    loader_common_names.MICROTRAIT_TRAIT_ORDER: loader_common_names.SYS_TRAIT_INDEX,
-    loader_common_names.DETECTED_GENE_SCORE_COL: loader_common_names.DETECTED_GENE_SCORE_COL,
+    _MICROTRAIT_TRAIT_NAME: loader_common_names.SYS_TRAIT_ID,
+    _MICROTRAIT_TRAIT_DISPLAYNAME_SHORT: FIELD_HEATMAP_NAME,
+    _MICROTRAIT_TRAIT_DISPLAYNAME_LONG: FIELD_HEATMAP_DESCR,
+    _MICROTRAIT_TRAIT_VALUE: FIELD_HEATMAP_CELL_VALUE,
+    _MICROTRAIT_TRAIT_TYPE: FIELD_HEATMAP_TYPE,
+    _MICROTRAIT_TRAIT_ORDER: FIELD_HEATMAP_COL_ID,
+    _DETECTED_GENE_SCORE_COL: _DETECTED_GENE_SCORE_COL,
 }
 
 
@@ -83,40 +99,42 @@ def _process_trait_counts(
     trait_df = trait_counts_df[_MICROTRAIT_TO_SYS_TRAIT_MAP.keys()]
 
     # Check if the trait index column has non-unique values
-    if len(trait_df[loader_common_names.MICROTRAIT_TRAIT_NAME].unique()) != len(trait_df):
-        raise ValueError(f"The {loader_common_names.MICROTRAIT_TRAIT_NAME} column has non-unique values")
+    if len(trait_df[_MICROTRAIT_TRAIT_NAME].unique()) != len(trait_df):
+        raise ValueError(f"The {_MICROTRAIT_TRAIT_NAME} column has non-unique values")
 
     # Extract the substring of the 'microtrait_trait-displaynamelong' column before the first colon character
     # and assign it to a new 'category' column in the DataFrame
-    trait_df[loader_common_names.SYS_TRAIT_CATEGORY] = \
-    trait_df[loader_common_names.MICROTRAIT_TRAIT_DISPLAYNAME_LONG].str.split(':').str[0]
+    trait_df[FIELD_HEATMAP_CATEGORY] = trait_df[_MICROTRAIT_TRAIT_DISPLAYNAME_LONG].str.split(':').str[0]
 
     trait_df = trait_df.rename(columns=_MICROTRAIT_TO_SYS_TRAIT_MAP)
+
+    # ensure the col_id column is string type
+    trait_df[FIELD_HEATMAP_COL_ID] = trait_df[FIELD_HEATMAP_COL_ID].astype(str)
+
     traits = trait_df.to_dict(orient='records')
     cells, cells_meta, traits_meta = list(), list(), list()
     for trait in traits:
         cell_uuid = str(uuid.uuid4())
-        trait_val = trait[loader_common_names.SYS_TRAIT_VALUE]
         # process cell data
         cells.append({FIELD_HEATMAP_CELL_ID: cell_uuid,
-                      FIELD_HEATMAP_COL_ID: trait[loader_common_names.SYS_TRAIT_INDEX],
-                      FIELD_HEATMAP_CELL_VALUE: trait_val})
+                      FIELD_HEATMAP_COL_ID: trait[FIELD_HEATMAP_COL_ID],
+                      FIELD_HEATMAP_CELL_VALUE: trait[FIELD_HEATMAP_CELL_VALUE]})
 
         # process cell meta
-        detected_genes_score = trait[loader_common_names.DETECTED_GENE_SCORE_COL]
+        detected_genes_score = json.loads(trait[_DETECTED_GENE_SCORE_COL])
         cells_meta.append({FIELD_HEATMAP_CELL_ID: cell_uuid,
                            FIELD_HEATMAP_VALUES: detected_genes_score})
 
         # process trait meta
-        trait_meta_keys = [loader_common_names.SYS_TRAIT_INDEX,
-                           loader_common_names.SYS_TRAIT_NAME,
-                           loader_common_names.SYS_TRAIT_DESCRIPTION,
-                           loader_common_names.SYS_TRAIT_CATEGORY,
-                           loader_common_names.SYS_TRAIT_TYPE]
+        trait_meta_keys = [FIELD_HEATMAP_COL_ID,
+                           FIELD_HEATMAP_NAME,
+                           FIELD_HEATMAP_DESCR,
+                           FIELD_HEATMAP_CATEGORY,
+                           FIELD_HEATMAP_TYPE]
 
         traits_meta.append({key: trait[key] for key in trait_meta_keys})
 
-    heatmap_row = [{FIELD_HEATMAP_KBASE_ID: data_id,
+    heatmap_row = [{FLD_KBASE_ID: data_id,
                     FIELD_HEATMAP_ROW_CELLS: cells}]
 
     return heatmap_row, cells_meta, traits_meta
@@ -164,7 +182,7 @@ def _run_microtrait(tool_safe_data_id: str, data_id: str, fna_file: Path, genome
     if trait_unwrapped_rules_file:
         trait_unwrapped_rules_df = pd.read_csv(trait_unwrapped_rules_file, sep='\t')
         trait_counts_df = trait_counts_df.merge(trait_unwrapped_rules_df,
-                                                left_on=loader_common_names.MICROTRAIT_TRAIT_NAME,
+                                                left_on=_MICROTRAIT_TRAIT_NAME,
                                                 right_on=loader_common_names.SYS_TRAIT_ID,
                                                 how='left')
         trait_counts_df.drop(columns=[loader_common_names.SYS_TRAIT_ID], inplace=True)
@@ -173,7 +191,7 @@ def _run_microtrait(tool_safe_data_id: str, data_id: str, fna_file: Path, genome
         genes_detected_df = _r_table_to_df(genes_detected_table)
         detected_genes_score = dict(zip(genes_detected_df[_GENE_NAME_COL], genes_detected_df[_GENE_SCORE_COL]))
 
-        trait_counts_df[loader_common_names.DETECTED_GENE_SCORE_COL] = trait_counts_df[
+        trait_counts_df[_DETECTED_GENE_SCORE_COL] = trait_counts_df[
             loader_common_names.UNWRAPPED_GENE_COL].apply(
             lambda x: json.dumps({gene: detected_genes_score.get(gene) for gene in str(x).split(';') if
                                   gene in detected_genes_score}))
