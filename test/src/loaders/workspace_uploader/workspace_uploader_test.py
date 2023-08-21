@@ -68,6 +68,7 @@ def test_read_upload_status_yaml_file(setup_and_teardown):
     assembly_dir = assembly_dirs[0]
     assembly_name = assembly_names[0]
 
+    # test empty yaml file in assembly_dir
     data, uploaded = workspace_uploader._read_upload_status_yaml_file(
         upload_env_key, workspace_id, assembly_dir, assembly_name
     )
