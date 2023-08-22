@@ -1,7 +1,6 @@
 """
 Runs microtrait on a set of assemblies.
 """
-import json
 import os
 import uuid
 from pathlib import Path
@@ -121,9 +120,8 @@ def _process_trait_counts(
                       FIELD_HEATMAP_CELL_VALUE: trait[FIELD_HEATMAP_CELL_VALUE]})
 
         # process cell meta
-        detected_genes_score = json.loads(trait[_DETECTED_GENE_SCORE_COL])
         cells_meta.append({FIELD_HEATMAP_CELL_ID: cell_uuid,
-                           FIELD_HEATMAP_VALUES: detected_genes_score})
+                           FIELD_HEATMAP_VALUES: trait[_DETECTED_GENE_SCORE_COL]})
 
         # process trait meta
         trait_meta_keys = [FIELD_HEATMAP_COL_ID,
@@ -193,8 +191,8 @@ def _run_microtrait(tool_safe_data_id: str, data_id: str, fna_file: Path, genome
 
         trait_counts_df[_DETECTED_GENE_SCORE_COL] = trait_counts_df[
             loader_common_names.UNWRAPPED_GENE_COL].apply(
-            lambda x: json.dumps({gene: detected_genes_score.get(gene) for gene in str(x).split(';') if
-                                  gene in detected_genes_score}))
+            lambda x: {gene: detected_genes_score.get(gene) for gene in str(x).split(';') if
+                       gene in detected_genes_score})
     else:
         raise ValueError('Please set environment variable MT_TRAIT_UNWRAPPED_FILE')
 
