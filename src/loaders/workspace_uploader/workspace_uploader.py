@@ -67,7 +67,7 @@ from src.loaders.workspace_downloader.workspace_downloader_helper import Conf
 UPLOAD_FILE_EXT = ["genomic.fna.gz"]  # uplaod only files that match given extensions
 JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER = "/kb/module/work/tmp"
 UPLOADED_YAML = "uploaded.yaml"
-MEMORY_UTILIZATION = 0.5
+MEMORY_UTILIZATION = 0.01 # approximately 8 assemblies per batch
 
 
 def _get_parser():
@@ -353,7 +353,7 @@ def _process_input(conf: Conf) -> None:
             batch_host_assembly_dirs,
             batch_assembly_names,
             upload_dir,
-            counter,
+            file_counter,
             assembly_files_len,
         ) = task
 
@@ -380,9 +380,9 @@ def _process_input(conf: Conf) -> None:
 
         conf.output_queue.put((batch_assembly_names, batch_upas))
 
-        if counter % 3000 == 0:
-            print(f"Assemblies processed: {counter}/{assembly_files_len}, "
-                  f"Percentage: {counter / assembly_files_len * 100:.2f}%, "
+        if file_counter % 3000 == 0:
+            print(f"Assemblies processed: {file_counter}/{assembly_files_len}, "
+                  f"Percentage: {file_counter / assembly_files_len * 100:.2f}%, "
                   f"Time: {datetime.now()}")
 
 
@@ -410,7 +410,8 @@ def _upload_assembly_files_in_parallel(
     print(f"Start uploading {assembly_files_len} assembly files with {conf.workers} workers\n")
 
     # Put the assembly files in the input_queue
-    counter = 0
+    file_counter = 0
+    iter_counter = 0
     for (
         batch_container_internal_assembly_paths,
         batch_host_assembly_dirs,
@@ -418,7 +419,7 @@ def _upload_assembly_files_in_parallel(
         batch_size,
     ) in _gen(conf, wait_to_upload_assemblies):
 
-        counter += batch_size
+        file_counter += batch_size
         conf.input_queue.put(
             (
                 upload_env_key,
@@ -427,21 +428,23 @@ def _upload_assembly_files_in_parallel(
                 batch_host_assembly_dirs,
                 batch_assembly_names,
                 upload_dir,
-                counter,
+                file_counter,
                 assembly_files_len,
             )
         )
 
-        if counter % 5000 == 0:
-            print(f"Jobs added to the queue: {counter}/{assembly_files_len}, "
-                  f"Percentage: {counter / assembly_files_len * 100:.2f}%, "
+        if file_counter % 5000 == 0:
+            print(f"Jobs added to the queue: {file_counter}/{assembly_files_len}, "
+                  f"Percentage: {file_counter / assembly_files_len * 100:.2f}%, "
                   f"Time: {datetime.now()}")
+
+        iter_counter += 1
 
     # Signal the workers to terminate when they finish uploading assembly files
     for _ in range(conf.workers):
         conf.input_queue.put(None)
 
-    results = [conf.output_queue.get() for _ in range(assembly_files_len)]
+    results = [conf.output_queue.get() for _ in range(iter_counter)]
     failed_names = [name for names, upas in results for name, upa in zip(names, upas) if upa is None]
 
     # Close and join the processes
@@ -478,7 +481,8 @@ def _gen(
             raise ValueError(f"{file_path} does not exist. "
                              f"Ensure file {assembly_names[idx]} exist in {conf.job_data_dir}")
         file_size = os.path.getsize(file_path)
-        if file_size + cumsize < max_cumsize:
+        # cumulate aasembly files until the total size is greater than max_cumsize
+        if file_size + cumsize <= max_cumsize:
             cumsize += file_size
         else:
             yield (
@@ -487,9 +491,11 @@ def _gen(
                 assembly_names[start_idx:idx],
                 idx - start_idx,
             )
+            # reset start_idx and cumsize
             start_idx = idx
             cumsize = file_size
 
+    # yield the remaining assembly files
     yield (
         container_internal_assembly_paths[start_idx:],
         host_assembly_dirs[start_idx:],
