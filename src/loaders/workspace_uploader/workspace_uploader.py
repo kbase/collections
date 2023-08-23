@@ -54,7 +54,7 @@ import time
 from datetime import datetime
 from multiprocessing import cpu_count
 from pathlib import Path
-from typing import Generator, Tuple
+from typing import Generator
 
 import yaml
 
@@ -67,6 +67,7 @@ from src.loaders.workspace_downloader.workspace_downloader_helper import Conf
 UPLOAD_FILE_EXT = ["genomic.fna.gz"]  # uplaod only files that match given extensions
 JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER = "/kb/module/work/tmp"
 UPLOADED_YAML = "uploaded.yaml"
+MAX_DATA_SIZE = 1024 * 1024 * 1024 # can cause memeory issues if the serialized data is > 1GB
 MEMORY_UTILIZATION = 0.01 # approximately 8 assemblies per batch
 
 
@@ -164,9 +165,9 @@ def _get_source_file(assembly_dir: str, assembly_file: str) -> str:
 def _upload_assemblies_to_workspace(
         conf: Conf,
         workspace_id: int,
-        file_paths: tuple[str],
-        assembly_names: tuple[str],
-) -> tuple[str]:
+        file_paths: tuple[str, ...],
+        assembly_names: tuple[str, ...],
+) -> tuple[str, ...]:
     """
     Upload assembly files to the target workspace in batch. The bulk method fails
     and an error will be thrown if any of the assembly files in batch fails to upload.
@@ -204,7 +205,7 @@ def _read_upload_status_yaml_file(
         workspace_id: int,
         assembly_dir: str,
         assembly_name: str, 
-) -> Tuple[dict[str, dict[int, list[str]]], bool]:
+) -> tuple[dict[str, dict[int, list[str]]], bool]:
     """
     Get metadata and upload status of an assembly from the uploaded.yaml file.
     """
@@ -257,7 +258,7 @@ def _fetch_assemblies_to_upload(
         workspace_id: int,
         collection_source_dir: str,
         upload_file_ext: list[str],
-) -> Tuple[int, dict[str, str]]:
+) -> tuple[int, dict[str, str]]:
     count = 0
     wait_to_upload_assemblies = dict()
 
@@ -460,7 +461,7 @@ def _upload_assembly_files_in_parallel(
 def _gen(
         conf: Conf,
         wait_to_upload_assemblies: dict[str, str]
-) -> Generator[Tuple[tuple[str], tuple[str], tuple[str], int], None, None]:
+) -> Generator[tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...], int], None, None]:
     """
     Generator function to yield the assembly files to upload.
     """
@@ -477,14 +478,14 @@ def _gen(
     start_idx = 0
     cumsize = 0
     # to avoid memory issue, upload 1GB * MEMORY_UTILIZATION of assembly files at a time
-    max_cumsize = 1000000000 * MEMORY_UTILIZATION
-    for idx in range(assembly_files_len):
-        file_path = os.path.join(conf.job_data_dir, assembly_names[idx])
+    max_cumsize = MAX_DATA_SIZE * MEMORY_UTILIZATION
+    for idx, assembly_name in enumerate(assembly_names):
+        file_path = os.path.join(conf.job_data_dir, assembly_name)
         if not os.path.exists(file_path):
             raise ValueError(f"{file_path} does not exist. "
-                             f"Ensure file {assembly_names[idx]} exist in {conf.job_data_dir}")
+                             f"Ensure file {assembly_name} exist in {conf.job_data_dir}")
         file_size = os.path.getsize(file_path)
-        # cumulate aasembly files until the total size is greater than max_cumsize
+        # cumulate assembly files until the total size is greater than max_cumsize
         if file_size + cumsize <= max_cumsize:
             cumsize += file_size
         else:
