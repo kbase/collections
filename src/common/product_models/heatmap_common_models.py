@@ -22,6 +22,8 @@ FIELD_HEATMAP_NAME = "name"
 FIELD_HEATMAP_DESCR = "description"
 FIELD_HEATMAP_TYPE = "type"
 FIELD_HEATMAP_CATEGORY = "category"
+FIELD_HEATMAP_COLUMNS = "columns"
+FIELD_HEATMAP_CATEGORIES = "categories"
 
 _FLD_CELL_ID = Field(
     example="4",
