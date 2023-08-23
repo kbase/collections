@@ -167,7 +167,10 @@ def _upload_assemblies_to_workspace(
         file_paths: tuple[str],
         assembly_names: tuple[str],
 ) -> tuple[str]:
-
+    """
+    Upload assembly files to the target workspace in batch. The bulk method fails
+    and an error will be thrown if any of the assembly files in batch fails to upload.
+    """
     inputs = [{"file": f, "assembly_name": n}
               for f, n in zip(file_paths, assembly_names)]
 
