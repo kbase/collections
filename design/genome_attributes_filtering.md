@@ -37,7 +37,7 @@
   * Add AND / OR toggle for combining filters
   * Move selection / match mark booleans into input filter data structure
   * We may want to split the classification field into multiple fields
-    * Alternatively make a custom filter for the classification field that understand
+    * Alternatively make a custom filter for the classification field that understands
       the string syntax
       * Would mean a new column type like `taxon`
 * Out of scope for v1
@@ -45,10 +45,10 @@
   * Substring search
   * Multiselect on non-enum columns
   
-TODO:
-Paramvir - for string columns, what type of search do we want
-Paramvir - do we want to split up the taxonomy field?
-Gavin - design filter API, approve w/ David & Tian
-Gavin - update service to support filtering
-Tian - add column config file to pipeline & parse columns data into metadata document
-David - UI
+TODO:  
+Paramvir - for string columns, what type of search do we want  
+Paramvir - do we want to split up the taxonomy field?  
+Gavin - design filter API, approve w/ David & Tian  
+Gavin - update service to support filtering  
+Tian - add column config file to pipeline & parse columns data into metadata document  
+David - UI  
