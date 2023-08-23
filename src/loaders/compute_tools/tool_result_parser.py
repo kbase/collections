@@ -10,6 +10,9 @@ from src.common.storage.field_names import FLD_KBASE_ID
 from src.loaders.compute_tools.tool_common import GenomeTuple
 
 TOOL_GENOME_ATTRI_FILE = "genome_attribs.jsonl"
+MICROTRAIT_CELLS = "microtrait_cells.jsonl"
+MICROTRAIT_META = "microtrait_meta.jsonl"
+MICROTRAIT_DATA = "microtrait_data.jsonl"
 
 
 def process_genome_attri_result(
