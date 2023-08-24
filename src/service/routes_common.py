@@ -13,7 +13,7 @@ from src.service.arg_checkers import contains_control_characters
 PATH_VALIDATOR_COLLECTION_ID = Path(
     min_length=1,
     max_length=20,
-    regex=r"^\w+$",
+    pattern=r"^\w+$",
     example=models.FIELD_COLLECTION_ID_EXAMPLE,
     description=models.FIELD_COLLECTION_ID_DESCRIPTION
 )

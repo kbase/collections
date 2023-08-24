@@ -111,9 +111,6 @@ class Cell(BaseModel):
         description="The value of the heatmap at this cell."
     )
 
-    class Config:
-        smart_union = True
-
 
 class HeatMapRow(BaseModel):
     """
@@ -133,7 +130,7 @@ class HeatMapRow(BaseModel):
         description="The cells in the row of the heatmap in render order."
     )
     meta: dict[str, str] | None = Field(
-        examples=[{"growth_media": "Spizizen minimal media + 0.5mM biotin"}],
+        example={"growth_media": "Spizizen minimal media + 0.5mM biotin"},
         description="Arbitrary metadata about the data in the row"
     )
 
@@ -177,9 +174,6 @@ class CellDetailEntry(BaseModel):
         example=56.1,
         description="The value of the cell entry."
     )
-
-    class Config:
-        smart_union = True
 
 
 class CellDetail(BaseModel):
