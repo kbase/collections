@@ -644,6 +644,7 @@ class ArangoStorage:
         return match
 
     def _to_internal_match(self, doc: dict[str, Any]) -> models.InternalMatch:
+        doc[models.FIELD_MATCH_WSIDS] = set(doc[models.FIELD_MATCH_WSIDS])
         return models.InternalMatch.construct(
             **models.remove_non_model_fields(doc, models.InternalMatch))
 
