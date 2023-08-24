@@ -3,24 +3,31 @@ Common pydantic and fastAPI models for heat map data products.
 """
 
 from enum import Enum
+
 from pydantic import BaseModel, Field
 
 from src.common.product_models.common_models import SubsetProcessStates
-
 
 # these fields need to match the fields in the models below.
 FIELD_HEATMAP_DATA = "data"
 FIELD_HEATMAP_MIN_VALUE = "min_value"
 FIELD_HEATMAP_MAX_VALUE = "max_value"
 FIELD_HEATMAP_COUNT = "count"
-FIELD_HEATMAP_CELL_VALUE = "val"
+FIELD_HEATMAP_VALUES = 'values'
 FIELD_HEATMAP_ROW_CELLS = "cells"
 FIELD_HEATMAP_CELL_ID = 'cell_id'
+FIELD_HEATMAP_COL_ID = 'col_id'
+FIELD_HEATMAP_CELL_VALUE = "val"
+FIELD_HEATMAP_NAME = "name"
+FIELD_HEATMAP_DESCR = "description"
+FIELD_HEATMAP_TYPE = "type"
+FIELD_HEATMAP_CATEGORY = "category"
 
 _FLD_CELL_ID = Field(
     example="4",
     description="The unique ID of the cell in the heatmap."
 )
+
 
 class ColumnType(str, Enum):
     """
@@ -50,7 +57,7 @@ class ColumnInformation(BaseModel):
     )
     description: str = Field(
         example="Spizizen medium (SM) is a popular minimal medium for the cultivation of "
-            + "B. subtilis.",
+                + "B. subtilis.",
         description="The description of the column."
     )
     type: ColumnType = Field(
@@ -66,7 +73,7 @@ class ColumnCategory(BaseModel):
     category: str | None = Field(
         example="Minimal media",
         description="The name of the category that groups columns together. Null if "
-            + "columns are not categorized."
+                    + "columns are not categorized."
     )
     columns: list[ColumnInformation] = Field(
         description="The columns in the category, provided in render order."
@@ -103,8 +110,9 @@ class Cell(BaseModel):
         example=4.2,
         description="The value of the heatmap at this cell."
     )
+
     class Config:
-        smart_union=True
+        smart_union = True
 
 
 class HeatMapRow(BaseModel):
@@ -144,12 +152,12 @@ class HeatMap(SubsetProcessStates):
     min_value: float | None = Field(
         example=32.4,
         description="The minimum cell value in the rows in this heatmap "
-            + "or null if there are no rows."
+                    + "or null if there are no rows."
     )
     max_value: float | None = Field(
         example=71.8,
         description="The maximum cell value in the rows in this heatmap "
-            + "or null if there are no rows."
+                    + "or null if there are no rows."
     )
     count: int | None = Field(
         example=42,
@@ -169,8 +177,9 @@ class CellDetailEntry(BaseModel):
         example=56.1,
         description="The value of the cell entry."
     )
+
     class Config:
-        smart_union=True
+        smart_union = True
 
 
 class CellDetail(BaseModel):
