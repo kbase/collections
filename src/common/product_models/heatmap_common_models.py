@@ -1,5 +1,5 @@
 """
-Common pydantic and fastAPI models for heat map data products.
+Common pydantic models for heat map data products.
 """
 
 from enum import Enum
