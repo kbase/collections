@@ -78,6 +78,9 @@ async def _activate_collection_version(
 ) -> models.ActiveCollection:
     doc = col.dict()
     doc.update({
+        # otherwise the pydantic validation chokes on the dicts
+        models.FIELD_MATCHERS: col.matchers,
+        models.FIELD_DATA_PRODUCTS: col.data_products,
         models.FIELD_DATE_ACTIVE: timestamp(),
         models.FIELD_USER_ACTIVE: user.user.id
     })
