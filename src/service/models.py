@@ -46,6 +46,7 @@ FIELD_MATCHERS_MATCHER = "matcher"
 FIELD_MATCH_INTERNAL_MATCH_ID = "internal_match_id"
 FIELD_MATCH_USER_PERMS = "user_last_perm_check"
 FIELD_MATCH_MATCHES = "matches"
+FIELD_MATCH_WSIDS = "wsids"
 FIELD_SELECTION_INTERNAL_SELECTION_ID = "internal_selection_id"
 FIELD_SELECTION_UNMATCHED_IDS = "unmatched_ids"
 FIELD_DATA_PRODUCT_PROCESS_MISSING_IDS = "missing_ids"
@@ -137,7 +138,7 @@ class DataProduct(BaseModel):
 
     @field_validator("product", "version", mode="before")
     @classmethod
-    def _strip(cls, v):  # @NoSelf
+    def _strip(cls, v):
         return v.strip()
 
 
@@ -183,6 +184,18 @@ class Collection(BaseModel):
             description="A url to an image icon for the collection."
         )
     ] = None
+    attribution: Annotated[
+        str | None,
+        Field(
+            min_length=1,
+            max_length=10000,
+            example="This collection was contributed by the <organization here> "
+                + "project. For more details, see <DOI here> and <website here>. "
+                + "\n\nFunding was provided by <funding organization here> grant number <#>.",
+            description="Markdown text describing the source of the data and to whom credit "
+                + "belongs. DOI and citation information may be included."
+        )
+    ] = None
     data_products: list[DataProduct] = Field(
         description="The data products associated with the collection"
     )
@@ -203,16 +216,16 @@ class Collection(BaseModel):
 
     @field_validator("name", "ver_src", mode="before")
     @classmethod
-    def _strip_and_fail_on_control_characters(cls, v):  # @NoSelf
+    def _strip_and_fail_on_control_characters(cls, v):
         v = v.strip()
         pos = contains_control_characters(v)
         if pos > -1:
             raise ValueError(f"contains a control character at position {pos}")
         return v
 
-    @field_validator("desc", mode="before")
+    @field_validator("desc", "attribution", mode="before")
     @classmethod
-    def _strip_and_fail_on_control_characters_with_exceptions(cls, v):  # @NoSelf
+    def _strip_and_fail_on_control_characters_with_exceptions(cls, v):
         if v is None:
             return None
         v = v.strip()
