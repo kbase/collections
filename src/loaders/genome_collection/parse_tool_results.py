@@ -401,6 +401,11 @@ def _create_meta_lookup(root_dir, env, kbase_collection, load_ver, tool):
     return meta_lookup
 
 
+def _ensure_list_ordered(a_list: list[str]) -> bool:
+    # Given a list of int strings, check if the list is ordered in ascending order
+    return a_list == sorted(a_list, key=int)
+
+
 def _build_heatmap_meta(
         reference_meta: list[dict],
         kbase_collection: str,
@@ -424,6 +429,13 @@ def _build_heatmap_meta(
         heatmap_categories.values(),
         key=lambda category: int(category[FIELD_HEATMAP_COLUMNS][0][FIELD_HEATMAP_COL_ID])
     )
+
+    # this is to ensure that the column ids are in ascending order within each category
+    # TODO: might need to skip this step for heatmap products other than microtrait
+    for category in sorted_categories:
+        column_ids = [column[FIELD_HEATMAP_COL_ID] for column in category[FIELD_HEATMAP_COLUMNS]]
+        if not _ensure_list_ordered(column_ids):
+            raise ValueError(f'Column ids are not ordered in ascending order: {column_ids}')
 
     heatmap_meta = {FIELD_HEATMAP_CATEGORIES: sorted_categories,
                     FIELD_HEATMAP_MIN_VALUE: min_value,
