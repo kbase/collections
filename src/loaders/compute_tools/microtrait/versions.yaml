@@ -5,3 +5,7 @@ versions:
     date: 2023-08-16
     notes: |
       - install jsonlines to support saving of Microtrait output
+  - version: 0.1.2
+    date: 2023-08-24
+    notes: |
+      - upgrade pydantic to 2.3.0
