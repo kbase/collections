@@ -30,7 +30,7 @@ from src.service.data_products import genome_attributes
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
-from typing import Any
+from typing import Any, Annotated
 
 
 ID = "taxa_count"
@@ -120,14 +120,14 @@ class TaxaCount(BaseModel):
         example=42,
         description="The number of genomes in the collection in this taxa"
     )
-    match_count: int | None = Field(
+    match_count: Annotated[int | None, Field(
         example=24,
         description="The number of genomes in the collection in this taxa for the match"
-    )
-    sel_count: int | None = Field(
+    )] = None
+    sel_count: Annotated[int | None, Field(
         example=35,
         description="The number of genomes in the collection in this taxa for the selection"
-    )
+    )] = None
 
 
 # these need to match the field names in TaxaCount above

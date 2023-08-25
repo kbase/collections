@@ -510,13 +510,13 @@ class DataProductProcess(DataProductProcessIdentifier, ProcessAttributes):
     # last access / user perms are tracked in the primary match document. When that document
     # is deleted in the DB, this one should be as well (after deleting any data associated with
     # the match).
-    missing_ids: list[str] | None = Field(
+    missing_ids: Annotated[list[str] | None, Field(
         example=FIELD_SELECTION_EXAMPLE,
         description="Any IDs that were not found during the match or selection processing but "
             + "were not in the original match. This may happen normally if a data product "
             + "depends on data that is not available at the data source for a subset of the "
             + "data units at the data source."
-    )
+    )] = None
 
 
 class Selection(CollectionSpec, ProcessStateField):

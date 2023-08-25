@@ -135,9 +135,10 @@ class SampleLocation(BaseModel):
     lat: float = Field(example=36.1, description="The latitude of the location in degrees.")
     lon: float = Field(example=-28.2, description="The longitude of the location in degrees.")
     count: int = Field(example=3, description="The number of genomes found at the location.")
-    ids: list[str] | None = Field(
+    ids: Annotated[list[str] | None, Field(
         example=["993eeea2-5323-44dd-80d5-18b1f7cb57bf"],
-        description="The sample IDs found at the location.")
+        description="The sample IDs found at the location."
+    )] = None
 
 
 class SampleLocations(SubsetProcessStates):
