@@ -486,6 +486,7 @@ def microtrait(root_dir, env, kbase_collection, load_ver, fatal_ids):
 
             # process heatmap metadata
             with jsonlines.open(data_dir / MICROTRAIT_META, 'r') as jsonl_f:
+                # The microtrait runner saves the metadata as jsonl with 1 trait column per line
                 metas = [meta for meta in jsonl_f]
 
                 # reading the metadata from the first data dir as the metadata should be consistent across all data dirs
