@@ -252,7 +252,7 @@ class ArangoStorage:
         The caller is expected to use the `get_next_version` method to get a version number for
         the collection.
         """
-        doc = collection.dict()
+        doc = jsonable_encoder(collection)
         # ver_tag is pretty unconstrained so MD5 to get rid of any weird characters
         doc[names.FLD_ARANGO_KEY] = _version_key(collection.id, collection.ver_tag)
         col = self._db.collection(names.COLL_SRV_VERSIONS)
@@ -916,7 +916,7 @@ class ArangoStorage:
             data_product=dp_match.data_product,
             type=dp_match.type
         ))
-        doc = dp_match.dict()
+        doc = jsonable_encoder(dp_match)
         doc[names.FLD_ARANGO_KEY] = key
         # See Note 1 at the beginning of the file
         col = self._db.collection(names.COLL_SRV_DATA_PRODUCT_PROCESSES)

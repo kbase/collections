@@ -91,7 +91,7 @@ _PATH_VER_TAG = Path(
     max_length=50,
     # pydantic uses the stdlib re under the hood, which doesn't understand \pC, so
     # routes need to manually check for control characters
-    regex=models.REGEX_NO_WHITESPACE,  
+    pattern=models.REGEX_NO_WHITESPACE,
     example=models.FIELD_VER_TAG_EXAMPLE,
     description=models.FIELD_VER_TAG_DESCRIPTION
 )
@@ -398,7 +398,7 @@ async def create_sets(
         # https://github.com/kbase/workspace_deluxe/blob/4c03b4364a2ccc292f60ccd629cbb5f71b25bfcc/src/us/kbase/workspace/database/ObjectIDNoWSNoVer.java
         min_length=1,
         max_length=255,
-        regex=r"^[\w\.\|_-]+$"
+        pattern=r"^[\w\.\|_-]+$"
     ),
     ws_type: str = Path(
         example="KBaseGenomeAnnotations.Assembly",
@@ -454,11 +454,11 @@ async def save_collection(
     ver_num = await store.get_next_version(collection_id)
     doc.update({
         models.FIELD_MATCHERS: sorted(
-            doc[models.FIELD_MATCHERS],
-            key=lambda m: m[models.FIELD_MATCHERS_MATCHER]),
+            [models.Matcher.construct(**d) for d in doc[models.FIELD_MATCHERS]],
+            key=lambda m: m.matcher),
         models.FIELD_DATA_PRODUCTS: sorted(
-            doc[models.FIELD_DATA_PRODUCTS],
-            key=lambda m: m[models.FIELD_DATA_PRODUCTS_PRODUCT]),
+            [models.DataProduct.construct(**d) for d in doc[models.FIELD_DATA_PRODUCTS]],
+            key=lambda m: m.product),
         models.FIELD_COLLECTION_ID: collection_id,
         models.FIELD_VER_TAG: ver_tag,
         models.FIELD_VER_NUM: ver_num,
@@ -544,7 +544,7 @@ async def activate_collection_by_ver_num(
 async def get_collection_versions(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
-    max_ver: int | None = _QUERY_MAX_VER,
+    max_ver: int = _QUERY_MAX_VER,
     user: kb_auth.KBaseUser=Depends(_AUTH),
 ) -> CollectionVersions:
     store = _precheck_admin_and_get_storage(r, user, "", "view collection versions")

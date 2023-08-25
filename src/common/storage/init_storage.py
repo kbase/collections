@@ -21,7 +21,7 @@ _COLL_NAME = "collname"
 
 def _get_config() -> CollectionsServiceConfig:
     parser = argparse.ArgumentParser(
-        description="Set up ArangoDB collection sharding for the KBase collectins service."
+        description="Set up ArangoDB collection sharding for the KBase collections service."
     )
     parser.add_argument(
         '-c', '--config', required=True, type=str,
@@ -33,7 +33,7 @@ def _get_config() -> CollectionsServiceConfig:
         "-s", "--skip-database-creation", action="store_true",
         help="Don't create the database. This is necessary if the credentials in the config "
             + "file don't have permissions for the _system database; however the target database "
-            + "must alreaady exist."
+            + "must already exist."
     )
     args = parser.parse_args()
     with open(args.config, 'rb') as cfgfile:
