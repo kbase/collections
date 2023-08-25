@@ -4,6 +4,7 @@ Runs microtrait on a set of assemblies.
 import os
 import uuid
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 from rpy2 import robjects
@@ -17,7 +18,8 @@ from src.common.product_models.heatmap_common_models import (
     FIELD_HEATMAP_NAME,
     FIELD_HEATMAP_DESCR,
     FIELD_HEATMAP_TYPE,
-    FIELD_HEATMAP_CATEGORY)
+    FIELD_HEATMAP_CATEGORY,
+    ColumnType)
 from src.common.storage.field_names import FLD_KBASE_ID
 from src.loaders.common import loader_common_names
 from src.loaders.compute_tools.tool_common import (
@@ -90,6 +92,33 @@ def _r_table_to_df(r_table):
     return df
 
 
+def _is_float_int(num: Any) -> bool:
+    # Check if a number is an integer or a float with an integer value
+    return isinstance(num, int) or (isinstance(num, float) and num.is_integer())
+
+
+def _int(num: float | int) -> int:
+    # Convert a float to an integer if the float is an integer
+    if _is_float_int(num):
+        return int(num)
+    else:
+        raise ValueError(f'Input must be an integer. Got {num} instead.')
+
+
+def _is_binary(num: int) -> bool:
+    # Given a number, checks if it is a binary num (i.e., being only 0 or 1).
+    return num == 0 or num == 1
+
+
+def _num_to_bool(num: int | bool) -> bool:
+    # Given a number, checks if it is a binary type (i.e., contains only 0s and 1s).
+
+    if _is_binary(num):
+        return bool(num)
+    else:
+        raise ValueError(f'Input must be a binary number (i.e., 0 or 1). Got {num} instead.')
+
+
 def _process_trait_counts(
         trait_counts_df: pd.DataFrame,
         data_id: str):
@@ -113,6 +142,17 @@ def _process_trait_counts(
     traits = trait_df.to_dict(orient='records')
     cells, cells_meta, traits_meta = list(), list(), list()
     for trait in traits:
+
+        # process trait info by different trait types
+        if trait[FIELD_HEATMAP_TYPE] == 'count':
+            trait[FIELD_HEATMAP_TYPE] = ColumnType.COUNT.value
+            trait[FIELD_HEATMAP_CELL_VALUE] = _int(trait[FIELD_HEATMAP_CELL_VALUE])
+        elif trait[FIELD_HEATMAP_TYPE] == 'binary':
+            trait[FIELD_HEATMAP_TYPE] = ColumnType.BOOL.value
+            trait[FIELD_HEATMAP_CELL_VALUE] = _num_to_bool(trait[FIELD_HEATMAP_CELL_VALUE])
+        else:
+            raise ValueError(f'Unknown trait type {trait[FIELD_HEATMAP_TYPE]}')
+
         cell_uuid = str(uuid.uuid4())
         # process cell data
         cells.append({FIELD_HEATMAP_CELL_ID: cell_uuid,
@@ -131,6 +171,12 @@ def _process_trait_counts(
                            FIELD_HEATMAP_TYPE]
 
         traits_meta.append({key: trait[key] for key in trait_meta_keys})
+
+    # sort the traits_meta list by FIELD_HEATMAP_COL_ID
+    traits_meta = sorted(traits_meta, key=lambda x: int(x[FIELD_HEATMAP_COL_ID]))
+
+    # sort the cells list by FIELD_HEATMAP_COL_ID
+    cells = sorted(cells, key=lambda x: int(x[FIELD_HEATMAP_COL_ID]))
 
     heatmap_row = [{FLD_KBASE_ID: data_id,
                     FIELD_HEATMAP_ROW_CELLS: cells}]

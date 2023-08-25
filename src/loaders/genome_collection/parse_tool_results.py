@@ -419,12 +419,13 @@ def _build_heatmap_meta(
         del meta_without_category[FIELD_HEATMAP_CATEGORY]
         heatmap_categories[category][FIELD_HEATMAP_COLUMNS].append(meta_without_category)
 
-    # sort the columns by column id
-    for category in heatmap_categories.values():
-        category[FIELD_HEATMAP_COLUMNS] = sorted(category[FIELD_HEATMAP_COLUMNS],
-                                                 key=lambda x: int(x[FIELD_HEATMAP_COL_ID]))
+    # sort the categories by the first column id
+    sorted_categories = sorted(
+        heatmap_categories.values(),
+        key=lambda category: int(category[FIELD_HEATMAP_COLUMNS][0][FIELD_HEATMAP_COL_ID])
+    )
 
-    heatmap_meta = {FIELD_HEATMAP_CATEGORIES: list(heatmap_categories.values()),
+    heatmap_meta = {FIELD_HEATMAP_CATEGORIES: sorted_categories,
                     FIELD_HEATMAP_MIN_VALUE: min_value,
                     FIELD_HEATMAP_MAX_VALUE: max_value,
                     names.FLD_ARANGO_KEY: collection_load_version_key(kbase_collection, load_ver),
@@ -462,20 +463,19 @@ def microtrait(root_dir, env, kbase_collection, load_ver, fatal_ids):
             # process heatmap rows
             with jsonlines.open(data_dir / MICROTRAIT_DATA, 'r') as jsonl_f:
                 for data in jsonl_f:
-                    # ensure cells are ordered by column id
-                    ordered_cells = sorted(data[FIELD_HEATMAP_ROW_CELLS],
-                                           key=lambda x: int(x[FIELD_HEATMAP_COL_ID]))
-                    for cell in ordered_cells:
+                    cells = data[FIELD_HEATMAP_ROW_CELLS]
+                    for cell in cells:
                         cell_val = cell[FIELD_HEATMAP_CELL_VALUE]
                         min_value = min(min_value, cell_val)
                         max_value = max(max_value, cell_val)
-                    data[FIELD_HEATMAP_ROW_CELLS] = ordered_cells
+                    data[FIELD_HEATMAP_ROW_CELLS] = cells
                     heatmap_rows.append(dict(data,
                                              **init_row_doc(kbase_collection, load_ver, data[names.FLD_KBASE_ID])))
 
             # process heatmap metadata
             with jsonlines.open(data_dir / MICROTRAIT_META, 'r') as jsonl_f:
                 metas = [meta for meta in jsonl_f]
+
                 if reference_meta is None:
                     reference_meta = metas
 
