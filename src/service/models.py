@@ -11,8 +11,8 @@ may still pass. In this case, a translation from the older data is required.
 """
 
 from enum import Enum
-from pydantic import BaseModel, Field, validator, HttpUrl, root_validator
-from typing import Any, Optional
+from pydantic import field_validator, BaseModel, Field, HttpUrl, model_validator
+from typing import Any, Self, Annotated
 
 from src.service.arg_checkers import contains_control_characters
 
@@ -101,7 +101,7 @@ FIELD_SELECTION_UNMATCHED_DESCRIPTION = (
 DATA_PRODUCT_ID_FIELD_PROPS = {
     "min_length": 1,
     "max_length": 20,
-    "regex": "^[a-z_]+$",
+    "pattern": "^[a-z_]+$",
     "example": "taxa_count",
     "description": "The ID of the data product",
 }
@@ -113,7 +113,7 @@ DATA_PRODUCT_ID_FIELD = Field(**DATA_PRODUCT_ID_FIELD_PROPS)
 MATCHER_ID_PROPS = {
     "min_length": 1,
     "max_length": 20,
-    "regex": "^[a-z_]+$",
+    "pattern": "^[a-z_]+$",
     "example": "gtdb_lineage",
     "description": "The ID of the matcher",
 }
@@ -128,14 +128,15 @@ class DataProduct(BaseModel):
     version: str = Field(
         min_length = LENGTH_MIN_LOAD_VERSION,
         max_length = LENGTH_MAX_LOAD_VERSION,
-        regex = REGEX_LOAD_VERSION,
+        pattern = REGEX_LOAD_VERSION,
         example=FIELD_LOAD_VERSION_EXAMPLE,
         description=FIELD_LOAD_VERSION_DESCRIPTION
     )
     # in the future we may want a schema version... need to think this through first.
     # assume missing == schema version 1 for now
 
-    @validator("product", "version", pre=True)
+    @field_validator("product", "version", mode="before")
+    @classmethod
     def _strip(cls, v):  # @NoSelf
         return v.strip()
 
@@ -162,36 +163,46 @@ class Collection(BaseModel):
     ver_src: str = Field(
         min_length=1,
         max_length=50,
-        regex=REGEX_NO_WHITESPACE,
+        pattern=REGEX_NO_WHITESPACE,
         example="r207",
         description="The version of the collection at the collection data source."
     )
-    desc: Optional[str] = Field(
-        min_length=1,
-        max_length=1000,
-        example="This is a collection of used hot dogs collected from Coney Island in 1892.",
-        description="A free text description of the collection."
-    )
-    icon_url: Optional[HttpUrl] = Field(
-        example="https://live.staticflickr.com/3091/2883561418_dafc36c92b_z.jpg",
-        description="A url to an image icon for the collection."
-    )
+    desc: Annotated[
+        str | None,
+        Field(
+            min_length=1,
+            max_length=1000,
+            example="This is a collection of used hot dogs collected from Coney Island in 1892.",
+            description="A free text description of the collection."
+        )
+    ] = None
+    icon_url: Annotated[
+        HttpUrl | None,
+        Field(
+            example="https://live.staticflickr.com/3091/2883561418_dafc36c92b_z.jpg",
+            description="A url to an image icon for the collection."
+        )
+    ] = None
     data_products: list[DataProduct] = Field(
         description="The data products associated with the collection"
     )
     matchers: list[Matcher] = Field(
         description="The matchers associated with the collection"
     )
-    default_select: str | None = Field(  # might need to make this a list in future...? not sure
-        **DATA_PRODUCT_ID_FIELD_PROPS | {
-        "description":
-            "The ID of the data product to which non-data product specific selections "
-            + "should be applied. If present, the data product must be listed in the data "
-            + "products list. If absent, most selections will fail."
-        }
-    )
+    default_select: Annotated[
+        str | None,
+        Field(  # might need to make this a list in future...? not sure
+            **DATA_PRODUCT_ID_FIELD_PROPS | {
+            "description":
+                "The ID of the data product to which non-data product specific selections "
+                + "should be applied. If present, the data product must be listed in the data "
+                + "products list. If absent, most selections will fail."
+            }
+        )
+    ] = None
 
-    @validator("name", "ver_src", pre=True)
+    @field_validator("name", "ver_src", mode="before")
+    @classmethod
     def _strip_and_fail_on_control_characters(cls, v):  # @NoSelf
         v = v.strip()
         pos = contains_control_characters(v)
@@ -199,7 +210,8 @@ class Collection(BaseModel):
             raise ValueError(f"contains a control character at position {pos}")
         return v
 
-    @validator("desc", pre=True)
+    @field_validator("desc", mode="before")
+    @classmethod
     def _strip_and_fail_on_control_characters_with_exceptions(cls, v):  # @NoSelf
         if v is None:
             return None
@@ -209,12 +221,14 @@ class Collection(BaseModel):
             raise ValueError(f"contains a non tab or newline control character at position {pos}")
         return v
 
-    @validator("data_products")
-    def _check_data_products_unique(cls, v):  # @NoSelf
+    @field_validator("data_products")
+    @classmethod
+    def _check_data_products_unique(cls, v):
         return cls._checkunique(v, lambda dp: dp.product, "data product")
 
-    @validator("matchers")
-    def _check_matchers_unique(cls, v):  # @NoSelf
+    @field_validator("matchers")
+    @classmethod
+    def _check_matchers_unique(cls, v):
         return cls._checkunique(v, lambda m: m.matcher, "matcher")
 
     @classmethod
@@ -226,16 +240,15 @@ class Collection(BaseModel):
             seen.add(accessor(it))
         return items
 
-    @root_validator
-    def _check_default_selection(cls, values):  # @NoSelf
-        select = values.get("default_select")
-        if select:
-            dps = {dp.product for dp in values[FIELD_DATA_PRODUCTS]}
-            if select not in dps:
-                raise ValueError(f"The default selection data product {select} "
+    @model_validator(mode="after")
+    def _check_default_selection(self) -> Self:
+        if self.default_select:
+            dps = {dp.product for dp in self.data_products}
+            if self.default_select not in dps:
+                raise ValueError(f"The default selection data product {self.default_select} "
                     + "is not in the set of specified data products"
                 )
-        return values
+        return self
 
 
 # No need to worry about field validation here since the service is assigning the values
@@ -309,11 +322,14 @@ class ProcessAttributes(ProcessStateField):
         description="Milliseconds since the Unix epoch at the point the data and "
             + "corresponding process was created."
     )
-    heartbeat: int | None = Field(
-        example=1674243789866,
-        description="Milliseconds since the Unix epoch at the last time the process sent "
-            + "a heartbeat. Used to determine when the process needs to be restarted."
-    )
+    heartbeat: Annotated[
+        int | None,
+        Field(
+            example=1674243789866,
+            description="Milliseconds since the Unix epoch at the last time the process sent "
+                + "a heartbeat. Used to determine when the process needs to be restarted."
+        )
+    ] = None
     # Note this means that processes should be idempotent - running the same process twice,
     # even if one of the processes was interrupted, should produce the same result when at
     # least one process completes
@@ -513,10 +529,13 @@ class SelectionVerbose(Selection):
         example=FIELD_SELECTION_EXAMPLE,
         description=FIELD_SELECTION_IDS_DESCRIPTION
     )
-    unmatched_ids: list[str] | None = Field(
-        example=FIELD_SELECTION_EXAMPLE,
-        description=FIELD_SELECTION_UNMATCHED_DESCRIPTION
-    )
+    unmatched_ids: Annotated[
+        list[str] | None,
+        Field(
+            example=FIELD_SELECTION_EXAMPLE,
+            description=FIELD_SELECTION_UNMATCHED_DESCRIPTION
+        )
+    ] = None
 
 
 class InternalSelection(SelectionVerbose, ProcessAttributes, LastAccess):

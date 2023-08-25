@@ -298,7 +298,7 @@ async def get_sample_locations(
             + "time and a lot of memory. In the future it may be disallowed for collections with "
             + "large numbers of samples."
     )] = False,
-    match_id: Annotated[str | None, Query(
+    match_id: Annotated[str, Query(
         description="A match ID to set the view to the match rather than "
             + "the entire collection. Authentication is required. If a match ID is "
             # matches are against a specific load version, so...
@@ -306,7 +306,7 @@ async def get_sample_locations(
             + "If a selection filter and a match filter are provided, they are ANDed together. "
     )] = None,
     # TODO FEATURE support a choice of AND or OR for matches & selections
-    selection_id: Annotated[str | None, Query(
+    selection_id: Annotated[str, Query(
         description="A selection ID to set the view to the selection rather than the entire "
             + "collection. If a selection ID is set, any load version override is ignored. "
             + "If a selection filter and a match filter are provided, they are ANDed together. "
@@ -492,8 +492,8 @@ async def get_samples_by_id(
 async def get_missing_ids(
     r: Request,
     collection_id: Annotated[str, PATH_VALIDATOR_COLLECTION_ID],
-    match_id: Annotated[str | None, Query(description="A match ID.")] = None,
-    selection_id: Annotated[str | None, Query(description="A selection ID.")] = None,
+    match_id: Annotated[str, Query(description="A match ID.")] = None,
+    selection_id: Annotated[str, Query(description="A selection ID.")] = None,
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH),
 ) -> common_models.DataProductMissingIDs:
     return await _get_missing_ids(
