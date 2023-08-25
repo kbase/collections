@@ -476,6 +476,7 @@ def microtrait(root_dir, env, kbase_collection, load_ver, fatal_ids):
             with jsonlines.open(data_dir / MICROTRAIT_META, 'r') as jsonl_f:
                 metas = [meta for meta in jsonl_f]
 
+                # reading the metadata from the first data dir as the metadata should be consistent across all data dirs
                 if reference_meta is None:
                     reference_meta = metas
 
