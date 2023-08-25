@@ -4,7 +4,7 @@ Matches assemblies and genomes to collections based on the GTDB lineage string.
 
 import logging
 
-from pydantic import BaseModel, Field, Extra
+from pydantic import ConfigDict, BaseModel, Field
 from typing import Any
 
 from src.common.constants import GTDB_UNCLASSIFIED_PREFIX
@@ -32,10 +32,9 @@ class GTDBLineageMatcherCollectionParameters(BaseModel):
         description="The GTDB version of the collection in which the matcher is installed. " +
             "Input data to the matcher must match this version of GTDB or the match will " +
             "abort.",
-        regex=r"^\d{2,4}\.\d{1,2}$"  # giving a little room for expansion
+        pattern=r"^\d{2,4}\.\d{1,2}$"  # giving a little room for expansion
     )
-    class Config:
-        extra = Extra.forbid
+    model_config = ConfigDict(extra="forbid")
 
 
 class GTDBLineageMatcherUserParameters(BaseModel):
@@ -44,8 +43,7 @@ class GTDBLineageMatcherUserParameters(BaseModel):
         example=GTDBRank.SPECIES,
         description="A rank in the the GTDB lineage."
     )
-    class Config:
-        extra = Extra.forbid
+    model_config = ConfigDict(extra="forbid")
 
 
 async def _process_match(
@@ -153,6 +151,6 @@ MATCHER = GTDBLineageMatcher(
         "KBaseSets.AssemblySet",
     ],
     required_data_products=[genome_attributes.ID],
-    user_parameters=GTDBLineageMatcherUserParameters.schema(),
-    collection_parameters=GTDBLineageMatcherCollectionParameters.schema()
+    user_parameters=GTDBLineageMatcherUserParameters.model_json_schema(),
+    collection_parameters=GTDBLineageMatcherCollectionParameters.model_json_schema()
 )

@@ -225,7 +225,7 @@ class HeatMapController:
         self,
         r: Request,
         collection_id: Annotated[str, PATH_VALIDATOR_COLLECTION_ID],
-        start_after: str | None = Query(
+        start_after: str = Query(
             default=None,
             example="GB_GCA_000006155.2",
             description=f"The `{names.FLD_KBASE_ID}` to start after when listing data. This "
@@ -290,8 +290,8 @@ class HeatMapController:
         self,
         r: Request,
         collection_id: Annotated[str, PATH_VALIDATOR_COLLECTION_ID],
-        match_id: Annotated[str | None, Query(description="A match ID.")] = None,
-        selection_id: Annotated[str | None, Query(description="A selection ID.")] = None,
+        match_id: Annotated[str, Query(description="A match ID.")] = None,
+        selection_id: Annotated[str, Query(description="A selection ID.")] = None,
         user: kb_auth.KBaseUser = Depends(_OPT_AUTH),
     ) -> DataProductMissingIDs:
         return await get_missing_ids(

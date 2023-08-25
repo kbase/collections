@@ -3,7 +3,7 @@ Data structures common to all data products
 """
 
 from fastapi import APIRouter, Query
-from pydantic import BaseModel, validator, Field
+from pydantic import field_validator, ConfigDict, BaseModel, Field
 from src.common.product_models.common_models import SubsetProcessStates
 from src.common.storage import collection_and_field_names as names
 from src.service import models
@@ -58,14 +58,13 @@ class DataProductSpec(BaseModel):
     in the `tags` argument.
     """
 
-    @validator("router")
+    @field_validator("router")
+    @classmethod
     def _check_router_tags(cls, v):  # @NoSelf
         if not v.tags:
             raise ValueError("router must have at least one tag")
         return v
-
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class DataProductMissingIDs(SubsetProcessStates):
@@ -82,10 +81,10 @@ class DataProductMissingIDs(SubsetProcessStates):
     )
 
 
-QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = Annotated[str | None, Query(
+QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = Annotated[str, Query(
     min_length=models.LENGTH_MIN_LOAD_VERSION,
     max_length=models.LENGTH_MAX_LOAD_VERSION,
-    regex=models.REGEX_LOAD_VERSION,
+    pattern=models.REGEX_LOAD_VERSION,
     example=models.FIELD_LOAD_VERSION_EXAMPLE,
     description=models.FIELD_LOAD_VERSION_DESCRIPTION + ". This will override the collection's "
         + "load version. Service administrator privileges are required."
@@ -114,7 +113,7 @@ QUERY_VALIDATOR_COUNT = Annotated[bool, Query(
 )]
 
 
-QUERY_VALIDATOR_MATCH_ID = Annotated[str | None, Query(
+QUERY_VALIDATOR_MATCH_ID = Annotated[str, Query(
     description="A match ID to set the view to the match rather than "
         + "the entire collection. Authentication is required. If a match ID is "
         # matches are against a specific load version, so...
@@ -136,7 +135,7 @@ QUERY_VALIDATOR_MATCH_MARK_SAFE = Annotated[bool, Query(
 )]
 
 
-QUERY_VALIDATOR_SELECTION_ID = Annotated[str | None, Query(
+QUERY_VALIDATOR_SELECTION_ID = Annotated[str, Query(
     description="A selection ID to set the view to the selection rather than the entire "
         + "collection. If a selection ID is set, any load version override is ignored. "
         + "If a selection filter and a match filter are provided, they are ANDed together. "
@@ -161,7 +160,7 @@ QUERY_VALIDATOR_STATUS_ONLY = Annotated[bool, Query(
 )]
 
 
-QUERY_VALIDATOR_SORT_ON = Annotated[str | None, Query(
+QUERY_VALIDATOR_SORT_ON = Annotated[str, Query(
     example=names.FLD_KBASE_ID,
     description="The field to sort on."
 )]

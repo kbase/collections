@@ -141,7 +141,7 @@ class TaxaCounts(SubsetProcessStates):
     """
     The taxa counts data set.
     """
-    data: list[TaxaCount] | None
+    data: list[TaxaCount] | None = None
 
 
 _FLD_COL_ID = "colid"
@@ -193,13 +193,13 @@ async def get_taxa_counts(
         example="phylum",
         description="The taxonomic rank at which to return results"
     ),
-    match_id: str | None = Query(
+    match_id: str = Query(
         default = None,
         description="A match ID to include the match count in the taxa count data. "
             + "Authentication is required. "
             # matches are against a specific load version, so...
             + "Note that if a match ID is set, any load version override is ignored."),
-    selection_id: str | None = Query(
+    selection_id: str = Query(
         default = None,
         description="A selection ID to include the selection count in the taxa count data. "
             + "Note that if a selection ID is set, any load version override is ignored."),

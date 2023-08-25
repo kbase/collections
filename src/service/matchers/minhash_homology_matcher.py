@@ -17,7 +17,7 @@ Matches assemblies and genomes to collections based on Minhash homology.
 import asyncio
 import logging
 
-from pydantic import BaseModel, Field, Extra, HttpUrl
+from pydantic import ConfigDict, BaseModel, Field, HttpUrl
 
 from src.service import data_product_specs
 from src.service import models
@@ -48,8 +48,7 @@ class MinHashHomologyMatcherCollectionParameters(BaseModel):
         description="The name of the sketch database in the Assembly Homology Service to match "
             + "against. This parameter is sent to the sketch service."
     )
-    class Config:
-        extra = Extra.forbid
+    model_config = ConfigDict(extra="forbid")
 
 
 class MinHashHomologyMatcherUserParameters(BaseModel):
@@ -63,8 +62,7 @@ class MinHashHomologyMatcherUserParameters(BaseModel):
     )
     # TODO HOMOLOGY_MATCHER may want to support more parameters if we switch to a different
     #                       implementation like sourmash
-    class Config:
-        extra = Extra.forbid
+    model_config = ConfigDict(extra="forbid")
 
 
 async def _get_sketch_service_client(collection_parameters: dict[str, Any]):
@@ -225,6 +223,6 @@ MATCHER = MinhashHomologyMatcher(
         "KBaseSets.AssemblySet",
     ],
     required_data_products=[genome_attributes.ID],
-    user_parameters=MinHashHomologyMatcherUserParameters.schema(),
-    collection_parameters=MinHashHomologyMatcherCollectionParameters.schema()
+    user_parameters=MinHashHomologyMatcherUserParameters.model_json_schema(),
+    collection_parameters=MinHashHomologyMatcherCollectionParameters.model_json_schema()
 )
