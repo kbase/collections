@@ -1,9 +1,9 @@
 import os
 import shutil
 import uuid
-from collections import namedtuple
 from multiprocessing import Queue
 from pathlib import Path
+from typing import NamedTuple
 from unittest.mock import Mock, create_autospec
 
 import pytest
@@ -18,6 +18,14 @@ ASSEMBLY_NAMES = [
     "GCF_000979855.1_gtlEnvA5udCFS_genomic.fna.gz",
     "GCF_000979175.1_gtlEnvA5udCFS_genomic.fna.gz",
 ]
+
+
+class Params(NamedTuple):
+    tmp_dir: str
+    sourcedata_dir: str
+    collection_source_dir: str
+    assembly_dirs: list[str]
+    target_files: list[str]
 
 
 @pytest.fixture(scope="function")
@@ -45,18 +53,7 @@ def setup_and_teardown():
         assembly_dirs.append(str(new_dir_path))
         target_files.append(str(target_file_path))
 
-    ParamsTuple = namedtuple(
-        "ParamsTuple",
-        [
-            "tmp_dir",
-            "sourcedata_dir",
-            "collection_source_dir",
-            "assembly_dirs",
-            "target_files",
-        ],
-    )
-
-    yield ParamsTuple(
+    yield Params(
         tmp_dir, sourcedata_dir, collection_source_dir, assembly_dirs, target_files
     )
 
@@ -70,6 +67,7 @@ def test_get_yaml_file_path(setup_and_teardown):
 
     expected_yaml_path = os.path.join(assembly_dir, workspace_uploader.UPLOADED_YAML)
     assert expected_yaml_path == yaml_path
+    assert os.path.exists(yaml_path)
 
 
 def test_get_source_file(setup_and_teardown):
@@ -151,6 +149,28 @@ def test_fetch_assemblies_to_upload(setup_and_teardown):
     assert expected_count == count
     assert expected_wait_to_upload_assemblies == wait_to_upload_assemblies
 
+    # let's assume these two assemly files are uploaded successfully
+    # Each UPLOADED_YAML file is also updated with the upa assigned from the workspace service
+    # Both assemnly files will be skipped in the next fetch_assemblies_to_upload call
+    upas = ["12345_58_1", "12345_58_2"]
+    for assembly_name, assembly_dir, upa in zip(ASSEMBLY_NAMES, assembly_dirs, upas):
+        workspace_uploader._update_upload_status_yaml_file(
+            upload_env_key, workspace_id, upa, assembly_dir, assembly_name
+        )
+
+    (
+        new_count,
+        new_wait_to_upload_assemblies,
+    ) = workspace_uploader._fetch_assemblies_to_upload(
+        upload_env_key,
+        workspace_id,
+        collection_source_dir,
+        workspace_uploader.UPLOAD_FILE_EXT,
+    )
+
+    assert expected_count == new_count
+    assert {} == new_wait_to_upload_assemblies
+
 
 def test_prepare_skd_job_dir_to_upload(setup_and_teardown):
     params = setup_and_teardown
@@ -215,20 +235,26 @@ def test_post_process(setup_and_teardown):
 
 
 def test_upload_assembly_to_workspace(setup_and_teardown):
-    params = setup_and_teardown
+    _ = setup_and_teardown
     workspace_id = 12345
     assembly_name = ASSEMBLY_NAMES[0]
     file_path = "/path/to/file/in/AssembilyUtil"
 
-    conf = create_autospec(Conf)
-    conf.asu = create_autospec(AssemblyUtil)
+    conf = Mock()
+    conf.asu = create_autospec(AssemblyUtil, spec_set=True, instance=True)
     conf.asu.save_assembly_from_fasta2.return_value = {"upa": "12345/58/1"}
     upa = workspace_uploader._upload_assembly_to_workspace(
         conf, workspace_id, file_path, assembly_name
     )
 
     assert upa == "12345_58_1"
-    assert conf.asu.save_assembly_from_fasta2.call_count == 1
+    conf.asu.save_assembly_from_fasta2.assert_called_once_with(
+        {
+            "file": {"path": file_path},
+            "workspace_id": workspace_id,
+            "assembly_name": assembly_name,
+        }
+    )
 
 
 def test_assembly_files_in_parallel(setup_and_teardown):
@@ -260,43 +286,33 @@ def test_assembly_files_in_parallel(setup_and_teardown):
         conf, upload_env_key, workspace_id, upload_dir, wait_to_upload_assemblies
     )
 
-    (
-        q1_upload_env_key,
-        q1_workspace_id,
-        q1_container_internal_assembly_path,
-        q1_host_assembly_dir,
-        q1_assembly_name,
-        q1_upload_dir,
-        q1_counter,
-        q1_assembly_files_len,
-    ) = conf.input_queue.get()
-
-    (
-        q2_upload_env_key,
-        q2_workspace_id,
-        q2_container_internal_assembly_path,
-        q2_host_assembly_dir,
-        q2_assembly_name,
-        q2_upload_dir,
-        q2_counter,
-        q2_assembly_files_len,
-    ) = conf.input_queue.get()
-
-    assert q1_upload_env_key == q2_upload_env_key == upload_env_key
-    assert q1_workspace_id == q2_workspace_id == workspace_id
-    assert q1_container_internal_assembly_path == os.path.join(
-        workspace_uploader.JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER, ASSEMBLY_NAMES[0]
+    expected_tuple1 = (
+        upload_env_key,
+        workspace_id,
+        os.path.join(
+            workspace_uploader.JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER, ASSEMBLY_NAMES[0]
+        ),
+        assembly_dirs[0],
+        ASSEMBLY_NAMES[0],
+        upload_dir,
+        1,
+        len(ASSEMBLY_NAMES),
     )
-    assert q2_container_internal_assembly_path == os.path.join(
-        workspace_uploader.JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER, ASSEMBLY_NAMES[1]
+
+    expected_tuple2 = (
+        upload_env_key,
+        workspace_id,
+        os.path.join(
+            workspace_uploader.JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER, ASSEMBLY_NAMES[1]
+        ),
+        assembly_dirs[1],
+        ASSEMBLY_NAMES[1],
+        upload_dir,
+        2,
+        len(ASSEMBLY_NAMES),
     )
-    assert q1_host_assembly_dir == assembly_dirs[0]
-    assert q2_host_assembly_dir == assembly_dirs[1]
-    assert q1_assembly_name == ASSEMBLY_NAMES[0]
-    assert q2_assembly_name == ASSEMBLY_NAMES[1]
-    assert q1_upload_dir == q2_upload_dir == upload_dir
-    assert q1_counter == 1
-    assert q2_counter == 2
-    assert q1_assembly_files_len == q2_assembly_files_len == len(ASSEMBLY_NAMES)
+
+    assert conf.input_queue.get() == expected_tuple1
+    assert conf.input_queue.get() == expected_tuple2
     assert conf.output_queue.empty()
     assert failed_names == [ASSEMBLY_NAMES[1]]
