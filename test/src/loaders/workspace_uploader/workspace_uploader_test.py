@@ -84,15 +84,12 @@ def test_read_upload_status_yaml_file(setup_and_teardown):
     assembly_dir = params.assembly_dirs[0]
     assembly_name = ASSEMBLY_NAMES[0]
 
-    upload_env_key = "CI"
-    workspace_id = 12345
-
     # test empty yaml file in assembly_dir
     data, uploaded = workspace_uploader._read_upload_status_yaml_file(
-        upload_env_key, workspace_id, assembly_dir, assembly_name
+        "CI", 12345, assembly_dir, assembly_name
     )
 
-    expected_data = {upload_env_key: {workspace_id: dict()}}
+    expected_data = {"CI": {12345: dict()}}
 
     assert not uploaded
     assert expected_data == data
@@ -100,42 +97,35 @@ def test_read_upload_status_yaml_file(setup_and_teardown):
 
 def test_update_upload_status_yaml_file(setup_and_teardown):
     params = setup_and_teardown
-    upload_env_key = "CI"
-    upa = "12345_58_1"
-    workspace_id = 12345
     assembly_dir = params.assembly_dirs[0]
     assembly_name = ASSEMBLY_NAMES[0]
 
     workspace_uploader._update_upload_status_yaml_file(
-        upload_env_key, workspace_id, upa, assembly_dir, assembly_name
+        "CI", 12345, "12345_58_1", assembly_dir, assembly_name
     )
     data, uploaded = workspace_uploader._read_upload_status_yaml_file(
-        upload_env_key, workspace_id, assembly_dir, assembly_name
+        "CI", 12345, assembly_dir, assembly_name
     )
 
-    expected_data = {
-        upload_env_key: {workspace_id: {"file_name": assembly_name, "upa": upa}}
-    }
+    expected_data = {"CI": {12345: {"file_name": assembly_name, "upa": "12345_58_1"}}}
 
     assert uploaded
     assert expected_data == data
 
     with pytest.raises(ValueError, match=f"already exists in workspace"):
         workspace_uploader._update_upload_status_yaml_file(
-            upload_env_key, workspace_id, upa, assembly_dir, assembly_name
+            "CI", 12345, "12345_58_1", assembly_dir, assembly_name
         )
 
 
 def test_fetch_assemblies_to_upload(setup_and_teardown):
     params = setup_and_teardown
-    upload_env_key = "CI"
-    workspace_id = 12345
     assembly_dirs = params.assembly_dirs
     collection_source_dir = params.collection_source_dir
 
     count, wait_to_upload_assemblies = workspace_uploader._fetch_assemblies_to_upload(
-        upload_env_key,
-        workspace_id,
+        "CI",
+        12345,
         collection_source_dir,
         workspace_uploader.UPLOAD_FILE_EXT,
     )
@@ -155,15 +145,15 @@ def test_fetch_assemblies_to_upload(setup_and_teardown):
     upas = ["12345_58_1", "12345_58_2"]
     for assembly_name, assembly_dir, upa in zip(ASSEMBLY_NAMES, assembly_dirs, upas):
         workspace_uploader._update_upload_status_yaml_file(
-            upload_env_key, workspace_id, upa, assembly_dir, assembly_name
+            "CI", 12345, upa, assembly_dir, assembly_name
         )
 
     (
         new_count,
         new_wait_to_upload_assemblies,
     ) = workspace_uploader._fetch_assemblies_to_upload(
-        upload_env_key,
-        workspace_id,
+        "CI",
+        12345,
         collection_source_dir,
         workspace_uploader.UPLOAD_FILE_EXT,
     )
@@ -181,8 +171,7 @@ def test_prepare_skd_job_dir_to_upload(setup_and_teardown):
     }
 
     conf = Mock()
-    username = "kbase"
-    job_dir = loader_helper.make_job_dir(params.tmp_dir, username)
+    job_dir = loader_helper.make_job_dir(params.tmp_dir, "kbase")
     conf.job_data_dir = loader_helper.make_job_data_dir(job_dir)
     data_dir = workspace_uploader._prepare_skd_job_dir_to_upload(
         conf, wait_to_upload_assemblies
@@ -200,58 +189,55 @@ def test_post_process(setup_and_teardown):
     output_dir = Path(params.tmp_dir) / "output_dir"
     output_dir.mkdir()
 
-    upa = "12345_58_1"
-    upload_env_key = "CI"
-    workspace_id = 88888
     host_assembly_dir = params.assembly_dirs[0]
     assembly_name = ASSEMBLY_NAMES[0]
     src_file = params.target_files[0]
 
     workspace_uploader._post_process(
-        upload_env_key,
-        workspace_id,
+        "CI",
+        88888,
         host_assembly_dir,
         assembly_name,
         upload_dir,
         output_dir,
-        upa,
+        "12345_58_1",
     )
 
     data, uploaded = workspace_uploader._read_upload_status_yaml_file(
-        upload_env_key, workspace_id, host_assembly_dir, assembly_name
+        "CI", 88888, host_assembly_dir, assembly_name
     )
-    expected_data = {
-        upload_env_key: {workspace_id: {"file_name": assembly_name, "upa": upa}}
-    }
+    expected_data = {"CI": {88888: {"file_name": assembly_name, "upa": "12345_58_1"}}}
 
-    dest_file = os.path.join(os.path.join(output_dir, upa), f"{upa}.fna.gz")
+    dest_file = os.path.join(
+        os.path.join(output_dir, "12345_58_1"), f"12345_58_1.fna.gz"
+    )
 
     assert uploaded
     assert expected_data == data
     # check softlink
-    assert os.readlink(os.path.join(upload_dir, upa)) == os.path.join(output_dir, upa)
+    assert os.readlink(os.path.join(upload_dir, "12345_58_1")) == os.path.join(
+        output_dir, "12345_58_1"
+    )
     # check hardlink
     assert os.path.samefile(src_file, dest_file)
 
 
 def test_upload_assembly_to_workspace(setup_and_teardown):
     _ = setup_and_teardown
-    workspace_id = 12345
     assembly_name = ASSEMBLY_NAMES[0]
-    file_path = "/path/to/file/in/AssembilyUtil"
 
     conf = Mock()
     conf.asu = create_autospec(AssemblyUtil, spec_set=True, instance=True)
     conf.asu.save_assembly_from_fasta2.return_value = {"upa": "12345/58/1"}
     upa = workspace_uploader._upload_assembly_to_workspace(
-        conf, workspace_id, file_path, assembly_name
+        conf, 12345, "/path/to/file/in/AssembilyUtil", assembly_name
     )
 
     assert upa == "12345_58_1"
     conf.asu.save_assembly_from_fasta2.assert_called_once_with(
         {
-            "file": {"path": file_path},
-            "workspace_id": workspace_id,
+            "file": {"path": "/path/to/file/in/AssembilyUtil"},
+            "workspace_id": 12345,
             "assembly_name": assembly_name,
         }
     )
@@ -261,10 +247,6 @@ def test_assembly_files_in_parallel(setup_and_teardown):
     params = setup_and_teardown
     upload_dir = Path(params.tmp_dir) / "upload_dir"
     upload_dir.mkdir()
-
-    upload_env_key = "CI"
-    workspace_id = 12345
-    upa = "12345_58_1"
     assembly_dirs = params.assembly_dirs
 
     wait_to_upload_assemblies = {
@@ -278,17 +260,17 @@ def test_assembly_files_in_parallel(setup_and_teardown):
     conf.output_queue = Queue()
 
     # an uploaded successful
-    conf.output_queue.put((ASSEMBLY_NAMES[0], upa))
+    conf.output_queue.put((ASSEMBLY_NAMES[0], "12345_58_1"))
     # an upload failed
     conf.output_queue.put((ASSEMBLY_NAMES[1], None))
 
     failed_names = workspace_uploader._upload_assembly_files_in_parallel(
-        conf, upload_env_key, workspace_id, upload_dir, wait_to_upload_assemblies
+        conf, "CI", 12345, upload_dir, wait_to_upload_assemblies
     )
 
     expected_tuple1 = (
-        upload_env_key,
-        workspace_id,
+        "CI",
+        12345,
         os.path.join(
             workspace_uploader.JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER, ASSEMBLY_NAMES[0]
         ),
@@ -300,8 +282,8 @@ def test_assembly_files_in_parallel(setup_and_teardown):
     )
 
     expected_tuple2 = (
-        upload_env_key,
-        workspace_id,
+        "CI",
+        12345,
         os.path.join(
             workspace_uploader.JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER, ASSEMBLY_NAMES[1]
         ),
