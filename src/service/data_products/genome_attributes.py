@@ -22,6 +22,7 @@ from src.service.data_products.common_functions import (
     remove_marked_subset,
     override_load_version,
     query_table,
+    get_collection_singleton_from_db,
 )
 from src.service.data_products.data_product_processing import (
     MATCH_ID_PREFIX,
@@ -34,6 +35,7 @@ from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
 from src.service.timestamp import now_epoch_millis
 from typing import Any, Callable
+from src.common.product_models import columnar_attribs_common_models as col_models
 
 # Implementation note - we know FLD_KBASE_ID is unique per collection id /
 # load version combination since the loader uses those 3 fields as the arango _key
@@ -173,6 +175,10 @@ GENOME_ATTRIBS_SPEC = GenomeAttribsSpec(
     router=_ROUTER,
     db_collections=[
         common_models.DBCollection(
+            name=names.COLL_GENOME_ATTRIBS_META,
+            indexes=[]  # lookup is by key
+        ),
+        common_models.DBCollection(
             name=names.COLL_GENOME_ATTRIBS,
             indexes=[
                 [
@@ -222,18 +228,51 @@ _FLD_SKIP = "skip"
 _FLD_LIMIT = "limit"
 
 
-# At some point we're going to want to filter/sort on fields. We may want a list of fields
-# somewhere to check input fields are ok... but really we could just fetch the first document
-# in the collection and check the fields 
+@_ROUTER.get(
+    "/meta",
+    response_model=col_models.ColumnarAttributesMeta,
+    description=
+"""
+Get metadata about the genome attributes table including column names, type,
+minimum and maximum values, etc.
+""")
+async def get_genome_attributes_meta(
+    r: Request,
+    collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
+    load_ver_override: common_models.QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
+    user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
+    ):
+    storage = app_state.get_app_state(r).arangostorage
+    _, load_ver = await get_load_version(storage, collection_id, ID, load_ver_override, user)
+    doc = await get_collection_singleton_from_db(
+            storage,
+            names.COLL_GENOME_ATTRIBS_META,
+            collection_id,
+            load_ver,
+            bool(load_ver_override)
+    )
+    doc[col_models.FIELD_COLUMNS] = [col_models.AttributesColumn.model_construct(**d)
+                                     for d in doc[col_models.FIELD_COLUMNS]]
+    return col_models.ColumnarAttributesMeta.model_construct(**remove_collection_keys(doc))
+
+
+# TODO FILTER At some point we're going to want to filter/sort on fields. We may want a list of
+# fields # somewhere to check input fields are ok... but really we could just fetch the first
+# document in the collection and check the fields 
 @_ROUTER.get(
     "/",
     response_model=TableAttributes,
-    description="Get genome attributes for each genome in the collection, which may differ from "
-        + "collection to collection.\n\n "
-        + "Authentication is not required unless submitting a match ID or overriding the load "
-        + "version; in the latter case service administration permissions are required.\n\n"
-        + "When creating selections from genome attributes, use the "
-        + f"`{names.FLD_KBASE_ID}` field values as input.")
+    description=
+f"""
+Get genome attributes for each genome in the collection, which may differ from
+collection to collection.
+
+Authentication is not required unless submitting a match ID or overriding the load
+version; in the latter case service administration permissions are required.
+
+When creating selections from genome attributes, use the
+`{names.FLD_KBASE_ID}` field values as input.
+""")
 async def get_genome_attributes(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
