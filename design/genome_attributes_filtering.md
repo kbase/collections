@@ -35,7 +35,9 @@
   * See notes on string types above
 * Filter operations
   * Add AND / OR toggle for combining filters
-  * Move selection / match mark booleans into input filter data structure
+  * ~Move selection / match mark booleans into input filter data structure~
+    * Decided to implement filters as individual query parameters, so this no longer
+      makes sense
   * We may want to split the classification field into multiple fields
     * Alternatively make a custom filter for the classification field that understands
       the string syntax

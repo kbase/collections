@@ -11,7 +11,7 @@ variables below for examples.
 """
 
 from typing import Annotated
-from src.common.storage.field_names import *
+from src.common.storage.field_names import *  # @UnusedWildImport
 
 # collection variables should be prefixed with COLL_, fields prefixed with FLD_.
 
@@ -225,6 +225,15 @@ FLD_TAXA_COUNT_COUNT = "count"
 ### Genome attributes
 
 GENOME_ATTRIBS_PRODUCT_ID = "genome_attribs"
+
+COLL_GENOME_ATTRIBS_META: Annotated[
+    str,
+    COLL_ANNOTATION,
+    {
+        COLL_ANNOKEY_DESCRIPTION: "A collection holding genome attributes metadata.",
+        COLL_ANNOKEY_SUGGESTED_SHARDS: 1,
+    }
+] = COLLECTION_PREFIX + GENOME_ATTRIBS_PRODUCT_ID + "_meta"
 
 COLL_GENOME_ATTRIBS: Annotated[
     str,

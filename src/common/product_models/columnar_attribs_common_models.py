@@ -6,9 +6,12 @@ Genome Attributes and Samples.
 from dateutil import parser
 from enum import Enum
 
-from pydantic import BaseModel, Field, FieldValidationInfo
-from pydantic.functional_validators import model_validator, field_validator
+from pydantic import BaseModel, Field
+from pydantic.functional_validators import model_validator
 from typing import Annotated, Self
+
+
+FIELD_COLUMNS = "columns"
 
 
 class ColumnType(str, Enum):
@@ -88,15 +91,28 @@ class AttributesColumn(BaseModel):
             raise ValueError("Enum columns must specify the enum values")
         return self
     
-    @field_validator("min_value", "max_value")
-    @classmethod
-    def _check_timestamp(cls, v, info: FieldValidationInfo):
-        if isinstance(v, str):
+    _RANGE_VALIDATORS = {
+        ColumnType.INT: (lambda x: isinstance(x, int), "an integer"),
+        ColumnType.FLOAT: (lambda x: isinstance(x, float),"a float"),
+        ColumnType.DATE: (lambda x: parser.isoparse(str(x)), "a valid ISO8601 date")
+    }
+    
+    @model_validator(mode="after")
+    def _check_range(self) -> Self:
+        if self.type not in self._RANGE_VALIDATORS.keys():
+            return
+        typestr = self.type.value
+        for val, coltext in [(self.min_value, "min_value"), (self.max_value, "max_value")]:
+            if val is None:
+                raise ValueError(f"{self.key}: missing {coltext} value for {typestr} column")
+            validator, errtext = self._RANGE_VALIDATORS[self.type]
             try:
-                parser.isoparse(v)
+                if not validator(val):
+                    raise ValueError()
             except ValueError as e:
-                raise ValueError(f"{info.field_name} is not a valid ISO8601 date: {v}") from e
-        return v
+                raise ValueError(f"{self.key}: {coltext} is not {errtext} as required by a "
+                                 + f"{typestr} column: {val}") from e
+        return self
 
 
 class ColumnarAttributesMeta(BaseModel):
