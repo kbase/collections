@@ -39,7 +39,7 @@ pytest-asyncio = "==0.21.1"
 # currently for design/experiments/store_mongo.py
 pymongo = "4.4.1"
 # later version of dns python has an import problem with httpcore
-dnspython = "==2.3.0"
+dnspython = "==2.4.2"
 sourmash = "==4.8.2"
 
 [requires]
