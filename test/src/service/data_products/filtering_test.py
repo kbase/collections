@@ -127,7 +127,7 @@ def test_stringfilter_to_arangosearch_aql_full_text():
     sf = StringFilter.from_string(None, FilterStrategy.FULL_TEXT, "I'm Mary Poppins y'all")
     assert sf.to_arangosearch_aql("d.somefield", "varpre", "text_rs") == SearchQueryPart(
         variable_assignments={"varpreprefixes": "TOKENS(@varpreinput, \"text_rs\")"},
-        aql_lines=["varpreprefixes ALL == d.somefield"],
+        aql_lines=["ANALYZER(varpreprefixes ALL == d.somefield, \"text_rs\")"],
         bind_vars={"varpreinput": "I'm Mary Poppins y'all"}
     )
 
@@ -136,7 +136,9 @@ def test_stringfilter_to_arangosearch_aql_prefix():
     sf = StringFilter.from_string(None, FilterStrategy.PREFIX, "rhodo")
     assert sf.to_arangosearch_aql("d.otherfield", "1_", "text_en") == SearchQueryPart(
         variable_assignments={"1_prefixes": "TOKENS(@1_input, \"text_en\")"},
-        aql_lines=["STARTS_WITH(d.otherfield, 1_prefixes, LENGTH(1_prefixes))"],
+        aql_lines=[
+            "ANALYZER(STARTS_WITH(d.otherfield, 1_prefixes, LENGTH(1_prefixes)), \"text_en\")"
+        ],
         bind_vars={"1_input": "rhodo"}
     )
 

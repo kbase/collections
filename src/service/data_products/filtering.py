@@ -53,7 +53,7 @@ class AbstractFilter(ABC):
             `f"{identifer} > 47`
         var_prefix - a prefix to apply to variable names, including bind variables,
             to prevent collisions between multiple filters.
-        analyzer - the analyzer to use for processing user input strings.
+        analyzer - the analyzer to use for the search.
         """
         raise NotImplementedError()
 
@@ -263,14 +263,17 @@ class StringFilter(AbstractFilter):
             `f"{identifer} > 47`
         var_prefix - a prefix to apply to variable names, including bind variables,
             to prevent collisions between multiple filters.
-        analyzer - the analyzer to use for processing user input strings.
+        analyzer - the analyzer to use for the search.
         """
         bindvar = f"{var_prefix}input"
         prefixvar = f"{var_prefix}prefixes"
         if self.strategy == FilterStrategy.FULL_TEXT:
-            aql_lines=[f"{prefixvar} ALL == {identifier}"]
+            aql_lines=[f"ANALYZER({prefixvar} ALL == {identifier}, \"{analyzer}\")"]
         elif self.strategy == FilterStrategy.PREFIX:
-            aql_lines=[f"STARTS_WITH({identifier}, {prefixvar}, LENGTH({prefixvar}))"]
+            aql_lines=[
+                f"ANALYZER(STARTS_WITH({identifier}, {prefixvar}, LENGTH({prefixvar})), "
+                    + f"\"{analyzer}\")"
+            ]
         else:
             # this is impossible to test currently but is here for safety for when we add
             # substring search
