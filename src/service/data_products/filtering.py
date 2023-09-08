@@ -13,7 +13,7 @@ from typing import Annotated, Any, Self
 
 
 class SearchQueryPart(BaseModel):
-    variable_assignments: Annotated[dict[str, str], Field(
+    variable_assignments: Annotated[dict[str, str] | None, Field(
         description="A mapping of variable name to AQL expression. The variables must be assigned "
             + "prior to the SEARCH operation. The variable names are expected to be unique "
             + "across all filters.")
@@ -117,7 +117,7 @@ class RangeFilter(AbstractFilter):
         return ret
 
     @classmethod
-    def _parse_inclusivity(self, part, start):
+    def _parse_inclusivity(cls, part, start):
         inclusive = False
         if start:
             if part.startswith("["):
