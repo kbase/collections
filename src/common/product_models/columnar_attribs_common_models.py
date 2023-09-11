@@ -26,7 +26,7 @@ class ColumnType(str, Enum):
     """ An ISO8601 date string. """
     STRING = "string"
     """ A string. """
-    ENUM = "enum"
+    ENUM = "enum"  # There's no actual need for enums yet AFAIK. Will not implement elsewhere
     """ A finite set of strings. """
     
     # TODO FILTERS do we need hidden?
