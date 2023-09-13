@@ -47,9 +47,8 @@ def _read_excel_as_df(excel_file: Path, sheet_name=0) -> pd.DataFrame:
         df = pd.read_excel(excel_file, sheet_name=sheet_name)
 
         return df
-
-    except FileNotFoundError:
-        print(f"File '{excel_file}' not found.")
+    except Exception as e:
+        raise ValueError(f"Error reading Excel file '{excel_file}': {e}") from e
 
 
 def _find_matching_media(column_name, media_mapping):
@@ -99,8 +98,11 @@ def _read_biolog_data(biolog_data_file: Path) -> pd.DataFrame:
     #       the last row index with data is 193 (row 195 '3-Hydroxy 2-Butanone' in the Excel sheet).
     data_df = data_df.drop(index=[0, 1, 194, 195, 196, 197, 198])
 
-    # Make the first column ('strain designation') the index
+    # Cell ['growth_media', 'strain designation'] now has been populated with the default media description.
+    # Assign this cell's value to 'growth_media' to ensure that the dataframe includes a 'growth_media' column
+    # when we set 'strain designation' as the index in the next step.
     data_df.loc[GROWTH_MEDIA_COL_NAME, STRAIN_DESIGNATION_COL_NAME] = GROWTH_MEDIA_COL_NAME
+    # Make the first column ('strain designation') the index
     data_df = data_df.set_index(STRAIN_DESIGNATION_COL_NAME)
 
     # Transpose the DataFrame
@@ -127,8 +129,8 @@ def _read_biolog_meta(biolog_meta_file: Path) -> pd.DataFrame:
     return meta_df
 
 
-def _retrieve_kbase_aseembly_id(meta_df, strain_id) -> str:
-    # Retrieve the KBase Aseembly Ref for the given strain ID from the metadata file (dataframe).
+def _retrieve_kbase_assembly_id(meta_df, strain_id) -> str:
+    # Retrieve the KBase Assembly Ref for the given strain ID from the metadata file (dataframe).
 
     matching_row = meta_df[(meta_df['Strain ID'] == strain_id) & meta_df['Assembly ref'].notna()]
 
@@ -189,7 +191,7 @@ def generate_pmi_biolog_heatmap_data(
     min_value, max_value = float('inf'), float('-inf')
     for strain_id, row in data_df.iterrows():
         try:
-            assembly_ref = _retrieve_kbase_aseembly_id(meta_df, strain_id)
+            assembly_ref = _retrieve_kbase_assembly_id(meta_df, strain_id)
         except ValueError as e:
             # TODO: this is a temporary solution to handle the missing KBase genome ID for some strains.
             # Two strains 'PDO1076' and 'PTD-1' are missing the KBase assembly ID in the metadata file.
