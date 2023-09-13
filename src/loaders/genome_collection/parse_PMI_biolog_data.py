@@ -61,22 +61,24 @@ def _read_biolog_data(biolog_data_file: Path) -> pd.DataFrame:
     data_df.columns = data_df.loc[1]
 
     # Drop unused rows ('total cpds. Utilized', 'strain designation' and unused rows at the end.)
+    # NOTE: Drop 'strain designation' here because it also becomes the column names at the previous step.
+    #       Row 'Carbon Source' is used as the index upon reading the file.
+    #       Therefore, dataframe row index 0 starts at 'total cpds. Utilized' and
+    #       the last row index with data is 193 (row 195 '3-Hydroxy 2-Butanone' in the Excel sheet).
     data_df = data_df.drop(index=[0, 1, 194, 195, 196, 197, 198])
 
     # Make the first column ('strain designation') the index
     data_df = data_df.set_index('strain designation')
 
     # Transpose the DataFrame
-    data_df.index.name = None
-    data_df.columns.name = None
     data_df = data_df.transpose()
 
     # Remove asterisks from index names
     data_df.index = data_df.index.str.replace(r'*', '').str.replace(r'**', '')
 
-    # Merge rows BT03 A(10/1) and BT03 B(11/18) into one row BT03
-    data_df = data_df.drop(index='BT03 B(11/18)')
-    data_df = data_df.rename(index={'BT03 A(10/1)': 'BT03'})
+    # Drop the row BT03 A(10/1) and rename the row BT03 B(11/18) to BT03
+    data_df = data_df.drop(index='BT03 A(10/1)')
+    data_df = data_df.rename(index={'BT03 B(11/18)': 'BT03'})
 
     # Replace NaN with 0
     # TODO: this is a temporary solution to handle the missing data for some strains.
@@ -86,44 +88,49 @@ def _read_biolog_data(biolog_data_file: Path) -> pd.DataFrame:
     return data_df
 
 
-def _read_biolog_meta(biolog_meta_file: Path) -> pd.DataFrame:
+def _read_biolog_meta(biolog_meta_file: Path,
+                      env: str) -> pd.DataFrame:
+
+    if env == 'CI':
+        raise NotImplementedError('Needs to implement mapping logic for CI environment.')
+
     meta_df = _read_excel_as_df(biolog_meta_file)
 
     return meta_df
 
 
-def _retrieve_kbase_genome_id(meta_df, strain_id) -> str:
-    # Retrieve the KBase genome ID for the given strain ID from the metadata file (dataframe).
+def _retrieve_kbase_aseembly_id(meta_df, strain_id) -> str:
+    # Retrieve the KBase Aseembly Ref for the given strain ID from the metadata file (dataframe).
 
-    matching_row = meta_df[(meta_df['Strain ID'] == strain_id) & meta_df['Genome_Ref'].notna()]
+    matching_row = meta_df[(meta_df['Strain ID'] == strain_id) & meta_df['Assembly ref'].notna()]
 
     if matching_row.empty:
-        raise ValueError(f"No matching Strain ID with a non-NaN Genome_Ref found for {strain_id}.")
+        raise ValueError(f"No matching Strain ID with a non-NaN Assembly ref found for {strain_id}.")
     else:
-        genome_ref = matching_row['Genome_Ref'].values[0]
+        assembly_ref = matching_row['Assembly ref'].values[0]
 
-        return genome_ref
+        return assembly_ref
 
 
-def generate_biolog_heatmap_data(
+def generate_pmi_biolog_heatmap_data(
         biolog_data_file: Path,
         biolog_meta_file: Path,
         load_ver: str,
         env: str = 'PROD',
-        kbase_collection: str = 'biolog',
+        kbase_collection: str = 'PMI',
         root_dir: str = loader_common_names.ROOT_DIR):
     """
     Generate JSONL files with the heatmap data for the Biolog data file.
 
-    :param biolog_data_file: Biolog data file
-    :param biolog_meta_file: Biolog meta file
+    :param biolog_data_file: Biolog data file, e.g. 'PMI strain BiologSummary.xlsx'
+    :param biolog_meta_file: Biolog meta file, e.g. 'genome_assembly_info__PMI_metadata_file_all_strains_table001.xlsx'
     :param load_ver: the version of the data to be loaded
     :param env: the environment containing the data to be processed
     :param kbase_collection: the name of the KBase collection
     :param root_dir: the root directory for the data to be processed
     """
     data_df = _read_biolog_data(biolog_data_file)
-    meta_df = _read_biolog_meta(biolog_meta_file)
+    meta_df = _read_biolog_meta(biolog_meta_file, env)
 
     heatmap_cell_details, heatmap_rows, heatmap_meta_dict = list(), list(), dict()
 
@@ -146,12 +153,12 @@ def generate_biolog_heatmap_data(
     min_value, max_value = float('inf'), float('-inf')
     for strain_id, row in data_df.iterrows():
         try:
-            genome_ref = _retrieve_kbase_genome_id(meta_df, strain_id)
+            assembly_ref = _retrieve_kbase_aseembly_id(meta_df, strain_id)
         except ValueError as e:
             # TODO: this is a temporary solution to handle the missing KBase genome ID for some strains.
-            # Two strains 'PDO1076' and 'PTD-1' are missing the KBase genome ID in the metadata file.
-            print(f'Cannot find KBase genome ID for strain ID: {strain_id}.')
-            genome_ref = f'kbase_id_not_found - {str(uuid.uuid4())}'
+            # Two strains 'PDO1076' and 'PTD-1' are missing the KBase assembly ID in the metadata file.
+            print(f'Cannot find KBase assembly ID for strain ID: {strain_id}. Skipping this row.')
+            continue
 
         cells = list()
         for metabolite, value in row.items():
@@ -170,9 +177,9 @@ def generate_biolog_heatmap_data(
             })
 
         # append a document for the heatmap rows
-        heatmap_rows.append(dict({FLD_KBASE_ID: genome_ref,
+        heatmap_rows.append(dict({FLD_KBASE_ID: assembly_ref,
                                   FIELD_HEATMAP_ROW_CELLS: cells},
-                                 **init_row_doc(kbase_collection, load_ver, genome_ref)))
+                                 **init_row_doc(kbase_collection, load_ver, assembly_ref)))
 
     heatmap_meta_dict[FIELD_HEATMAP_MIN_VALUE] = min_value
     heatmap_meta_dict[FIELD_HEATMAP_MAX_VALUE] = max_value
