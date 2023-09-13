@@ -37,6 +37,7 @@ from src.loaders.genome_collection.parse_tool_results import HEATMAP_FILE_ROOT
 
 GROWTH_MEDIA_COL_NAME = 'growth_media'
 STRAIN_DESIGNATION_COL_NAME = 'strain designation'
+DEFAULT_MEDIA = 'MOPS minimal media'
 
 
 def _read_excel_as_df(excel_file: Path, sheet_name=0) -> pd.DataFrame:
@@ -56,7 +57,7 @@ def _find_matching_media(column_name, media_mapping):
     for key in media_mapping.keys():
         if column_name.endswith(key):
             return media_mapping[key]
-    return ''
+    return DEFAULT_MEDIA
 
 
 def _read_biolog_data(biolog_data_file: Path) -> pd.DataFrame:
