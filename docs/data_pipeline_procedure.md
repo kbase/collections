@@ -119,3 +119,20 @@
          ```text
          import_files/[env]/
          ```
+   * Create PMI biolog heatmap data
+     * Example usage
+       * Download biolog heatmap data to designated `biolog_download_dir` directory
+         * [biolog data file](https://docs.google.com/spreadsheets/d/1QmC6UHWOEVfpmrveRBl_izictbNeN1PA/edit#gid=1135979967)
+         * [biolog metadata file](https://docs.google.com/spreadsheets/d/1A83PV9xNqtEn3REfDH0fNPGjo3CxuILl/edit#gid=1788949297)
+       * in a Python shell run the following
+         ```python
+          from src.loaders.genome_collection.parse_PMI_biolog_data import generate_pmi_biolog_heatmap_data
+         
+          biolog_download_dir = 'xxx'
+          biolog_data_file = Path(biolog_download_dir, 'PMI strain BiologSummary.xlsx')
+          biolog_meta_file = Path(biolog_download_dir, 'genome_assembly_info__PMI_metadata_file_all_strains_table001.xlsx')
+          load_ver = 'test_biolog'
+        
+          generate_pmi_biolog_heatmap_data(biolog_data_file, biolog_meta_file, load_ver)
+         ```
+   

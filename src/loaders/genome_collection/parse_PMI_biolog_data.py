@@ -1,3 +1,4 @@
+import re
 import uuid
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from src.common.product_models.heatmap_common_models import (
     FIELD_HEATMAP_MIN_VALUE,
     FIELD_HEATMAP_NAME,
     FIELD_HEATMAP_ROW_CELLS,
+    FIELD_HEATMAP_ROW_META,
     FIELD_HEATMAP_TYPE,
     FIELD_HEATMAP_VALUES,
     FIELD_HEATMAP_CATEGORY,
@@ -33,6 +35,9 @@ from src.loaders.common import loader_common_names
 from src.loaders.common.loader_helper import init_row_doc, create_import_files
 from src.loaders.genome_collection.parse_tool_results import HEATMAP_FILE_ROOT
 
+GROWTH_MEDIA_COL_NAME = 'growth_media'
+STRAIN_DESIGNATION_COL_NAME = 'strain designation'
+
 
 def _read_excel_as_df(excel_file: Path, sheet_name=0) -> pd.DataFrame:
     # Read the Excel file into a DataFrame
@@ -44,6 +49,14 @@ def _read_excel_as_df(excel_file: Path, sheet_name=0) -> pd.DataFrame:
 
     except FileNotFoundError:
         print(f"File '{excel_file}' not found.")
+
+
+def _find_matching_media(column_name, media_mapping):
+    # find the matching key from media_mapping
+    for key in media_mapping.keys():
+        if column_name.endswith(key):
+            return media_mapping[key]
+    return ''
 
 
 def _read_biolog_data(biolog_data_file: Path) -> pd.DataFrame:
@@ -60,6 +73,24 @@ def _read_biolog_data(biolog_data_file: Path) -> pd.DataFrame:
     # Make the first row ('strain designation') the column names
     data_df.columns = data_df.loc[1]
 
+    # Iterate through the "strain designation" column and parse the growth media description
+    media_mapping = {}
+    for value in data_df[STRAIN_DESIGNATION_COL_NAME]:
+        if isinstance(value, str):
+            matches = re.findall(r'\*+', value)  # find '*' and '**' patterns
+            if matches:
+                num_stars = max(len(match) for match in matches)
+                media_description = value.replace('*', '').strip()
+                media_mapping['*' * num_stars] = media_description
+
+    # Reorder media_mapping by the number of '*' characters in reverse order.
+    # This step is necessary to ensure that _find_matching_media can match the longest key
+    # because the keys ('*' and '**') are inclusive.
+    media_mapping = dict(sorted(media_mapping.items(), key=lambda x: len(x[0]), reverse=True))
+
+    # Set the growth media row with the matching media description
+    data_df.loc[GROWTH_MEDIA_COL_NAME] = data_df.columns.map(lambda x: _find_matching_media(x, media_mapping))
+
     # Drop unused rows ('total cpds. Utilized', 'strain designation' and unused rows at the end.)
     # NOTE: Drop 'strain designation' here because it also becomes the column names at the previous step.
     #       Row 'Carbon Source' is used as the index upon reading the file.
@@ -68,7 +99,8 @@ def _read_biolog_data(biolog_data_file: Path) -> pd.DataFrame:
     data_df = data_df.drop(index=[0, 1, 194, 195, 196, 197, 198])
 
     # Make the first column ('strain designation') the index
-    data_df = data_df.set_index('strain designation')
+    data_df.loc[GROWTH_MEDIA_COL_NAME, STRAIN_DESIGNATION_COL_NAME] = GROWTH_MEDIA_COL_NAME
+    data_df = data_df.set_index(STRAIN_DESIGNATION_COL_NAME)
 
     # Transpose the DataFrame
     data_df = data_df.transpose()
@@ -88,12 +120,7 @@ def _read_biolog_data(biolog_data_file: Path) -> pd.DataFrame:
     return data_df
 
 
-def _read_biolog_meta(biolog_meta_file: Path,
-                      env: str) -> pd.DataFrame:
-
-    if env == 'CI':
-        raise NotImplementedError('Needs to implement mapping logic for CI environment.')
-
+def _read_biolog_meta(biolog_meta_file: Path) -> pd.DataFrame:
     meta_df = _read_excel_as_df(biolog_meta_file)
 
     return meta_df
@@ -129,14 +156,22 @@ def generate_pmi_biolog_heatmap_data(
     :param kbase_collection: the name of the KBase collection
     :param root_dir: the root directory for the data to be processed
     """
+    if env != 'PROD':
+        raise NotImplementedError('Needs to implement mapping logic for environment other than PROD.')
+
     data_df = _read_biolog_data(biolog_data_file)
-    meta_df = _read_biolog_meta(biolog_meta_file, env)
+    meta_df = _read_biolog_meta(biolog_meta_file)
 
     heatmap_cell_details, heatmap_rows, heatmap_meta_dict = list(), list(), dict()
+
+    # NOTE: If we ever need to modify the logic to accommodate changes in the heatmap data structure,
+    # it's probable that we will also need to make corresponding updates to the logic in parse_tool_result.py.
 
     # create document for heatmap meta
     categories = list()
     for idx, metabolite in enumerate(data_df.columns):
+        if metabolite == GROWTH_MEDIA_COL_NAME:
+            continue
         # making each metabolite a category
         categories.append({FIELD_HEATMAP_CATEGORY: metabolite,
                            FIELD_HEATMAP_COLUMNS: [{FIELD_HEATMAP_COL_ID: str(idx),
@@ -162,6 +197,8 @@ def generate_pmi_biolog_heatmap_data(
 
         cells = list()
         for metabolite, value in row.items():
+            if metabolite == GROWTH_MEDIA_COL_NAME:
+                continue
             cell_uuid, min_value, max_value = str(uuid.uuid4()), min(min_value, value), max(max_value, value)
             cells.append({FIELD_HEATMAP_CELL_ID: cell_uuid,
                           FIELD_HEATMAP_COL_ID: str(list(row.index).index(metabolite)),
@@ -178,7 +215,8 @@ def generate_pmi_biolog_heatmap_data(
 
         # append a document for the heatmap rows
         heatmap_rows.append(dict({FLD_KBASE_ID: assembly_ref,
-                                  FIELD_HEATMAP_ROW_CELLS: cells},
+                                  FIELD_HEATMAP_ROW_CELLS: cells,
+                                  FIELD_HEATMAP_ROW_META: {'growth_media': row[GROWTH_MEDIA_COL_NAME], }},
                                  **init_row_doc(kbase_collection, load_ver, assembly_ref)))
 
     heatmap_meta_dict[FIELD_HEATMAP_MIN_VALUE] = min_value
