@@ -455,6 +455,9 @@ def microtrait(root_dir, env, kbase_collection, load_ver, fatal_ids):
     result_dir = _locate_dir(root_dir, env, kbase_collection, load_ver, tool='microtrait')
     batch_dirs = _get_batch_dirs(result_dir)
 
+    # NOTE: If we ever need to modify the logic to accommodate changes in the heatmap data structure,
+    # it's probable that we will also need to make corresponding updates to the logic in parse_PMI_biolog_data.py.
+
     heatmap_cell_details, heatmap_rows, reference_meta = list(), list(), None
     min_value, max_value = float('inf'), float('-inf')
     for batch_dir in batch_dirs:
