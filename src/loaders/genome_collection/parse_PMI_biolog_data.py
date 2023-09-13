@@ -98,9 +98,9 @@ def _read_biolog_data(biolog_data_file: Path) -> pd.DataFrame:
     #       the last row index with data is 193 (row 195 '3-Hydroxy 2-Butanone' in the Excel sheet).
     data_df = data_df.drop(index=[0, 1, 194, 195, 196, 197, 198])
 
-    # Cell ['growth_media', 'strain designation'] now has been populated with the default media description.
-    # Assign this cell's value to 'growth_media' to ensure that the dataframe includes a 'growth_media' column
-    # when we set 'strain designation' as the index in the next step.
+    # Switch the value of the cell in row `growth_media` and column `strain designation` from the default media string
+    # to `growth_media`. This is needed so that when we make `strain designation` the index in the next step
+    # `growth_media` will be a row in that index.
     data_df.loc[GROWTH_MEDIA_COL_NAME, STRAIN_DESIGNATION_COL_NAME] = GROWTH_MEDIA_COL_NAME
     # Make the first column ('strain designation') the index
     data_df = data_df.set_index(STRAIN_DESIGNATION_COL_NAME)
