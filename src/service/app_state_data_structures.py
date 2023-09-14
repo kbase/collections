@@ -12,6 +12,7 @@ from src.service.matchers.common_models import Matcher
 from src.service.sdk_async_client import SDKAsyncClient
 from src.service.storage_arango import ArangoStorage
 from src.service.timestamp import now_epoch_millis
+from src.service.config_dynamic import DynamicConfigManager
 
 
 class PickleableDependencies:
@@ -49,6 +50,7 @@ class CollectionsState:
     auth - a KBaseAuth client.
     arangostorage - an ArangoStorage wrapper.
     sdk_client - a client for communicating with KBase SDK services.
+    dyncfgman - a manager for the service dynamic configuration
     """
 
     def __init__(
@@ -59,6 +61,7 @@ class CollectionsState:
         arangostorage: ArangoStorage,
         matchers: list[Matcher],
         cfg: CollectionsServiceConfig,
+        dyncfgman: DynamicConfigManager,
     ):
         """
         Do not instantiate this class directly. Use `app_state.build_app` to create the app state
@@ -70,6 +73,7 @@ class CollectionsState:
         self.arangostorage = arangostorage
         self._matchers = {m.id: m for m in matchers}
         self._cfg = cfg
+        self.dyncfgman = dyncfgman
 
     async def destroy(self):
         """

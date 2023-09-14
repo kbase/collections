@@ -206,6 +206,7 @@ FOR doc IN @@view
         "v4_input": "whee",
         "v5_high": "2023-09-13T18:51:19+0000",
     }
+    assert len(fs) == 5
 
 
 def test_filterset_w_all_args():
@@ -235,6 +236,11 @@ FOR d IN @@view
         'v1_high': 6.0,
         'v2_input': 'thingy',
     }
+    assert len(fs) == 2
+
+
+def test_filterset_len_0():
+    assert len(FilterSet("v", "lv")) == 0
 
 
 def test_filterset_fail_construct():

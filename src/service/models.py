@@ -123,6 +123,19 @@ MATCHER_ID_PROPS = {
 MATCHER_ID_FIELD = Field(**MATCHER_ID_PROPS)
 
 
+class DynamicConfig(BaseModel):
+    """
+    Holds dynamic configuration data for the service.
+    Currently editable by editing the database directly.
+    """
+    genome_attribs_search_view: Annotated[str, Field(
+        description="The name of the ArangoSearch view to use for searches against the "
+            + "genome_attribs data product. This variable can be used to seamlessly switch "
+            + "between an old and updated view by changing the variable value after the new "
+            + "view is built"
+    )] = "genome_attribs_search"
+
+
 class DataProduct(BaseModel):
     """The ID and version of a data product associated with a collection"""
     product: str = DATA_PRODUCT_ID_FIELD

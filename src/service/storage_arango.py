@@ -46,6 +46,7 @@ ARANGO_ERR_NAME_EXISTS = 1207
 _ARANGO_ERR_UNIQUE_CONSTRAINT = 1210
 
 _COLLECTIONS = [  # Might want to define this in names?
+    names.COLL_SRV_CONFIG,
     names.COLL_SRV_ACTIVE,
     names.COLL_SRV_COUNTERS,
     names.COLL_SRV_VERSIONS,
@@ -216,6 +217,25 @@ class ArangoStorage:
              expensive than the query so use the option wisely.
         """
         return await self._db.aql.execute(aql_str, bind_vars=bind_vars or {}, count=count)
+    
+    async def get_dynamic_config(self) -> models.DynamicConfig:
+        """ Get the dynamic configuration from the database. """
+        col = self._db.collection(names.COLL_SRV_CONFIG)
+        cur = await col.all()
+        try:
+            if cur.empty():
+                return models.DynamicConfig()  # use default values
+            doc = await cur.next()
+            try:
+                await cur.next()
+            except StopAsyncIteration:
+                return models.DynamicConfig(**doc)
+            else:
+                raise ValueError("Multiple configuration docs found in the database, "
+                                 + "someone done goofed big time"
+                )
+        finally:
+            await cur.close(ignore_missing=True)
 
     async def get_next_version(self, collection_id: str) -> int:
         """ Get the next available version number for a collection. """

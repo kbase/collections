@@ -108,6 +108,16 @@ provides a namespace for the exclusive use of the Collections code.
 _SRV_PREFIX = COLLECTION_PREFIX + "coll_"
 # The namespace for service exclusive collections
 
+COLL_SRV_CONFIG: Annotated[
+    str,
+    COLL_ANNOTATION,
+    {
+        COLL_ANNOKEY_DESCRIPTION:
+            "A collection holding dynamic configuration data for the collections service.",
+        COLL_ANNOKEY_SUGGESTED_SHARDS: 1,
+    }
+] = _SRV_PREFIX + "config"
+
 COLL_SRV_COUNTERS: Annotated[
     str,
     COLL_ANNOTATION,

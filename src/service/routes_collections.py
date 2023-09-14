@@ -560,6 +560,17 @@ async def get_collection_versions(
 #             for now just use the ArangoDB UI or API.
 
 
+@ROUTER_COLLECTIONS_ADMIN.get(
+    "/config/",
+    response_model=models.DynamicConfig,
+    description="Get the service dynamic configuration. Currently this can be edited only "
+        + "directly in the database."
+)
+async def get_config(r: Request, user: kb_auth.KBaseUser=Depends(_AUTH)) -> models.DynamicConfig:
+    _ensure_admin(user, "Only collections service admins can view the service dynamic config")
+    return await app_state.get_app_state(r).dyncfgman.get_config()
+
+
 @ROUTER_DANGER.delete(
     "/admin/matches/{match_id}/",
     response_model=models.MatchVerbose,
