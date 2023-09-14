@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from dateutil import parser
 from pydantic import BaseModel, Field
 from src.common.product_models.columnar_attribs_common_models import ColumnType, FilterStrategy
+from src.common.storage.collection_and_field_names import FLD_LOAD_VERSION
 
 from types import NotImplementedType
 from typing import Annotated, Any, Self
@@ -77,6 +78,12 @@ def _require_string(s: str, err: str):
     if not s or not s.strip():
         raise ValueError(err)
     return s.strip()
+
+
+def _gt(num: int, min_: int, name: str):
+    if num < min_:
+        raise ValueError(f"{name} must be >= {min_}")
+    return num
 
 
 class RangeFilter(AbstractFilter):
@@ -328,18 +335,32 @@ class FilterSet:
         ColumnType.STRING: StringFilter,
     }
     
-    def __init__(self, view: str, doc_var: str = "doc", conjunction: bool = True):
+    def __init__(
+        self,
+        view: str,
+        load_ver: str,
+        doc_var: str = "doc",
+        conjunction: bool = True,
+        skip: int = 0,
+        limit: int = 1000
+    ):
         """
         Create the filter set.
         
         view - the ArangoSearch view to query.
+        load_ver - the load version of the data to query.
         doc_var - the variable to use for the ArangoSearch document.
         conjunction - whether to AND (true) or OR (false) the filters together.
+        skip - the number of records to skip.
+        limit - the maximum number of records to return.
         """
         # this should probably be configurable in the DB, which means added to the loader
         self.view = _require_string(view, "view is required")
+        self.load_ver = _require_string(load_ver, "load_ver is required")
         self.doc_var = _require_string(doc_var, "doc_var is required")
         self.conjunction = conjunction
+        self.skip = _gt(skip, 0, "skip")
+        self.limit = _gt(limit, 1, "limit")
         self._filters = {}
 
     def append(
@@ -384,7 +405,12 @@ class FilterSet:
         """
         var_lines = []
         aql_lines = []
-        bind_vars = {}
+        bind_vars = {
+            "@view": self.view,
+            "load_ver": self.load_ver,
+            "skip": self.skip,
+            "limit": self.limit,
+        }
         for i, (field, filter_) in enumerate(self._filters.items(), start=1):
             search_part = filter_.to_arangosearch_aql(f"{self.doc_var}.{field}", f"v{i}_")
             if search_part.variable_assignments:
@@ -397,12 +423,12 @@ class FilterSet:
                 aql_lines.append([f"    {search_part.aql_lines[0]}"])
             bind_vars.update(search_part.bind_vars)
         aql = "\n".join(var_lines) + "\n"
-        aql += f"FOR {self.doc_var} IN {self.view}"
-        aql += f"\n    SEARCH\n    "
+        aql += f"FOR {self.doc_var} IN @@view"
+        aql += f"\n    SEARCH {self.doc_var}.{FLD_LOAD_VERSION} == @load_ver\n    "
         aql_parts = ["\n        ".join(al) for al in aql_lines]
         op = "AND" if self.conjunction else "OR"
         aql += f"\n        {op}\n    ".join(aql_parts)
-        aql += f"\n        RETURN {self.doc_var}\n"
-        # TODO NEXT load_ver, offset, limit - need these to actually work
+        aql += f"\n        LIMIT @skip, @limit\n"
+        aql += f"        RETURN {self.doc_var}\n"
         # TODO match, select, sort, count
         return aql, bind_vars

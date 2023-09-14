@@ -11,7 +11,8 @@ from src.common.product_models.columnar_attribs_common_models import (
 from src.service.data_products.filtering import (
     RangeFilter,
     StringFilter,
-    SearchQueryPart, FilterSet
+    SearchQueryPart,
+    FilterSet
 )
 
 
@@ -167,7 +168,7 @@ def test_stringfilter_from_string_fail():
 
 
 def test_filterset_w_defaults():
-    fs = FilterSet("my_search_view")
+    fs = FilterSet("my_search_view", "loadver9")
     
     fs.append("rangefield", ColumnType.INT, "[6,24]"
         ).append("prefixfield", ColumnType.STRING, "foobar", "text_en", FilterStrategy.PREFIX
@@ -179,8 +180,8 @@ def test_filterset_w_defaults():
     assert aql == """
 LET v2_prefixes = TOKENS(@v2_input, "text_en")
 LET v4_prefixes = TOKENS(@v4_input, "text_rs")
-FOR doc IN my_search_view
-    SEARCH
+FOR doc IN @@view
+    SEARCH doc.load_ver == @load_ver
         IN_RANGE(doc.rangefield, @v1_low, @v1_high, true, true)
         AND
         ANALYZER(STARTS_WITH(doc.prefixfield, v2_prefixes, LENGTH(v2_prefixes)), "text_en")
@@ -190,9 +191,14 @@ FOR doc IN my_search_view
         ANALYZER(v4_prefixes ALL == doc.fulltextfield, "text_rs")
         AND
         doc.datefield <= @v5_high
+        LIMIT @skip, @limit
         RETURN doc
 """.strip() + "\n"
     assert bind_vars == {
+        "@view": "my_search_view",
+        "load_ver": "loadver9",
+        "skip": 0,
+        "limit": 1000,
         'v1_low': 6.0,
         'v1_high': 24.0,
         'v2_input': 'foobar',
@@ -203,7 +209,8 @@ FOR doc IN my_search_view
 
 
 def test_filterset_w_all_args():
-    fs = FilterSet("my_other_search_view", doc_var="d", conjunction=False)
+    fs = FilterSet(
+        "my_other_search_view", "loadver6", doc_var="d", conjunction=False, skip=24, limit=2)
     
     fs.append("rangefield", ColumnType.INT, "[-2,6]")
     fs.append("prefixfield", ColumnType.STRING, "thingy", "text_en", FilterStrategy.PREFIX)
@@ -211,14 +218,19 @@ def test_filterset_w_all_args():
     
     assert aql == """
 LET v2_prefixes = TOKENS(@v2_input, "text_en")
-FOR d IN my_other_search_view
-    SEARCH
+FOR d IN @@view
+    SEARCH d.load_ver == @load_ver
         IN_RANGE(d.rangefield, @v1_low, @v1_high, true, true)
         OR
         ANALYZER(STARTS_WITH(d.prefixfield, v2_prefixes, LENGTH(v2_prefixes)), "text_en")
+        LIMIT @skip, @limit
         RETURN d
 """.strip() + "\n"
     assert bind_vars == {
+        "@view": "my_other_search_view",
+        "load_ver": "loadver6",
+        "skip": 24,
+        "limit": 2,
         'v1_low': -2.0,
         'v1_high': 6.0,
         'v2_input': 'thingy',
@@ -226,15 +238,26 @@ FOR d IN my_other_search_view
 
 
 def test_filterset_fail_construct():
-    _filterset_fail_construct(None, "d", "view is required")
-    _filterset_fail_construct("   \t  ", "d", "view is required")
-    _filterset_fail_construct("v", None, "doc_var is required")
-    _filterset_fail_construct("v", "   \t   ", "doc_var is required")
+    _filterset_fail_construct(None, "lv", "d", 0, 1, "view is required")
+    _filterset_fail_construct("   \t  ", "lv", "d", 0, 1, "view is required")
+    _filterset_fail_construct("v", None, "d", 0, 1, "load_ver is required")
+    _filterset_fail_construct("v", "  \t  ", "d", 0, 1, "load_ver is required")
+    _filterset_fail_construct("v", "lv", None, 0, 1, "doc_var is required")
+    _filterset_fail_construct("v", "lv", "   \t   ", 0, 1, "doc_var is required")
+    _filterset_fail_construct("v", "lv", "d", -1, 1, "skip must be >= 0")
+    _filterset_fail_construct("v", "lv", "d", 1, 0, "limit must be >= 1")
 
 
-def _filterset_fail_construct(view: str, doc_var: str, expected: str):
+def _filterset_fail_construct(
+        view: str,
+        load_ver: str,
+        doc_var: str,
+        skip: int,
+        limit: int,
+        expected: str
+    ):
     with raises(ValueError, match=f"^{re.escape(expected)}$"):
-        FilterSet(view, doc_var)
+        FilterSet(view, load_ver, doc_var, skip=skip, limit=limit)
 
 
 def test_filterset_fail_append():
@@ -253,7 +276,7 @@ def test_filterset_fail_append():
 def test_filerset_fail_append_duplicate_field():
     expected = "filter for field myfield was provided more than once"
     with raises(ValueError, match=f"^{re.escape(expected)}$"):
-        FilterSet("v"
+        FilterSet("v", "lv"
             ).append("myfield", ColumnType.INT, "8,"
             ).append("myfield", ColumnType.STRING, "foo", "text_en", FilterStrategy.FULL_TEXT)
 
@@ -266,4 +289,4 @@ def _filterset_fail_append(
         expected: str
     ):
     with raises(ValueError, match=f"^{re.escape(expected)}$"):
-        FilterSet("v").append(field, coltype, string, None, strategy)
+        FilterSet("v", "lv").append(field, coltype, string, None, strategy)
