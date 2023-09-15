@@ -8,7 +8,7 @@ from src.common.product_models.columnar_attribs_common_models import (
     ColumnType,
     FilterStrategy,
 )
-from src.service.data_products.filtering import (
+from src.service.filtering.filters import (
     RangeFilter,
     StringFilter,
     SearchQueryPart,
