@@ -135,4 +135,12 @@
         
           generate_pmi_biolog_heatmap_data(biolog_data_file, biolog_meta_file, load_ver)
          ```
+       * Please be aware that when using a non-production environment, you must provide an additional `upa_map_file`
+         that maps the UPAs in production to the other environment, since the biolog data is provided for production.
+         The file content is a single JSON object that contains a dictionary with the production UPAs as keys and 
+         the equivalent target environment UPAs as values.
+         ```python
+         upa_map_file = Path(biolog_download_dir, 'PMI_strain_upa_map.json')
+         generate_pmi_biolog_heatmap_data(biolog_data_file, biolog_meta_file, load_ver, env=env, upa_map_file=upa_map_file)
+         ```
    
