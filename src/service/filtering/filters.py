@@ -6,14 +6,12 @@ data products like genome attributes or samples.
 from abc import ABC, abstractmethod
 from dateutil import parser
 from pydantic import BaseModel, Field
+from src.service.filtering.analyzers import DEFAULT_ANALYZER
 from src.common.product_models.columnar_attribs_common_models import ColumnType, FilterStrategy
 from src.common.storage.collection_and_field_names import FLD_LOAD_VERSION
 
 from types import NotImplementedType
 from typing import Annotated, Any, Self
-
-
-_DEFAULT_ANALYZER = "identity"
 
 
 class SearchQueryPart(BaseModel):
@@ -254,14 +252,14 @@ class StringFilter(AbstractFilter):
         
         strategy - the filter strategy.
         string - the search string.
-        analyzer - the analyzer for the filter. If not provided, the {_DEFAULT_ANALYZER} analyzer
+        analyzer - the analyzer for the filter. If not provided, the {DEFAULT_ANALYZER} analyzer
             is used.
         """
         if not strategy:
             raise ValueError("strategy is required")
         self.strategy = strategy
         self.string = _require_string(string, "string is required and must be non-whitespace only")
-        self.analyzer = (_DEFAULT_ANALYZER if not analyzer or not analyzer.strip()
+        self.analyzer = (DEFAULT_ANALYZER if not analyzer or not analyzer.strip()
                          else analyzer.strip())
     
     @classmethod
@@ -380,7 +378,7 @@ class FilterSet:
         field - the ArangoSearch field upon which the filter will operate.
         type_ - the type of the field.
         filter_string - the filter criteria as represented by a string.
-        analyzer - the analyzer for the filter. If not provided the {_DEFAULT_ANALYZER}
+        analyzer - the analyzer for the filter. If not provided the {DEFAULT_ANALYZER}
             analyzer is used.
         strategy - the filter strategy for columns that possess them.
         
