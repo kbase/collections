@@ -176,7 +176,7 @@ def generate_pmi_biolog_heatmap_data(
 
     data_df = _read_biolog_data(biolog_data_file)
     meta_df = _read_biolog_meta(biolog_meta_file)
-    upa_mapping = _read_upa_mapping(upa_map_file) if upa_map_file else dict()
+    upa_mapping = _read_upa_mapping(upa_map_file) if env != 'PROD' else dict()
 
     heatmap_cell_details, heatmap_rows, heatmap_meta_dict = list(), list(), dict()
 
