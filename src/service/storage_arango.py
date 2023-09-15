@@ -218,6 +218,20 @@ class ArangoStorage:
         """
         return await self._db.aql.execute(aql_str, bind_vars=bind_vars or {}, count=count)
     
+    async def create_analyzer(
+        self, name: str, type_: str, properties: dict[str, Any] = None, features: list[str] = None
+    ):
+        """
+        Create an ArangoSearch analyzer.
+        See https://docs.arangodb.com/3.11/index-and-search/analyzers/
+        
+        name - the name of the analyzer.
+        type_ - the type of the analyzer.
+        properties - the properties of the analyzer
+        features - the features for the analyzer.
+        """
+        await self._db.create_analyzer(name, type_, properties, features)
+    
     async def get_dynamic_config(self) -> models.DynamicConfig:
         """ Get the dynamic configuration from the database. """
         col = self._db.collection(names.COLL_SRV_CONFIG)

@@ -98,8 +98,8 @@ A collection metadata key. The value should be the suggested number of shards fo
 
 COLLECTION_PREFIX = "kbcoll_"
 """
-The prefix for all Collections database collection names. Since the service and loaders
-are expected to operate in a database shared with several other services, this prefix
+The prefix for all Collections database collection and analyzer names. Since the service and
+loaders are expected to operate in a database shared with several other services, this prefix
 provides a namespace for the exclusive use of the Collections code.
 """
 
