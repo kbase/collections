@@ -135,4 +135,9 @@
         
           generate_pmi_biolog_heatmap_data(biolog_data_file, biolog_meta_file, load_ver)
          ```
+       * Please be aware that when using a non-production environment, you must provide an additional `upa_map_file`.
+         ```python
+         upa_map_file = Path(biolog_download_dir, 'PMI_strain_upa_map.tsv')
+         generate_pmi_biolog_heatmap_data(biolog_data_file, biolog_meta_file, load_ver, env=env, upa_map_file=upa_map_file)
+         ```
    
