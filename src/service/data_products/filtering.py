@@ -363,6 +363,9 @@ class FilterSet:
         self.limit = _gt(limit, 1, "limit")
         self._filters = {}
 
+    def __len__(self):
+        return len(self._filters)
+
     def append(
             self,
             field: str,
