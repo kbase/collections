@@ -1,3 +1,4 @@
+import json
 import re
 import uuid
 from pathlib import Path
@@ -142,13 +143,23 @@ def _retrieve_kbase_assembly_id(meta_df, strain_id) -> str:
         return assembly_ref
 
 
+def _read_upa_mapping(upa_map_file: Path) -> dict:
+    # Read the UPA mapping file into a dictionary
+
+    with open(upa_map_file, 'r') as json_file:
+        upa_mapping = json.load(json_file)
+
+    return upa_mapping
+
+
 def generate_pmi_biolog_heatmap_data(
         biolog_data_file: Path,
         biolog_meta_file: Path,
         load_ver: str,
         env: str = 'PROD',
         kbase_collection: str = 'PMI',
-        root_dir: str = loader_common_names.ROOT_DIR):
+        root_dir: str = loader_common_names.ROOT_DIR,
+        upa_map_file: Path = None, ):
     """
     Generate JSONL files with the heatmap data for the Biolog data file.
 
@@ -158,12 +169,14 @@ def generate_pmi_biolog_heatmap_data(
     :param env: the environment containing the data to be processed
     :param kbase_collection: the name of the KBase collection
     :param root_dir: the root directory for the data to be processed
+    :param upa_map_file: the path to the JSON file containing the mapping between KBase PROD UPA to other environment UPA
     """
-    if env != 'PROD':
-        raise NotImplementedError('Needs to implement mapping logic for environment other than PROD.')
+    if env != 'PROD' and upa_map_file is None:
+        raise ValueError('upa_map_file must be provided for environment other than PROD.')
 
     data_df = _read_biolog_data(biolog_data_file)
     meta_df = _read_biolog_meta(biolog_meta_file)
+    upa_mapping = _read_upa_mapping(upa_map_file) if upa_map_file else dict()
 
     heatmap_cell_details, heatmap_rows, heatmap_meta_dict = list(), list(), dict()
 
@@ -191,12 +204,17 @@ def generate_pmi_biolog_heatmap_data(
     min_value, max_value = float('inf'), float('-inf')
     for strain_id, row in data_df.iterrows():
         try:
-            assembly_ref = _retrieve_kbase_assembly_id(meta_df, strain_id)
+            prod_assembly_ref = _retrieve_kbase_assembly_id(meta_df, strain_id)
         except ValueError as e:
             # TODO: this is a temporary solution to handle the missing KBase genome ID for some strains.
             # Two strains 'PDO1076' and 'PTD-1' are missing the KBase assembly ID in the metadata file.
             print(f'Cannot find KBase assembly ID for strain ID: {strain_id}. Skipping this row.')
             continue
+
+        assembly_ref = upa_mapping.get(prod_assembly_ref) if env != 'PROD' else prod_assembly_ref
+
+        if env != 'PROD' and assembly_ref is None:
+            raise ValueError(f'Cannot find UPA mapping for {prod_assembly_ref}')
 
         cells = list()
         for metabolite, value in row.items():
