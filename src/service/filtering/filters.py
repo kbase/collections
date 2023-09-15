@@ -8,7 +8,7 @@ from dateutil import parser
 from pydantic import BaseModel, Field
 from src.service.filtering.analyzers import DEFAULT_ANALYZER
 from src.common.product_models.columnar_attribs_common_models import ColumnType, FilterStrategy
-from src.common.storage.collection_and_field_names import FLD_LOAD_VERSION
+from src.common.storage.collection_and_field_names import FLD_LOAD_VERSION, FLD_COLLECTION_ID
 
 from types import NotImplementedType
 from typing import Annotated, Any, Self
@@ -336,6 +336,7 @@ class FilterSet:
     def __init__(
         self,
         view: str,
+        collection_id: str,
         load_ver: str,
         doc_var: str = "doc",
         conjunction: bool = True,
@@ -346,6 +347,7 @@ class FilterSet:
         Create the filter set.
         
         view - the ArangoSearch view to query.
+        collection_id - the ID of the KBase collection to query.
         load_ver - the load version of the data to query.
         doc_var - the variable to use for the ArangoSearch document.
         conjunction - whether to AND (true) or OR (false) the filters together.
@@ -354,6 +356,7 @@ class FilterSet:
         """
         # this should probably be configurable in the DB, which means added to the loader
         self.view = _require_string(view, "view is required")
+        self.collection_id = _require_string(collection_id, "collection_id is required")
         self.load_ver = _require_string(load_ver, "load_ver is required")
         self.doc_var = _require_string(doc_var, "doc_var is required")
         self.conjunction = conjunction
@@ -388,9 +391,9 @@ class FilterSet:
         # also maybe in the filters being constructed
         field = _require_string(field, "field is required")
         filter_string = _require_string(
-            filter_string, f"filter string is required for field {field}")
+            filter_string, f"Filter string is required for field {field}")
         if field in self._filters:
-            raise ValueError(f"filter for field {field} was provided more than once")
+            raise ValueError(f"Filter for field {field} was provided more than once")
         filter_ = self._FILTER_MAP.get(type_)
         if not filter_:
             raise ValueError(f"Unsupported column type: {type_}")
@@ -402,12 +405,16 @@ class FilterSet:
         
     def to_arangosearch_aql(self) -> tuple[str, dict[str, Any]]:
         """
-        Generate ArangoSearch AQL and bind vars from the filters.
+        Generate ArangoSearch AQL and bind vars from the filters. At least one filter must have
+        been added to the filter set prior to calling this method.
         """
+        if not self._filters:
+            raise ValueError("At least one filter is required")
         var_lines = []
         aql_lines = []
         bind_vars = {
             "@view": self.view,
+            "collid": self.collection_id,
             "load_ver": self.load_ver,
             "skip": self.skip,
             "limit": self.limit,
@@ -423,13 +430,20 @@ class FilterSet:
             else:
                 aql_lines.append([f"    {search_part.aql_lines[0]}"])
             bind_vars.update(search_part.bind_vars)
-        aql = "\n".join(var_lines) + "\n"
+        aql = ""
+        if var_lines:
+            aql += "\n".join(var_lines) + "\n"
         aql += f"FOR {self.doc_var} IN @@view"
-        aql += f"\n    SEARCH {self.doc_var}.{FLD_LOAD_VERSION} == @load_ver\n    "
-        aql_parts = ["\n        ".join(al) for al in aql_lines]
+        aql += f"\n    SEARCH (\n"
+        aql += f"        {self.doc_var}.{FLD_COLLECTION_ID} == @collid\n"
+        aql += f"        AND\n"
+        aql += f"        {self.doc_var}.{FLD_LOAD_VERSION} == @load_ver\n"
+        aql += f"    ) AND (\n    "
+        aql_parts = ["\n            ".join(al) for al in aql_lines]
         op = "AND" if self.conjunction else "OR"
         aql += f"\n        {op}\n    ".join(aql_parts)
-        aql += f"\n        LIMIT @skip, @limit\n"
-        aql += f"        RETURN {self.doc_var}\n"
-        # TODO match, select, sort, count
+        aql += f"\n    )\n"
+        aql += f"    LIMIT @skip, @limit\n"
+        aql += f"    RETURN {self.doc_var}\n"
+        # TODO FILTERS match, select, sort, count
         return aql, bind_vars
