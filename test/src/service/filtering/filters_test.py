@@ -168,7 +168,7 @@ def test_stringfilter_from_string_fail():
 
 
 def test_filterset_w_defaults():
-    fs = FilterSet("my_search_view", "loadver9")
+    fs = FilterSet("my_search_view", "coll24", "loadver9")
     
     fs.append("rangefield", ColumnType.INT, "[6,24]"
         ).append("prefixfield", ColumnType.STRING, "foobar", "text_en", FilterStrategy.PREFIX
@@ -181,7 +181,11 @@ def test_filterset_w_defaults():
 LET v2_prefixes = TOKENS(@v2_input, "text_en")
 LET v4_prefixes = TOKENS(@v4_input, "text_rs")
 FOR doc IN @@view
-    SEARCH doc.load_ver == @load_ver
+    SEARCH (
+        doc.coll == @collid
+        AND
+        doc.load_ver == @load_ver
+    ) AND (
         IN_RANGE(doc.rangefield, @v1_low, @v1_high, true, true)
         AND
         ANALYZER(STARTS_WITH(doc.prefixfield, v2_prefixes, LENGTH(v2_prefixes)), "text_en")
@@ -191,11 +195,13 @@ FOR doc IN @@view
         ANALYZER(v4_prefixes ALL == doc.fulltextfield, "text_rs")
         AND
         doc.datefield <= @v5_high
-        LIMIT @skip, @limit
-        RETURN doc
+    )
+    LIMIT @skip, @limit
+    RETURN doc
 """.strip() + "\n"
     assert bind_vars == {
         "@view": "my_search_view",
+        "collid": "coll24",
         "load_ver": "loadver9",
         "skip": 0,
         "limit": 1000,
@@ -211,8 +217,14 @@ FOR doc IN @@view
 
 def test_filterset_w_all_args():
     fs = FilterSet(
-        "my_other_search_view", "loadver6", doc_var="d", conjunction=False, skip=24, limit=2)
-    
+        "my_other_search_view",
+        "mycollection",
+        "loadver6",
+        doc_var="d",
+        conjunction=False,
+        skip=24,
+        limit=2
+    )
     fs.append("rangefield", ColumnType.INT, "[-2,6]")
     fs.append("prefixfield", ColumnType.STRING, "thingy", "text_en", FilterStrategy.PREFIX)
     aql, bind_vars = fs.to_arangosearch_aql()
@@ -220,15 +232,21 @@ def test_filterset_w_all_args():
     assert aql == """
 LET v2_prefixes = TOKENS(@v2_input, "text_en")
 FOR d IN @@view
-    SEARCH d.load_ver == @load_ver
+    SEARCH (
+        d.coll == @collid
+        AND
+        d.load_ver == @load_ver
+    ) AND (
         IN_RANGE(d.rangefield, @v1_low, @v1_high, true, true)
         OR
         ANALYZER(STARTS_WITH(d.prefixfield, v2_prefixes, LENGTH(v2_prefixes)), "text_en")
-        LIMIT @skip, @limit
-        RETURN d
+    )
+    LIMIT @skip, @limit
+    RETURN d
 """.strip() + "\n"
     assert bind_vars == {
         "@view": "my_other_search_view",
+        "collid": "mycollection",
         "load_ver": "loadver6",
         "skip": 24,
         "limit": 2,
@@ -239,23 +257,59 @@ FOR d IN @@view
     assert len(fs) == 2
 
 
+def test_filterset_w_1_filter():
+    fs = FilterSet(
+        "so_many_search_views",
+        "PMI",
+        "loadyload",
+    )
+    fs.append("shoe_size", ColumnType.FLOAT, "[-56.9, 32.1)")
+    aql, bind_vars = fs.to_arangosearch_aql()
+    
+    assert aql == """
+FOR doc IN @@view
+    SEARCH (
+        doc.coll == @collid
+        AND
+        doc.load_ver == @load_ver
+    ) AND (
+        IN_RANGE(doc.shoe_size, @v1_low, @v1_high, true, false)
+    )
+    LIMIT @skip, @limit
+    RETURN doc
+""".strip() + "\n"
+    assert bind_vars == {
+        "@view": "so_many_search_views",
+        "collid": "PMI",
+        "load_ver": "loadyload",
+        "skip": 0,
+        "limit": 1000,
+        'v1_low': -56.9,
+        'v1_high': 32.1,
+    }
+    assert len(fs) == 1
+
+
 def test_filterset_len_0():
-    assert len(FilterSet("v", "lv")) == 0
+    assert len(FilterSet("v", "c", "lv")) == 0
 
 
 def test_filterset_fail_construct():
-    _filterset_fail_construct(None, "lv", "d", 0, 1, "view is required")
-    _filterset_fail_construct("   \t  ", "lv", "d", 0, 1, "view is required")
-    _filterset_fail_construct("v", None, "d", 0, 1, "load_ver is required")
-    _filterset_fail_construct("v", "  \t  ", "d", 0, 1, "load_ver is required")
-    _filterset_fail_construct("v", "lv", None, 0, 1, "doc_var is required")
-    _filterset_fail_construct("v", "lv", "   \t   ", 0, 1, "doc_var is required")
-    _filterset_fail_construct("v", "lv", "d", -1, 1, "skip must be >= 0")
-    _filterset_fail_construct("v", "lv", "d", 1, 0, "limit must be >= 1")
+    _filterset_fail_construct(None, "c", "lv", "d", 0, 1, "view is required")
+    _filterset_fail_construct("   \t  ", "c", "lv", "d", 0, 1, "view is required")
+    _filterset_fail_construct("v", None, "lv", "d", 0, 1, "collection_id is required")
+    _filterset_fail_construct("v", "    \t   ", "lv", "d", 0, 1, "collection_id is required")
+    _filterset_fail_construct("v", "c", None, "d", 0, 1, "load_ver is required")
+    _filterset_fail_construct("v", "c", "  \t  ", "d", 0, 1, "load_ver is required")
+    _filterset_fail_construct("v", "c", "lv", None, 0, 1, "doc_var is required")
+    _filterset_fail_construct("v", "c", "lv", "   \t   ", 0, 1, "doc_var is required")
+    _filterset_fail_construct("v", "c", "lv", "d", -1, 1, "skip must be >= 0")
+    _filterset_fail_construct("v", "c", "lv", "d", 1, 0, "limit must be >= 1")
 
 
 def _filterset_fail_construct(
         view: str,
+        coll_id: str,
         load_ver: str,
         doc_var: str,
         skip: int,
@@ -263,7 +317,7 @@ def _filterset_fail_construct(
         expected: str
     ):
     with raises(ValueError, match=f"^{re.escape(expected)}$"):
-        FilterSet(view, load_ver, doc_var, skip=skip, limit=limit)
+        FilterSet(view, coll_id, load_ver, doc_var, skip=skip, limit=limit)
 
 
 def test_filterset_fail_append():
@@ -271,20 +325,12 @@ def test_filterset_fail_append():
     _filterset_fail_append(None, c, "s", None, "field is required")
     _filterset_fail_append("   \t   ", c, "s", None, "field is required")
     _filterset_fail_append("f", None, "s", None, "Unsupported column type: None")
-    _filterset_fail_append("f", c, None, None, "filter string is required for field f")
-    _filterset_fail_append("f", c, "  \n  ", None, "filter string is required for field f")
+    _filterset_fail_append("f", c, None, None, "Filter string is required for field f")
+    _filterset_fail_append("f", c, "  \n  ", None, "Filter string is required for field f")
     _filterset_fail_append(
         "f", c, "whee", None,
         "Invalid filter for field f: Invalid range specification; expected exactly one comma: whee"
     )
-
-
-def test_filerset_fail_append_duplicate_field():
-    expected = "filter for field myfield was provided more than once"
-    with raises(ValueError, match=f"^{re.escape(expected)}$"):
-        FilterSet("v", "lv"
-            ).append("myfield", ColumnType.INT, "8,"
-            ).append("myfield", ColumnType.STRING, "foo", "text_en", FilterStrategy.FULL_TEXT)
 
 
 def _filterset_fail_append(
@@ -295,4 +341,18 @@ def _filterset_fail_append(
         expected: str
     ):
     with raises(ValueError, match=f"^{re.escape(expected)}$"):
-        FilterSet("v", "lv").append(field, coltype, string, None, strategy)
+        FilterSet("v", "c", "lv").append(field, coltype, string, None, strategy)
+
+
+def test_filterset_fail_append_duplicate_field():
+    expected = "Filter for field myfield was provided more than once"
+    with raises(ValueError, match=f"^{re.escape(expected)}$"):
+        FilterSet("v", "c", "lv"
+            ).append("myfield", ColumnType.INT, "8,"
+            ).append("myfield", ColumnType.STRING, "foo", "text_en", FilterStrategy.FULL_TEXT)
+
+
+def test_filterset_fail_to_arangosearch_aql():
+    expected = "At least one filter is required"
+    with raises(ValueError, match=f"^{re.escape(expected)}$"):
+        FilterSet("v", "c", "lv").to_arangosearch_aql()
