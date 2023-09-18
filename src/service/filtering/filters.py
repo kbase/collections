@@ -6,9 +6,10 @@ data products like genome attributes or samples.
 from abc import ABC, abstractmethod
 from dateutil import parser
 from pydantic import BaseModel, Field
-from src.service.filtering.analyzers import DEFAULT_ANALYZER
 from src.common.product_models.columnar_attribs_common_models import ColumnType, FilterStrategy
 from src.common.storage.collection_and_field_names import FLD_LOAD_VERSION, FLD_COLLECTION_ID
+from src.service import errors
+from src.service.filtering.analyzers import DEFAULT_ANALYZER
 
 from types import NotImplementedType
 from typing import Annotated, Any, Self
@@ -74,13 +75,13 @@ def _to_bool_string(b: bool):
 
 def _require_string(s: str, err: str):
     if not s or not s.strip():
-        raise ValueError(err)
+        raise errors.MissingParameterError(err)
     return s.strip()
 
 
 def _gt(num: int, min_: int, name: str):
     if num < min_:
-        raise ValueError(f"{name} must be >= {min_}")
+        raise errors.IllegalParameterError(f"{name} must be >= {min_}")
     return num
 
 
@@ -112,17 +113,19 @@ class RangeFilter(AbstractFilter):
             errval = type_ if not type_ else type_.value
             raise ValueError(f"Invalid type for range filter: {errval}")
         self.type = type_
-        self.low = self._parse_val(low, "low")
-        self.high = self._parse_val(high, "high")
+        self.low = self._parse_val(low, "low range endpoint")
+        self.high = self._parse_val(high, "high range endpoint")
         if self.low is None and self.high is None:
-            raise ValueError("At least one of the low or high values must be provided")
+            raise errors.IllegalParameterError(
+                "At least one of the low or high values for the filter range must be provided")
         self.low_inclusive = low_inclusive
         self.high_inclusive = high_inclusive
         if self.low is not None and self.high is not None and (
             self.low > self.high
             or (self.low == self.high and (not self.low_inclusive or not self.high_inclusive))
         ):
-            raise ValueError(f"The range {self.to_range_string()} excludes all values")
+            raise errors.IllegalParameterError(
+                f"The filter range {self.to_range_string()} excludes all values")
 
     def to_range_string(self):
         """
@@ -162,12 +165,13 @@ class RangeFilter(AbstractFilter):
                 parser.isoparse(val)
                 return val
             except ValueError as e:
-                raise ValueError(f"{name} value is not an ISO8601 date: {val}")
+                raise errors.IllegalParameterError(
+                    f"{name} value is not an ISO8601 date: {val}") from e
         else:
             try:
                 return float(val)
             except ValueError as e:
-                raise ValueError(f"{name} value is not a number: {val}") from e
+                raise errors.IllegalParameterError(f"{name} value is not a number: {val}") from e
 
     def __eq__(self, other: object) -> bool | NotImplementedType:
         if not isinstance(other, RangeFilter):
@@ -204,7 +208,8 @@ class RangeFilter(AbstractFilter):
         string = _require_string(string, "Missing range information")
         parts = [x.strip() for x in string.split(",")]
         if len(parts) != 2:
-            raise ValueError(f"Invalid range specification; expected exactly one comma: {string}")
+            raise errors.IllegalParameterError(
+                f"Invalid range specification; expected exactly one comma: {string}")
         low, low_inclusive = cls._parse_inclusivity(parts[0], True)
         high, high_inclusive = cls._parse_inclusivity(parts[1], False)
         return RangeFilter(type_, low, high, low_inclusive, high_inclusive)
@@ -258,7 +263,8 @@ class StringFilter(AbstractFilter):
         if not strategy:
             raise ValueError("strategy is required")
         self.strategy = strategy
-        self.string = _require_string(string, "string is required and must be non-whitespace only")
+        self.string = _require_string(
+            string, "Filter string is required and must be non-whitespace only")
         self.analyzer = (DEFAULT_ANALYZER if not analyzer or not analyzer.strip()
                          else analyzer.strip())
     
@@ -359,7 +365,6 @@ class FilterSet:
         skip - the number of records to skip.
         limit - the maximum number of records to return.
         """
-        # this should probably be configurable in the DB, which means added to the loader
         self.view = _require_string(view, "view is required")
         self.collection_id = _require_string(collection_id, "collection_id is required")
         self.load_ver = _require_string(load_ver, "load_ver is required")
@@ -392,13 +397,14 @@ class FilterSet:
         
         returns this FilterSet instance for chaining.
         """
-        # may want to throw some custom error types from errors.py in this method
-        # also maybe in the filters being constructed
         field = _require_string(field, "field is required")
         filter_string = _require_string(
-            filter_string, f"Filter string is required for field {field}")
+            filter_string,
+            f"Filter string is required and must be non-whitespace only for field {field}"
+        )
         if field in self._filters:
-            raise ValueError(f"Filter for field {field} was provided more than once")
+            raise errors.IllegalParameterError(
+                f"Filter for field {field} was provided more than once")
         filter_ = self._FILTER_MAP.get(type_)
         if not filter_:
             raise ValueError(f"Unsupported column type: {type_}")
@@ -406,6 +412,9 @@ class FilterSet:
             self._filters[field] = filter_.from_string(type_, filter_string, analyzer, strategy)
         except ValueError as e:
             raise ValueError(f"Invalid filter for field {field}: {str(e)}") from e
+        except errors.IllegalParameterError as e:
+            raise errors.IllegalParameterError(
+                f"Invalid filter for field {field}: {str(e)}") from e
         return self
         
     def to_arangosearch_aql(self) -> tuple[str, dict[str, Any]]:

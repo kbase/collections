@@ -8,11 +8,12 @@ from src.common.product_models.columnar_attribs_common_models import (
     ColumnType,
     FilterStrategy,
 )
+from src.service import errors
 from src.service.filtering.filters import (
     RangeFilter,
     StringFilter,
     SearchQueryPart,
-    FilterSet
+    FilterSet,
 )
 
 
@@ -26,6 +27,7 @@ TEST_SET = (
         ColumnType.DATE,
         RangeFilter(ColumnType.DATE, "2023-09-06T23:59:03+0000", "2023-09-06T23:59:21+0000")
     ),
+    ("[1,1]", ColumnType.INT, RangeFilter(ColumnType.INT, 1, 1, True, True)),
 )
 
 
@@ -42,6 +44,7 @@ def test_rangefilter_to_range_string():
         (TEST_SET[2][2], "(3.4,89.1]"),
         (TEST_SET[3][2], ",0.0]"),
         (TEST_SET[4][2], "(2023-09-06T23:59:03+0000,2023-09-06T23:59:21+0000)"),
+        (TEST_SET[5][2], "[1.0,1.0]"),
     )
     for rf, expected in range_set:
         assert rf.to_range_string() == expected
@@ -78,42 +81,53 @@ def test_rangefilter_to_arangosearch_aql():
             aql_lines=["IN_RANGE(d.field, @prelow, @prehigh, false, false)"],
             bind_vars={"prelow": "2023-09-06T23:59:03+0000", "prehigh": "2023-09-06T23:59:21+0000"}
         )),
+        (TEST_SET[5][2], SearchQueryPart(
+            aql_lines=["IN_RANGE(d.field, @prelow, @prehigh, true, true)"],
+            bind_vars={"prelow": 1.0, "prehigh": 1.0}
+        )),
     )
     for rf, expected in aql_set:
         assert rf.to_arangosearch_aql("d.field", "pre") == expected
 
 
 def test_rangefilter_from_string_fail():
+    ve = ValueError
+    mpe = errors.MissingParameterError
+    ipe = errors.IllegalParameterError
     test_set = (
-        (ColumnType.INT, "   \t   ", "Missing range information"),
+        (ColumnType.INT, "   \t   ", mpe, "Missing range information"),
         (
             ColumnType.INT,
             " [  \t   ",
+            ipe,
             "Invalid range specification; expected exactly one comma: ["
         ),
         (
             ColumnType.INT,
             "  [1,2,3]  ",
+            ipe,
             "Invalid range specification; expected exactly one comma: [1,2,3]"
         ),
-        (ColumnType.INT, "  [[1, 3]  ", "low value is not a number: [1"),
-        (ColumnType.INT, "  1,3)) ", "high value is not a number: 3)"),
-        (ColumnType.ENUM, "  1,2", "Invalid type for range filter: enum"),
-        (None, "  1,2", "Invalid type for range filter: None"),
-        (ColumnType.FLOAT, "  foo, 1  ", "low value is not a number: foo"),
+        (ColumnType.INT, "  [[1, 3]  ", ipe, "low range endpoint value is not a number: [1"),
+        (ColumnType.INT, "  1,3)) ", ipe, "high range endpoint value is not a number: 3)"),
+        (ColumnType.ENUM, "  1,2", ve, "Invalid type for range filter: enum"),
+        (None, "  1,2", ve, "Invalid type for range filter: None"),
+        (ColumnType.FLOAT, "  foo, 1  ", ipe, "low range endpoint value is not a number: foo"),
         (
             ColumnType.DATE,
             "   2023-09-06T23:59:21+z0000,   ",
-            "low value is not an ISO8601 date: 2023-09-06T23:59:21+z0000"
+            ipe,
+            "low range endpoint value is not an ISO8601 date: 2023-09-06T23:59:21+z0000"
         ),
-        (ColumnType.INT, "   (,)   ", "At least one of the low or high values must be provided"),
-        (ColumnType.INT, "  (2,1)  ", "The range (2.0,1.0) excludes all values"),
-        (ColumnType.INT, "  (1,1)   ", "The range (1.0,1.0) excludes all values"),
-        (ColumnType.INT, "  [1,1)  ", "The range [1.0,1.0) excludes all values"),
-        (ColumnType.INT, "   (1,1]  ", "The range (1.0,1.0] excludes all values"),
+        (ColumnType.INT, "   (,)   ", ipe,
+            "At least one of the low or high values for the filter range must be provided"),
+        (ColumnType.INT, "  (2,1)  ", ipe, "The filter range (2.0,1.0) excludes all values"),
+        (ColumnType.INT, "  (1,1)   ", ipe, "The filter range (1.0,1.0) excludes all values"),
+        (ColumnType.INT, "  [1,1)  ", ipe, "The filter range [1.0,1.0) excludes all values"),
+        (ColumnType.INT, "   (1,1]  ", ipe, "The filter range (1.0,1.0] excludes all values"),
     )
-    for type_, input_, expected in test_set:
-        with raises(ValueError, match=f"^{re.escape(expected)}$"):
+    for type_, input_, errclass, expected in test_set:
+        with raises(errclass, match=f"^{re.escape(expected)}$"):
             RangeFilter.from_string(type_, input_)
 
 
@@ -163,16 +177,18 @@ def test_stringfilter_to_arangosearch_aql_prefix():
 
 
 def test_stringfilter_from_string_fail():
+    ve = ValueError
+    mpe = errors.MissingParameterError
     test_set=(
-        (None, "text_en", "whee", "strategy is required"),
-        (FilterStrategy.FULL_TEXT, "text_en",
-            None, "string is required and must be non-whitespace only"),
-        (FilterStrategy.PREFIX, "text_en", " \t   ",
-            "string is required and must be non-whitespace only"),
+        (None, "text_en", "whee", ve, "strategy is required"),
+        (FilterStrategy.FULL_TEXT, "text_en", None, mpe,
+            "Filter string is required and must be non-whitespace only"),
+        (FilterStrategy.PREFIX, "text_en", " \t   ", mpe,
+            "Filter string is required and must be non-whitespace only"),
     )
     
-    for strategy, analyzer, input_, expected in test_set:
-        with raises(ValueError, match=f"^{re.escape(expected)}$"):
+    for strategy, analyzer, input_, errclass, expected in test_set:
+        with raises(errclass, match=f"^{re.escape(expected)}$"):
             StringFilter.from_string(None, input_, analyzer, strategy)
 
 
@@ -308,16 +324,18 @@ def test_filterset_len_0():
 
 
 def test_filterset_fail_construct():
-    _filterset_fail_construct(None, "c", "lv", "d", 0, 1, "view is required")
-    _filterset_fail_construct("   \t  ", "c", "lv", "d", 0, 1, "view is required")
-    _filterset_fail_construct("v", None, "lv", "d", 0, 1, "collection_id is required")
-    _filterset_fail_construct("v", "    \t   ", "lv", "d", 0, 1, "collection_id is required")
-    _filterset_fail_construct("v", "c", None, "d", 0, 1, "load_ver is required")
-    _filterset_fail_construct("v", "c", "  \t  ", "d", 0, 1, "load_ver is required")
-    _filterset_fail_construct("v", "c", "lv", None, 0, 1, "doc_var is required")
-    _filterset_fail_construct("v", "c", "lv", "   \t   ", 0, 1, "doc_var is required")
-    _filterset_fail_construct("v", "c", "lv", "d", -1, 1, "skip must be >= 0")
-    _filterset_fail_construct("v", "c", "lv", "d", 1, 0, "limit must be >= 1")
+    m = errors.MissingParameterError
+    i = errors.IllegalParameterError
+    _filterset_fail_construct(None, "c", "lv", "d", 0, 1, m, "view is required")
+    _filterset_fail_construct("   \t  ", "c", "lv", "d", 0, 1, m, "view is required")
+    _filterset_fail_construct("v", None, "lv", "d", 0, 1, m, "collection_id is required")
+    _filterset_fail_construct("v", "    \t   ", "lv", "d", 0, 1, m, "collection_id is required")
+    _filterset_fail_construct("v", "c", None, "d", 0, 1, m, "load_ver is required")
+    _filterset_fail_construct("v", "c", "  \t  ", "d", 0, 1, m, "load_ver is required")
+    _filterset_fail_construct("v", "c", "lv", None, 0, 1, m, "doc_var is required")
+    _filterset_fail_construct("v", "c", "lv", "   \t   ", 0, 1, m, "doc_var is required")
+    _filterset_fail_construct("v", "c", "lv", "d", -1, 1, i, "skip must be >= 0")
+    _filterset_fail_construct("v", "c", "lv", "d", 1, 0, i, "limit must be >= 1")
 
 
 def _filterset_fail_construct(
@@ -327,22 +345,32 @@ def _filterset_fail_construct(
         doc_var: str,
         skip: int,
         limit: int,
+        errclass: Exception,
         expected: str
     ):
-    with raises(ValueError, match=f"^{re.escape(expected)}$"):
+    with raises(errclass, match=f"^{re.escape(expected)}$"):
         FilterSet(view, coll_id, load_ver, doc_var, skip=skip, limit=limit)
 
 
 def test_filterset_fail_append():
     c = ColumnType.INT
-    _filterset_fail_append(None, c, "s", None, "field is required")
-    _filterset_fail_append("   \t   ", c, "s", None, "field is required")
-    _filterset_fail_append("f", None, "s", None, "Unsupported column type: None")
-    _filterset_fail_append("f", c, None, None, "Filter string is required for field f")
-    _filterset_fail_append("f", c, "  \n  ", None, "Filter string is required for field f")
+    v = ValueError
+    m = errors.MissingParameterError
+    i = errors.IllegalParameterError
+    _filterset_fail_append(None, c, "s", None, m, "field is required")
+    _filterset_fail_append("   \t   ", c, "s", None, m, "field is required")
+    _filterset_fail_append("f", None, "s", None, v, "Unsupported column type: None")
+    _filterset_fail_append("f", c, None, None, m,
+        "Filter string is required and must be non-whitespace only for field f")
+    _filterset_fail_append("f", c, "  \n  ", None, m,
+        "Filter string is required and must be non-whitespace only for field f")
     _filterset_fail_append(
-        "f", c, "whee", None,
+        "f", c, "whee", None, i,
         "Invalid filter for field f: Invalid range specification; expected exactly one comma: whee"
+    )
+    _filterset_fail_append(
+        "f", ColumnType.STRING, "f", None, v,
+        "Invalid filter for field f: strategy is required"
     )
 
 
@@ -351,15 +379,16 @@ def _filterset_fail_append(
         coltype: ColumnType,
         string: str,
         strategy: FilterStrategy,
+        errclass: Exception,
         expected: str
     ):
-    with raises(ValueError, match=f"^{re.escape(expected)}$"):
+    with raises(errclass, match=f"^{re.escape(expected)}$"):
         FilterSet("v", "c", "lv").append(field, coltype, string, None, strategy)
 
 
 def test_filterset_fail_append_duplicate_field():
     expected = "Filter for field myfield was provided more than once"
-    with raises(ValueError, match=f"^{re.escape(expected)}$"):
+    with raises(errors.IllegalParameterError, match=f"^{re.escape(expected)}$"):
         FilterSet("v", "c", "lv"
             ).append("myfield", ColumnType.INT, "8,"
             ).append("myfield", ColumnType.STRING, "foo", "text_en", FilterStrategy.FULL_TEXT)
