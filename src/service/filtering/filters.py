@@ -303,19 +303,24 @@ class StringFilter(AbstractFilter):
         """
         bindvar = f"{var_prefix}input"
         prefixvar = f"{var_prefix}prefixes"
-        if self.strategy == FilterStrategy.FULL_TEXT:
-            aql_lines=[f"ANALYZER({prefixvar} ALL == {identifier}, \"{self.analyzer}\")"]
-        elif self.strategy == FilterStrategy.PREFIX:
-            aql_lines=[
-                f"ANALYZER(STARTS_WITH({identifier}, {prefixvar}, LENGTH({prefixvar})), "
-                    + f"\"{self.analyzer}\")"
-            ]
-        else:
-            # this is impossible to test currently but is here for safety for when we add
-            # substring search
-            raise ValueError(f"Unexpected filter strategy: {self.strategy}")
+        var_assigns = {prefixvar: f"TOKENS(@{bindvar}, \"{self.analyzer}\")"}
+        match self.strategy:
+            case FilterStrategy.IDENTITY:
+                aql_lines=[f"{identifier} == @{bindvar}"]
+                var_assigns = None
+            case FilterStrategy.FULL_TEXT:
+                aql_lines=[f"ANALYZER(@{prefixvar} ALL == {identifier}, \"{self.analyzer}\")"]
+            case FilterStrategy.PREFIX:
+                aql_lines=[
+                    f"ANALYZER(STARTS_WITH({identifier}, @{prefixvar}, LENGTH(@{prefixvar})), "
+                        + f"\"{self.analyzer}\")"
+                ]
+            case _:
+                # this is impossible to test currently but is here for safety for when we add
+                # substring search
+                raise ValueError(f"Unexpected filter strategy: {self.strategy}")
         return SearchQueryPart(
-            variable_assignments={prefixvar: f"TOKENS(@{bindvar}, \"{self.analyzer}\")"},
+            variable_assignments=var_assigns,
             aql_lines=aql_lines,
             bind_vars={bindvar: self.string}
         )

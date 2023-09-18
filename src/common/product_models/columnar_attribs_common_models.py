@@ -36,6 +36,8 @@ class FilterStrategy(str, Enum):
     """
     The strategy for filtering a column if the column type allows for more than one strategy.
     """
+    IDENTITY = "identity"
+    """ A string search based on an exact match to the entire string. """
     PREFIX = "prefix"
     """ A string prefix search. """
     FULL_TEXT = "fulltext"

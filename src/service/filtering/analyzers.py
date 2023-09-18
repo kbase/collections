@@ -36,8 +36,8 @@ _CUSTOM_ANALYZERS = {
     )
 }
 
-def get_analyzer(strategy: FilterStrategy | None):
-    """ Get the appropriate analyer to use for a given filter strategy. """
+def get_analyzer(strategy: FilterStrategy | None) -> str:
+    """ Get the name of the appropriate ArangoDB analyzer to use for a given filter strategy. """
     return _COL2ANALYZER.get(strategy, DEFAULT_ANALYZER)
 
 

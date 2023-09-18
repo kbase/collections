@@ -8,6 +8,7 @@ def test_get_analyzer():
     test_cases = {
         FilterStrategy.FULL_TEXT: "text_en",
         FilterStrategy.PREFIX: "kbcoll_text_en_prefix",
+        FilterStrategy.IDENTITY: "identity", 
         None: "identity"
     }
     for fs, expected in test_cases.items():

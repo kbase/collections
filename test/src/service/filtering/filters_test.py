@@ -127,17 +127,26 @@ def test_stringfilter_repr():
     assert sf == StringFilter(FilterStrategy.PREFIX, "bar", "trigram")
 
 
+def test_stringfilter_to_arangosearch_aql_identity():
+    sf = StringFilter.from_string(None, "well dang", None, FilterStrategy.IDENTITY)
+    assert sf.to_arangosearch_aql("doc.somefield", "vp") == SearchQueryPart(
+        aql_lines=["doc.somefield == @vpinput"],
+        bind_vars={"vpinput": "well dang"}
+    )
+
+
 def test_stringfilter_to_arangosearch_aql_full_text():
-    _stringfilter_to_arangosearch_aql_full_text(None)
-    _stringfilter_to_arangosearch_aql_full_text("    \t   ")
+    _stringfilter_to_arangosearch_aql_full_text(None, "identity")
+    _stringfilter_to_arangosearch_aql_full_text("    \t   ", "identity")
+    _stringfilter_to_arangosearch_aql_full_text("    text_en   ", "text_en")
 
 
-def _stringfilter_to_arangosearch_aql_full_text(analyzer):
+def _stringfilter_to_arangosearch_aql_full_text(analyzer, expected):
     sf = StringFilter.from_string(
         None, "I'm Mary Poppins y'all", analyzer, FilterStrategy.FULL_TEXT)
     assert sf.to_arangosearch_aql("d.somefield", "varpre") == SearchQueryPart(
-        variable_assignments={"varpreprefixes": "TOKENS(@varpreinput, \"identity\")"},
-        aql_lines=["ANALYZER(varpreprefixes ALL == d.somefield, \"identity\")"],
+        variable_assignments={"varpreprefixes": f"TOKENS(@varpreinput, \"{expected}\")"},
+        aql_lines=[f"ANALYZER(@varpreprefixes ALL == d.somefield, \"{expected}\")"],
         bind_vars={"varpreinput": "I'm Mary Poppins y'all"}
     )
 
@@ -147,7 +156,7 @@ def test_stringfilter_to_arangosearch_aql_prefix():
     assert sf.to_arangosearch_aql("d.otherfield", "1_") == SearchQueryPart(
         variable_assignments={"1_prefixes": "TOKENS(@1_input, \"text_en\")"},
         aql_lines=[
-            "ANALYZER(STARTS_WITH(d.otherfield, 1_prefixes, LENGTH(1_prefixes)), \"text_en\")"
+            "ANALYZER(STARTS_WITH(d.otherfield, @1_prefixes, LENGTH(@1_prefixes)), \"text_en\")"
         ],
         bind_vars={"1_input": "rhodo"}
     )
@@ -168,13 +177,14 @@ def test_stringfilter_from_string_fail():
 
 
 def test_filterset_w_defaults():
-    fs = FilterSet("my_search_view", "coll24", "loadver9")
-    
-    fs.append("rangefield", ColumnType.INT, "[6,24]"
+    fs = FilterSet("my_search_view", "coll24", "loadver9"
+        ).append("rangefield", ColumnType.INT, "[6,24]"
         ).append("prefixfield", ColumnType.STRING, "foobar", "text_en", FilterStrategy.PREFIX
         ).append("rangefield2", ColumnType.FLOAT, "0.2,"
         ).append("fulltextfield", ColumnType.STRING, "whee", "text_rs", FilterStrategy.FULL_TEXT
-        ).append("datefield", ColumnType.DATE, ",2023-09-13T18:51:19+0000]",)
+        ).append("datefield", ColumnType.DATE, ",2023-09-13T18:51:19+0000]"
+        ).append("strident", ColumnType.STRING, "thingy", strategy=FilterStrategy.IDENTITY
+    )
     aql, bind_vars = fs.to_arangosearch_aql()
     
     assert aql == """
@@ -188,13 +198,15 @@ FOR doc IN @@view
     ) AND (
         IN_RANGE(doc.rangefield, @v1_low, @v1_high, true, true)
         AND
-        ANALYZER(STARTS_WITH(doc.prefixfield, v2_prefixes, LENGTH(v2_prefixes)), "text_en")
+        ANALYZER(STARTS_WITH(doc.prefixfield, @v2_prefixes, LENGTH(@v2_prefixes)), "text_en")
         AND
         doc.rangefield2 > @v3_low
         AND
-        ANALYZER(v4_prefixes ALL == doc.fulltextfield, "text_rs")
+        ANALYZER(@v4_prefixes ALL == doc.fulltextfield, "text_rs")
         AND
         doc.datefield <= @v5_high
+        AND
+        doc.strident == @v6_input
     )
     LIMIT @skip, @limit
     RETURN doc
@@ -211,8 +223,9 @@ FOR doc IN @@view
         'v3_low': 0.2,
         "v4_input": "whee",
         "v5_high": "2023-09-13T18:51:19+0000",
+        "v6_input": "thingy",
     }
-    assert len(fs) == 5
+    assert len(fs) == 6
 
 
 def test_filterset_w_all_args():
@@ -239,7 +252,7 @@ FOR d IN @@view
     ) AND (
         IN_RANGE(d.rangefield, @v1_low, @v1_high, true, true)
         OR
-        ANALYZER(STARTS_WITH(d.prefixfield, v2_prefixes, LENGTH(v2_prefixes)), "text_en")
+        ANALYZER(STARTS_WITH(d.prefixfield, @v2_prefixes, LENGTH(@v2_prefixes)), "text_en")
     )
     LIMIT @skip, @limit
     RETURN d
