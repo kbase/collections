@@ -1,0 +1,160 @@
+columns:
+   - key: kbase_id
+     type: string
+     filter_strategy: identity
+
+   - key: accession
+     type: string
+     filter_strategy: identity  # this seems like a good candidate for substring
+
+   - key: checkm_completeness
+     type: float
+
+   - key: checkm_contamination
+     type: float
+
+   - key: checkm_marker_count
+     type: int
+
+   - key: checkm_marker_lineage  # GTDB node, might need better tokentizing or substring search
+     type: string
+     filter_strategy: fulltext
+
+   - key: checkm_marker_set_count
+     type: int
+
+   - key: contig_count
+     type: int
+
+   - key: gc_count
+     type: int
+
+   - key: gc_percentage
+     type: float
+
+   - key: genome_size
+     type: int
+
+   - key: classification  # GTDB classification, might need better tokenizing
+     type: string
+     filter_strategy: fulltext
+
+   - key: longest_contig
+     type: int
+
+   - key: longest_scaffold
+     type: int
+
+   - key: mean_contig_length
+     type: float
+
+   - key: mean_scaffold_length
+     type: float
+
+   - key: mimag_high_quality  # is this a boolean? do we need a bool type & convert?
+     type: string
+     filter_strategy: identity
+
+   - key: mimag_low_quality  # is this a boolean? do we need a bool type & convert?
+     type: string
+     filter_strategy: identity
+
+   - key: mimag_medium_quality  # is this a boolean? do we need a bool type & convert?
+     type: string
+     filter_strategy: identity
+
+   - key: n50_contigs
+     type: int
+
+   - key: n50_scaffolds
+     type: int
+
+   - key: ncbi_assembly_level
+     type: string
+     filter_strategy: fulltext
+
+   - key: ncbi_assembly_name
+     type: string
+     filter_strategy: identity  # this seems like a good candidate for substring
+
+   - key: ncbi_bioproject
+     type: string
+     filter_strategy: identity  # this seems like a good candidate for substring
+
+   - key: ncbi_biosample
+     type: string
+     filter_strategy: identity  # this seems like a good candidate for substring
+
+   - key: ncbi_country
+     type: string
+     filter_strategy: fulltext
+
+   - key: ncbi_date  # should put all dates into ISO8601 format, but not add significance
+     type: date
+
+   - key: ncbi_genbank_assembly_accession
+     type: string
+     filter_strategy: identity  # this seems like a good candidate for substring
+
+   - key: ncbi_genome_category
+     type: string
+     filter_strategy: fulltext
+
+   - key: ncbi_isolate
+     type: string
+     filter_strategy: fulltext
+
+   - key: ncbi_isolation_source
+     type: string
+     filter_strategy: fulltext
+
+   - key: ncbi_lat_lon  # might want to do specialized processing here
+     type: string
+     filter_strategy: fulltext
+
+   - key: ncbi_organism_name
+     type: string
+     filter_strategy: fulltext
+
+   - key: ncbi_seq_rel_date  # should put all dates into ISO8601 format, but not add significance
+     type: date
+
+   - key: ncbi_species_taxid
+     type: int
+
+   - key: ncbi_strain_identifiers
+     type: string
+     filter_strategy: fulltext
+
+   - key: ncbi_submitter
+     type: string
+     filter_strategy: fulltext
+
+   - key: ncbi_taxid
+     type: int
+
+   - key: ncbi_taxonomy_unfiltered  # might need better tokenizing
+     type: string
+     filter_strategy: fulltext
+
+   - key: protein_count
+     type: int
+
+   - key: scaffold_count
+     type: int
+
+   - key: ssu_count
+     type: int
+
+   - key: ssu_length  # this looks like an int that's a string in the DB. Should we coerce?
+     type: string
+     filter_strategy: fulltext
+
+   - key: trna_aa_count
+     type: int
+
+   - key: trna_count
+     type: int
+
+   - key: trna_selenocysteine_count
+     type: int
