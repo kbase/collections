@@ -43,6 +43,7 @@ pymongo = "4.4.1"
 # Note aioarango forces an old version of httpcore
 dnspython = "==2.3.0"
 sourmash = "==4.8.3"
+prometheus-client = "==0.17.1"
 
 [requires]
 python_version = "3.11"
