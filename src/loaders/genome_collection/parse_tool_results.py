@@ -63,6 +63,7 @@ from src.common.product_models.heatmap_common_models import (
 )
 from src.common.storage.db_doc_conversions import (
     collection_load_version_key,
+    collection_data_id_key,
     data_product_export_types_to_doc,
 )
 from src.common.storage.field_names import FLD_KBASE_ID
@@ -472,7 +473,9 @@ def microtrait(root_dir, env, kbase_collection, load_ver, fatal_ids):
                 for cell in jsonl_f:
                     cell[names.FLD_COLLECTION_ID] = kbase_collection
                     cell[names.FLD_LOAD_VERSION] = load_ver
-                    cell[names.FLD_ARANGO_KEY] = cell[FIELD_HEATMAP_CELL_ID]  # using cell_id (uuid) as _key
+                    cell[names.FLD_ARANGO_KEY] = collection_data_id_key(kbase_collection,
+                                                                        load_ver,
+                                                                        cell[FIELD_HEATMAP_CELL_ID])
                     heatmap_cell_details.append(cell)
 
             # process heatmap rows
