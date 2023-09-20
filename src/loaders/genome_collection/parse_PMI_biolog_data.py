@@ -23,14 +23,14 @@ from src.common.product_models.heatmap_common_models import (
     FIELD_HEATMAP_CATEGORIES,
 )
 from src.common.storage.collection_and_field_names import (
-    COLL_MICROTRAIT_CELLS,
-    COLL_MICROTRAIT_DATA,
-    COLL_MICROTRAIT_META,
     FLD_ARANGO_KEY,
     FLD_COLLECTION_ID,
     FLD_LOAD_VERSION,
+    COLL_BIOLOG_META,
+    COLL_BIOLOG_DATA,
+    COLL_BIOLOG_CELLS,
 )
-from src.common.storage.db_doc_conversions import collection_load_version_key
+from src.common.storage.db_doc_conversions import collection_load_version_key, collection_data_id_key
 from src.common.storage.field_names import FLD_KBASE_ID
 from src.loaders.common import loader_common_names
 from src.loaders.common.loader_helper import init_row_doc, create_import_files
@@ -231,7 +231,7 @@ def generate_pmi_biolog_heatmap_data(
                 FIELD_HEATMAP_VALUES: dict(),  # 'values' for biolog is always empty
                 FLD_COLLECTION_ID: kbase_collection,
                 FLD_LOAD_VERSION: load_ver,
-                FLD_ARANGO_KEY: cell_uuid,
+                FLD_ARANGO_KEY: collection_data_id_key(kbase_collection, load_ver, cell_uuid),
             })
 
         # append a document for the heatmap rows
@@ -244,9 +244,9 @@ def generate_pmi_biolog_heatmap_data(
     heatmap_meta_dict[FIELD_HEATMAP_MAX_VALUE] = max_value
 
     tool = 'biolog'
-    meta_output = f'{kbase_collection}_{load_ver}_{tool}_{HEATMAP_FILE_ROOT}_{COLL_MICROTRAIT_META}.jsonl'
-    rows_output = f'{kbase_collection}_{load_ver}_{tool}_{HEATMAP_FILE_ROOT}_{COLL_MICROTRAIT_DATA}.jsonl'
-    cell_details_output = f'{kbase_collection}_{load_ver}_{tool}_{HEATMAP_FILE_ROOT}_{COLL_MICROTRAIT_CELLS}.jsonl'
+    meta_output = f'{kbase_collection}_{load_ver}_{tool}_{HEATMAP_FILE_ROOT}_{COLL_BIOLOG_META}.jsonl'
+    rows_output = f'{kbase_collection}_{load_ver}_{tool}_{HEATMAP_FILE_ROOT}_{COLL_BIOLOG_DATA}.jsonl'
+    cell_details_output = f'{kbase_collection}_{load_ver}_{tool}_{HEATMAP_FILE_ROOT}_{COLL_BIOLOG_CELLS}.jsonl'
 
     create_import_files(root_dir, env, meta_output, [heatmap_meta_dict])
     create_import_files(root_dir, env, rows_output, heatmap_rows)
