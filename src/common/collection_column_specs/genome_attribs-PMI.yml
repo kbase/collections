@@ -6,7 +6,7 @@ columns:
    - key: Contamination  # checkm2  # GTDB is checkm_contamination
      type: float
    
-   - key: Completeness  # checkm2  # GTDB is checm_completeness
+   - key: Completeness  # checkm2  # GTDB is checkm_completeness
      type: float
    
    - key: user_genome  # id provided to GTDB_tk

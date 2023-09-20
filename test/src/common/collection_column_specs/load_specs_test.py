@@ -27,7 +27,7 @@ def test_load_single_spec_from_toolchain():
     
     ident = FilterStrategy.IDENTITY
     ftext = FilterStrategy.FULL_TEXT
-    for col in ["GROW", "PMI"]:
+    for col in ["GROW", "PMI", "ENIGMA"]:
         spec = load_specs.load_spec("genome_attribs", col)
         
         assert type(spec) == ColumnarAttributesSpec
