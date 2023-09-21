@@ -95,7 +95,7 @@ class TFTaskManager:
 
     def _retrieve_all_tasks(self):
         """
-        Retrieve the task information from the task info file matching the kbase_collection, load_ver, and tool.
+        Retrieve the task information from the task info file matching the kbase_collection, load_ver, env, and tool.
 
         Sort the tasks by job_submit_time in descending order. Return the tasks as a pandas DataFrame. If no tasks are
         found, return an empty DataFrame.
@@ -107,6 +107,7 @@ class TFTaskManager:
         if not df.empty:
             df = df[(df["kbase_collection"] == self.kbase_collection) &
                     (df["load_ver"] == self.load_ver) &
+                    (df["env"] == self.env) &
                     (df["tool"] == self.tool)]
 
             df.sort_values(by="job_submit_time", ascending=False, inplace=True)
@@ -208,7 +209,10 @@ class TFTaskManager:
         if not all(key in task_info for key in REQUIRED_TASK_INFO_KEYS):
             raise ValueError(f"task_info must contain all keys: {REQUIRED_TASK_INFO_KEYS}")
 
-        task_info.update({'kbase_collection': self.kbase_collection, 'load_ver': self.load_ver, 'tool': self.tool,
+        task_info.update({'kbase_collection': self.kbase_collection,
+                          'load_ver': self.load_ver,
+                          'env': self.env,
+                          'tool': self.tool,
                           'source_data_dir': self.source_data_dir})
 
         # Append the new record to the file
@@ -299,13 +303,20 @@ class TFTaskManager:
         else:
             raise ValueError(f'Unexpected job status: {latest_task_status}')
 
-    def __init__(self, kbase_collection, load_ver, tool, source_data_dir, restart_on_demand,
+    def __init__(self,
+                 kbase_collection,
+                 load_ver,
+                 env,
+                 tool,
+                 source_data_dir,
+                 restart_on_demand,
                  root_dir=loader_common_names.ROOT_DIR):
         """
         Initialize the task manager.
 
         :param kbase_collection: KBase collection identifier name (e.g. GTDB).
         :param load_ver: collection load version (e.g. r207.kbase.1).
+        :param env: environment name (e.g. PROD, CI, etc.)
         :param tool: tool name (e.g. gtdb_tk, checkm2, etc.)
         :param source_data_dir: source data directory.
         :param restart_on_demand: if True, killed any running/pending jobs and restart running the tool again.
@@ -316,14 +327,15 @@ class TFTaskManager:
 
         self.kbase_collection = kbase_collection
         self.load_ver = load_ver
+        self.env = env
         self.tool = tool
         self.source_data_dir = source_data_dir
         self.root_dir = root_dir
         self.restart_on_demand = restart_on_demand
 
-        # job directory is named as <kbase_collection>_<load_ver>_<tool>
+        # job directory is named as env/<kbase_collection>_<load_ver>_<tool>
         self.job_dir = os.path.join(
-            self.root_dir, TASKFARMER_JOB_DIR, f'{self.kbase_collection}_{self.load_ver}_{self.tool}')
+            self.root_dir, TASKFARMER_JOB_DIR, self.env, f'{self.kbase_collection}_{self.load_ver}_{self.tool}')
 
         self._check_preconditions(self.restart_on_demand)
 
