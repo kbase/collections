@@ -43,6 +43,8 @@ The 5 overlapping fields are all intentionally shared fields with identical type
 Create a new view indexing all the genome attributes properties and adding full text indices
 for selected properties.
 
+View size is 205MB vs. 151MB collection size.
+
 ```python
 In [1]: with open("/home/crushingismybusiness/.arangopwdCIcollections_dev") as f
    ...: :
@@ -225,7 +227,9 @@ massage user input to deal with characters with special meanings.
 
 ## Test substring search with n-grams
 
-Setting up the analyzer and collections programatically:
+Set up the analyzer and view programatically.
+
+View size is 274MB vs. 151MB collection size.
 
 ```python
 In [1]: with open("/home/crushingismybusiness/.arangopwdCIcollections_dev") as f
