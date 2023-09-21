@@ -11,8 +11,8 @@ contains those fields is updated as well.
 import yaml
 from pathlib import Path
 from src.common.product_models.columnar_attribs_common_models import (
-    ColumnarAttributesSpec,
     AttributesColumnSpec,
+    ColumnarAttributesSpec,
 )
 
 SPEC_DIR = Path(__file__).parent.resolve()
@@ -68,7 +68,8 @@ def load_spec(data_product: str, collection: str = None) -> ColumnarAttributesSp
                     first = (coll, spec[k])
                 else:
                     if spec[k] != first[1]:
+                        colls = sorted([coll, first[0]])
                         raise ValueError(f"Column spec conflict for data product {data_product}, "
-                                        + f"collections {first[0]} and {coll} on key {k}")
+                                        + f"collections {colls[0]} and {colls[1]} on key {k}")
         columns.append(AttributesColumnSpec(**first[1]))
     return ColumnarAttributesSpec(columns=columns)
