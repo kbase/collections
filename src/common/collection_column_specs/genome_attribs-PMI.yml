@@ -1,0 +1,81 @@
+columns:
+   - key: kbase_id
+     type: string
+     filter_strategy: identity
+
+   - key: Contamination  # checkm2  # GTDB is checkm_contamination
+     type: float
+   
+   - key: Completeness  # checkm2  # GTDB is checkm_completeness
+     type: float
+   
+   - key: user_genome  # id provided to GTDB_tk
+     type: string
+     filter_strategy: identity
+   
+   - key: classification  # GTDB classification, might need better tokenizing
+     type: string
+     filter_strategy: fulltext
+   
+   - key: fastani_reference  # e.g. the genbank accession
+     type: string
+     filter_strategy: identity  # this seems like a good candidate for substring
+
+   - key: fastani_reference_radius
+     type: float
+
+   - key: fastani_taxonomy  # might need better tokenizing
+     type: string
+     filter_strategy: fulltext
+
+   - key: fastani_ani
+     type: float
+
+   - key: fastani_af
+     type: float
+
+   - key: closest_placement_reference  # genbank accession
+     type: string
+     filter_strategy: identity  # this seems like a good candidate for substring
+
+   - key: closest_placement_radius
+     type: float
+
+   - key: closest_placement_ani
+     type: float
+
+   - key: closest_placement_af
+     type: float
+
+   - key: placer_taxonomy  # might need better tokenizing
+     type: string
+     filter_strategy: fulltext
+
+   - key: classification_method
+     type: string
+     filter_strategy: fulltext
+
+   - key: note
+     type: string
+     filter_strategy: fulltext
+
+   # this field probably needs special processing as it's a list of accessions with
+   # an array of associated numbers. It might even be best not to include it in search for
+   # now, but we'll let the PO make that decision
+   - key: other_related_references(genome_id,species_name,radius,ANI,AF)
+     type: string
+     filter_strategy: fulltext
+
+   - key: msa_percent
+     type: float
+
+   - key: translation_table
+     type: int
+
+   - key: red_value  # not sure what this is
+     type: string
+     filter_strategy: fulltext
+
+   - key: warnings
+     type: string
+     filter_strategy: fulltext
