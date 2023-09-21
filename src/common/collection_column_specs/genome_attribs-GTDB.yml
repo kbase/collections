@@ -16,7 +16,7 @@ columns:
    - key: checkm_marker_count
      type: int
 
-   - key: checkm_marker_lineage  # GTDB node, might need better tokentizing or substring search
+   - key: checkm_marker_lineage  # GTDB node, might need better tokenizing or substring search
      type: string
      filter_strategy: fulltext
 
