@@ -7,6 +7,7 @@ from src.common.product_models.columnar_attribs_common_models import (
 )
 from pathlib import Path
 from pytest import raises
+import re
 
 
 # TODO TEST setup more test spec files and do more comprehensive tests checking the entire
@@ -76,5 +77,5 @@ def test_load_single_spec_from_toolchain():
 
 def test_load_key_collision():
     err = "Column spec conflict for data product test_dp, collections COL2 and COL1 on key bar"
-    with raises(ValueError, match=f"^{err}$"):
+    with raises(ValueError, match=f"^{re.escape(err)}$"):
         load_specs.load_spec("test_dp")
