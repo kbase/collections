@@ -1,0 +1,12 @@
+columns:
+   - key: foo
+     type: string
+     filter_strategy: identity
+
+   - key: baz
+     type: float
+
+   - key: bar
+     type: string
+     filter_strategy: fulltext
+
