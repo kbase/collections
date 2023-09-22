@@ -314,6 +314,9 @@ class StringFilter(AbstractFilter):
             case FilterStrategy.IDENTITY:
                 aql_lines=[f"{identifier} == @{bindvar}"]
                 var_assigns = None
+            case FilterStrategy.IN_ARRAY:
+                aql_lines=[f"@{bindvar} IN {identifier}"]
+                var_assigns = None
             case FilterStrategy.FULL_TEXT:
                 aql_lines=[f"ANALYZER(@{prefixvar} ALL == {identifier}, \"{self.analyzer}\")"]
             case FilterStrategy.PREFIX:

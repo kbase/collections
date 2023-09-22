@@ -1,4 +1,12 @@
 columns:
+   - key: coll
+     type: string
+     filter_strategy: identity
+
+   - key: load_ver
+     type: string
+     filter_strategy: identity
+
    - key: foo
      type: string
      filter_strategy: identity
