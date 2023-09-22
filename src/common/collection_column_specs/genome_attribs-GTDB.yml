@@ -1,4 +1,16 @@
 columns:
+   - key: coll
+     type: string
+     filter_strategy: identity
+
+   - key: load_ver
+     type: string
+     filter_strategy: identity
+
+   - key: _mtchsel
+     type: string
+     filter_strategy: inarray
+
    - key: kbase_id
      type: string
      filter_strategy: identity

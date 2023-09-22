@@ -20,7 +20,11 @@ def test_get_collections_for_dataproduct():
 
 
 def test_all_specs_load_singular():
-    # just check the specs' format is ok
+    # just check the specs' format is ok and common vars
+    
+    st = ColumnType.STRING
+    ident = FilterStrategy.IDENTITY
+    
     files = list(Path(load_specs.__file__).parent.glob("*.yml"))
     if not files:
         assert 0, "No spec files found"
@@ -28,7 +32,13 @@ def test_all_specs_load_singular():
         print(f"Checking spec {f}")
         data_product, collection = str(f).split('-')
         collection = collection[:-4]
-        load_specs.load_spec(data_product, collection)
+        spec = load_specs.load_spec(data_product, collection)
+        key2spec = {c.key: c for c in spec.columns}
+        assert key2spec["coll"] == AttributesColumnSpec(
+            key="coll", type=st, filter_strategy=ident)
+        assert key2spec["load_ver"] == AttributesColumnSpec(
+            key="load_ver", type=st, filter_strategy=ident)
+        
 
 
 def test_all_specs_load_merge():
@@ -38,6 +48,7 @@ def test_all_specs_load_merge():
     
     ident = FilterStrategy.IDENTITY
     ftext = FilterStrategy.FULL_TEXT
+    inar = FilterStrategy.IN_ARRAY
     
     spec = load_specs.load_spec("genome_attribs")
     # just check a few fields
@@ -51,6 +62,8 @@ def test_all_specs_load_merge():
             key="checkm_contamination", type=ft)
     assert key2spec["translation_table"] == AttributesColumnSpec(
         key="translation_table", type=it)
+    assert key2spec["_mtchsel"] == AttributesColumnSpec(
+        key="_mtchsel", type=st, filter_strategy=inar)
 
 
 def test_load_single_spec_from_toolchain():

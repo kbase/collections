@@ -36,9 +36,16 @@ _CUSTOM_ANALYZERS = {
     )
 }
 
-def get_analyzer(strategy: FilterStrategy | None) -> str:
-    """ Get the name of the appropriate ArangoDB analyzer to use for a given filter strategy. """
-    return _COL2ANALYZER.get(strategy, DEFAULT_ANALYZER)
+def get_analyzer(strategy: FilterStrategy | None, return_none_for_default_analyzer: bool = False
+    ) -> str:
+    """
+    Get the name of the appropriate ArangoDB analyzer to use for a given filter strategy.
+    
+    strategy - the strategy to translate to an analyzer
+    return_none_for_default_analyzer - rather than returning the default analyzer, return None.
+    """
+    df = None if return_none_for_default_analyzer else DEFAULT_ANALYZER
+    return _COL2ANALYZER.get(strategy, df)
 
 
 async def install_analyzers(db: ArangoStorage):
