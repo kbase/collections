@@ -266,7 +266,7 @@ class ArangoStorage:
                 name, {"links": {arango_collection: {"fields": view_fields}}}
             )
         except ViewCreateError as e:
-            if e.error_code == ARANGO_ERR_NAME_EXISTS:  # TODO TEST
+            if e.error_code == ARANGO_ERR_NAME_EXISTS:
                 view = await self._db.view(name)
                 if view["links"][arango_collection]["fields"] != view_fields:
                     raise ValueError(f"The view '{name}' already exists and differs from "
