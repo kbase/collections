@@ -14,11 +14,20 @@ A storage system for collections based on an Arango backend.
 
 from aioarango.cursor import Cursor
 from aioarango.database import StandardDatabase
-from aioarango.exceptions import CollectionCreateError, DocumentInsertError
+from aioarango.exceptions import (
+    CollectionCreateError,
+    DocumentInsertError,
+    ViewCreateError,
+    ViewGetError,
+)
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from typing import Any, Callable, Awaitable, Self
 from src.common.hash import md5_string
+from src.common.product_models.columnar_attribs_common_models import (
+    ColumnarAttributesSpec,
+    FilterStrategy
+)
 from src.common.storage import collection_and_field_names as names
 from src.service import models
 from src.service import errors
@@ -42,6 +51,7 @@ _FLD_VER_NUM = "ver_num"
 _FLD_LIMIT = "limit"
 
 _ARANGO_SPECIAL_KEYS = [names.FLD_ARANGO_KEY, names.FLD_ARANGO_ID, "_rev"]
+_ARANGO_ERR_COLL_OR_VIEW_NOT_FOUND = 1203
 ARANGO_ERR_NAME_EXISTS = 1207
 _ARANGO_ERR_UNIQUE_CONSTRAINT = 1210
 
@@ -231,6 +241,104 @@ class ArangoStorage:
         features - the features for the analyzer.
         """
         await self._db.create_analyzer(name, type_, properties, features)
+    
+    async def create_search_view(
+        self,
+        name: str,
+        arango_collection: str,
+        view_spec: ColumnarAttributesSpec,
+        analyzer_provider: Callable[[FilterStrategy, bool], str]
+    ):
+        """
+        Create a search view for a collection.
+        
+        name - the name of the view to create.
+        arango_collection - the collection name for which to create the view.
+        view_spec - the specification for the view to create.
+        analyzer_provider - a function, that given a filter strategy, provides the name of
+            an analyzer to use for that strategy. The second argument defines whether to
+            return None (True) or the name of the default analyzer (False) when the default
+            analyzer is to be returned.
+        """
+        view_fields = self._view_spec_to_fields(view_spec, analyzer_provider)
+        try:
+            await self._db.create_arangosearch_view(
+                name, {"links": {arango_collection: {"fields": view_fields}}}
+            )
+        except ViewCreateError as e:
+            if e.error_code == ARANGO_ERR_NAME_EXISTS:  # TODO TEST
+                view = await self._db.view(name)
+                if view["links"][arango_collection]["fields"] != view_fields:
+                    raise ValueError(f"The view '{name}' already exists and differs from "
+                        + "the requested specification.") from e
+            else:
+                raise
+    
+    def _view_spec_to_fields(
+            self,
+            view_spec: ColumnarAttributesSpec,
+            analyzer_provider: Callable[[FilterStrategy, bool], str]
+        ) -> dict[str, Any]:
+        fields = {}
+        for colattrib in view_spec.columns:
+            analyzer = analyzer_provider(colattrib.filter_strategy, True)
+            if not analyzer:
+                fields[colattrib.key] = {}
+            else:
+                # we may want > 1 analyzer per field at some point, deal with that when it happens.
+                fields[colattrib.key] = {"analyzers": [analyzer]}
+        return fields
+    
+    async def get_search_views_from_spec(
+        self,
+        arango_collection: str,
+        view_spec: ColumnarAttributesSpec,
+        analyzer_provider: Callable[[FilterStrategy, bool], str]
+        ) -> list:
+        """
+        Given a view spec, find a matching views in a collection if any.
+        
+        arango_collection - the collection name associated with the view.
+        view_spec - the specification for the view to find.
+        analyzer_provider - a function, that given a filter strategy, provides the name of
+            an analyzer to use for that strategy. The second argument defines whether to
+            return None (True) or the name of the default analyzer (False) when the default
+            analyzer is to be returned.
+            
+        Returns the names of any matching views found.
+        """
+        view_fields = self._view_spec_to_fields(view_spec, analyzer_provider)
+        views = await self._db.views()
+        ret = []
+        for v in views:
+            view = await self._db.view(v["name"])
+            if arango_collection in view["links"]:
+                if view["links"][arango_collection]["fields"] == view_fields:
+                    ret.append(v["name"])
+        return ret
+    
+    async def has_search_view(self, name) -> bool:
+        """ Check if a search view exists by name. """
+        try:
+            await self._db.view(name)
+            return True
+        except ViewGetError as e:
+            if e.error_code == _ARANGO_ERR_COLL_OR_VIEW_NOT_FOUND:
+                return False
+            else:
+                raise
+    
+    async def get_search_views(self, arango_collection: str) -> set[str]:
+        """
+        Get the list of views that exist for an arango collection.
+        """
+        ret = set()
+        views = await self._db.views()
+        for v in views: 
+            view = await self._db.view(v["name"])
+            if arango_collection in view["links"]:
+                ret.add(v["name"])
+        return ret
     
     async def get_dynamic_config(self) -> models.DynamicConfig:
         """ Get the dynamic configuration from the database. """
