@@ -15,13 +15,28 @@ from typing import get_type_hints, Any
 
 REPLICATION = 3
 
+_START_TEXT = f"""
+In this program, we will first create any missing ArangoDB collections
+required for the KBase Collections service and specify their sharding.
+
+* Sharding cannot be altered after the ArangoDB collections are created.
+* Replication is set to {REPLICATION} and other properties are left as
+  their defaults.
+* Other properties can be adjusted post creation via the database
+  shell / UI etc.
+
+Next, we'll check for any needed updates for ArangoSearch views and
+create new views if necessary.
+""".strip() + "\n"
+
 _CONF_SHARDS = "confshards"
 _COLL_NAME = "collname"
 
 
 def _get_config() -> CollectionsServiceConfig:
     parser = argparse.ArgumentParser(
-        description="Set up ArangoDB collection sharding for the KBase collections service."
+        description="Manage the KBase collections service, including setting up sharding for "
+            + "new collections and creating ArangoSearch views."
     )
     parser.add_argument(
         '-c', '--config', required=True, type=str,
@@ -41,7 +56,7 @@ def _get_config() -> CollectionsServiceConfig:
     return cfg, args.skip_database_creation
     
 
-def _get_collections() -> dict[str, dict[str, Any]]:
+def _get_required_collections() -> dict[str, dict[str, Any]]:
     colls = {}
     hints = get_type_hints(names, include_extras=True)
     for field in hints:
@@ -62,7 +77,7 @@ def _print_collection_config(index: int, collection: dict[str, Any]):
 
 
 def _print_collections(collections: dict[str, dict[str, Any]]):
-    print("\nCurrent ArangoDB collection sharding values:")
+    print("Proposed ArangoDB collection sharding values:")
     for i, coll in enumerate(collections.values()):
         _print_collection_config(i, coll)
     print()
@@ -83,12 +98,16 @@ async def _setup_db(colls: dict[str, dict[str, Any]], db: aioarango.database.Sta
                 print(f"Collection {coll[_COLL_NAME]} already exists, ignoring.")
 
 
-async def _user_loop(colls: dict[str, dict[str, Any]], db: aioarango.database.StandardDatabase):
+async def _user_loop_sharding(
+        colls: dict[str, dict[str, Any]],
+        db: aioarango.database.StandardDatabase
+    ):
+    _print_collections(colls)
     while True:
         if click.confirm("Commit this sharding configuration?"):
-            print("Creating collections... ")
+            print("Creating collections... ", end="")
             await _setup_db(colls, db)
-            print("Done. Buh-bye!")
+            print("done. Buh-bye!")
             return
         else:
             index = -1
@@ -106,22 +125,37 @@ async def _user_loop(colls: dict[str, dict[str, Any]], db: aioarango.database.St
                 if shards < 1:
                     print("Please enter a number greater than 0.")
             coll[_CONF_SHARDS] = shards
+            print()
             _print_collections(colls)
+
+
+async def _get_missing_collections(
+        required_cols: dict[str, dict[str, Any]],
+        db: aioarango.database.StandardDatabase
+    ) -> list[str]:
+    print("Checking for missing ArangoDB collections...", end="")
+    colls = await db.collections()
+    print("done")
+    missing = sorted(set(required_cols.keys()) - {c["name"] for c in colls})
+    return {m: required_cols[m] for m in missing}
 
 
 async def main():
     config, skip_db_creation = _get_config()
-    colls = _get_collections()
-    print("This program allows you to set up sharding values for the KBase collections service "
-           + "and, when ready, create the collections in ArangoDB.")
-    print("Only the sharding is set up because other factors can be adjusted post creation.")
-    print(f"Replication is set to {REPLICATION} and other properties are left as their defaults.")
-    _print_collections(colls)
+    colls = _get_required_collections()
+    print(_START_TEXT)
     print("Connecting to db... ", end="")
     cli, db = await build_arango_db(config, create_database=not skip_db_creation)
     print("done")
     try:
-        await _user_loop(colls, db)
+        colls_to_create = await _get_missing_collections(colls, db)
+        print(f"{len(colls_to_create)} / {len(colls)} need to be created.")
+        if len(colls_to_create):
+            await _user_loop_sharding(colls_to_create, db)
+        else:
+            print("Huzzah! Nothing to be done.")
+        print()
+        # TODO NEXT check for and if necessary set up required arango search views
     finally:
         await cli.close()
 
