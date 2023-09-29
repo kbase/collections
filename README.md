@@ -29,7 +29,7 @@ To start the service Docker container:
   exist.
 * A script is provided for assistance in setting up the collections. For more info, run
 ```
-$ PYTHONPATH=. python src/common/storage/init_storage.py -h
+$ PYTHONPATH=. python src/service_manager.py -h
 ```
 * The environment variables listed in
   [collections_config.toml.jinja](collections_config.toml.jinja)
