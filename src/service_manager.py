@@ -132,8 +132,8 @@ async def _user_loop_sharding(
 async def _get_missing_collections(
         required_cols: dict[str, dict[str, Any]],
         db: aioarango.database.StandardDatabase
-    ) -> list[str]:
-    print("Checking for missing ArangoDB collections...", end="")
+    ) -> dict[str, dict[str, Any]]:
+    print("Checking for missing ArangoDB collections... ", end="")
     colls = await db.collections()
     print("done")
     missing = sorted(set(required_cols.keys()) - {c["name"] for c in colls})
@@ -150,7 +150,7 @@ async def main():
     try:
         colls_to_create = await _get_missing_collections(colls, db)
         print(f"{len(colls_to_create)} / {len(colls)} need to be created.")
-        if len(colls_to_create):
+        if colls_to_create:
             await _user_loop_sharding(colls_to_create, db)
         else:
             print("Huzzah! Nothing to be done.")
