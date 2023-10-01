@@ -42,7 +42,7 @@ pymongo = "4.4.1"
 # https://stackoverflow.com/questions/76766226/i-cant-import-pymongo
 # Note aioarango forces an old version of httpcore
 dnspython = "==2.3.0"
-sourmash = "==4.8.3"
+sourmash = "==4.8.4"
 prometheus-client = "==0.17.1"
 
 [requires]
