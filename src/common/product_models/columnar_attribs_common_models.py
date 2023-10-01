@@ -38,6 +38,8 @@ class FilterStrategy(str, Enum):
     """
     IDENTITY = "identity"
     """ A string search based on an exact match to the entire string. """
+    IN_ARRAY = "inarray"
+    """ A string search based on an exact match to one of a set of entries in an array. """
     PREFIX = "prefix"
     """ A string prefix search. """
     FULL_TEXT = "fulltext"
@@ -46,9 +48,9 @@ class FilterStrategy(str, Enum):
     # TODO FILTERS substring search
 
 
-class AttributesColumn(BaseModel):
+class AttributesColumnSpec(BaseModel):
     """
-    Details about a column in an attributes table.
+    A specification for a a column in an attributes table.
     """
     key: str = Field(
         example="checkm_completeness",
@@ -63,6 +65,27 @@ class AttributesColumn(BaseModel):
         description="The filter strategy for the column if any. Not all column types need "
             + "a filter strategy."
     )] = None
+    
+    @model_validator(mode="after")
+    def _check_filter_strategy(self) -> Self:
+        if self.type == ColumnType.STRING:
+            if not self.filter_strategy:
+                raise ValueError("String types require a filter strategy")
+        elif self.filter_strategy:
+            raise ValueError("Only string types may have a filter strategy")
+        return self
+
+
+class ColumnarAttributesSpec(BaseModel):
+    """
+    Specifications for the columns in a table of attributes.
+    """
+    columns: Annotated[list[AttributesColumnSpec], Field(
+        description="The set of columns in the table."
+    )]
+
+
+class AttributesColumn(AttributesColumnSpec):
     min_value: Annotated[int | float | str | None, Field(
         example="2023-08-25T22:08:30.576+0000",
         description="The minimum value for the column for numeric and date columns. "
@@ -77,15 +100,6 @@ class AttributesColumn(BaseModel):
         example=["Complete genome", "Chromosome", "Scaffold", "Contig"],
         description="The members of the enumeration for an enum column."
     )] = None
-    
-    @model_validator(mode="after")
-    def _check_filter_strategy(self) -> Self:
-        if self.type == ColumnType.STRING:
-            if not self.filter_strategy:
-                raise ValueError("String types require a filter strategy")
-        elif self.filter_strategy:
-            raise ValueError("Only string types may have a filter strategy")
-        return self
     
     @model_validator(mode="after")
     def _check_enums(self) -> Self:
