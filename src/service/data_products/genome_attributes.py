@@ -180,6 +180,7 @@ GENOME_ATTRIBS_SPEC = GenomeAttribsSpec(
         ),
         common_models.DBCollection(
             name=names.COLL_GENOME_ATTRIBS,
+            view_required=True,
             indexes=[
                 [
                     names.FLD_COLLECTION_ID,

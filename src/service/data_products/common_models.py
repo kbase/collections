@@ -12,12 +12,20 @@ from typing import Annotated
 
 class DBCollection(BaseModel):
     """
-    Defines a database collection that a data product uses and required indexes for that
-    collection.
+    Defines a database collection that a data product uses, whether an ArangoSearch view is
+    required for the database collection, and required indexes for the collection.
     """
     
     name: str
     """ The collection name in the database. """
+    
+    view_required: bool = False
+    """
+    Whether the collection requires an ArangoSearch view. If so, specs for all the KBase
+    collections that have data in this data product are expected to be stored in
+    `src/common/collection/column/specs`. Only one DBCollection in a data product can have a
+    view associated with it.
+    """
 
     indexes: list[list[str]]
     """
@@ -65,6 +73,15 @@ class DataProductSpec(BaseModel):
             raise ValueError("router must have at least one tag")
         return v
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @field_validator("db_collections")
+    @classmethod
+    def _ensure_only_one_view(cls, v):
+        found = False
+        for dbc in v:
+            if found and v.view_required:
+                raise ValueError("More than one db collection requiring a view found")
+            found = found or dbc.view_required
 
 
 class DataProductMissingIDs(SubsetProcessStates):

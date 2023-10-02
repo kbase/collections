@@ -128,12 +128,18 @@ class DynamicConfig(BaseModel):
     Holds dynamic configuration data for the service.
     Currently editable by editing the database directly.
     """
-    genome_attribs_search_view: Annotated[str, Field(
-        description="The name of the ArangoSearch view to use for searches against the "
-            + "genome_attribs data product. This variable can be used to seamlessly switch "
-            + "between an old and updated view by changing the variable value after the new "
-            + "view is built"
-    )] = "genome_attribs_search"
+    search_views: Annotated[dict[str, str], Field(
+        example={"genome_attribs": "gaview_commithash"},
+        description="A mapping of data product -> ArangoSearch view name. "
+            + "When a particular data product requires a view for one of its collections "
+            + "this mapping specifies the name of the view to use. This variable can be used to "
+            + "seamlessly switch between an old and updated view by changing the variable value "
+            + "after the new view is built."
+         
+    )] = {}
+    
+    def is_empty(self):
+        return not self.search_views
 
 
 class DataProduct(BaseModel):
