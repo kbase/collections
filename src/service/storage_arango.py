@@ -68,6 +68,13 @@ _COLLECTIONS = [  # Might want to define this in names?
     names.COLL_EXPORT_TYPES,
 ]
 _BUILTIN = "builtin"
+_DYNCFG_KEY = "dynconfig"
+
+class ViewExistsError(Exception):
+    """
+    Thrown when an ArangoSearch view already exists and does not match the provided
+    view specification.
+    """
 
 # TODO SCHEMA may want a schema checker at some point... YAGNI for now. See sample service
 
@@ -269,7 +276,7 @@ class ArangoStorage:
             if e.error_code == ARANGO_ERR_NAME_EXISTS:
                 view = await self._db.view(name)
                 if view["links"][arango_collection]["fields"] != view_fields:
-                    raise ValueError(f"The view '{name}' already exists and differs from "
+                    raise ViewExistsError(f"The view '{name}' already exists and differs from "
                         + "the requested specification.") from e
             else:
                 raise
@@ -343,19 +350,34 @@ class ArangoStorage:
     async def get_dynamic_config(self) -> models.DynamicConfig:
         """ Get the dynamic configuration from the database. """
         col = self._db.collection(names.COLL_SRV_CONFIG)
-        cur = await col.all()
+        doc = await col.get(_DYNCFG_KEY)
+        if not doc:
+            return models.DynamicConfig()  # use default values
+        return models.DynamicConfig(**doc)
+
+    async def update_dynamic_config(self, cfg: models.DynamicConfig) -> models.DynamicConfig:
+        """
+        Update the dynamic configuration, overwriting any existing config keys but 
+        leaving non-conflicting keys alone.
+        
+        Returns the updated config.
+        """
+        if cfg.is_empty():
+            return
+        doc = cfg.model_dump() | {names.FLD_ARANGO_KEY: _DYNCFG_KEY}
+        bind_vars = {"@coll": names.COLL_SRV_CONFIG, "cfg": doc}
+        aql = f"""
+            UPSERT {{{names.FLD_ARANGO_KEY}: "{_DYNCFG_KEY}"}}
+                INSERT @cfg
+                UPDATE MERGE_RECURSIVE(OLD, @cfg)
+                IN @@coll
+                OPTIONS {{exclusive: true}}
+            RETURN NEW
+        """
+        cur = await self.execute_aql(aql, bind_vars, count=True)
         try:
-            if cur.empty():
-                return models.DynamicConfig()  # use default values
             doc = await cur.next()
-            try:
-                await cur.next()
-            except StopAsyncIteration:
-                return models.DynamicConfig(**doc)
-            else:
-                raise ValueError("Multiple configuration docs found in the database, "
-                                 + "someone done goofed big time"
-                )
+            return models.DynamicConfig(**doc)
         finally:
             await cur.close(ignore_missing=True)
 
