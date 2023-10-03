@@ -82,6 +82,7 @@ class DataProductSpec(BaseModel):
             if found and v.view_required:
                 raise ValueError("More than one db collection requiring a view found")
             found = found or dbc.view_required
+        return v
 
 
 class DataProductMissingIDs(SubsetProcessStates):
