@@ -152,6 +152,12 @@ class DataProduct(BaseModel):
         example=FIELD_LOAD_VERSION_EXAMPLE,
         description=FIELD_LOAD_VERSION_DESCRIPTION
     )
+    search_view: Annotated[str | None, Field(
+        example="collection_service_genome_attribs_v1.5.2",
+        description="The name of the ArangoSearch view to use for searches for this data "
+            + "product. The view must exist on collection creation. Many data products don't "
+            + "support search and therefore do not need this configured."
+    )] = None
     # in the future we may want a schema version... need to think this through first.
     # assume missing == schema version 1 for now
 

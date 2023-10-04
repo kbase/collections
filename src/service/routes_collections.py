@@ -50,12 +50,24 @@ def _precheck_admin_and_get_storage(
     return app_state.get_app_state(r).arangostorage
 
 
-def _check_matchers_and_data_products(
+async def _check_collection_state(
     appstate: app_state.CollectionsState, col: models.Collection
 ):
+    for dp in col.data_products:
+        # throws an exception if missing
+        spec = data_product_specs.get_data_product_spec(dp.product)
+        if spec.view_required():
+            if not dp.search_view:
+                raise errors.IllegalParameterError(
+                    f"Data product {dp.product} requires an ArangoSearch view")
+            if not await appstate.arangostorage.has_search_view(dp.search_view):
+                raise errors.IllegalParameterError(
+                    f"ArangoSearch view {dp.search_view} configured in data product {dp.product} "
+                    + "does not exist")
+            # theoretically we could load the specs for the data product and make sure the
+            # view matches the specs but that seems like overkill for something only admins
+            # can set
     data_products = set([dp.product for dp in col.data_products])
-    for dp in data_products:
-        data_product_specs.get_data_product_spec(dp)  # throws an exception if missing
     for m in col.matchers:
         matcher = appstate.get_matcher(m.matcher)
         if not matcher:
@@ -440,7 +452,7 @@ async def save_collection(
     # Maybe the method implementations should go into a different module / class...
     # But the method implementation is intertwined with the path validation
     store = _precheck_admin_and_get_storage(r, user, ver_tag, "save data")
-    _check_matchers_and_data_products(app_state.get_app_state(r), col)
+    await _check_collection_state(app_state.get_app_state(r), col)
     doc = col.dict()
     exists = await store.has_collection_version_by_tag(collection_id, ver_tag)
     if exists:

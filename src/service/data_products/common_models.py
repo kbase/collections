@@ -83,6 +83,13 @@ class DataProductSpec(BaseModel):
                 raise ValueError("More than one db collection requiring a view found")
             found = found or dbc.view_required
         return v
+    
+    def view_required(self):
+        """ Check if a search view is required for this data product. """
+        for db in self.db_collections:
+            if db.view_required:
+                return True
+        return False
 
 
 class DataProductMissingIDs(SubsetProcessStates):
