@@ -6,11 +6,16 @@ import argparse
 import aioarango
 import asyncio
 import click
+import time
+
 import src.common.storage.collection_and_field_names as names
 from src.service.config import CollectionsServiceConfig
 from src.service._app_state_build_storage import build_arango_db
-from src.service.storage_arango import ARANGO_ERR_NAME_EXISTS
+from src.service.storage_arango import ARANGO_ERR_NAME_EXISTS, ArangoStorage, ViewExistsError
 from typing import get_type_hints, Any
+from src.service import data_product_specs
+from src.common.collection_column_specs import load_specs
+from src.service.filtering import analyzers
 
 
 REPLICATION = 3
@@ -140,6 +145,56 @@ async def _get_missing_collections(
     return {m: required_cols[m] for m in missing}
 
 
+def _print_view_status(data_product, db_collection_name, views_matching_spec):
+    print(f"View status for data product {data_product}:")
+    print("    Arango collection name:")
+    print(f"        {db_collection_name}")
+    print("    Database views matching current specs: ")
+    print(f"        {views_matching_spec}")
+
+
+async def _create_view(
+        store: ArangoStorage,
+        data_product: str,
+        db_collection_name: str,
+    ):
+    view_spec = load_specs.load_spec(data_product)
+    print("Found view specs:")
+    for v in sorted(view_spec.spec_files):
+        print(f"   {v}")
+    views = sorted(await store.get_search_views_from_spec(
+        db_collection_name, view_spec, analyzers.get_analyzer))
+    _print_view_status(data_product, db_collection_name, views)
+    if views:
+        print("    Setup ok.")
+    elif click.confirm("No view present for current view specifications. Create now?"):
+        view_name = click.prompt("Please provide a name for the new view")
+        t0 = time.time()
+        print("Creating view ... ", end="", flush=True)
+        try:
+            await store.create_search_view(
+                view_name, db_collection_name, view_spec, analyzers.get_analyzer)
+            print(f"done in {time.time() - t0:.2f} seconds.")
+            return view_name
+        except ViewExistsError:
+            print(f"A view with name {view_name} already exists and does not match the spec.")
+    print("The view name should be configured for data products in KBase Collections ")
+    print("at the same time the load version with the data matching the view specs is ")
+    print("configured.")
+
+
+async def _update_views(store: ArangoStorage):
+    print("Checking ArangoSearch view status")
+    for dp in data_product_specs.get_data_products():
+        for dbc in dp.db_collections:
+            if dbc.view_required:
+                await _create_view(
+                    store,
+                    dp.data_product,
+                    dbc.name,
+                )
+
+
 async def main():
     config, skip_db_creation = _get_config()
     colls = _get_required_collections()
@@ -155,7 +210,8 @@ async def main():
         else:
             print("Huzzah! Nothing to be done.")
         print()
-        # TODO NEXT check for and if necessary set up required arango search views
+        store = await ArangoStorage.create(db)
+        await _update_views(store)
     finally:
         await cli.close()
 

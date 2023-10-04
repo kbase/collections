@@ -52,6 +52,8 @@ def load_spec(data_product: str, collection: str = None) -> ColumnarAttributesSp
     else:
         coll2file = {_specfile_to_collection(f): SPEC_DIR / f
                      for f in _get_spec_files(data_product)}
+    if not coll2file:
+        raise ValueError(f"No specs found for data product {data_product}")
     coll2spec = {}
     for coll, specfile in coll2file.items():
         with open(specfile) as f:
@@ -72,4 +74,4 @@ def load_spec(data_product: str, collection: str = None) -> ColumnarAttributesSp
                         raise ValueError(f"Column spec conflict for data product {data_product}, "
                                         + f"collections {colls[0]} and {colls[1]} on key {k}")
         columns.append(AttributesColumnSpec(**first[1]))
-    return ColumnarAttributesSpec(columns=columns)
+    return ColumnarAttributesSpec(columns=columns, spec_files=coll2file.values())

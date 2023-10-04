@@ -30,9 +30,11 @@ def test_all_specs_load_singular():
         assert 0, "No spec files found"
     for f in files:
         print(f"Checking spec {f}")
-        data_product, collection = str(f).split('-')
+        data_product, collection = f.name.split('-')
         collection = collection[:-4]
         spec = load_specs.load_spec(data_product, collection)
+        assert len(spec.spec_files) == 1
+        assert spec.spec_files[0].name == f"{data_product}-{collection}.yml"
         key2spec = {c.key: c for c in spec.columns}
         assert key2spec["coll"] == AttributesColumnSpec(
             key="coll", type=st, filter_strategy=ident)
@@ -51,6 +53,9 @@ def test_all_specs_load_merge():
     inar = FilterStrategy.IN_ARRAY
     
     spec = load_specs.load_spec("genome_attribs")
+    assert {f.name for f in spec.spec_files} == {
+        f"genome_attribs-{col}.yml" for col in ["ENIGMA", "PMI", "GTDB", "GROW"]
+    }
     # just check a few fields
     key2spec = {c.key: c for c in spec.columns}
     assert key2spec["kbase_id"] == AttributesColumnSpec(
@@ -86,6 +91,12 @@ def test_load_single_spec_from_toolchain():
             key="classification", type=st, filter_strategy=ftext)
         assert key2spec["translation_table"] == AttributesColumnSpec(
             key="translation_table", type=it)
+
+
+def test_no_specs():
+    err = "No specs found for data product nospecshere"
+    with raises(ValueError, match=f"^{re.escape(err)}$"):
+        load_specs.load_spec("nospecshere")
 
 
 def test_load_key_collision():

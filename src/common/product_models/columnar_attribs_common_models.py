@@ -5,6 +5,7 @@ Genome Attributes and Samples.
 
 from dateutil import parser
 from enum import Enum
+from pathlib import Path
 
 from pydantic import BaseModel, Field
 from pydantic.functional_validators import model_validator
@@ -82,6 +83,9 @@ class ColumnarAttributesSpec(BaseModel):
     """
     columns: Annotated[list[AttributesColumnSpec], Field(
         description="The set of columns in the table."
+    )]
+    spec_files: Annotated[list[Path], Field(
+        description="Paths to the spec files from which the specs where loaded."
     )]
 
 
