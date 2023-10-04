@@ -15,3 +15,4 @@ arangoimport_data_files
 htmlcov
 .ipynb_checkpoints
 /sigtemp/
+/collections_config_db2.toml
