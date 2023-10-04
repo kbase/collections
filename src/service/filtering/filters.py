@@ -318,10 +318,10 @@ class StringFilter(AbstractFilter):
                 aql_lines=[f"@{bindvar} IN {identifier}"]
                 var_assigns = None
             case FilterStrategy.FULL_TEXT:
-                aql_lines=[f"ANALYZER(@{prefixvar} ALL == {identifier}, \"{self.analyzer}\")"]
+                aql_lines=[f"ANALYZER({prefixvar} ALL == {identifier}, \"{self.analyzer}\")"]
             case FilterStrategy.PREFIX:
                 aql_lines=[
-                    f"ANALYZER(STARTS_WITH({identifier}, @{prefixvar}, LENGTH(@{prefixvar})), "
+                    f"ANALYZER(STARTS_WITH({identifier}, {prefixvar}, LENGTH({prefixvar})), "
                         + f"\"{self.analyzer}\")"
                 ]
             case _:
