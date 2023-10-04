@@ -287,6 +287,13 @@ class Collection(BaseModel):
                     + "is not in the set of specified data products"
                 )
         return self
+    
+    def get_data_product(self, data_product) -> DataProduct:
+        """ Get a data product by its ID. """
+        for dp in self.data_products:
+            if dp.product == data_product:
+                return dp
+        raise ValueError(f"No such data product: {data_product}")
 
 
 # No need to worry about field validation here since the service is assigning the values
