@@ -352,10 +352,11 @@ class FilterSet:
         view: str,
         collection_id: str,
         load_ver: str,
-        doc_var: str = "doc",
+        count: bool = False,
         conjunction: bool = True,
         skip: int = 0,
-        limit: int = 1000
+        limit: int = 1000,
+        doc_var: str = "doc",
     ):
         """
         Create the filter set.
@@ -371,10 +372,11 @@ class FilterSet:
         self.view = _require_string(view, "view is required")
         self.collection_id = _require_string(collection_id, "collection_id is required")
         self.load_ver = _require_string(load_ver, "load_ver is required")
-        self.doc_var = _require_string(doc_var, "doc_var is required")
+        self.count = count
         self.conjunction = conjunction
         self.skip = _gt(skip, 0, "skip")
         self.limit = _gt(limit, 1, "limit")
+        self.doc_var = _require_string(doc_var, "doc_var is required")
         self._filters = {}
 
     def __len__(self):
@@ -433,9 +435,9 @@ class FilterSet:
             "@view": self.view,
             "collid": self.collection_id,
             "load_ver": self.load_ver,
-            "skip": self.skip,
-            "limit": self.limit,
         }
+        if not self.count:
+            bind_vars |= {"skip": self.skip, "limit": self.limit}
         for i, (field, filter_) in enumerate(self._filters.items(), start=1):
             search_part = filter_.to_arangosearch_aql(f"{self.doc_var}.{field}", f"v{i}_")
             if search_part.variable_assignments:
@@ -450,6 +452,8 @@ class FilterSet:
         aql = ""
         if var_lines:
             aql += "\n".join(var_lines) + "\n"
+        if self.count:
+            aql += "RETURN COUNT("
         aql += f"FOR {self.doc_var} IN @@view"
         aql += f"\n    SEARCH (\n"
         aql += f"        {self.doc_var}.{FLD_COLLECTION_ID} == @collid\n"
@@ -460,7 +464,12 @@ class FilterSet:
         op = "AND" if self.conjunction else "OR"
         aql += f"\n        {op}\n    ".join(aql_parts)
         aql += f"\n    )\n"
-        aql += f"    LIMIT @skip, @limit\n"
+        if not self.count:
+            aql += f"    LIMIT @skip, @limit\n"
+        # should check if there's a way to speed up counts by returning less stuff or if
+        # the query optimizer is smart enough to just do the count and things are fine as is
         aql += f"    RETURN {self.doc_var}\n"
-        # TODO FILTERS match, select, sort, count
+        if self.count:
+            aql += ")\n"
+        # TODO FILTERS match, select, sort
         return aql, bind_vars
