@@ -168,7 +168,7 @@ def _stringfilter_to_arangosearch_aql_full_text(analyzer, expected):
         None, "I'm Mary Poppins y'all", analyzer, FilterStrategy.FULL_TEXT)
     assert sf.to_arangosearch_aql("d.somefield", "varpre") == SearchQueryPart(
         variable_assignments={"varpreprefixes": f"TOKENS(@varpreinput, \"{expected}\")"},
-        aql_lines=[f"ANALYZER(@varpreprefixes ALL == d.somefield, \"{expected}\")"],
+        aql_lines=[f"ANALYZER(varpreprefixes ALL == d.somefield, \"{expected}\")"],
         bind_vars={"varpreinput": "I'm Mary Poppins y'all"}
     )
 
@@ -178,7 +178,7 @@ def test_stringfilter_to_arangosearch_aql_prefix():
     assert sf.to_arangosearch_aql("d.otherfield", "1_") == SearchQueryPart(
         variable_assignments={"1_prefixes": "TOKENS(@1_input, \"text_en\")"},
         aql_lines=[
-            "ANALYZER(STARTS_WITH(d.otherfield, @1_prefixes, LENGTH(@1_prefixes)), \"text_en\")"
+            "ANALYZER(STARTS_WITH(d.otherfield, 1_prefixes, LENGTH(1_prefixes)), \"text_en\")"
         ],
         bind_vars={"1_input": "rhodo"}
     )
@@ -223,11 +223,11 @@ FOR doc IN @@view
     ) AND (
         IN_RANGE(doc.rangefield, @v1_low, @v1_high, true, true)
         AND
-        ANALYZER(STARTS_WITH(doc.prefixfield, @v2_prefixes, LENGTH(@v2_prefixes)), "text_en")
+        ANALYZER(STARTS_WITH(doc.prefixfield, v2_prefixes, LENGTH(v2_prefixes)), "text_en")
         AND
         doc.rangefield2 > @v3_low
         AND
-        ANALYZER(@v4_prefixes ALL == doc.fulltextfield, "text_rs")
+        ANALYZER(v4_prefixes ALL == doc.fulltextfield, "text_rs")
         AND
         doc.datefield <= @v5_high
         AND
@@ -280,7 +280,7 @@ FOR d IN @@view
     ) AND (
         IN_RANGE(d.rangefield, @v1_low, @v1_high, true, true)
         OR
-        ANALYZER(STARTS_WITH(d.prefixfield, @v2_prefixes, LENGTH(@v2_prefixes)), "text_en")
+        ANALYZER(STARTS_WITH(d.prefixfield, v2_prefixes, LENGTH(v2_prefixes)), "text_en")
     )
     LIMIT @skip, @limit
     RETURN d

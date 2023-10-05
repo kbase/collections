@@ -184,6 +184,7 @@ async def _create_view(
 
 
 async def _update_views(store: ArangoStorage):
+    # TODO DELETE_VIEWS helper method to delete views? Or could be in API
     print("Checking ArangoSearch view status")
     for dp in data_product_specs.get_data_products():
         for dbc in dp.db_collections:
