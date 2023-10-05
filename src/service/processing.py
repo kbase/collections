@@ -256,3 +256,69 @@ async def _process_subset(
             hb.stop()
         if arangoclient:
             await arangoclient.close()
+
+
+class SubsetSpecification:
+    """
+    An ID and associated information for a subset (either a match or selection).
+    
+    Instance variables:
+    internal_subset_id - the ID from the internal_subset_id argument or the
+        completed subset process, or None if not provided.
+    mark_only - whether then subset should be filtered out (False) or just marked (True).
+    prefix - the prefix to be applied to the subset ID.
+    """
+    
+    def __init__(
+            self,
+            internal_subset_id: str = None,
+            subset_process: models.DataProductProcess = None,
+            mark_only: bool = False,
+            prefix: str = None,
+        ):
+        """
+        Create the subset specification. If neither internal_subset_id nor a completed
+        subset_process are provided, the resultant instance is a null specification.
+        
+        internal_subset_id - the ID of the subset. If provided, subset_process is ignored.
+        subset_process - a process containing the ID of the subset. Ignored if internal_subset_id
+            is provided or the process is not complete.
+        mark_only - whether the subset should be filtered out (False) or just marked (True).
+        prefix - a prefix to apply to the subset ID.
+        """
+        self.internal_subset_id = None
+        if subset_process and subset_process.is_complete():
+            self.internal_subset_id = subset_process.internal_id
+        if internal_subset_id:
+            self.internal_subset_id = internal_subset_id
+        self.mark_only = mark_only
+        self.prefix = prefix
+        
+    def is_null_subset(self):
+        """
+        Check if this subset spec represents a null subset - e.g. there is no subset to
+        be applied.
+        """
+        return not bool(self.internal_subset_id)
+    
+    def get_prefixed_subset_id(self):
+        """
+        Returns the prefixed subset ID unless this is a null subset, in which case None
+        is returned.
+        """
+        if not self.internal_subset_id:
+            return None
+        return (self.prefix if self.prefix else "") + self.internal_subset_id
+    
+    def get_subset_filtering_id(self):
+        """
+        Returns the prefixed internal subset ID unless
+        
+        * this specification is a null specification (e.g. no ID was provided) or
+        * mark_only is True.
+        
+        In either case, None is returned.
+        """
+        if self.mark_only:
+            return None
+        return self.get_prefixed_subset_id()

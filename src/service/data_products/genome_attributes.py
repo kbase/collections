@@ -9,6 +9,7 @@ from typing import Any, Callable, Annotated
 from fastapi import APIRouter, Request, Depends, Query
 
 import src.common.storage.collection_and_field_names as names
+from src.common.product_models import columnar_attribs_common_models as col_models
 from src.service import app_state
 from src.service.app_state_data_structures import CollectionsState, PickleableDependencies
 from src.service import errors
@@ -26,22 +27,19 @@ from src.service.data_products.common_functions import (
     query_table,
     get_collection_singleton_from_db,
 )
+from src.service.data_products import common_models
 from src.service.data_products.data_product_processing import (
     MATCH_ID_PREFIX,
     SELECTION_ID_PREFIX,
 )
-from src.service.data_products import common_models
 from src.service.data_products.table_models import TableAttributes
 from src.service.filtering import analyzers
+from src.service.filtering.filters import FilterSet
 from src.service.http_bearer import KBaseHTTPBearer
+from src.service.processing import SubsetSpecification
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
 from src.service.timestamp import now_epoch_millis
-from src.common.product_models import columnar_attribs_common_models as col_models
-from src.service.filtering.filters import FilterSet
-from src.common.product_models.columnar_attribs_common_models import (
-    ColumnarAttributesMeta,
-)
 
 # Implementation note - we know FLD_KBASE_ID is unique per collection id /
 # load version combination since the loader uses those 3 fields as the arango _key
@@ -335,7 +333,7 @@ async def get_genome_attributes_meta(
 
 async def _get_genome_attributes_meta_internal(
     storage: ArangoStorage, collection_id: str, load_ver: str, load_ver_override: bool
-) -> ColumnarAttributesMeta:
+) -> col_models.ColumnarAttributesMeta:
     doc = await get_collection_singleton_from_db(
             storage,
             names.COLL_GENOME_ATTRIBS_META,
@@ -387,15 +385,10 @@ async def get_genome_attributes(
     # Otherwise we need indexes for every sort
     appstate = app_state.get_app_state(r)
     store = appstate.arangostorage
-    internal_match_id, internal_selection_id = None, None
     lvo = override_load_version(load_ver_override, match_id, selection_id)
     coll, load_ver = await get_load_version(appstate.arangostorage, collection_id, ID, lvo, user)
-    if match_id:
-        internal_match_id = await _get_internal_match_id(appstate, user, coll, match_id)
-    if selection_id:
-        internal_sel = await processing_selections.get_selection_full(
-            appstate, selection_id, require_complete=True, require_collection=coll)
-        internal_selection_id = internal_sel.internal_selection_id
+    match_spec = await _get_match_spec(appstate, user, coll, match_id, match_mark)
+    sel_spec = await _get_selection_spec(appstate, coll, selection_id, selection_mark)
     filters = await _get_filters(
         r, coll, load_ver, load_ver_override, count, sort_on, sort_desc, conjunction,
         skip, limit)
@@ -407,12 +400,8 @@ async def get_genome_attributes(
             names.COLL_GENOME_ATTRIBS,
             collection_id,
             load_ver,
-            internal_match_id=internal_match_id,
-            match_mark=match_mark,
-            match_prefix=MATCH_ID_PREFIX,
-            internal_selection_id=internal_selection_id,
-            selection_mark=selection_mark,
-            selection_prefix=SELECTION_ID_PREFIX,
+            match_spec=match_spec,
+            selection_spec=sel_spec,
         )
         return {_FLD_SKIP: 0, _FLD_LIMIT: 0, _FLD_COUNT: count}
     else:
@@ -426,12 +415,8 @@ async def get_genome_attributes(
             skip=skip,
             limit=limit,
             output_table=output_table,
-            internal_match_id=internal_match_id,
-            match_mark=match_mark,
-            match_prefix=MATCH_ID_PREFIX,
-            internal_selection_id=internal_selection_id,
-            selection_mark=selection_mark,
-            selection_prefix=SELECTION_ID_PREFIX,
+            match_spec=match_spec,
+            selection_spec=sel_spec,
             document_mutator=_remove_keys
         )
         return {
@@ -443,22 +428,43 @@ async def get_genome_attributes(
         }
 
 
-async def _get_internal_match_id(
+async def _get_match_spec(
     appstate: CollectionsState,
     user: kb_auth.KBaseUser,
     coll: models.SavedCollection,
-    match_id: str
-) -> str:
+    match_id: str,
+    match_mark: bool,
+) -> SubsetSpecification:
+    if not match_id:
+        return SubsetSpecification()
     if not user:
         raise errors.UnauthorizedError("Authentication is required if a match ID is supplied")
-    match = await processing_matches.get_match_full(
+    match_ = await processing_matches.get_match_full(
         appstate,
         match_id,
         user,
         require_complete=True,
         require_collection=coll
     )
-    return match.internal_match_id
+    return SubsetSpecification(
+        internal_subset_id=match_.internal_match_id, mark_only=match_mark, prefix=MATCH_ID_PREFIX)
+
+
+async def _get_selection_spec(
+    appstate: CollectionsState,
+    coll: models.SavedCollection,
+    selection_id: str,
+    selection_mark: bool,
+) -> SubsetSpecification:
+    if not selection_id:
+        return SubsetSpecification()
+    internal_sel = await processing_selections.get_selection_full(
+            appstate, selection_id, require_complete=True, require_collection=coll)
+    return SubsetSpecification(
+        internal_subset_id=internal_sel.internal_selection_id,
+        mark_only=selection_mark,
+        prefix=SELECTION_ID_PREFIX
+    )
 
 
 async def _perform_filter(store: ArangoStorage, filters: FilterSet, output_table: bool):
