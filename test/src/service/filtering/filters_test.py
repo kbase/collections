@@ -314,10 +314,12 @@ def test_filterset_w_all_args():
         "my_other_search_view",
         "mycollection",
         "loadver6",
-        doc_var="d",
+        sort_on="sortfield",
+        sort_descending=True,
         conjunction=False,
         skip=24,
-        limit=2
+        limit=2,
+        doc_var="d",
     )
     fs.append("rangefield", ColumnType.INT, "[-2,6]")
     fs.append("prefixfield", ColumnType.STRING, "thingy", "text_en", FilterStrategy.PREFIX)
@@ -335,6 +337,7 @@ FOR d IN @@view
         OR
         ANALYZER(STARTS_WITH(d.prefixfield, v2_prefixes, LENGTH(v2_prefixes)), "text_en")
     )
+    SORT d.@sort @sortdir
     LIMIT @skip, @limit
     RETURN d
 """.strip() + "\n"
@@ -342,6 +345,8 @@ FOR d IN @@view
         "@view": "my_other_search_view",
         "collid": "mycollection",
         "load_ver": "loadver6",
+        "sort": "sortfield",
+        "sortdir":"DESC",
         "skip": 24,
         "limit": 2,
         'v1_low': -2.0,
@@ -356,6 +361,8 @@ def test_filterset_w_all_args_count():
         "my_other_search_view",
         "mycollection",
         "loadver6",
+        sort_on="sortfield",  # should be ignored
+        sort_descending=True,
         count=True,
         conjunction=False,
         skip=24,
@@ -390,6 +397,42 @@ RETURN COUNT(FOR d IN @@view
         'v2_input': 'thingy',
     }
     assert len(fs) == 2
+
+
+def test_filterset_sort_asc():
+    fs = FilterSet(
+        "sorty_sort",
+        "sortcol",
+        "loadver89",
+        sort_on="somefield",  # should be ignored
+    )
+    fs.append("rangefield", ColumnType.INT, "[-2,6]")
+    aql, bind_vars = fs.to_arangosearch_aql()
+    assert aql == """
+FOR doc IN @@view
+    SEARCH (
+        doc.coll == @collid
+        AND
+        doc.load_ver == @load_ver
+    ) AND (
+        IN_RANGE(doc.rangefield, @v1_low, @v1_high, true, true)
+    )
+    SORT doc.@sort @sortdir
+    LIMIT @skip, @limit
+    RETURN doc
+""".strip() + "\n"
+    assert bind_vars == {
+        "@view": "sorty_sort",
+        "collid": "sortcol",
+        "load_ver": "loadver89",
+        "sort": "somefield",
+        "sortdir": "ASC",
+        "skip": 0,
+        "limit": 1000,
+        'v1_low': -2.0,
+        'v1_high': 6.0,
+    }
+    assert len(fs) == 1
 
 
 def test_filterset_w_1_filter():

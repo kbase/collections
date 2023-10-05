@@ -353,6 +353,8 @@ class FilterSet:
         collection_id: str,
         load_ver: str,
         count: bool = False,
+        sort_on: str = None,
+        sort_descending: bool = False,
         conjunction: bool = True,
         skip: int = 0,
         limit: int = 1000,
@@ -364,15 +366,22 @@ class FilterSet:
         view - the ArangoSearch view to query.
         collection_id - the ID of the KBase collection to query.
         load_ver - the load version of the data to query.
-        doc_var - the variable to use for the ArangoSearch document.
+        count - return the total document count rather than the documents. This may cause a
+            large view scan.
+        sort_on - the field on which to sort, if any.
+        sort_descending - sort in the descending direction vs. ascending.
         conjunction - whether to AND (true) or OR (false) the filters together.
-        skip - the number of records to skip.
+        skip - the number of records to skip. Use this parameter wisely, as paging
+            through records via increasing skip incrementally is an O(n^2) operation.
         limit - the maximum number of records to return.
+        doc_var - the variable to use for the ArangoSearch document.
         """
         self.view = _require_string(view, "view is required")
         self.collection_id = _require_string(collection_id, "collection_id is required")
         self.load_ver = _require_string(load_ver, "load_ver is required")
         self.count = count
+        self.sort_on = sort_on
+        self.sort_descending = sort_descending
         self.conjunction = conjunction
         self.skip = _gt(skip, 0, "skip")
         self.limit = _gt(limit, 1, "limit")
@@ -438,6 +447,11 @@ class FilterSet:
         }
         if not self.count:
             bind_vars |= {"skip": self.skip, "limit": self.limit}
+            if self.sort_on:
+                bind_vars |= {
+                    "sort": self.sort_on,
+                    "sortdir": "DESC" if self.sort_descending else "ASC"
+                }
         for i, (field, filter_) in enumerate(self._filters.items(), start=1):
             search_part = filter_.to_arangosearch_aql(f"{self.doc_var}.{field}", f"v{i}_")
             if search_part.variable_assignments:
@@ -465,11 +479,13 @@ class FilterSet:
         aql += f"\n        {op}\n    ".join(aql_parts)
         aql += f"\n    )\n"
         if not self.count:
+            if self.sort_on:
+                aql += f"    SORT {self.doc_var}.@sort @sortdir\n"
             aql += f"    LIMIT @skip, @limit\n"
         # should check if there's a way to speed up counts by returning less stuff or if
         # the query optimizer is smart enough to just do the count and things are fine as is
         aql += f"    RETURN {self.doc_var}\n"
         if self.count:
             aql += ")\n"
-        # TODO FILTERS match, select, sort
+        # TODO FILTERS match, select
         return aql, bind_vars

@@ -242,6 +242,8 @@ async def _get_filters(
     load_ver: str,
     load_ver_override: bool,
     count: bool,
+    sort_on: str,
+    sort_desc: bool,
     skip: int,
     limit: int,
 ) -> FilterSet:
@@ -249,7 +251,6 @@ async def _get_filters(
     # TODO FILTER doc how to change / update the arangosearch view: CLI -> config in API
     # TODO FILTER Add param for OR vs AND filters
     # TODO FILTER match & selection
-    # TODO FILTER sort
     filter_query = {}
     for q in r.query_params.keys():
         if q.startswith(_FILTER_PREFIX):
@@ -268,11 +269,16 @@ async def _get_filters(
         raise ValueError(f"No search view name configured for collection {coll.id}, "
             + "data product {ID}. Cannot perform filtering operation")
     columns = {c.key: c for c in column_meta.columns}
+    if sort_on not in columns:
+        raise errors.IllegalParameterError(
+            f"No such field for collection {coll.id} load version {load_ver}: {sort_on}")
     fs = FilterSet(
         view_name,
         coll.id,
         load_ver,
         count=count,
+        sort_on=sort_on,
+        sort_descending=sort_desc,
         conjunction=True,
         skip=skip,
         limit=limit
@@ -386,7 +392,8 @@ async def get_genome_attributes(
         internal_sel = await processing_selections.get_selection_full(
             appstate, selection_id, require_complete=True, require_collection=coll)
         internal_selection_id = internal_sel.internal_selection_id
-    filters = await _get_filters(r, coll, load_ver, load_ver_override, count, skip, limit)
+    filters = await _get_filters(
+        r, coll, load_ver, load_ver_override, count, sort_on, sort_desc, skip, limit)
     if filters:
         return await _perform_filter(store, filters, output_table)
     if count:
