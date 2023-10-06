@@ -118,7 +118,8 @@ def _read_biolog_data(biolog_data_file: Path) -> pd.DataFrame:
 
     # Check for NA values in the DataFrame
     if data_df.isna().any(axis=1).any():
-        raise ValueError(f"Biolog data has missing values:\n{data_df[data_df.isna().any(axis=1)]}")
+        raise ValueError(f"Some of the strains in the Biolog data exhibit missing values: "
+                         f"{data_df.index[data_df.isna().any(axis=1)].tolist()}")
 
     return data_df
 
