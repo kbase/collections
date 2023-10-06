@@ -116,9 +116,10 @@ def _read_biolog_data(biolog_data_file: Path) -> pd.DataFrame:
     data_df = data_df.drop(index='BT03 A(10/1)')
     data_df = data_df.rename(index={'BT03 B(11/18)': 'BT03'})
 
-    # Remove strain designation if cell value is NaN
-    # Two NaN values are present in the data file for 'YR530' and 'CF286' in the row labeled '3-Hydroxy 2-Butanone'.
-    data_df.dropna(axis=0, inplace=True)
+    # Check for NA values in the DataFrame
+    if data_df.isna().any(axis=1).any():
+        raise ValueError(f"Some of the strains in the Biolog data exhibit missing values: "
+                         f"{data_df.index[data_df.isna().any(axis=1)].tolist()}")
 
     return data_df
 
