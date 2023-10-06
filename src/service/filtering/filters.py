@@ -4,15 +4,17 @@ data products like genome attributes or samples.
 """
 
 from abc import ABC, abstractmethod
-from dateutil import parser
-from pydantic import BaseModel, Field
-from src.common.product_models.columnar_attribs_common_models import ColumnType, FilterStrategy
-from src.common.storage.collection_and_field_names import FLD_LOAD_VERSION, FLD_COLLECTION_ID
-from src.service import errors
-from src.service.filtering.analyzers import DEFAULT_ANALYZER
-
 from types import NotImplementedType
 from typing import Annotated, Any, Self
+
+from dateutil import parser
+from pydantic import BaseModel, Field
+
+from src.common.product_models.columnar_attribs_common_models import ColumnType, FilterStrategy
+import src.common.storage.collection_and_field_names as names
+from src.service import errors
+from src.service.filtering.analyzers import DEFAULT_ANALYZER
+from src.service.processing import SubsetSpecification
 
 
 class SearchQueryPart(BaseModel):
@@ -356,6 +358,8 @@ class FilterSet:
         sort_on: str = None,
         sort_descending: bool = False,
         conjunction: bool = True,
+        match_spec: SubsetSpecification = SubsetSpecification(),
+        selection_spec: SubsetSpecification = SubsetSpecification(),
         skip: int = 0,
         limit: int = 1000,
         doc_var: str = "doc",
@@ -383,6 +387,8 @@ class FilterSet:
         self.sort_on = sort_on
         self.sort_descending = sort_descending
         self.conjunction = conjunction
+        self.match_spec = match_spec
+        self.selection_spec = selection_spec
         self.skip = _gt(skip, 0, "skip")
         self.limit = _gt(limit, 1, "limit")
         self.doc_var = _require_string(doc_var, "doc_var is required")
@@ -431,13 +437,7 @@ class FilterSet:
                 f"Invalid filter for field {field}: {str(e)}") from e
         return self
         
-    def to_arangosearch_aql(self) -> tuple[str, dict[str, Any]]:
-        """
-        Generate ArangoSearch AQL and bind vars from the filters. At least one filter must have
-        been added to the filter set prior to calling this method.
-        """
-        if not self._filters:
-            raise ValueError("At least one filter is required")
+    def _process_filters(self):
         var_lines = []
         aql_lines = []
         bind_vars = {
@@ -445,13 +445,6 @@ class FilterSet:
             "collid": self.collection_id,
             "load_ver": self.load_ver,
         }
-        if not self.count:
-            bind_vars |= {"skip": self.skip, "limit": self.limit}
-            if self.sort_on:
-                bind_vars |= {
-                    "sort": self.sort_on,
-                    "sortdir": "DESC" if self.sort_descending else "ASC"
-                }
         for i, (field, filter_) in enumerate(self._filters.items(), start=1):
             search_part = filter_.to_arangosearch_aql(f"{self.doc_var}.{field}", f"v{i}_")
             if search_part.variable_assignments:
@@ -463,6 +456,16 @@ class FilterSet:
             else:
                 aql_lines.append([f"    {search_part.aql_lines[0]}"])
             bind_vars.update(search_part.bind_vars)
+        return var_lines, aql_lines, bind_vars
+
+    def to_arangosearch_aql(self) -> tuple[str, dict[str, Any]]:
+        """
+        Generate ArangoSearch AQL and bind vars from the filters. At least one filter must have
+        been added to the filter set prior to calling this method.
+        """
+        if not self._filters:
+            raise ValueError("At least one filter is required")
+        var_lines, aql_lines, bind_vars = self._process_filters()
         aql = ""
         if var_lines:
             aql += "\n".join(var_lines) + "\n"
@@ -470,9 +473,19 @@ class FilterSet:
             aql += "RETURN COUNT("
         aql += f"FOR {self.doc_var} IN @@view"
         aql += f"\n    SEARCH (\n"
-        aql += f"        {self.doc_var}.{FLD_COLLECTION_ID} == @collid\n"
+        aql += f"        {self.doc_var}.{names.FLD_COLLECTION_ID} == @collid\n"
         aql += f"        AND\n"
-        aql += f"        {self.doc_var}.{FLD_LOAD_VERSION} == @load_ver\n"
+        aql += f"        {self.doc_var}.{names.FLD_LOAD_VERSION} == @load_ver\n"
+        if self.match_spec.get_subset_filtering_id():
+            bind_vars["internal_match_id"] = self.match_spec.get_subset_filtering_id()
+            aql += "        AND\n"
+            aql += f"        {self.doc_var}.{names.FLD_MATCHES_SELECTIONS} == @internal_match_id\n"
+        # this will AND the match and selection. To OR, just OR the two filters 
+        if self.selection_spec.get_subset_filtering_id():
+            bind_vars["internal_selection_id"] = self.selection_spec.get_subset_filtering_id()
+            aql += "        AND\n"
+            aql += f"        {self.doc_var}.{names.FLD_MATCHES_SELECTIONS} == "
+            aql +=               f"@internal_selection_id\n"
         aql += f"    ) AND (\n    "
         aql_parts = ["\n            ".join(al) for al in aql_lines]
         op = "AND" if self.conjunction else "OR"
@@ -481,11 +494,15 @@ class FilterSet:
         if not self.count:
             if self.sort_on:
                 aql += f"    SORT {self.doc_var}.@sort @sortdir\n"
+                bind_vars |= {
+                    "sort": self.sort_on,
+                    "sortdir": "DESC" if self.sort_descending else "ASC"
+                }
             aql += f"    LIMIT @skip, @limit\n"
+            bind_vars |= {"skip": self.skip, "limit": self.limit}
         # should check if there's a way to speed up counts by returning less stuff or if
         # the query optimizer is smart enough to just do the count and things are fine as is
         aql += f"    RETURN {self.doc_var}\n"
         if self.count:
             aql += ")\n"
-        # TODO FILTERS match, select
         return aql, bind_vars

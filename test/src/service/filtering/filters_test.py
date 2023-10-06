@@ -15,6 +15,7 @@ from src.service.filtering.filters import (
     SearchQueryPart,
     FilterSet,
 )
+from src.service.processing import SubsetSpecification
 
 
 TEST_SET = (
@@ -317,6 +318,8 @@ def test_filterset_w_all_args():
         sort_on="sortfield",
         sort_descending=True,
         conjunction=False,
+        match_spec=SubsetSpecification(internal_subset_id="matchy", prefix="m_"),
+        selection_spec=SubsetSpecification(internal_subset_id="selly", prefix="s_"),
         skip=24,
         limit=2,
         doc_var="d",
@@ -332,6 +335,10 @@ FOR d IN @@view
         d.coll == @collid
         AND
         d.load_ver == @load_ver
+        AND
+        d._mtchsel == @internal_match_id
+        AND
+        d._mtchsel == @internal_selection_id
     ) AND (
         IN_RANGE(d.rangefield, @v1_low, @v1_high, true, true)
         OR
@@ -347,6 +354,8 @@ FOR d IN @@view
         "load_ver": "loadver6",
         "sort": "sortfield",
         "sortdir":"DESC",
+        "internal_match_id": "m_matchy",
+        "internal_selection_id": "s_selly",
         "skip": 24,
         "limit": 2,
         'v1_low': -2.0,
@@ -365,6 +374,8 @@ def test_filterset_w_all_args_count():
         sort_descending=True,
         count=True,
         conjunction=False,
+        match_spec=SubsetSpecification(internal_subset_id="mtc", prefix="w_", mark_only=True),
+        selection_spec=SubsetSpecification(internal_subset_id="slc", prefix="5_"),
         skip=24,
         limit=2,
         doc_var="d",
@@ -380,6 +391,8 @@ RETURN COUNT(FOR d IN @@view
         d.coll == @collid
         AND
         d.load_ver == @load_ver
+        AND
+        d._mtchsel == @internal_selection_id
     ) AND (
         IN_RANGE(d.rangefield, @v1_low, @v1_high, true, true)
         OR
@@ -392,6 +405,7 @@ RETURN COUNT(FOR d IN @@view
         "@view": "my_other_search_view",
         "collid": "mycollection",
         "load_ver": "loadver6",
+        "internal_selection_id": "5_slc",
         'v1_low': -2.0,
         'v1_high': 6.0,
         'v2_input': 'thingy',
