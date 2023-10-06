@@ -36,6 +36,11 @@ from src.service.storage_arango import ArangoStorage, remove_arango_keys
 from src.service.timestamp import now_epoch_millis
 from typing import Any, Callable
 from src.common.product_models import columnar_attribs_common_models as col_models
+from src.service.filtering.filters import FilterSet
+from src.common.product_models.columnar_attribs_common_models import (
+    ColumnarAttributesMeta,
+)
+from src.service.filtering import analyzers
 
 # Implementation note - we know FLD_KBASE_ID is unique per collection id /
 # load version combination since the loader uses those 3 fields as the arango _key
@@ -220,6 +225,76 @@ def _remove_keys(doc):
     return doc
 
 
+##########################
+# Filter handling code
+##########################
+
+# might want to move some of this into a shared file at some point, might be reusable for other
+# DPs
+# Not sure about the meta call, may need to abstract that out somehow
+
+_FILTER_PREFIX = "filter_"
+
+
+async def _get_filters(
+    r: Request,
+    coll: models.ActiveCollection,
+    load_ver: str,
+    load_ver_override: bool,
+    skip: int,
+    limit: int,
+) -> FilterSet:
+    # TODO FILTER docs for filters
+    # TODO FILTER doc how to change / update the arangosearch view: CLI -> config in API
+    # TODO FILTER Add param for OR vs AND filters
+    # TODO FILTER count
+    # TODO FILTER match & selection
+    # TODO FILTER sort
+    filter_query = {}
+    for q in r.query_params.keys():
+        if q.startswith(_FILTER_PREFIX):
+            field = q[len(_FILTER_PREFIX):]
+            if len(r.query_params.getlist(q)) > 1:
+                raise errors.IllegalParameterError(
+                    f"More than one filter specification provided for field {field}")
+            filter_query[field] = r.query_params[q]
+    if not filter_query:
+        return None
+    appstate = app_state.get_app_state(r)
+    column_meta = await _get_genome_attributes_meta_internal(
+        appstate.arangostorage, coll.id, load_ver, load_ver_override)
+    view_name = coll.get_data_product(ID).search_view
+    if not view_name:
+        raise ValueError(f"No search view name configured for collection {coll.id}, "
+            + "data product {ID}. Cannot perform filtering operation")
+    columns = {c.key: c for c in column_meta.columns}
+    fs = FilterSet(
+        view_name,
+        coll.id,
+        load_ver,
+        conjunction=True,
+        skip=skip,
+        limit=limit
+    )
+    for field, querystring in filter_query.items():
+        if field not in columns:
+            raise errors.IllegalParameterError(f"No such filter field: {field}")
+        column = columns[field]
+        fs.append(
+            field,
+            column.type,
+            querystring,
+            analyzers.get_analyzer(column.filter_strategy),
+            column.filter_strategy
+        )
+    return fs
+
+
+##########################
+# End filter handling code
+##########################
+
+
 _FLD_COL_ID = "colid"
 _FLD_COL_NAME = "colname"
 _FLD_COL_LV = "colload"
@@ -245,6 +320,13 @@ async def get_genome_attributes_meta(
     ):
     storage = app_state.get_app_state(r).arangostorage
     _, load_ver = await get_load_version(storage, collection_id, ID, load_ver_override, user)
+    return await _get_genome_attributes_meta_internal(
+        storage, collection_id, load_ver, load_ver_override)
+
+
+async def _get_genome_attributes_meta_internal(
+    storage: ArangoStorage, collection_id: str, load_ver: str, load_ver_override: bool
+) -> ColumnarAttributesMeta:
     doc = await get_collection_singleton_from_db(
             storage,
             names.COLL_GENOME_ATTRIBS_META,
@@ -305,6 +387,9 @@ async def get_genome_attributes(
         internal_sel = await processing_selections.get_selection_full(
             appstate, selection_id, require_complete=True, require_collection=coll)
         internal_selection_id = internal_sel.internal_selection_id
+    filters = await _get_filters(r, coll, load_ver, load_ver_override, skip, limit)
+    if filters:
+        return await _perform_filter(store, filters, output_table)
     if count:
         # for now this method doesn't do much. One we have some filtering implemented
         # it'll need to take that into account.
@@ -366,6 +451,32 @@ async def _get_internal_match_id(
     )
     return match.internal_match_id
 
+
+async def _perform_filter(store: ArangoStorage, filters: FilterSet, output_table: bool):
+    aql, bind_vars = filters.to_arangosearch_aql()
+    doc = None
+    data = []
+    cur = await store.execute_aql(aql, bind_vars=bind_vars)
+    try:
+        async for doc in cur:
+            # ?ODO FiLTERS this code is pretty similar to the query_table code. See if it can be
+            # merged once everything's functional
+            doc = _remove_keys(doc)
+            if output_table:
+                data.append([doc[k] for k in sorted(doc)])
+            else:
+                data.append({k: doc[k] for k in sorted(doc)})
+    finally:
+        await cur.close(ignore_missing=True)
+    fields = []
+    if doc:
+        fields = [{"name": k} for k in sorted(doc)]
+    return {
+        _FLD_SKIP: filters.skip,
+        _FLD_LIMIT: filters.limit,
+        "fields": fields,
+        "table" if output_table else "data": data,
+    }
 
 async def perform_gtdb_lineage_match(
     internal_match_id: str,
