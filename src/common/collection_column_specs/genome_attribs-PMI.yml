@@ -9,7 +9,7 @@ columns:
 
    - key: _mtchsel
      type: string
-     filter_strategy: inarray
+     filter_strategy: identity
 
    - key: kbase_id
      type: string

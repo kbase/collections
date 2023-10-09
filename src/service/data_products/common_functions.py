@@ -69,9 +69,15 @@ def _get_load_ver_from_collection(collection: models.SavedCollection, data_produ
         f"The {collection.id} collection does not have a {data_product} data product registered.")
 
 
+COLLECTION_KEYS = {names.FLD_COLLECTION_ID, names.FLD_LOAD_VERSION}
+"""
+Special keys in data sets that denote the ID and load version of a collection.
+Usually not returned to the user but needed in the database.
+"""
+
 def remove_collection_keys(doc: dict):
     """ Removes the collection ID and load version keys from a dictionary **in place**. """
-    for k in [names.FLD_COLLECTION_ID, names.FLD_LOAD_VERSION]:
+    for k in COLLECTION_KEYS:
         doc.pop(k, None)
     return doc
 

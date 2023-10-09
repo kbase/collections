@@ -20,6 +20,7 @@ from src.service import processing_selections
 from src.service.data_products.common_functions import (
     get_load_version,
     remove_collection_keys,
+    COLLECTION_KEYS,
     count_simple_collection_list,
     mark_data_by_kbase_id,
     remove_marked_subset,
@@ -330,8 +331,11 @@ async def get_genome_attributes_meta(
     ):
     storage = app_state.get_app_state(r).arangostorage
     _, load_ver = await get_load_version(storage, collection_id, ID, load_ver_override, user)
-    return await _get_genome_attributes_meta_internal(
+    meta = await _get_genome_attributes_meta_internal(
         storage, collection_id, load_ver, load_ver_override)
+    meta.columns = [c for c in meta.columns
+                    if c.key not in COLLECTION_KEYS | {names.FLD_MATCHES_SELECTIONS}]
+    return meta
 
 
 async def _get_genome_attributes_meta_internal(
