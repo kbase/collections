@@ -82,7 +82,8 @@ from src.loaders.common.loader_helper import (
     is_upa_info_complete,
     make_collection_source_dir,
     merge_docs,
-    create_import_dir, model_to_dict,
+    create_import_dir,
+    model_to_dict,
 )
 from src.loaders.compute_tools.tool_common import run_command
 from src.loaders.compute_tools.tool_result_parser import (
@@ -117,6 +118,7 @@ ALL_TOOLS = GENOME_ATTR_TOOLS + HEATMAP_TOOLS + ["mash"]
 # (https://github.com/jgi-kbase/AssemblyHomologyService#sequence-metadata-file)
 SEQ_METADATA = 'seq_metadata.jsonl'
 
+# observed 'N/A' in the GTDB-TK summary file
 NONE_STR = ['N/A', 'NA', 'None', 'none', 'null', 'Null', 'NULL', '']
 
 
