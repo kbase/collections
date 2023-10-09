@@ -44,12 +44,19 @@ import os
 import shutil
 import sys
 import tempfile
+from datetime import datetime
 from pathlib import Path
 
 import jsonlines
 import pandas as pd
 
 import src.common.storage.collection_and_field_names as names
+from src.common.collection_column_specs.load_specs import load_spec
+from src.common.product_models.columnar_attribs_common_models import (
+    AttributesColumn,
+    ColumnarAttributesMeta,
+    ColumnType,
+)
 from src.common.product_models.heatmap_common_models import (
     FIELD_HEATMAP_CELL_ID,
     FIELD_HEATMAP_ROW_CELLS,
@@ -75,7 +82,7 @@ from src.loaders.common.loader_helper import (
     is_upa_info_complete,
     make_collection_source_dir,
     merge_docs,
-    create_import_dir,
+    create_import_dir, model_to_dict,
 )
 from src.loaders.compute_tools.tool_common import run_command
 from src.loaders.compute_tools.tool_result_parser import (
@@ -109,6 +116,8 @@ ALL_TOOLS = GENOME_ATTR_TOOLS + HEATMAP_TOOLS + ["mash"]
 # The suffix for the sequence metadata file name for Assembly Homology service
 # (https://github.com/jgi-kbase/AssemblyHomologyService#sequence-metadata-file)
 SEQ_METADATA = 'seq_metadata.jsonl'
+
+NONE_STR = ['N/A', 'NA', 'None', 'none', 'null', 'Null', 'NULL', '']
 
 
 def _locate_dir(root_dir, env, kbase_collection, load_ver, check_exists=False, tool=''):
@@ -347,6 +356,115 @@ def _retrieve_pre_processed_docs(tool: str,
     return docs
 
 
+def _convert_to_iso8601(date_string: str) -> str:
+    # Convert a date string to ISO 8601 format
+    formats_to_try = ["%Y/%m/%d", "%Y-%m-%d"]  # Add more formats as needed
+
+    for date_format in formats_to_try:
+        try:
+            parsed_date = datetime.strptime(date_string, date_format)
+            iso8601_date = parsed_date.date().isoformat()
+            return iso8601_date
+        except ValueError:
+            continue
+
+    raise ValueError("Unrecognized date format")
+
+
+def _convert_values_to_type(docs: list[dict], key: str, col_type: ColumnType):
+    # Convert the values of a column to the specified type
+    values = []
+    for doc in docs:
+        try:
+            value = doc[key]
+            value = None if value in NONE_STR else value
+            if value is None:
+                doc[key] = value
+                continue
+
+            if col_type == ColumnType.INT:
+                doc[key] = int(value)
+            elif col_type == ColumnType.FLOAT:
+                doc[key] = float(value)
+            elif col_type == ColumnType.STRING:
+                doc[key] = str(value)
+            elif col_type == ColumnType.DATE:
+                doc[key] = _convert_to_iso8601(value)
+            elif col_type == ColumnType.ENUM:
+                pass
+            else:
+                raise ValueError(f'casting not implemented for {col_type}')
+
+            values.append(doc[key])
+        except KeyError as e:
+            raise ValueError(f'Unable to find key: {key} in {doc}') from e
+        except ValueError as e:
+            raise ValueError(f'Unable to convert value: {key} from {doc} to type: {col_type}') from e
+
+    return values
+
+
+def process_columnar_meta(
+        docs: list[dict],
+        kbase_collection: str,
+        load_ver: str,
+        allow_missing_metadata: bool = True,
+):
+    """
+    Process the columnar metadata for the genome attributes.
+
+    :param docs: the list of documents
+    :param kbase_collection: the KBase collection name
+    :param load_ver: the load version
+    :param allow_missing_metadata: whether to allow missing metadata
+    """
+
+    spec = load_spec(names.GENOME_ATTRIBS_PRODUCT_ID, kbase_collection)
+    columns = list()
+    for col_spec in spec.columns:
+        key, col_type = col_spec.key, col_spec.type
+        if key not in docs[0]:
+            error_message = f'Unable to find column: {key} in the docs'
+            if allow_missing_metadata:
+                # some genome attribute tools may not have been executed for specific collection
+                print(error_message)
+                continue
+            else:
+                raise ValueError(error_message)
+
+        values = _convert_values_to_type(docs, key, col_type)
+        min_value, max_value, enum_values = None, None, None
+        if col_type in [ColumnType.INT, ColumnType.FLOAT, ColumnType.DATE]:
+            if values:
+                min_value, max_value = min(values), max(values)
+            else:
+                # AttributesColumn validates min_value and max_value, so we need to set them to 0 if column is empty
+                # TODO raise error instead of setting to 0?
+                min_value = 0 if col_type == ColumnType.INT else 0.0
+                max_value = 0 if col_type == ColumnType.INT else 0.0
+        elif col_type == ColumnType.ENUM:
+            enum_values = list(set(values))
+
+        attri_column = AttributesColumn(
+            **col_spec.model_dump(),
+            min_value=min_value,
+            max_value=max_value,
+            enum_values=enum_values
+        )
+        columns.append(attri_column)
+
+    columnar_attri_meta = ColumnarAttributesMeta(columns=columns)
+
+    meta_doc = model_to_dict(columnar_attri_meta)
+    meta_doc.update({
+        names.FLD_ARANGO_KEY: collection_load_version_key(kbase_collection, load_ver),
+        names.FLD_COLLECTION_ID: kbase_collection,
+        names.FLD_LOAD_VERSION: load_ver
+    })
+
+    return docs, meta_doc
+
+
 def _process_genome_attri_tools(genome_attr_tools: set[str],
                                 root_dir: str,
                                 env: str,
@@ -370,8 +488,13 @@ def _process_genome_attri_tools(genome_attr_tools: set[str],
     meta_lookup = _create_meta_lookup(root_dir, env, kbase_collection, load_ver, tool)
     docs, encountered_types = _update_docs_with_upa_info(res_dict, meta_lookup, check_genome)
 
+    docs, meta_doc = process_columnar_meta(docs, kbase_collection, load_ver)
+
     output = f'{kbase_collection}_{load_ver}_{"_".join(genome_attr_tools)}_{names.COLL_GENOME_ATTRIBS}.jsonl'
     create_import_files(root_dir, env, output, docs)
+
+    meta_output = f'{kbase_collection}_{load_ver}_{"_".join(genome_attr_tools)}_{names.COLL_GENOME_ATTRIBS_META}.jsonl'
+    create_import_files(root_dir, env, meta_output, [meta_doc])
 
     export_types_output = f'{kbase_collection}_{load_ver}_{names.COLL_EXPORT_TYPES}.jsonl'
     types_doc = data_product_export_types_to_doc(

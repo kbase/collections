@@ -33,6 +33,29 @@ from src.loaders.common.loader_common_names import (
 """
 This module contains helper functions used for loaders (e.g. compute_genome_attribs, gtdb_genome_attribs_loader, etc.)
 """
+from pydantic import BaseModel
+
+
+def model_to_dict(model_instance) -> dict:
+    """
+    Converts a pydantic model instance to a dictionary.
+
+    :param model_instance: a pydantic model instance
+    """
+    result = {}
+
+    for field_name, field_value in model_instance.__dict__.items():
+        if isinstance(field_value, BaseModel):
+            # If the attribute is a BaseModel, recursively convert it to a dictionary
+            result[field_name] = model_to_dict(field_value)
+        elif isinstance(field_value, list):
+            # If the attribute is a list, check each item for BaseModel instances
+            result[field_name] = [model_to_dict(item) if isinstance(item, BaseModel) else item for item in field_value]
+        else:
+            # Otherwise, include the attribute as is
+            result[field_name] = field_value
+
+    return result
 
 
 def convert_to_json(docs, outfile):
@@ -234,7 +257,7 @@ def create_softlinks_in_collection_source_dir(
         collection_source_dir: str,
         work_dir: str,
         genome_ids: list[str],
-        taxonomy_files:list[str] = None
+        taxonomy_files: list[str] = None
 ) -> None:
     """
     Create softlinks in the collection source dir to the genome files in the work dir.
