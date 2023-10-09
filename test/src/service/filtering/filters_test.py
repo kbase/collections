@@ -200,9 +200,8 @@ def test_stringfilter_from_string_fail():
             StringFilter.from_string(None, input_, analyzer, strategy)
 
 
-def test_filterset_w_defaults():
-    fs = FilterSet("my_search_view", "coll24", "loadver9"
-        ).append("rangefield", ColumnType.INT, "[6,24]"
+def _filterset_with_defaults_append_filters(fs: FilterSet):
+    fs.append("rangefield", ColumnType.INT, "[6,24]"
         ).append("prefixfield", ColumnType.STRING, "foobar", "text_en", FilterStrategy.PREFIX
         ).append("rangefield2", ColumnType.FLOAT, "0.2,"
         ).append("fulltextfield", ColumnType.STRING, "whee", "text_rs", FilterStrategy.FULL_TEXT
@@ -210,6 +209,12 @@ def test_filterset_w_defaults():
         ).append("strident", ColumnType.STRING, "thingy", strategy=FilterStrategy.IDENTITY
         ).append("_mtchsel", ColumnType.STRING, "mtchid", strategy=FilterStrategy.IN_ARRAY
     )
+    return fs
+
+
+def test_filterset_w_defaults():
+    fs = _filterset_with_defaults_append_filters(FilterSet("my_search_view", "coll24", "loadver9"))
+
     aql, bind_vars = fs.to_arangosearch_aql()
     
     assert aql == """
@@ -244,6 +249,54 @@ FOR doc IN @@view
         "load_ver": "loadver9",
         "skip": 0,
         "limit": 1000,
+        'v1_low': 6.0,
+        'v1_high': 24.0,
+        'v2_input': 'foobar',
+        'v3_low': 0.2,
+        "v4_input": "whee",
+        "v5_high": "2023-09-13T18:51:19+0000",
+        "v6_input": "thingy",
+        "v7_input": "mtchid",
+    }
+    assert len(fs) == 7
+
+
+def test_filterset_w_defaults_count():
+    fs = _filterset_with_defaults_append_filters(
+        FilterSet("my_search_view", "coll24", "loadver9", count=True))
+
+    aql, bind_vars = fs.to_arangosearch_aql()
+    
+    assert aql == """
+LET v2_prefixes = TOKENS(@v2_input, "text_en")
+LET v4_prefixes = TOKENS(@v4_input, "text_rs")
+RETURN COUNT(FOR doc IN @@view
+    SEARCH (
+        doc.coll == @collid
+        AND
+        doc.load_ver == @load_ver
+    ) AND (
+        IN_RANGE(doc.rangefield, @v1_low, @v1_high, true, true)
+        AND
+        ANALYZER(STARTS_WITH(doc.prefixfield, v2_prefixes, LENGTH(v2_prefixes)), "text_en")
+        AND
+        doc.rangefield2 > @v3_low
+        AND
+        ANALYZER(v4_prefixes ALL == doc.fulltextfield, "text_rs")
+        AND
+        doc.datefield <= @v5_high
+        AND
+        doc.strident == @v6_input
+        AND
+        @v7_input IN doc._mtchsel
+    )
+    RETURN doc
+)
+""".strip() + "\n"
+    assert bind_vars == {
+        "@view": "my_search_view",
+        "collid": "coll24",
+        "load_ver": "loadver9",
         'v1_low': 6.0,
         'v1_high': 24.0,
         'v2_input': 'foobar',
@@ -298,6 +351,47 @@ FOR d IN @@view
     assert len(fs) == 2
 
 
+def test_filterset_w_all_args_count():
+    fs = FilterSet(
+        "my_other_search_view",
+        "mycollection",
+        "loadver6",
+        count=True,
+        conjunction=False,
+        skip=24,
+        limit=2,
+        doc_var="d",
+    )
+    fs.append("rangefield", ColumnType.INT, "[-2,6]")
+    fs.append("prefixfield", ColumnType.STRING, "thingy", "text_en", FilterStrategy.PREFIX)
+    aql, bind_vars = fs.to_arangosearch_aql()
+    
+    assert aql == """
+LET v2_prefixes = TOKENS(@v2_input, "text_en")
+RETURN COUNT(FOR d IN @@view
+    SEARCH (
+        d.coll == @collid
+        AND
+        d.load_ver == @load_ver
+    ) AND (
+        IN_RANGE(d.rangefield, @v1_low, @v1_high, true, true)
+        OR
+        ANALYZER(STARTS_WITH(d.prefixfield, v2_prefixes, LENGTH(v2_prefixes)), "text_en")
+    )
+    RETURN d
+)
+""".strip() + "\n"
+    assert bind_vars == {
+        "@view": "my_other_search_view",
+        "collid": "mycollection",
+        "load_ver": "loadver6",
+        'v1_low': -2.0,
+        'v1_high': 6.0,
+        'v2_input': 'thingy',
+    }
+    assert len(fs) == 2
+
+
 def test_filterset_w_1_filter():
     fs = FilterSet(
         "so_many_search_views",
@@ -338,30 +432,30 @@ def test_filterset_len_0():
 def test_filterset_fail_construct():
     m = errors.MissingParameterError
     i = errors.IllegalParameterError
-    _filterset_fail_construct(None, "c", "lv", "d", 0, 1, m, "view is required")
-    _filterset_fail_construct("   \t  ", "c", "lv", "d", 0, 1, m, "view is required")
-    _filterset_fail_construct("v", None, "lv", "d", 0, 1, m, "collection_id is required")
-    _filterset_fail_construct("v", "    \t   ", "lv", "d", 0, 1, m, "collection_id is required")
-    _filterset_fail_construct("v", "c", None, "d", 0, 1, m, "load_ver is required")
-    _filterset_fail_construct("v", "c", "  \t  ", "d", 0, 1, m, "load_ver is required")
-    _filterset_fail_construct("v", "c", "lv", None, 0, 1, m, "doc_var is required")
-    _filterset_fail_construct("v", "c", "lv", "   \t   ", 0, 1, m, "doc_var is required")
-    _filterset_fail_construct("v", "c", "lv", "d", -1, 1, i, "skip must be >= 0")
-    _filterset_fail_construct("v", "c", "lv", "d", 1, 0, i, "limit must be >= 1")
+    _filterset_fail_construct(None, "c", "lv", 0, 1, "d", m, "view is required")
+    _filterset_fail_construct("   \t  ", "c", "lv", 0, 1, "d", m, "view is required")
+    _filterset_fail_construct("v", None, "lv", 0, 1, "d", m, "collection_id is required")
+    _filterset_fail_construct("v", "    \t   ", "lv", 0, 1, "d", m, "collection_id is required")
+    _filterset_fail_construct("v", "c", None, 0, 1, "d", m, "load_ver is required")
+    _filterset_fail_construct("v", "c", "  \t  ", 0, 1, "d", m, "load_ver is required")
+    _filterset_fail_construct("v", "c", "lv", 0, 1, None, m, "doc_var is required")
+    _filterset_fail_construct("v", "c", "lv", 0, 1, "   \t   ", m, "doc_var is required")
+    _filterset_fail_construct("v", "c", "lv", -1, 1, "d", i, "skip must be >= 0")
+    _filterset_fail_construct("v", "c", "lv", 1, 0, "d", i, "limit must be >= 1")
 
 
 def _filterset_fail_construct(
         view: str,
         coll_id: str,
         load_ver: str,
-        doc_var: str,
         skip: int,
         limit: int,
+        doc_var: str,
         errclass: Exception,
         expected: str
     ):
     with raises(errclass, match=f"^{re.escape(expected)}$"):
-        FilterSet(view, coll_id, load_ver, doc_var, skip=skip, limit=limit)
+        FilterSet(view, coll_id, load_ver, skip=skip, limit=limit, doc_var=doc_var)
 
 
 def test_filterset_fail_append():

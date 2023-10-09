@@ -241,13 +241,13 @@ async def _get_filters(
     coll: models.ActiveCollection,
     load_ver: str,
     load_ver_override: bool,
+    count: bool,
     skip: int,
     limit: int,
 ) -> FilterSet:
     # TODO FILTER docs for filters
     # TODO FILTER doc how to change / update the arangosearch view: CLI -> config in API
     # TODO FILTER Add param for OR vs AND filters
-    # TODO FILTER count
     # TODO FILTER match & selection
     # TODO FILTER sort
     filter_query = {}
@@ -272,6 +272,7 @@ async def _get_filters(
         view_name,
         coll.id,
         load_ver,
+        count=count,
         conjunction=True,
         skip=skip,
         limit=limit
@@ -302,6 +303,7 @@ _FLD_SORT = "sort"
 _FLD_SORT_DIR = "sortdir"
 _FLD_SKIP = "skip"
 _FLD_LIMIT = "limit"
+_FLD_COUNT = "count"
 
 
 @_ROUTER.get(
@@ -339,9 +341,6 @@ async def _get_genome_attributes_meta_internal(
     return col_models.ColumnarAttributesMeta.model_construct(**remove_collection_keys(doc))
 
 
-# TODO FILTER At some point we're going to want to filter/sort on fields. We may want a list of
-# fields # somewhere to check input fields are ok... but really we could just fetch the first
-# document in the collection and check the fields 
 @_ROUTER.get(
     "/",
     response_model=TableAttributes,
@@ -387,7 +386,7 @@ async def get_genome_attributes(
         internal_sel = await processing_selections.get_selection_full(
             appstate, selection_id, require_complete=True, require_collection=coll)
         internal_selection_id = internal_sel.internal_selection_id
-    filters = await _get_filters(r, coll, load_ver, load_ver_override, skip, limit)
+    filters = await _get_filters(r, coll, load_ver, load_ver_override, count, skip, limit)
     if filters:
         return await _perform_filter(store, filters, output_table)
     if count:
@@ -405,7 +404,7 @@ async def get_genome_attributes(
             selection_mark=selection_mark,
             selection_prefix=SELECTION_ID_PREFIX,
         )
-        return {_FLD_SKIP: 0, _FLD_LIMIT: 0, "count": count}
+        return {_FLD_SKIP: 0, _FLD_LIMIT: 0, _FLD_COUNT: count}
     else:
         res = await query_table(
             store,
@@ -454,29 +453,38 @@ async def _get_internal_match_id(
 
 async def _perform_filter(store: ArangoStorage, filters: FilterSet, output_table: bool):
     aql, bind_vars = filters.to_arangosearch_aql()
-    doc = None
-    data = []
     cur = await store.execute_aql(aql, bind_vars=bind_vars)
     try:
-        async for doc in cur:
-            # ?ODO FiLTERS this code is pretty similar to the query_table code. See if it can be
-            # merged once everything's functional
-            doc = _remove_keys(doc)
-            if output_table:
-                data.append([doc[k] for k in sorted(doc)])
-            else:
-                data.append({k: doc[k] for k in sorted(doc)})
+        if filters.count:
+            count = await cur.next()
+            return {
+                _FLD_SKIP: 0,
+                _FLD_LIMIT: 0,
+                _FLD_COUNT: count
+            }
+        else:
+            data = []
+            doc = None
+            async for doc in cur:
+                # ?ODO FiLTERS this code is pretty similar to the query_table code.
+                # See if it can be merged once everything's functional
+                doc = _remove_keys(doc)
+                if output_table:
+                    data.append([doc[k] for k in sorted(doc)])
+                else:
+                    data.append({k: doc[k] for k in sorted(doc)})
+            fields = []
+            if doc:
+                fields = [{"name": k} for k in sorted(doc)]
+            return {
+                _FLD_SKIP: filters.skip,
+                _FLD_LIMIT: filters.limit,
+                "fields": fields,
+                "table" if output_table else "data": data,
+            }
     finally:
         await cur.close(ignore_missing=True)
-    fields = []
-    if doc:
-        fields = [{"name": k} for k in sorted(doc)]
-    return {
-        _FLD_SKIP: filters.skip,
-        _FLD_LIMIT: filters.limit,
-        "fields": fields,
-        "table" if output_table else "data": data,
-    }
+
 
 async def perform_gtdb_lineage_match(
     internal_match_id: str,
