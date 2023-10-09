@@ -120,7 +120,7 @@ class AttributesColumn(AttributesColumnSpec):
     @model_validator(mode="after")
     def _check_range(self) -> Self:
         if self.type not in self._RANGE_VALIDATORS.keys():
-            return
+            return self
         typestr = self.type.value
         for val, coltext in [(self.min_value, "min_value"), (self.max_value, "max_value")]:
             if val is None:
