@@ -124,9 +124,17 @@ def process_columnar_meta(
         values = _convert_values_to_type(docs, key, col_type)
         min_value, max_value, enum_values = None, None, None
         if col_type in [ColumnType.INT, ColumnType.FLOAT, ColumnType.DATE]:
-            if not values:
-                raise ValueError(f'All values for column: {key} are empty/None')
-            min_value, max_value = min(values), max(values)
+            if values:
+                min_value, max_value = min(values), max(values)
+            else:
+                if col_type == ColumnType.INT:
+                    min_value, max_value = 0, 0
+                elif col_type == ColumnType.FLOAT:
+                    min_value, max_value = 0.0, 0.0
+                elif col_type == ColumnType.DATE:
+                    min_value, max_value = '0001-01-01', '0001-01-01'
+                else:
+                    raise ValueError(f'default min/max value for {col_type} column not implemented')
         elif col_type == ColumnType.ENUM:
             enum_values = list(set(values))
             enum_values.sort()
