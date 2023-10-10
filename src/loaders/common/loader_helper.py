@@ -124,13 +124,9 @@ def process_columnar_meta(
         values = _convert_values_to_type(docs, key, col_type)
         min_value, max_value, enum_values = None, None, None
         if col_type in [ColumnType.INT, ColumnType.FLOAT, ColumnType.DATE]:
-            if values:
-                min_value, max_value = min(values), max(values)
-            else:
-                # AttributesColumn validates min_value and max_value, so we need to set them to 0 if column is empty
-                # TODO raise error instead of setting to 0?
-                min_value = 0 if col_type == ColumnType.INT else 0.0
-                max_value = 0 if col_type == ColumnType.INT else 0.0
+            if not values:
+                raise ValueError(f'All values for column: {key} are empty/None')
+            min_value, max_value = min(values), max(values)
         elif col_type == ColumnType.ENUM:
             enum_values = list(set(values))
             enum_values.sort()
