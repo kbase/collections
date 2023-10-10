@@ -97,7 +97,6 @@ def process_columnar_meta(
         docs: list[dict],
         kbase_collection: str,
         load_ver: str,
-        allow_missing_metadata: bool = False,
 ):
     """
     Process the columnar metadata for the genome attributes.
@@ -105,22 +104,12 @@ def process_columnar_meta(
     :param docs: the list of documents
     :param kbase_collection: the KBase collection name
     :param load_ver: the load version
-    :param allow_missing_metadata: whether to allow missing metadata, default is False
     """
 
     spec = load_spec(names.GENOME_ATTRIBS_PRODUCT_ID, kbase_collection)
     columns = list()
     for col_spec in spec.columns:
         key, col_type = col_spec.key, col_spec.type
-        if key not in docs[0]:
-            error_message = f'Unable to find column: {key} in the docs'
-            if allow_missing_metadata:
-                # some genome attribute tools may not have been executed for specific collection
-                print(error_message)
-                continue
-            else:
-                raise ValueError(error_message)
-
         values = _convert_values_to_type(docs, key, col_type)
         min_value, max_value, enum_values = None, None, None
         if col_type in [ColumnType.INT, ColumnType.FLOAT, ColumnType.DATE]:

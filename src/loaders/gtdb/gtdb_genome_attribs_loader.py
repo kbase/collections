@@ -150,8 +150,7 @@ def main():
 
     docs, meta_doc = loader_helper.process_columnar_meta(docs,
                                                          kbase_collection,
-                                                         load_version,
-                                                         allow_missing_metadata=False)
+                                                         load_version)
 
     # TODO save columnar_attri_meta to import_files/NONE folder
     with args.output as genome_attribs_json:
