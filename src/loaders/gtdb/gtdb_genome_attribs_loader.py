@@ -5,7 +5,6 @@ import pandas as pd
 import src.common.storage.collection_and_field_names as names
 import src.loaders.common.loader_common_names as loader_common_names
 import src.loaders.common.loader_helper as loader_helper
-from src.loaders.genome_collection.parse_tool_results import process_columnar_meta
 
 """
 PROTOTYPE - Prepare GTDB genome statistics data in JSON format for arango import.
@@ -149,7 +148,10 @@ def main():
     df = _parse_from_metadata_file(load_files, SELECTED_FEATURES)
     docs = _df_to_docs(df, kbase_collection, load_version)
 
-    docs, meta_doc = process_columnar_meta(docs, kbase_collection, load_version, allow_missing_metadata=False)
+    docs, meta_doc = loader_helper.process_columnar_meta(docs,
+                                                         kbase_collection,
+                                                         load_version,
+                                                         allow_missing_metadata=False)
 
     # TODO save columnar_attri_meta to import_files/NONE folder
     with args.output as genome_attribs_json:
