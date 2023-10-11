@@ -213,7 +213,6 @@ async def query_simple_collection_list(
     match_mark - whether the match should filter or simply mark the matches.
     match_prefix - the prefix string to apply to the internal_match_id, if any.
     match_field - the name of the field in the document where the match mark should be stored.
-    match_prefix - a prefix to apply to the match id, if supplied.
     internal_selection_id - an ID for a selection.
     selection_process - the process for a selection. If provided, internal_selection_id is obtained
         from the process. If the process is not complete the selection information is ignored.

@@ -4,8 +4,10 @@ The genome_attribs data product, which provides genome attributes for a collecti
 
 from collections import defaultdict
 import logging
+from typing import Any, Callable, Annotated
 
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Request, Depends, Query
+
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
 from src.service.app_state_data_structures import CollectionsState, PickleableDependencies
@@ -30,17 +32,16 @@ from src.service.data_products.data_product_processing import (
 )
 from src.service.data_products import common_models
 from src.service.data_products.table_models import TableAttributes
+from src.service.filtering import analyzers
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
 from src.service.timestamp import now_epoch_millis
-from typing import Any, Callable
 from src.common.product_models import columnar_attribs_common_models as col_models
 from src.service.filtering.filters import FilterSet
 from src.common.product_models.columnar_attribs_common_models import (
     ColumnarAttributesMeta,
 )
-from src.service.filtering import analyzers
 
 # Implementation note - we know FLD_KBASE_ID is unique per collection id /
 # load version combination since the loader uses those 3 fields as the arango _key
@@ -242,14 +243,15 @@ async def _get_filters(
     load_ver: str,
     load_ver_override: bool,
     count: bool,
+    sort_on: str,
+    sort_desc: bool,
+    filter_conjunction: bool,
     skip: int,
     limit: int,
 ) -> FilterSet:
     # TODO FILTER docs for filters
     # TODO FILTER doc how to change / update the arangosearch view: CLI -> config in API
-    # TODO FILTER Add param for OR vs AND filters
     # TODO FILTER match & selection
-    # TODO FILTER sort
     filter_query = {}
     for q in r.query_params.keys():
         if q.startswith(_FILTER_PREFIX):
@@ -268,12 +270,17 @@ async def _get_filters(
         raise ValueError(f"No search view name configured for collection {coll.id}, "
             + "data product {ID}. Cannot perform filtering operation")
     columns = {c.key: c for c in column_meta.columns}
+    if sort_on not in columns:
+        raise errors.IllegalParameterError(
+            f"No such field for collection {coll.id} load version {load_ver}: {sort_on}")
     fs = FilterSet(
         view_name,
         coll.id,
         load_ver,
         count=count,
-        conjunction=True,
+        sort_on=sort_on,
+        sort_descending=sort_desc,
+        conjunction=filter_conjunction,
         skip=skip,
         limit=limit
     )
@@ -364,6 +371,9 @@ async def get_genome_attributes(
     limit: common_models.QUERY_VALIDATOR_LIMIT = 1000,
     output_table: common_models.QUERY_VALIDATOR_OUTPUT_TABLE = True,
     count: common_models.QUERY_VALIDATOR_COUNT = False,
+    conjunction: Annotated[bool, Query(
+        description="Whether to AND (true) or OR (false) filters together."
+    )] = True,
     match_id: common_models.QUERY_VALIDATOR_MATCH_ID = None,
     # TODO FEATURE support a choice of AND or OR for matches & selections
     match_mark: common_models.QUERY_VALIDATOR_MATCH_MARK_SAFE = False,
@@ -386,12 +396,12 @@ async def get_genome_attributes(
         internal_sel = await processing_selections.get_selection_full(
             appstate, selection_id, require_complete=True, require_collection=coll)
         internal_selection_id = internal_sel.internal_selection_id
-    filters = await _get_filters(r, coll, load_ver, load_ver_override, count, skip, limit)
+    filters = await _get_filters(
+        r, coll, load_ver, load_ver_override, count, sort_on, sort_desc, conjunction,
+        skip, limit)
     if filters:
         return await _perform_filter(store, filters, output_table)
     if count:
-        # for now this method doesn't do much. One we have some filtering implemented
-        # it'll need to take that into account.
         count = await count_simple_collection_list(  # may want to make some sort of shared builder
             store,
             names.COLL_GENOME_ATTRIBS,
