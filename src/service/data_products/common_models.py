@@ -3,7 +3,7 @@ Data structures common to all data products
 """
 
 from fastapi import APIRouter, Query
-from pydantic import BaseModel, validator, Field
+from pydantic import field_validator, ConfigDict, BaseModel, Field
 from src.common.product_models.common_models import SubsetProcessStates
 from src.common.storage import collection_and_field_names as names
 from src.service import models
@@ -12,12 +12,20 @@ from typing import Annotated
 
 class DBCollection(BaseModel):
     """
-    Defines a database collection that a data product uses and required indexes for that
-    collection.
+    Defines a database collection that a data product uses, whether an ArangoSearch view is
+    required for the database collection, and required indexes for the collection.
     """
     
     name: str
     """ The collection name in the database. """
+    
+    view_required: bool = False
+    """
+    Whether the collection requires an ArangoSearch view. If so, specs for all the KBase
+    collections that have data in this data product are expected to be stored in
+    `src/common/collection/column/specs`. Only one DBCollection in a data product can have a
+    view associated with it.
+    """
 
     indexes: list[list[str]]
     """
@@ -58,14 +66,30 @@ class DataProductSpec(BaseModel):
     in the `tags` argument.
     """
 
-    @validator("router")
+    @field_validator("router")
+    @classmethod
     def _check_router_tags(cls, v):  # @NoSelf
         if not v.tags:
             raise ValueError("router must have at least one tag")
         return v
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    class Config:
-        arbitrary_types_allowed = True
+    @field_validator("db_collections")
+    @classmethod
+    def _ensure_only_one_view(cls, v):
+        found = False
+        for dbc in v:
+            if found and v.view_required:
+                raise ValueError("More than one db collection requiring a view found")
+            found = found or dbc.view_required
+        return v
+    
+    def view_required(self):
+        """ Check if a search view is required for this data product. """
+        for db in self.db_collections:
+            if db.view_required:
+                return True
+        return False
 
 
 class DataProductMissingIDs(SubsetProcessStates):
@@ -82,10 +106,10 @@ class DataProductMissingIDs(SubsetProcessStates):
     )
 
 
-QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = Annotated[str | None, Query(
+QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = Annotated[str, Query(
     min_length=models.LENGTH_MIN_LOAD_VERSION,
     max_length=models.LENGTH_MAX_LOAD_VERSION,
-    regex=models.REGEX_LOAD_VERSION,
+    pattern=models.REGEX_LOAD_VERSION,
     example=models.FIELD_LOAD_VERSION_EXAMPLE,
     description=models.FIELD_LOAD_VERSION_DESCRIPTION + ". This will override the collection's "
         + "load version. Service administrator privileges are required."
@@ -114,7 +138,7 @@ QUERY_VALIDATOR_COUNT = Annotated[bool, Query(
 )]
 
 
-QUERY_VALIDATOR_MATCH_ID = Annotated[str | None, Query(
+QUERY_VALIDATOR_MATCH_ID = Annotated[str, Query(
     description="A match ID to set the view to the match rather than "
         + "the entire collection. Authentication is required. If a match ID is "
         # matches are against a specific load version, so...
@@ -136,7 +160,7 @@ QUERY_VALIDATOR_MATCH_MARK_SAFE = Annotated[bool, Query(
 )]
 
 
-QUERY_VALIDATOR_SELECTION_ID = Annotated[str | None, Query(
+QUERY_VALIDATOR_SELECTION_ID = Annotated[str, Query(
     description="A selection ID to set the view to the selection rather than the entire "
         + "collection. If a selection ID is set, any load version override is ignored. "
         + "If a selection filter and a match filter are provided, they are ANDed together. "
@@ -161,7 +185,7 @@ QUERY_VALIDATOR_STATUS_ONLY = Annotated[bool, Query(
 )]
 
 
-QUERY_VALIDATOR_SORT_ON = Annotated[str | None, Query(
+QUERY_VALIDATOR_SORT_ON = Annotated[str, Query(
     example=names.FLD_KBASE_ID,
     description="The field to sort on."
 )]

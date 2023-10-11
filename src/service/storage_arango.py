@@ -14,11 +14,20 @@ A storage system for collections based on an Arango backend.
 
 from aioarango.cursor import Cursor
 from aioarango.database import StandardDatabase
-from aioarango.exceptions import CollectionCreateError, DocumentInsertError
+from aioarango.exceptions import (
+    CollectionCreateError,
+    DocumentInsertError,
+    ViewCreateError,
+    ViewGetError,
+)
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from typing import Any, Callable, Awaitable, Self
 from src.common.hash import md5_string
+from src.common.product_models.columnar_attribs_common_models import (
+    ColumnarAttributesSpec,
+    FilterStrategy
+)
 from src.common.storage import collection_and_field_names as names
 from src.service import models
 from src.service import errors
@@ -42,10 +51,12 @@ _FLD_VER_NUM = "ver_num"
 _FLD_LIMIT = "limit"
 
 _ARANGO_SPECIAL_KEYS = [names.FLD_ARANGO_KEY, names.FLD_ARANGO_ID, "_rev"]
+_ARANGO_ERR_COLL_OR_VIEW_NOT_FOUND = 1203
 ARANGO_ERR_NAME_EXISTS = 1207
 _ARANGO_ERR_UNIQUE_CONSTRAINT = 1210
 
 _COLLECTIONS = [  # Might want to define this in names?
+    names.COLL_SRV_CONFIG,
     names.COLL_SRV_ACTIVE,
     names.COLL_SRV_COUNTERS,
     names.COLL_SRV_VERSIONS,
@@ -57,6 +68,13 @@ _COLLECTIONS = [  # Might want to define this in names?
     names.COLL_EXPORT_TYPES,
 ]
 _BUILTIN = "builtin"
+_DYNCFG_KEY = "dynconfig"
+
+class ViewExistsError(Exception):
+    """
+    Thrown when an ArangoSearch view already exists and does not match the provided
+    view specification.
+    """
 
 # TODO SCHEMA may want a schema checker at some point... YAGNI for now. See sample service
 
@@ -216,6 +234,152 @@ class ArangoStorage:
              expensive than the query so use the option wisely.
         """
         return await self._db.aql.execute(aql_str, bind_vars=bind_vars or {}, count=count)
+    
+    async def create_analyzer(
+        self, name: str, type_: str, properties: dict[str, Any] = None, features: list[str] = None
+    ):
+        """
+        Create an ArangoSearch analyzer.
+        See https://docs.arangodb.com/3.11/index-and-search/analyzers/
+        
+        name - the name of the analyzer.
+        type_ - the type of the analyzer.
+        properties - the properties of the analyzer
+        features - the features for the analyzer.
+        """
+        await self._db.create_analyzer(name, type_, properties, features)
+    
+    async def create_search_view(
+        self,
+        name: str,
+        arango_collection: str,
+        view_spec: ColumnarAttributesSpec,
+        analyzer_provider: Callable[[FilterStrategy, bool], str]
+    ):
+        """
+        Create a search view for a collection.
+        
+        name - the name of the view to create.
+        arango_collection - the collection name for which to create the view.
+        view_spec - the specification for the view to create.
+        analyzer_provider - a function, that given a filter strategy, provides the name of
+            an analyzer to use for that strategy. The second argument defines whether to
+            return None (True) or the name of the default analyzer (False) when the default
+            analyzer is to be returned.
+        """
+        view_fields = self._view_spec_to_fields(view_spec, analyzer_provider)
+        try:
+            await self._db.create_arangosearch_view(
+                name, {"links": {arango_collection: {"fields": view_fields}}}
+            )
+        except ViewCreateError as e:
+            if e.error_code == ARANGO_ERR_NAME_EXISTS:
+                view = await self._db.view(name)
+                if view["links"][arango_collection]["fields"] != view_fields:
+                    raise ViewExistsError(f"The view '{name}' already exists and differs from "
+                        + "the requested specification.") from e
+            else:
+                raise
+    
+    def _view_spec_to_fields(
+            self,
+            view_spec: ColumnarAttributesSpec,
+            analyzer_provider: Callable[[FilterStrategy, bool], str]
+        ) -> dict[str, Any]:
+        fields = {}
+        for colattrib in view_spec.columns:
+            analyzer = analyzer_provider(colattrib.filter_strategy, True)
+            if not analyzer:
+                fields[colattrib.key] = {}
+            else:
+                # we may want > 1 analyzer per field at some point, deal with that when it happens.
+                fields[colattrib.key] = {"analyzers": [analyzer]}
+        return fields
+    
+    async def get_search_views_from_spec(
+        self,
+        arango_collection: str,
+        view_spec: ColumnarAttributesSpec,
+        analyzer_provider: Callable[[FilterStrategy, bool], str]
+        ) -> list:
+        """
+        Given a view spec, find a matching views in a collection if any.
+        
+        arango_collection - the collection name associated with the view.
+        view_spec - the specification for the view to find.
+        analyzer_provider - a function, that given a filter strategy, provides the name of
+            an analyzer to use for that strategy. The second argument defines whether to
+            return None (True) or the name of the default analyzer (False) when the default
+            analyzer is to be returned.
+            
+        Returns the names of any matching views found.
+        """
+        view_fields = self._view_spec_to_fields(view_spec, analyzer_provider)
+        views = await self._db.views()
+        ret = []
+        for v in views:
+            view = await self._db.view(v["name"])
+            if arango_collection in view["links"]:
+                if view["links"][arango_collection]["fields"] == view_fields:
+                    ret.append(v["name"])
+        return ret
+    
+    async def has_search_view(self, name) -> bool:
+        """ Check if a search view exists by name. """
+        try:
+            await self._db.view(name)
+            return True
+        except ViewGetError as e:
+            if e.error_code == _ARANGO_ERR_COLL_OR_VIEW_NOT_FOUND:
+                return False
+            else:
+                raise
+    
+    async def get_search_views(self, arango_collection: str) -> set[str]:
+        """
+        Get the list of views that exist for an arango collection.
+        """
+        ret = set()
+        views = await self._db.views()
+        for v in views: 
+            view = await self._db.view(v["name"])
+            if arango_collection in view["links"]:
+                ret.add(v["name"])
+        return ret
+    
+    async def get_dynamic_config(self) -> models.DynamicConfig:
+        """ Get the dynamic configuration from the database. """
+        col = self._db.collection(names.COLL_SRV_CONFIG)
+        doc = await col.get(_DYNCFG_KEY)
+        if not doc:
+            return models.DynamicConfig()  # use default values
+        return models.DynamicConfig(**doc)
+
+    async def update_dynamic_config(self, cfg: models.DynamicConfig) -> models.DynamicConfig:
+        """
+        Update the dynamic configuration, overwriting any existing config keys but 
+        leaving non-conflicting keys alone.
+        
+        Returns the updated config.
+        """
+        if cfg.is_empty():
+            return
+        doc = cfg.model_dump() | {names.FLD_ARANGO_KEY: _DYNCFG_KEY}
+        bind_vars = {"@coll": names.COLL_SRV_CONFIG, "cfg": doc}
+        aql = f"""
+            UPSERT {{{names.FLD_ARANGO_KEY}: "{_DYNCFG_KEY}"}}
+                INSERT @cfg
+                UPDATE MERGE_RECURSIVE(OLD, @cfg)
+                IN @@coll
+                OPTIONS {{exclusive: true}}
+            RETURN NEW
+        """
+        cur = await self.execute_aql(aql, bind_vars, count=True)
+        try:
+            doc = await cur.next()
+            return models.DynamicConfig(**doc)
+        finally:
+            await cur.close(ignore_missing=True)
 
     async def get_next_version(self, collection_id: str) -> int:
         """ Get the next available version number for a collection. """
@@ -252,7 +416,7 @@ class ArangoStorage:
         The caller is expected to use the `get_next_version` method to get a version number for
         the collection.
         """
-        doc = collection.dict()
+        doc = jsonable_encoder(collection)
         # ver_tag is pretty unconstrained so MD5 to get rid of any weird characters
         doc[names.FLD_ARANGO_KEY] = _version_key(collection.id, collection.ver_tag)
         col = self._db.collection(names.COLL_SRV_VERSIONS)
@@ -644,6 +808,7 @@ class ArangoStorage:
         return match
 
     def _to_internal_match(self, doc: dict[str, Any]) -> models.InternalMatch:
+        doc[models.FIELD_MATCH_WSIDS] = set(doc[models.FIELD_MATCH_WSIDS])
         return models.InternalMatch.construct(
             **models.remove_non_model_fields(doc, models.InternalMatch))
 
@@ -916,7 +1081,7 @@ class ArangoStorage:
             data_product=dp_match.data_product,
             type=dp_match.type
         ))
-        doc = dp_match.dict()
+        doc = jsonable_encoder(dp_match)
         doc[names.FLD_ARANGO_KEY] = key
         # See Note 1 at the beginning of the file
         col = self._db.collection(names.COLL_SRV_DATA_PRODUCT_PROCESSES)

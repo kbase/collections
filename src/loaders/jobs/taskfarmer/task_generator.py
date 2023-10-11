@@ -357,7 +357,13 @@ def main():
     source_file_ext = args.source_file_ext
 
     try:
-        task_mgr = TFTaskManager(kbase_collection, load_ver, tool, source_data_dir, args.force, root_dir=root_dir)
+        task_mgr = TFTaskManager(kbase_collection,
+                                 load_ver,
+                                 env,
+                                 tool,
+                                 source_data_dir,
+                                 args.force,
+                                 root_dir=root_dir)
     except PreconditionError as e:
         raise ValueError(f'Error submitting job:\n{e}\n'
                          f'Please use the --force flag to overwrite the previous run.') from e

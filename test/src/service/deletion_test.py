@@ -30,9 +30,9 @@ MATCH = models.InternalMatch(
     user_last_perm_check={"user": 60000},
 )
 
-MATCH_DELETED = models.DeletedMatch(deleted=100000, **MATCH.dict())
+MATCH_DELETED = models.DeletedMatch(deleted=100000, **MATCH.model_dump())
 
-MATCH_NEWER_LAST_ACCESS = models.InternalMatch(**dict(MATCH.dict(), last_access=110000))
+MATCH_NEWER_LAST_ACCESS = models.InternalMatch(**dict(MATCH.model_dump(), last_access=110000))
 
 SELECTION = models.InternalSelection(
     selection_id="whoo",
@@ -47,9 +47,10 @@ SELECTION = models.InternalSelection(
     last_access=90000,
 )
 
-SELECTION_DELETED = models.DeletedSelection(deleted=100000, **SELECTION.dict())
+SELECTION_DELETED = models.DeletedSelection(deleted=100000, **SELECTION.model_dump())
 
-SELECTION_NEWER_LAST_ACCESS = models.InternalSelection(**dict(SELECTION.dict(), last_access=110000))
+SELECTION_NEWER_LAST_ACCESS = models.InternalSelection(
+    **dict(SELECTION.model_dump(), last_access=110000))
 
 COLLECTION = models.SavedCollection(
     name="Some flowery name",

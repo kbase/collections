@@ -11,7 +11,7 @@ variables below for examples.
 """
 
 from typing import Annotated
-from src.common.storage.field_names import *
+from src.common.storage.field_names import *  # @UnusedWildImport
 
 # collection variables should be prefixed with COLL_, fields prefixed with FLD_.
 
@@ -98,8 +98,8 @@ A collection metadata key. The value should be the suggested number of shards fo
 
 COLLECTION_PREFIX = "kbcoll_"
 """
-The prefix for all Collections database collection names. Since the service and loaders
-are expected to operate in a database shared with several other services, this prefix
+The prefix for all Collections database collection and analyzer names. Since the service and
+loaders are expected to operate in a database shared with several other services, this prefix
 provides a namespace for the exclusive use of the Collections code.
 """
 
@@ -107,6 +107,16 @@ provides a namespace for the exclusive use of the Collections code.
 
 _SRV_PREFIX = COLLECTION_PREFIX + "coll_"
 # The namespace for service exclusive collections
+
+COLL_SRV_CONFIG: Annotated[
+    str,
+    COLL_ANNOTATION,
+    {
+        COLL_ANNOKEY_DESCRIPTION:
+            "A collection holding dynamic configuration data for the collections service.",
+        COLL_ANNOKEY_SUGGESTED_SHARDS: 1,
+    }
+] = _SRV_PREFIX + "config"
 
 COLL_SRV_COUNTERS: Annotated[
     str,
@@ -225,6 +235,15 @@ FLD_TAXA_COUNT_COUNT = "count"
 ### Genome attributes
 
 GENOME_ATTRIBS_PRODUCT_ID = "genome_attribs"
+
+COLL_GENOME_ATTRIBS_META: Annotated[
+    str,
+    COLL_ANNOTATION,
+    {
+        COLL_ANNOKEY_DESCRIPTION: "A collection holding genome attributes metadata.",
+        COLL_ANNOKEY_SUGGESTED_SHARDS: 1,
+    }
+] = COLLECTION_PREFIX + GENOME_ATTRIBS_PRODUCT_ID + "_meta"
 
 COLL_GENOME_ATTRIBS: Annotated[
     str,

@@ -16,6 +16,8 @@ from src.service.data_products.common_models import DataProductSpec
 from src.service.kb_auth import KBaseAuth
 from src.service.matchers.common_models import Matcher
 from src.service.sdk_async_client import SDKAsyncClient
+from src.service.config_dynamic import DynamicConfigManager
+from src.service.filtering import analyzers
 
 # The main point of this module is to handle all the application state in one place
 # to keep it consistent and allow for refactoring without breaking other code
@@ -41,8 +43,9 @@ async def build_app(
     try:
         cli, storage = await build_storage(cfg, data_products)
         await _check_workspace_url(sdk_client, cfg.workspace_url)
+        await analyzers.install_analyzers(storage)
         app.state._colstate = CollectionsState(
-            auth, sdk_client, cli, storage, matchers, cfg
+            auth, sdk_client, cli, storage, matchers, cfg, DynamicConfigManager(storage)
         )
         app.state._match_deletion = SubsetCleanup(
             app.state._colstate.get_pickleable_dependencies(),

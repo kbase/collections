@@ -4,8 +4,10 @@ The genome_attribs data product, which provides genome attributes for a collecti
 
 from collections import defaultdict
 import logging
+from typing import Any, Callable, Annotated
 
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Request, Depends, Query
+
 import src.common.storage.collection_and_field_names as names
 from src.service import app_state
 from src.service.app_state_data_structures import CollectionsState, PickleableDependencies
@@ -22,6 +24,7 @@ from src.service.data_products.common_functions import (
     remove_marked_subset,
     override_load_version,
     query_table,
+    get_collection_singleton_from_db,
 )
 from src.service.data_products.data_product_processing import (
     MATCH_ID_PREFIX,
@@ -29,11 +32,16 @@ from src.service.data_products.data_product_processing import (
 )
 from src.service.data_products import common_models
 from src.service.data_products.table_models import TableAttributes
+from src.service.filtering import analyzers
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
 from src.service.timestamp import now_epoch_millis
-from typing import Any, Callable
+from src.common.product_models import columnar_attribs_common_models as col_models
+from src.service.filtering.filters import FilterSet
+from src.common.product_models.columnar_attribs_common_models import (
+    ColumnarAttributesMeta,
+)
 
 # Implementation note - we know FLD_KBASE_ID is unique per collection id /
 # load version combination since the loader uses those 3 fields as the arango _key
@@ -173,7 +181,12 @@ GENOME_ATTRIBS_SPEC = GenomeAttribsSpec(
     router=_ROUTER,
     db_collections=[
         common_models.DBCollection(
+            name=names.COLL_GENOME_ATTRIBS_META,
+            indexes=[]  # lookup is by key
+        ),
+        common_models.DBCollection(
             name=names.COLL_GENOME_ATTRIBS,
+            view_required=True,
             indexes=[
                 [
                     names.FLD_COLLECTION_ID,
@@ -213,6 +226,83 @@ def _remove_keys(doc):
     return doc
 
 
+##########################
+# Filter handling code
+##########################
+
+# might want to move some of this into a shared file at some point, might be reusable for other
+# DPs
+# Not sure about the meta call, may need to abstract that out somehow
+
+_FILTER_PREFIX = "filter_"
+
+
+async def _get_filters(
+    r: Request,
+    coll: models.ActiveCollection,
+    load_ver: str,
+    load_ver_override: bool,
+    count: bool,
+    sort_on: str,
+    sort_desc: bool,
+    filter_conjunction: bool,
+    skip: int,
+    limit: int,
+) -> FilterSet:
+    # TODO FILTER docs for filters
+    # TODO FILTER doc how to change / update the arangosearch view: CLI -> config in API
+    # TODO FILTER match & selection
+    filter_query = {}
+    for q in r.query_params.keys():
+        if q.startswith(_FILTER_PREFIX):
+            field = q[len(_FILTER_PREFIX):]
+            if len(r.query_params.getlist(q)) > 1:
+                raise errors.IllegalParameterError(
+                    f"More than one filter specification provided for field {field}")
+            filter_query[field] = r.query_params[q]
+    if not filter_query:
+        return None
+    appstate = app_state.get_app_state(r)
+    column_meta = await _get_genome_attributes_meta_internal(
+        appstate.arangostorage, coll.id, load_ver, load_ver_override)
+    view_name = coll.get_data_product(ID).search_view
+    if not view_name:
+        raise ValueError(f"No search view name configured for collection {coll.id}, "
+            + "data product {ID}. Cannot perform filtering operation")
+    columns = {c.key: c for c in column_meta.columns}
+    if sort_on not in columns:
+        raise errors.IllegalParameterError(
+            f"No such field for collection {coll.id} load version {load_ver}: {sort_on}")
+    fs = FilterSet(
+        view_name,
+        coll.id,
+        load_ver,
+        count=count,
+        sort_on=sort_on,
+        sort_descending=sort_desc,
+        conjunction=filter_conjunction,
+        skip=skip,
+        limit=limit
+    )
+    for field, querystring in filter_query.items():
+        if field not in columns:
+            raise errors.IllegalParameterError(f"No such filter field: {field}")
+        column = columns[field]
+        fs.append(
+            field,
+            column.type,
+            querystring,
+            analyzers.get_analyzer(column.filter_strategy),
+            column.filter_strategy
+        )
+    return fs
+
+
+##########################
+# End filter handling code
+##########################
+
+
 _FLD_COL_ID = "colid"
 _FLD_COL_NAME = "colname"
 _FLD_COL_LV = "colload"
@@ -220,20 +310,58 @@ _FLD_SORT = "sort"
 _FLD_SORT_DIR = "sortdir"
 _FLD_SKIP = "skip"
 _FLD_LIMIT = "limit"
+_FLD_COUNT = "count"
 
 
-# At some point we're going to want to filter/sort on fields. We may want a list of fields
-# somewhere to check input fields are ok... but really we could just fetch the first document
-# in the collection and check the fields 
+@_ROUTER.get(
+    "/meta",
+    response_model=col_models.ColumnarAttributesMeta,
+    description=
+"""
+Get metadata about the genome attributes table including column names, type,
+minimum and maximum values, etc.
+""")
+async def get_genome_attributes_meta(
+    r: Request,
+    collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
+    load_ver_override: common_models.QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
+    user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
+    ):
+    storage = app_state.get_app_state(r).arangostorage
+    _, load_ver = await get_load_version(storage, collection_id, ID, load_ver_override, user)
+    return await _get_genome_attributes_meta_internal(
+        storage, collection_id, load_ver, load_ver_override)
+
+
+async def _get_genome_attributes_meta_internal(
+    storage: ArangoStorage, collection_id: str, load_ver: str, load_ver_override: bool
+) -> ColumnarAttributesMeta:
+    doc = await get_collection_singleton_from_db(
+            storage,
+            names.COLL_GENOME_ATTRIBS_META,
+            collection_id,
+            load_ver,
+            bool(load_ver_override)
+    )
+    doc[col_models.FIELD_COLUMNS] = [col_models.AttributesColumn.model_construct(**d)
+                                     for d in doc[col_models.FIELD_COLUMNS]]
+    return col_models.ColumnarAttributesMeta.model_construct(**remove_collection_keys(doc))
+
+
 @_ROUTER.get(
     "/",
     response_model=TableAttributes,
-    description="Get genome attributes for each genome in the collection, which may differ from "
-        + "collection to collection.\n\n "
-        + "Authentication is not required unless submitting a match ID or overriding the load "
-        + "version; in the latter case service administration permissions are required.\n\n"
-        + "When creating selections from genome attributes, use the "
-        + f"`{names.FLD_KBASE_ID}` field values as input.")
+    description=
+f"""
+Get genome attributes for each genome in the collection, which may differ from
+collection to collection.
+
+Authentication is not required unless submitting a match ID or overriding the load
+version; in the latter case service administration permissions are required.
+
+When creating selections from genome attributes, use the
+`{names.FLD_KBASE_ID}` field values as input.
+""")
 async def get_genome_attributes(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
@@ -243,6 +371,9 @@ async def get_genome_attributes(
     limit: common_models.QUERY_VALIDATOR_LIMIT = 1000,
     output_table: common_models.QUERY_VALIDATOR_OUTPUT_TABLE = True,
     count: common_models.QUERY_VALIDATOR_COUNT = False,
+    conjunction: Annotated[bool, Query(
+        description="Whether to AND (true) or OR (false) filters together."
+    )] = True,
     match_id: common_models.QUERY_VALIDATOR_MATCH_ID = None,
     # TODO FEATURE support a choice of AND or OR for matches & selections
     match_mark: common_models.QUERY_VALIDATOR_MATCH_MARK_SAFE = False,
@@ -265,9 +396,12 @@ async def get_genome_attributes(
         internal_sel = await processing_selections.get_selection_full(
             appstate, selection_id, require_complete=True, require_collection=coll)
         internal_selection_id = internal_sel.internal_selection_id
+    filters = await _get_filters(
+        r, coll, load_ver, load_ver_override, count, sort_on, sort_desc, conjunction,
+        skip, limit)
+    if filters:
+        return await _perform_filter(store, filters, output_table)
     if count:
-        # for now this method doesn't do much. One we have some filtering implemented
-        # it'll need to take that into account.
         count = await count_simple_collection_list(  # may want to make some sort of shared builder
             store,
             names.COLL_GENOME_ATTRIBS,
@@ -280,7 +414,7 @@ async def get_genome_attributes(
             selection_mark=selection_mark,
             selection_prefix=SELECTION_ID_PREFIX,
         )
-        return {_FLD_SKIP: 0, _FLD_LIMIT: 0, "count": count}
+        return {_FLD_SKIP: 0, _FLD_LIMIT: 0, _FLD_COUNT: count}
     else:
         res = await query_table(
             store,
@@ -325,6 +459,41 @@ async def _get_internal_match_id(
         require_collection=coll
     )
     return match.internal_match_id
+
+
+async def _perform_filter(store: ArangoStorage, filters: FilterSet, output_table: bool):
+    aql, bind_vars = filters.to_arangosearch_aql()
+    cur = await store.execute_aql(aql, bind_vars=bind_vars)
+    try:
+        if filters.count:
+            count = await cur.next()
+            return {
+                _FLD_SKIP: 0,
+                _FLD_LIMIT: 0,
+                _FLD_COUNT: count
+            }
+        else:
+            data = []
+            doc = None
+            async for doc in cur:
+                # ?ODO FiLTERS this code is pretty similar to the query_table code.
+                # See if it can be merged once everything's functional
+                doc = _remove_keys(doc)
+                if output_table:
+                    data.append([doc[k] for k in sorted(doc)])
+                else:
+                    data.append({k: doc[k] for k in sorted(doc)})
+            fields = []
+            if doc:
+                fields = [{"name": k} for k in sorted(doc)]
+            return {
+                _FLD_SKIP: filters.skip,
+                _FLD_LIMIT: filters.limit,
+                "fields": fields,
+                "table" if output_table else "data": data,
+            }
+    finally:
+        await cur.close(ignore_missing=True)
 
 
 async def perform_gtdb_lineage_match(

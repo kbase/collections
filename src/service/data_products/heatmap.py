@@ -49,6 +49,10 @@ from typing import Annotated, Any
 _OPT_AUTH = KBaseHTTPBearer(optional=True)
 
 
+def _bools_to_ints(list_: list):
+    return [int(item) if isinstance(item, bool) else item for item in list_]
+
+
 class HeatMapController:
     """
     A controller for creating a set of heat map endpoints.
@@ -200,7 +204,7 @@ class HeatMapController:
             storage, collection_id, self._id, load_ver_override, user)
         doc = await get_collection_singleton_from_db(
             storage, self._colname_meta, collection_id, load_ver, bool(load_ver_override))
-        return heatmap_models.HeatMapMeta.construct(**remove_collection_keys(doc))
+        return heatmap_models.HeatMapMeta(**remove_collection_keys(doc))
 
     async def get_cell(
         self,
@@ -219,13 +223,13 @@ class HeatMapController:
         doc = await get_doc_from_collection_by_unique_id(
             storage, self._colname_cells, collection_id, load_ver, cell_id, "cell detail", True,
         )
-        return heatmap_models.CellDetail.construct(**remove_collection_keys(doc))
+        return heatmap_models.CellDetail(**remove_collection_keys(doc))
 
     async def get_heatmap(
         self,
         r: Request,
         collection_id: Annotated[str, PATH_VALIDATOR_COLLECTION_ID],
-        start_after: str | None = Query(
+        start_after: str = Query(
             default=None,
             example="GB_GCA_000006155.2",
             description=f"The `{names.FLD_KBASE_ID}` to start after when listing data. This "
@@ -290,8 +294,8 @@ class HeatMapController:
         self,
         r: Request,
         collection_id: Annotated[str, PATH_VALIDATOR_COLLECTION_ID],
-        match_id: Annotated[str | None, Query(description="A match ID.")] = None,
-        selection_id: Annotated[str | None, Query(description="A selection ID.")] = None,
+        match_id: Annotated[str, Query(description="A match ID.")] = None,
+        selection_id: Annotated[str, Query(description="A selection ID.")] = None,
         user: kb_auth.KBaseUser = Depends(_OPT_AUTH),
     ) -> DataProductMissingIDs:
         return await get_missing_ids(
@@ -369,6 +373,6 @@ class HeatMapController:
             dp_match=match_proc,
             dp_sel=selection_proc,
             data=data,
-            min_value=min(vals) if vals else None,
-            max_value=max(vals) if vals else None
+            min_value=min(_bools_to_ints(vals)) if vals else None,
+            max_value=max(_bools_to_ints(vals)) if vals else None
         )

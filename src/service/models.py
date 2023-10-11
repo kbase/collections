@@ -11,8 +11,8 @@ may still pass. In this case, a translation from the older data is required.
 """
 
 from enum import Enum
-from pydantic import BaseModel, Field, validator, HttpUrl, root_validator
-from typing import Any, Optional
+from pydantic import field_validator, BaseModel, Field, HttpUrl, model_validator
+from typing import Any, Self, Annotated
 
 from src.service.arg_checkers import contains_control_characters
 
@@ -46,6 +46,7 @@ FIELD_MATCHERS_MATCHER = "matcher"
 FIELD_MATCH_INTERNAL_MATCH_ID = "internal_match_id"
 FIELD_MATCH_USER_PERMS = "user_last_perm_check"
 FIELD_MATCH_MATCHES = "matches"
+FIELD_MATCH_WSIDS = "wsids"
 FIELD_SELECTION_INTERNAL_SELECTION_ID = "internal_selection_id"
 FIELD_SELECTION_UNMATCHED_IDS = "unmatched_ids"
 FIELD_DATA_PRODUCT_PROCESS_MISSING_IDS = "missing_ids"
@@ -101,7 +102,7 @@ FIELD_SELECTION_UNMATCHED_DESCRIPTION = (
 DATA_PRODUCT_ID_FIELD_PROPS = {
     "min_length": 1,
     "max_length": 20,
-    "regex": "^[a-z_]+$",
+    "pattern": "^[a-z_]+$",
     "example": "taxa_count",
     "description": "The ID of the data product",
 }
@@ -113,7 +114,7 @@ DATA_PRODUCT_ID_FIELD = Field(**DATA_PRODUCT_ID_FIELD_PROPS)
 MATCHER_ID_PROPS = {
     "min_length": 1,
     "max_length": 20,
-    "regex": "^[a-z_]+$",
+    "pattern": "^[a-z_]+$",
     "example": "gtdb_lineage",
     "description": "The ID of the matcher",
 }
@@ -122,21 +123,47 @@ MATCHER_ID_PROPS = {
 MATCHER_ID_FIELD = Field(**MATCHER_ID_PROPS)
 
 
+class DynamicConfig(BaseModel):
+    """
+    Holds dynamic configuration data for the service.
+    Currently editable by editing the database directly.
+    """
+    search_views: Annotated[dict[str, str], Field(
+        example={"genome_attribs": "gaview_commithash"},
+        description="A mapping of data product -> ArangoSearch view name. "
+            + "When a particular data product requires a view for one of its collections "
+            + "this mapping specifies the name of the view to use. This variable can be used to "
+            + "seamlessly switch between an old and updated view by changing the variable value "
+            + "after the new view is built."
+         
+    )] = {}
+    
+    def is_empty(self):
+        return not self.search_views
+
+
 class DataProduct(BaseModel):
     """The ID and version of a data product associated with a collection"""
     product: str = DATA_PRODUCT_ID_FIELD
     version: str = Field(
         min_length = LENGTH_MIN_LOAD_VERSION,
         max_length = LENGTH_MAX_LOAD_VERSION,
-        regex = REGEX_LOAD_VERSION,
+        pattern = REGEX_LOAD_VERSION,
         example=FIELD_LOAD_VERSION_EXAMPLE,
         description=FIELD_LOAD_VERSION_DESCRIPTION
     )
+    search_view: Annotated[str | None, Field(
+        example="collection_service_genome_attribs_v1.5.2",
+        description="The name of the ArangoSearch view to use for searches for this data "
+            + "product. The view must exist on collection creation. Many data products don't "
+            + "support search and therefore do not need this configured."
+    )] = None
     # in the future we may want a schema version... need to think this through first.
     # assume missing == schema version 1 for now
 
-    @validator("product", "version", pre=True)
-    def _strip(cls, v):  # @NoSelf
+    @field_validator("product", "version", mode="before")
+    @classmethod
+    def _strip(cls, v):
         return v.strip()
 
 
@@ -162,45 +189,68 @@ class Collection(BaseModel):
     ver_src: str = Field(
         min_length=1,
         max_length=50,
-        regex=REGEX_NO_WHITESPACE,
+        pattern=REGEX_NO_WHITESPACE,
         example="r207",
         description="The version of the collection at the collection data source."
     )
-    desc: Optional[str] = Field(
-        min_length=1,
-        max_length=1000,
-        example="This is a collection of used hot dogs collected from Coney Island in 1892.",
-        description="A free text description of the collection."
-    )
-    icon_url: Optional[HttpUrl] = Field(
-        example="https://live.staticflickr.com/3091/2883561418_dafc36c92b_z.jpg",
-        description="A url to an image icon for the collection."
-    )
+    desc: Annotated[
+        str | None,
+        Field(
+            min_length=1,
+            max_length=1000,
+            example="This is a collection of used hot dogs collected from Coney Island in 1892.",
+            description="A free text description of the collection."
+        )
+    ] = None
+    icon_url: Annotated[
+        HttpUrl | None,
+        Field(
+            example="https://live.staticflickr.com/3091/2883561418_dafc36c92b_z.jpg",
+            description="A url to an image icon for the collection."
+        )
+    ] = None
+    attribution: Annotated[
+        str | None,
+        Field(
+            min_length=1,
+            max_length=10000,
+            example="This collection was contributed by the <organization here> "
+                + "project. For more details, see <DOI here> and <website here>. "
+                + "\n\nFunding was provided by <funding organization here> grant number <#>.",
+            description="Markdown text describing the source of the data and to whom credit "
+                + "belongs. DOI and citation information may be included."
+        )
+    ] = None
     data_products: list[DataProduct] = Field(
         description="The data products associated with the collection"
     )
     matchers: list[Matcher] = Field(
         description="The matchers associated with the collection"
     )
-    default_select: str | None = Field(  # might need to make this a list in future...? not sure
-        **DATA_PRODUCT_ID_FIELD_PROPS | {
-        "description":
-            "The ID of the data product to which non-data product specific selections "
-            + "should be applied. If present, the data product must be listed in the data "
-            + "products list. If absent, most selections will fail."
-        }
-    )
+    default_select: Annotated[
+        str | None,
+        Field(  # might need to make this a list in future...? not sure
+            **DATA_PRODUCT_ID_FIELD_PROPS | {
+            "description":
+                "The ID of the data product to which non-data product specific selections "
+                + "should be applied. If present, the data product must be listed in the data "
+                + "products list. If absent, most selections will fail."
+            }
+        )
+    ] = None
 
-    @validator("name", "ver_src", pre=True)
-    def _strip_and_fail_on_control_characters(cls, v):  # @NoSelf
+    @field_validator("name", "ver_src", mode="before")
+    @classmethod
+    def _strip_and_fail_on_control_characters(cls, v):
         v = v.strip()
         pos = contains_control_characters(v)
         if pos > -1:
             raise ValueError(f"contains a control character at position {pos}")
         return v
 
-    @validator("desc", pre=True)
-    def _strip_and_fail_on_control_characters_with_exceptions(cls, v):  # @NoSelf
+    @field_validator("desc", "attribution", mode="before")
+    @classmethod
+    def _strip_and_fail_on_control_characters_with_exceptions(cls, v):
         if v is None:
             return None
         v = v.strip()
@@ -209,12 +259,14 @@ class Collection(BaseModel):
             raise ValueError(f"contains a non tab or newline control character at position {pos}")
         return v
 
-    @validator("data_products")
-    def _check_data_products_unique(cls, v):  # @NoSelf
+    @field_validator("data_products")
+    @classmethod
+    def _check_data_products_unique(cls, v):
         return cls._checkunique(v, lambda dp: dp.product, "data product")
 
-    @validator("matchers")
-    def _check_matchers_unique(cls, v):  # @NoSelf
+    @field_validator("matchers")
+    @classmethod
+    def _check_matchers_unique(cls, v):
         return cls._checkunique(v, lambda m: m.matcher, "matcher")
 
     @classmethod
@@ -226,16 +278,22 @@ class Collection(BaseModel):
             seen.add(accessor(it))
         return items
 
-    @root_validator
-    def _check_default_selection(cls, values):  # @NoSelf
-        select = values.get("default_select")
-        if select:
-            dps = {dp.product for dp in values[FIELD_DATA_PRODUCTS]}
-            if select not in dps:
-                raise ValueError(f"The default selection data product {select} "
+    @model_validator(mode="after")
+    def _check_default_selection(self) -> Self:
+        if self.default_select:
+            dps = {dp.product for dp in self.data_products}
+            if self.default_select not in dps:
+                raise ValueError(f"The default selection data product {self.default_select} "
                     + "is not in the set of specified data products"
                 )
-        return values
+        return self
+    
+    def get_data_product(self, data_product) -> DataProduct:
+        """ Get a data product by its ID. """
+        for dp in self.data_products:
+            if dp.product == data_product:
+                return dp
+        raise ValueError(f"No such data product: {data_product}")
 
 
 # No need to worry about field validation here since the service is assigning the values
@@ -309,11 +367,14 @@ class ProcessAttributes(ProcessStateField):
         description="Milliseconds since the Unix epoch at the point the data and "
             + "corresponding process was created."
     )
-    heartbeat: int | None = Field(
-        example=1674243789866,
-        description="Milliseconds since the Unix epoch at the last time the process sent "
-            + "a heartbeat. Used to determine when the process needs to be restarted."
-    )
+    heartbeat: Annotated[
+        int | None,
+        Field(
+            example=1674243789866,
+            description="Milliseconds since the Unix epoch at the last time the process sent "
+                + "a heartbeat. Used to determine when the process needs to be restarted."
+        )
+    ] = None
     # Note this means that processes should be idempotent - running the same process twice,
     # even if one of the processes was interrupted, should produce the same result when at
     # least one process completes
@@ -481,13 +542,13 @@ class DataProductProcess(DataProductProcessIdentifier, ProcessAttributes):
     # last access / user perms are tracked in the primary match document. When that document
     # is deleted in the DB, this one should be as well (after deleting any data associated with
     # the match).
-    missing_ids: list[str] | None = Field(
+    missing_ids: Annotated[list[str] | None, Field(
         example=FIELD_SELECTION_EXAMPLE,
         description="Any IDs that were not found during the match or selection processing but "
             + "were not in the original match. This may happen normally if a data product "
             + "depends on data that is not available at the data source for a subset of the "
             + "data units at the data source."
-    )
+    )] = None
 
 
 class Selection(CollectionSpec, ProcessStateField):
@@ -513,10 +574,13 @@ class SelectionVerbose(Selection):
         example=FIELD_SELECTION_EXAMPLE,
         description=FIELD_SELECTION_IDS_DESCRIPTION
     )
-    unmatched_ids: list[str] | None = Field(
-        example=FIELD_SELECTION_EXAMPLE,
-        description=FIELD_SELECTION_UNMATCHED_DESCRIPTION
-    )
+    unmatched_ids: Annotated[
+        list[str] | None,
+        Field(
+            example=FIELD_SELECTION_EXAMPLE,
+            description=FIELD_SELECTION_UNMATCHED_DESCRIPTION
+        )
+    ] = None
 
 
 class InternalSelection(SelectionVerbose, ProcessAttributes, LastAccess):

@@ -50,12 +50,24 @@ def _precheck_admin_and_get_storage(
     return app_state.get_app_state(r).arangostorage
 
 
-def _check_matchers_and_data_products(
+async def _check_collection_state(
     appstate: app_state.CollectionsState, col: models.Collection
 ):
+    for dp in col.data_products:
+        # throws an exception if missing
+        spec = data_product_specs.get_data_product_spec(dp.product)
+        if spec.view_required():
+            if not dp.search_view:
+                raise errors.IllegalParameterError(
+                    f"Data product {dp.product} requires an ArangoSearch view")
+            if not await appstate.arangostorage.has_search_view(dp.search_view):
+                raise errors.IllegalParameterError(
+                    f"ArangoSearch view {dp.search_view} configured in data product {dp.product} "
+                    + "does not exist")
+            # theoretically we could load the specs for the data product and make sure the
+            # view matches the specs but that seems like overkill for something only admins
+            # can set
     data_products = set([dp.product for dp in col.data_products])
-    for dp in data_products:
-        data_product_specs.get_data_product_spec(dp)  # throws an exception if missing
     for m in col.matchers:
         matcher = appstate.get_matcher(m.matcher)
         if not matcher:
@@ -78,6 +90,9 @@ async def _activate_collection_version(
 ) -> models.ActiveCollection:
     doc = col.dict()
     doc.update({
+        # otherwise the pydantic validation chokes on the dicts
+        models.FIELD_MATCHERS: col.matchers,
+        models.FIELD_DATA_PRODUCTS: col.data_products,
         models.FIELD_DATE_ACTIVE: timestamp(),
         models.FIELD_USER_ACTIVE: user.user.id
     })
@@ -91,7 +106,7 @@ _PATH_VER_TAG = Path(
     max_length=50,
     # pydantic uses the stdlib re under the hood, which doesn't understand \pC, so
     # routes need to manually check for control characters
-    regex=models.REGEX_NO_WHITESPACE,  
+    pattern=models.REGEX_NO_WHITESPACE,
     example=models.FIELD_VER_TAG_EXAMPLE,
     description=models.FIELD_VER_TAG_DESCRIPTION
 )
@@ -398,7 +413,7 @@ async def create_sets(
         # https://github.com/kbase/workspace_deluxe/blob/4c03b4364a2ccc292f60ccd629cbb5f71b25bfcc/src/us/kbase/workspace/database/ObjectIDNoWSNoVer.java
         min_length=1,
         max_length=255,
-        regex=r"^[\w\.\|_-]+$"
+        pattern=r"^[\w\.\|_-]+$"
     ),
     ws_type: str = Path(
         example="KBaseGenomeAnnotations.Assembly",
@@ -437,7 +452,7 @@ async def save_collection(
     # Maybe the method implementations should go into a different module / class...
     # But the method implementation is intertwined with the path validation
     store = _precheck_admin_and_get_storage(r, user, ver_tag, "save data")
-    _check_matchers_and_data_products(app_state.get_app_state(r), col)
+    await _check_collection_state(app_state.get_app_state(r), col)
     doc = col.dict()
     exists = await store.has_collection_version_by_tag(collection_id, ver_tag)
     if exists:
@@ -454,11 +469,11 @@ async def save_collection(
     ver_num = await store.get_next_version(collection_id)
     doc.update({
         models.FIELD_MATCHERS: sorted(
-            doc[models.FIELD_MATCHERS],
-            key=lambda m: m[models.FIELD_MATCHERS_MATCHER]),
+            [models.Matcher.construct(**d) for d in doc[models.FIELD_MATCHERS]],
+            key=lambda m: m.matcher),
         models.FIELD_DATA_PRODUCTS: sorted(
-            doc[models.FIELD_DATA_PRODUCTS],
-            key=lambda m: m[models.FIELD_DATA_PRODUCTS_PRODUCT]),
+            [models.DataProduct.construct(**d) for d in doc[models.FIELD_DATA_PRODUCTS]],
+            key=lambda m: m.product),
         models.FIELD_COLLECTION_ID: collection_id,
         models.FIELD_VER_TAG: ver_tag,
         models.FIELD_VER_NUM: ver_num,
@@ -544,7 +559,7 @@ async def activate_collection_by_ver_num(
 async def get_collection_versions(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
-    max_ver: int | None = _QUERY_MAX_VER,
+    max_ver: int = _QUERY_MAX_VER,
     user: kb_auth.KBaseUser=Depends(_AUTH),
 ) -> CollectionVersions:
     store = _precheck_admin_and_get_storage(r, user, "", "view collection versions")
@@ -555,6 +570,17 @@ async def get_collection_versions(
 
 # TODO ROUTES add a admin route to get matches without updating timestamps etc.
 #             for now just use the ArangoDB UI or API.
+
+
+@ROUTER_COLLECTIONS_ADMIN.get(
+    "/config/",
+    response_model=models.DynamicConfig,
+    description="Get the service dynamic configuration. Currently this can be edited only "
+        + "directly in the database."
+)
+async def get_config(r: Request, user: kb_auth.KBaseUser=Depends(_AUTH)) -> models.DynamicConfig:
+    _ensure_admin(user, "Only collections service admins can view the service dynamic config")
+    return await app_state.get_app_state(r).dyncfgman.get_config()
 
 
 @ROUTER_DANGER.delete(

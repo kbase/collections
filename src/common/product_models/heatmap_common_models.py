@@ -1,5 +1,5 @@
 """
-Common pydantic and fastAPI models for heat map data products.
+Common pydantic models for heat map data products.
 """
 
 from enum import Enum
@@ -15,6 +15,7 @@ FIELD_HEATMAP_MAX_VALUE = "max_value"
 FIELD_HEATMAP_COUNT = "count"
 FIELD_HEATMAP_VALUES = 'values'
 FIELD_HEATMAP_ROW_CELLS = "cells"
+FIELD_HEATMAP_ROW_META = "meta"
 FIELD_HEATMAP_CELL_ID = 'cell_id'
 FIELD_HEATMAP_COL_ID = 'col_id'
 FIELD_HEATMAP_CELL_VALUE = "val"
@@ -22,6 +23,9 @@ FIELD_HEATMAP_NAME = "name"
 FIELD_HEATMAP_DESCR = "description"
 FIELD_HEATMAP_TYPE = "type"
 FIELD_HEATMAP_CATEGORY = "category"
+FIELD_HEATMAP_COLUMNS = "columns"
+FIELD_HEATMAP_CATEGORIES = "categories"
+
 
 _FLD_CELL_ID = Field(
     example="4",
@@ -111,9 +115,6 @@ class Cell(BaseModel):
         description="The value of the heatmap at this cell."
     )
 
-    class Config:
-        smart_union = True
-
 
 class HeatMapRow(BaseModel):
     """
@@ -133,7 +134,7 @@ class HeatMapRow(BaseModel):
         description="The cells in the row of the heatmap in render order."
     )
     meta: dict[str, str] | None = Field(
-        examples=[{"growth_media": "Spizizen minimal media + 0.5mM biotin"}],
+        example={"growth_media": "Spizizen minimal media + 0.5mM biotin"},
         description="Arbitrary metadata about the data in the row"
     )
 
@@ -177,9 +178,6 @@ class CellDetailEntry(BaseModel):
         example=56.1,
         description="The value of the cell entry."
     )
-
-    class Config:
-        smart_union = True
 
 
 class CellDetail(BaseModel):
