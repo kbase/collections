@@ -33,7 +33,7 @@ def _exam_genome_attribs_file(root_dir, expected_docs_length, expected_doc_keys,
                               expected_load_version, expected_collection):
 
     result_file = os.path.join(root_dir, IMPORT_DIR, DEFAULT_ENV,
-                               f'{expected_collection}_{expected_load_version}_{loader.GTDB_GENOME_ATTR_FILE}')
+                               f'{expected_collection}_{expected_load_version}_{names.COLL_GENOME_ATTRIBS}.jsonl')
     with jsonlines.open(result_file, 'r') as jsonl_f:
         data = [obj for obj in jsonl_f]
 

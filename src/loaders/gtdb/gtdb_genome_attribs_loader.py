@@ -37,10 +37,6 @@ e.g. gtdb_genome_attribs_loader.py bac120_metadata_r207.tsv ar53_metadata_r207.t
      gtdb_genome_attribs_loader.py bac120_metadata_r207.tsv ar53_metadata_r207.tsv --load_version r207.kbase.1 --kbase_collection GTDB
 """
 
-# Default result file name for GTDB genome attributes data for arango import
-GTDB_GENOME_ATTR_FILE = "gtdb_genome_attribs.jsonl"
-GTDB_GENOME_ATTR_META_FILE = "gtdb_genome_attribs_meta.jsonl"
-
 # Note that FLD_GENOME_ATTRIBS_GTDB_LINEAGE is required for some matchers to function.
 # Since it's always part of the GTDB file we don't bother independently checking for its
 # presence
@@ -157,10 +153,10 @@ def main():
     env = loader_common_names.DEFAULT_ENV
     root_dir = getattr(args, loader_common_names.ROOT_DIR_ARG_NAME)
 
-    attri_output = f'{kbase_collection}_{load_version}_{GTDB_GENOME_ATTR_FILE}'
+    attri_output = f'{kbase_collection}_{load_version}_{names.COLL_GENOME_ATTRIBS}.jsonl'
     loader_helper.create_import_files(root_dir, env, attri_output, docs)
 
-    meta_output = f'{kbase_collection}_{load_version}_{GTDB_GENOME_ATTR_META_FILE}'
+    meta_output = f'{kbase_collection}_{load_version}_{names.COLL_GENOME_ATTRIBS_META}.jsonl'
     loader_helper.create_import_files(root_dir, env, meta_output, [meta_doc])
 
 
