@@ -50,7 +50,11 @@ NONE_STR = ['N/A', 'NA', 'None', 'none', 'null', 'Null', 'NULL', '']
 def _convert_to_iso8601(date_string: str) -> str:
     # Convert a date string to ISO 8601 format
     formats_to_try = ["%Y/%m/%d", "%Y-%m-%d"]  # Add more formats as needed
-
+    # The current code always leaves the date in day precision with no time zone information as that's
+    # all that's available from the current data.
+    # If higher precision dates are encountered in the future the code should be adapted to
+    # keep as much precision as possible (but don't add precision that isn't there), including
+    # timezone info if available.
     for date_format in formats_to_try:
         try:
             parsed_date = datetime.strptime(date_string, date_format)
