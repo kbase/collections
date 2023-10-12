@@ -148,6 +148,11 @@ def main():
     df = _parse_from_metadata_file(load_files, SELECTED_FEATURES)
     docs = _df_to_docs(df, kbase_collection, load_version)
 
+    docs, meta_doc = loader_helper.process_columnar_meta(docs,
+                                                         kbase_collection,
+                                                         load_version)
+
+    # TODO save columnar_attri_meta to import_files/NONE folder
     with args.output as genome_attribs_json:
         loader_helper.convert_to_json(docs, genome_attribs_json)
 

@@ -57,7 +57,7 @@ def test_create_json_default(setup_and_teardown):
 
     result_file = os.path.join(tmp_dir, 'test.json')
     load_version = '100-dev'
-    kbase_collections = 'sample_gtdb'
+    kbase_collections = 'GTDB'
     command = ['python', script_file,
                os.path.join(caller_file_dir, 'SAMPLE_ar53_metadata_r207.tsv'),
                os.path.join(caller_file_dir, 'SAMPLE_bac120_metadata_r207.tsv'),
