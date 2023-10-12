@@ -7,9 +7,9 @@ import json
 from fastapi import APIRouter, Depends, Request, Query, Path, Response
 
 import src.common.storage.collection_and_field_names as names
-from src.service import app_state
 from src.common.product_models.common_models import FIELD_MATCH_STATE, FIELD_SELECTION_STATE
 from src.common.product_models import heatmap_common_models as heatmap_models
+from src.service import app_state, kb_auth, models
 from src.service.data_products.common_functions import (
     get_load_version,
     get_collection_singleton_from_db,
@@ -39,8 +39,7 @@ from src.service.data_products.data_product_processing import (
     get_missing_ids,
 )
 from src.service.http_bearer import KBaseHTTPBearer
-from src.service import kb_auth
-from src.service import models
+from src.service.processing import SubsetSpecification
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
 
@@ -269,12 +268,10 @@ class HeatMapController:
                 self._colname_data,
                 collection_id,
                 load_ver,
-                match_process=dp_match,
-                match_mark=match_mark,
-                match_prefix=MATCH_ID_PREFIX,
-                selection_process=dp_sel,
-                selection_mark=selection_mark,
-                selection_prefix=SELECTION_ID_PREFIX,
+                match_spec=SubsetSpecification(
+                    subset_process=dp_match, mark_only=match_mark, prefix=MATCH_ID_PREFIX),
+                selection_spec=SubsetSpecification(
+                    subset_process=dp_sel, mark_only=selection_mark, prefix=SELECTION_ID_PREFIX)
             )
             return self._response(dp_match=dp_match, dp_sel=dp_sel, count=count)
         else:
@@ -358,12 +355,11 @@ class HeatMapController:
             skip=0,
             start_after=start_after,
             limit=limit,
-            match_process=match_proc,
-            match_mark=match_mark,
-            match_prefix=MATCH_ID_PREFIX,
-            selection_process=selection_proc,
-            selection_mark=selection_mark,    
-            selection_prefix=SELECTION_ID_PREFIX,
+            match_spec=SubsetSpecification(
+                subset_process=match_proc, mark_only=match_mark, prefix=MATCH_ID_PREFIX),
+            selection_spec=SubsetSpecification(
+                subset_process=selection_proc, mark_only=selection_mark, prefix=SELECTION_ID_PREFIX
+            )
         )
         vals = set()
         for r in data:  # lazy lazy lazy
