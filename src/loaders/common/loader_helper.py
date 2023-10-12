@@ -120,14 +120,9 @@ def process_columnar_meta(
             if values:
                 min_value, max_value = min(values), max(values)
             else:
-                if col_type == ColumnType.INT:
-                    min_value, max_value = 0, 0
-                elif col_type == ColumnType.FLOAT:
-                    min_value, max_value = 0.0, 0.0
-                elif col_type == ColumnType.DATE:
-                    min_value, max_value = '0001-01-01', '0001-01-01'
-                else:
-                    raise ValueError(f'default min/max value for {col_type} column not implemented')
+                # set min_value and max_value to None if all values from the column are None
+                min_value = max_value = None
+
         elif col_type == ColumnType.ENUM:
             enum_values = list(set(values))
             enum_values.sort()

@@ -124,7 +124,8 @@ class AttributesColumn(AttributesColumnSpec):
         typestr = self.type.value
         for val, coltext in [(self.min_value, "min_value"), (self.max_value, "max_value")]:
             if val is None:
-                raise ValueError(f"{self.key}: missing {coltext} value for {typestr} column")
+                # The minimum and maximum values may be null because all values in the column are null.
+                return self
             validator, errtext = self._RANGE_VALIDATORS[self.type]
             try:
                 if not validator(val):
