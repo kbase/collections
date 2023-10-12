@@ -38,8 +38,8 @@ e.g. gtdb_genome_attribs_loader.py bac120_metadata_r207.tsv ar53_metadata_r207.t
 """
 
 # Default result file name for GTDB genome attributes data for arango import
-GTDB_GENOME_ATTR_FILE = "gtdb_genome_attribs.json"
-GTDB_GENOME_ATTR_META_FILE = "gtdb_genome_attribs_meta.json"
+GTDB_GENOME_ATTR_FILE = "gtdb_genome_attribs.jsonl"
+GTDB_GENOME_ATTR_META_FILE = "gtdb_genome_attribs_meta.jsonl"
 
 # Note that FLD_GENOME_ATTRIBS_GTDB_LINEAGE is required for some matchers to function.
 # Since it's always part of the GTDB file we don't bother independently checking for its
