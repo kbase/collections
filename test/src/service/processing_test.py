@@ -1,3 +1,7 @@
+import re
+
+from pytest import raises
+
 from src.service.models import DataProductProcess, SubsetType, ProcessState
 from src.service.processing import SubsetSpecification
 
@@ -62,18 +66,7 @@ def test_subset_specification_ignore_process():
         assert ss.is_null_subset() is True
 
 
-def test_subset_specification_ignore_process_with_id():
-    for s in set(ProcessState):
-        ss = SubsetSpecification(
-            internal_subset_id="yay",
-            subset_process=_create_dp_process("boo", state=s),
-            prefix="fuzzy_"
-        )
-    
-        assert ss.internal_subset_id == "yay"
-        assert ss.mark_only is False
-        assert ss.prefix == "fuzzy_"
-        assert ss.get_prefixed_subset_id() == "fuzzy_yay"
-        assert ss.get_subset_filtering_id() == "fuzzy_yay"
-        assert ss.is_null_subset() is False
-
+def test_subset_specification_fail_with_two_ids():
+    expected = "Only one of internal_subset_id or subset_process may be provided"
+    with raises(ValueError, match=f"^{re.escape(expected)}$"):
+        SubsetSpecification(internal_subset_id="foo", subset_process=_create_dp_process("bar"))
