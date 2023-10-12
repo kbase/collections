@@ -1,15 +1,14 @@
 """
 The samples data product, which provides sample information for a collection.
 """
+from typing import Any, Annotated
 
 from fastapi import APIRouter, Request, Depends, Query
 from pydantic import BaseModel, Field
+
 import src.common.storage.collection_and_field_names as names
 from src.common.product_models.common_models import SubsetProcessStates
-from src.service import app_state
-from src.service import errors
-from src.service import kb_auth
-from src.service import models
+from src.service import app_state, errors, kb_auth, models
 from src.service.data_products.common_functions import (
     remove_collection_keys,
     count_simple_collection_list,
@@ -26,9 +25,9 @@ from src.service.data_products.data_product_processing import (
 )
 from src.service.data_products.table_models import TableAttributes
 from src.service.http_bearer import KBaseHTTPBearer
+from src.service.processing import SubsetSpecification
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
-from typing import Any, Annotated
 
 # Implementation note - we know FLD_KBASE_ID is unique per collection id /
 # load version combination since the loader uses those 3 fields as the arango _key
@@ -204,6 +203,10 @@ async def get_samples(
         match_id=match_id,
         selection_id=selection_id,
     )
+    match_spec=SubsetSpecification(
+        subset_process=dp_match, mark_only=match_mark, prefix=MATCH_ID_PREFIX)
+    selection_spec=SubsetSpecification(
+        subset_process=dp_sel, mark_only=selection_mark, prefix=SELECTION_ID_PREFIX)
     if status_only:
         return _response(dp_match=dp_match, dp_sel=dp_sel)
     if count:
@@ -215,12 +218,8 @@ async def get_samples(
             names.COLL_SAMPLES,
             collection_id,
             load_ver,
-            match_process=dp_match,
-            match_mark=match_mark,
-            match_prefix=MATCH_ID_PREFIX,
-            selection_process=dp_sel,
-            selection_mark=selection_mark,
-            selection_prefix=SELECTION_ID_PREFIX,
+            match_spec=match_spec,
+            selection_spec=selection_spec,
         )
         return _response(dp_match=dp_match, dp_sel=dp_sel, count=count)
     else:
@@ -234,12 +233,8 @@ async def get_samples(
             skip=skip,
             limit=limit,
             output_table=output_table,
-            match_process=dp_match,
-            match_mark=match_mark,
-            match_prefix=MATCH_ID_PREFIX,
-            selection_process=dp_sel,
-            selection_mark=selection_mark,
-            selection_prefix=SELECTION_ID_PREFIX,
+            match_spec=match_spec,
+            selection_spec=selection_spec,
             document_mutator=_remove_keys,
         )
         return _response(
