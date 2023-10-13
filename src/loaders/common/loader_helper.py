@@ -9,13 +9,23 @@ import time
 import uuid
 from collections import defaultdict
 from contextlib import closing
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import jsonlines
 
 import src.common.storage.collection_and_field_names as names
-from src.common.storage.db_doc_conversions import collection_data_id_key
+from src.common.collection_column_specs.load_specs import load_spec
+from src.common.product_models.columnar_attribs_common_models import (
+    ColumnType,
+    AttributesColumn,
+    ColumnarAttributesMeta,
+)
+from src.common.storage.db_doc_conversions import (
+    collection_data_id_key,
+    collection_load_version_key,
+)
 from src.loaders.common.loader_common_names import (
     COLLECTION_SOURCE_DIR,
     DOCKER_HOST,
@@ -33,6 +43,108 @@ from src.loaders.common.loader_common_names import (
 """
 This module contains helper functions used for loaders (e.g. compute_genome_attribs, gtdb_genome_attribs_loader, etc.)
 """
+
+NONE_STR = ['N/A', 'NA', 'None', 'none', 'null', 'Null', 'NULL', '']
+
+
+def _convert_to_iso8601(date_string: str) -> str:
+    # Convert a date string to ISO 8601 format
+    formats_to_try = ["%Y/%m/%d", "%Y-%m-%d"]  # Add more formats as needed
+    # The current code always leaves the date in day precision with no time zone information as that's
+    # all that's available from the current data.
+    # If higher precision dates are encountered in the future the code should be adapted to
+    # keep as much precision as possible (but don't add precision that isn't there), including
+    # timezone info if available.
+    for date_format in formats_to_try:
+        try:
+            parsed_date = datetime.strptime(date_string, date_format)
+            iso8601_date = parsed_date.date().isoformat()
+            return iso8601_date
+        except ValueError:
+            continue
+
+    raise ValueError("Unrecognized date format")
+
+
+def _convert_values_to_type(docs: list[dict], key: str, col_type: ColumnType):
+    # Convert the values of a column to the specified type
+    values = []
+    for doc in docs:
+        try:
+            value = doc[key]
+            value = None if value in NONE_STR else value
+            if value is None:
+                doc[key] = value
+                continue
+
+            if col_type == ColumnType.INT:
+                doc[key] = int(value)
+            elif col_type == ColumnType.FLOAT:
+                doc[key] = float(value)
+            elif col_type == ColumnType.STRING:
+                doc[key] = str(value)
+            elif col_type == ColumnType.DATE:
+                doc[key] = _convert_to_iso8601(value)
+            else:
+                raise ValueError(f'casting not implemented for {col_type}')
+
+            values.append(doc[key])
+        except KeyError as e:
+            raise ValueError(f'Unable to find key: {key} in {doc}') from e
+        except ValueError as e:
+            raise ValueError(f'Unable to convert value: {key} from {doc} to type: {col_type}') from e
+
+    return values
+
+
+def process_columnar_meta(
+        docs: list[dict],
+        kbase_collection: str,
+        load_ver: str,
+):
+    """
+    Process the columnar metadata for the genome attributes.
+
+    :param docs: the list of documents
+    :param kbase_collection: the KBase collection name
+    :param load_ver: the load version
+    """
+
+    spec = load_spec(names.GENOME_ATTRIBS_PRODUCT_ID, kbase_collection)
+    columns = list()
+    for col_spec in spec.columns:
+        key, col_type = col_spec.key, col_spec.type
+        values = _convert_values_to_type(docs, key, col_type)
+        min_value, max_value, enum_values = None, None, None
+        if col_type in [ColumnType.INT, ColumnType.FLOAT, ColumnType.DATE]:
+            if values:
+                min_value, max_value = min(values), max(values)
+            else:
+                # set min_value and max_value to None if all values from the column are None
+                min_value = max_value = None
+
+        elif col_type == ColumnType.ENUM:
+            enum_values = list(set(values))
+            enum_values.sort()
+
+        attri_column = AttributesColumn(
+            **col_spec.model_dump(),
+            min_value=min_value,
+            max_value=max_value,
+            enum_values=enum_values
+        )
+        columns.append(attri_column)
+
+    columnar_attri_meta = ColumnarAttributesMeta(columns=columns)
+
+    meta_doc = columnar_attri_meta.model_dump()
+    meta_doc.update({
+        names.FLD_ARANGO_KEY: collection_load_version_key(kbase_collection, load_ver),
+        names.FLD_COLLECTION_ID: kbase_collection,
+        names.FLD_LOAD_VERSION: load_ver
+    })
+
+    return docs, meta_doc
 
 
 def convert_to_json(docs, outfile):
@@ -234,7 +346,7 @@ def create_softlinks_in_collection_source_dir(
         collection_source_dir: str,
         work_dir: str,
         genome_ids: list[str],
-        taxonomy_files:list[str] = None
+        taxonomy_files: list[str] = None
 ) -> None:
     """
     Create softlinks in the collection source dir to the genome files in the work dir.
