@@ -244,12 +244,13 @@ async def _get_filters(
     sort_on: str,
     sort_desc: bool,
     filter_conjunction: bool,
+    match_spec: SubsetSpecification,
+    selection_spec: SubsetSpecification,
     skip: int,
     limit: int,
 ) -> FilterSet:
-    # TODO FILTER docs for filters
-    # TODO FILTER doc how to change / update the arangosearch view: CLI -> config in API
-    # TODO FILTER match & selection
+    # TODO FILTERS docs for filters
+    # TODO FILTERS doc how to change / update the arangosearch view: CLI -> config in API
     filter_query = {}
     for q in r.query_params.keys():
         if q.startswith(_FILTER_PREFIX):
@@ -279,6 +280,8 @@ async def _get_filters(
         sort_on=sort_on,
         sort_descending=sort_desc,
         conjunction=filter_conjunction,
+        match_spec=match_spec,
+        selection_spec=selection_spec,
         skip=skip,
         limit=limit
     )
@@ -391,7 +394,7 @@ async def get_genome_attributes(
     sel_spec = await _get_selection_spec(appstate, coll, selection_id, selection_mark)
     filters = await _get_filters(
         r, coll, load_ver, load_ver_override, count, sort_on, sort_desc, conjunction,
-        skip, limit)
+        match_spec, sel_spec, skip, limit)
     if filters:
         return await _perform_filter(store, filters, output_table)
     if count:
@@ -481,17 +484,23 @@ async def _perform_filter(store: ArangoStorage, filters: FilterSet, output_table
         else:
             data = []
             doc = None
+            ms = filters.match_spec
+            ss = filters.selection_spec
             async for doc in cur:
-                # ?ODO FiLTERS this code is pretty similar to the query_table code.
+                # TODO FILTERS this code is very similar to the query_table code.
                 # See if it can be merged once everything's functional
+                if not ms.is_null_subset():
+                    doc[names.FLD_MATCHED_SAFE] = ms.get_prefixed_subset_id() in doc[
+                        names.FLD_MATCHES_SELECTIONS]
+                if not ss.is_null_subset():
+                    doc[names.FLD_SELECTED_SAFE] = ss.get_prefixed_subset_id() in doc[
+                    names.FLD_MATCHES_SELECTIONS]
                 doc = _remove_keys(doc)
                 if output_table:
                     data.append([doc[k] for k in sorted(doc)])
                 else:
                     data.append({k: doc[k] for k in sorted(doc)})
-            fields = []
-            if doc:
-                fields = [{"name": k} for k in sorted(doc)]
+            fields = [{"name": k} for k in sorted(doc)] if doc else []
             return {
                 _FLD_SKIP: filters.skip,
                 _FLD_LIMIT: filters.limit,
