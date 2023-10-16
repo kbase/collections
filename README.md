@@ -20,21 +20,54 @@ Error codes are listed in [errors.py](src/service/errors.py).
 
 ## Administration
 
-To start the service Docker container:
+A few setup steps are required before starting the service and when new Arango collections are
+required or ArangoSearch views need to be created or updated.
 
-* The collections listed in
-  [collection_and_field_names.py](src/common/storage/collection_and_field_names.py) must be
-  created in ArangoDB. The collections are not created automatically to allow service admins
-  to specify sharding to their liking. Indexes are created automatically, assuming the collections
-  exist.
-* A script is provided for assistance in setting up the collections. For more info, run
+* Before starting the service for the first time:
+  * Copy [collections_config.toml.jinja](collections_config.toml.jinja) to a new file name and
+    fill out the values. At minimum the ArangoDB connection parameters must be provided.
+  * Run the service manager script (use the `-h` flag for more options):
+  
 ```
-$ PYTHONPATH=. python src/service_manager.py -h
+$ PYTHONPATH=. python src/service_manager.py -c <path to filled out collections config file>
 ```
-* The environment variables listed in
-  [collections_config.toml.jinja](collections_config.toml.jinja)
-  must be provided to the Docker container, unless their default values are acceptable.
-  In particular, database access and credential information must be provided.
+
+  * This will guide the user through setting up the necessary Arango collections and setting
+    their sharding, and then create the necessary ArangoSearch views. The user will be required
+    to name the views; those names will be used in the OpenAPI UI when creating collections with
+    data products that require views. It may be wise to include the git commit hash in the
+    name to make it easy to match up a view with the view specifications checked into git.
+  * The environment variables listed in
+    [collections_config.toml.jinja](collections_config.toml.jinja)
+    must be provided to the Docker container, unless their default values are acceptable.
+    In particular, database access and credential information must be provided.
+
+### Arango Collection updates
+
+Occasionally new collections may be required on service updates. In that case run the script
+again to create the new collections.
+
+### ArangoSearch view creation and updates
+
+Occasionally new data products may be added to the service that require new ArangoSearch views
+or existing data products may have their [view specifications](src/common/collection_column_specs)
+altered. In this case the service manager script must be run again to create the new view(s), and
+the user will have to provide names for the view(s). As noted above, including the git commit
+hash in the name may be wise.
+
+Those view names are then used when creating or updating KBase Collections (capitalized to
+distinguish between KBase Collections and ArangoDB collections) with data products
+that require ArangoSearch views. Prior to activating a collection with a new view:
+
+* The data corresponding to the new load version should be loaded into ArangoDB
+* The view should be created as above
+* The new KBase Collection or Collection version should be created via the OpenAPI UI with the 
+  correct load version and view name
+* The KBase Collection should be activated.
+
+When no active KBase Collections are using a view it can be deleted with the caveat that if an
+older version of a Collection that specifies a deleted view is reactivated, any operations that
+required a view will fail for that Collection.
 
 ## File structure
 
