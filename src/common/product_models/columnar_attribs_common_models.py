@@ -39,8 +39,6 @@ class FilterStrategy(str, Enum):
     """
     IDENTITY = "identity"
     """ A string search based on an exact match to the entire string. """
-    IN_ARRAY = "inarray"
-    """ A string search based on an exact match to one of a set of entries in an array. """
     PREFIX = "prefix"
     """ A string prefix search. """
     FULL_TEXT = "fulltext"

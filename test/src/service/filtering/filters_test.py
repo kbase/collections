@@ -150,14 +150,6 @@ def test_stringfilter_to_arangosearch_aql_identity():
     )
 
 
-def test_stringfilter_to_arangosearch_aql_in_array():
-    sf = StringFilter.from_string(None, "matchidgoeshere", None, FilterStrategy.IN_ARRAY)
-    assert sf.to_arangosearch_aql("doc._mtchsel", "pre") == SearchQueryPart(
-        aql_lines=["@preinput IN doc._mtchsel"],
-        bind_vars={"preinput": "matchidgoeshere"}
-    )
-
-
 def test_stringfilter_to_arangosearch_aql_full_text():
     _stringfilter_to_arangosearch_aql_full_text(None, "identity")
     _stringfilter_to_arangosearch_aql_full_text("    \t   ", "identity")
@@ -208,7 +200,6 @@ def _filterset_with_defaults_append_filters(fs: FilterSet):
         ).append("fulltextfield", ColumnType.STRING, "whee", "text_rs", FilterStrategy.FULL_TEXT
         ).append("datefield", ColumnType.DATE, ",2023-09-13T18:51:19+0000]"
         ).append("strident", ColumnType.STRING, "thingy", strategy=FilterStrategy.IDENTITY
-        ).append("_mtchsel", ColumnType.STRING, "mtchid", strategy=FilterStrategy.IN_ARRAY
     )
     return fs
 
@@ -238,8 +229,6 @@ FOR doc IN @@view
         doc.datefield <= @v5_high
         AND
         doc.strident == @v6_input
-        AND
-        @v7_input IN doc._mtchsel
     )
     LIMIT @skip, @limit
     RETURN doc
@@ -257,9 +246,8 @@ FOR doc IN @@view
         "v4_input": "whee",
         "v5_high": "2023-09-13T18:51:19+0000",
         "v6_input": "thingy",
-        "v7_input": "mtchid",
     }
-    assert len(fs) == 7
+    assert len(fs) == 6
 
 
 def test_filterset_w_defaults_count():
@@ -288,8 +276,6 @@ RETURN COUNT(FOR doc IN @@view
         doc.datefield <= @v5_high
         AND
         doc.strident == @v6_input
-        AND
-        @v7_input IN doc._mtchsel
     )
     RETURN doc
 )
@@ -305,9 +291,8 @@ RETURN COUNT(FOR doc IN @@view
         "v4_input": "whee",
         "v5_high": "2023-09-13T18:51:19+0000",
         "v6_input": "thingy",
-        "v7_input": "mtchid",
     }
-    assert len(fs) == 7
+    assert len(fs) == 6
 
 
 def test_filterset_w_all_args():
