@@ -237,8 +237,8 @@ def _run_microtrait(tool_safe_data_id: str, data_id: str, fna_file: Path, genome
 
         trait_counts_df[_DETECTED_GENE_SCORE_COL] = trait_counts_df[
             loader_common_names.UNWRAPPED_GENE_COL].apply(
-            lambda x: {gene: detected_genes_score.get(gene) for gene in str(x).split(';') if
-                       gene in detected_genes_score})
+            lambda x: [{gene: detected_genes_score.get(gene) for gene in str(x).split(';') if
+                       gene in detected_genes_score}])
     else:
         raise ValueError('Please set environment variable MT_TRAIT_UNWRAPPED_FILE')
 
