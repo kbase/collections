@@ -50,7 +50,6 @@ def test_all_specs_load_merge():
     
     ident = FilterStrategy.IDENTITY
     ftext = FilterStrategy.FULL_TEXT
-    inar = FilterStrategy.IN_ARRAY
     
     spec = load_specs.load_spec("genome_attribs")
     assert {f.name for f in spec.spec_files} == {
@@ -68,7 +67,7 @@ def test_all_specs_load_merge():
     assert key2spec["translation_table"] == AttributesColumnSpec(
         key="translation_table", type=it)
     assert key2spec["_mtchsel"] == AttributesColumnSpec(
-        key="_mtchsel", type=st, filter_strategy=inar)
+        key="_mtchsel", type=st, filter_strategy=ident)
 
 
 def test_load_single_spec_from_toolchain():
