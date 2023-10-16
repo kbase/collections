@@ -24,7 +24,7 @@ _CUSTOM_ANALYZERS = {
         {
             "locale": "en",
             "case": "lower",
-            "accept": False,
+            "accent": False,
             "stemming": False,
             "edgeNgram": {
                 "min": 2,
