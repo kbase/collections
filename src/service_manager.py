@@ -112,7 +112,7 @@ async def _user_loop_sharding(
         if click.confirm("Commit this sharding configuration?"):
             print("Creating collections... ", end="")
             await _setup_db(colls, db)
-            print("done. Buh-bye!")
+            print("done.")
             return
         else:
             index = -1

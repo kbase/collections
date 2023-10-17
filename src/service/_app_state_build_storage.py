@@ -56,7 +56,7 @@ async def _get_arango_db(cli: aioarango.ArangoClient, db: str, cfg: CollectionsS
         except aioarango.exceptions.ServerConnectionError as e:
             err = e
             print(
-                f"Failed to connect to Arango database at {cfg.arango_url}\n"
+                f"Failed to connect to Arango {db} database at {cfg.arango_url}\n"
                 + f"    Error: {err}\n"
                 + f"    Waiting for {t}s and retrying db connection",
                 flush=True
