@@ -26,7 +26,7 @@ PyYAML = "==6.0.1"
 # urrlib3 >= 2.0.0
 # We're going to have to figure out some alternative to aioarango at some point as it seems to be
 # abandonware
-urllib3 = "==1.26.17"
+urllib3 = "==1.26.18"
 python-dateutil = "==2.8.2"
 
 [dev-packages]
