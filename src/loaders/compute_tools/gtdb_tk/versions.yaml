@@ -1,7 +1,13 @@
+# reference_db_path: directory containing the unarchived GTDB-Tk reference data
+#                    download data following the instructions provided on
+#                    https://ecogenomics.github.io/GTDBTk/installing/index.html#gtdb-tk-reference-data
+
 versions:
   - version: 0.1.0
     date: 2023-07-19
+    reference_db_path: /global/cfs/cdirs/kbase/collections/libraries/gtdb_tk/release207_v2
   - version: 0.1.1
     date: 2023-08-03
     notes: |
       - install jsonlines, pandas to support parsing of GTDB-Tk output
+    reference_db_path: /global/cfs/cdirs/kbase/collections/libraries/gtdb_tk/release207_v2
