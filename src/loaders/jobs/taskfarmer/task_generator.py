@@ -6,7 +6,7 @@ import shutil
 import src.loaders.jobs.taskfarmer.taskfarmer_common as tf_common
 from src.loaders.common import loader_common_names
 from src.loaders.common.loader_helper import make_collection_source_dir
-from src.loaders.compute_tools.tool_yaml_reader import extract_latest_version, extract_latest_reference_db_path
+from src.loaders.compute_tools.tool_version import extract_latest_version, extract_latest_reference_db_path
 from src.loaders.jobs.taskfarmer.taskfarmer_task_mgr import TFTaskManager, PreconditionError
 
 '''
