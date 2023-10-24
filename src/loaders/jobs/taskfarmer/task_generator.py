@@ -64,7 +64,7 @@ REGISTRY = 'ghcr.io/kbase/collections'
 VERSION_FILE = 'versions.yaml'
 COMPUTE_TOOLS_DIR = '../../compute_tools'  # relative to task_generator.py
 
-# volume name for the Docker containers
+# volume name for the Docker containers (mapping from the tool name to the internal container ref data mount directory)
 TOOL_IMG_VOLUME_NAME = {'checkm2': '/CheckM2_database',
                         'gtdb_tk': '/gtdbtk_reference_data'}
 LIBRARY_DIR = 'libraries'  # subdirectory for the library files
@@ -73,12 +73,12 @@ LIBRARY_DIR = 'libraries'  # subdirectory for the library files
 def _retrieve_tool_volume(tool, root_dir):
     # Retrieve the volume mapping for the specified tool.
 
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    compute_tools_dir = os.path.join(current_dir, COMPUTE_TOOLS_DIR)
-    version_file = os.path.join(compute_tools_dir, tool, VERSION_FILE)
-    ref_db_path = extract_latest_reference_db_path(version_file)
-
     if tool in TOOL_IMG_VOLUME_NAME.keys():
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        compute_tools_dir = os.path.join(current_dir, COMPUTE_TOOLS_DIR)
+        version_file = os.path.join(compute_tools_dir, tool, VERSION_FILE)
+        ref_db_path = extract_latest_reference_db_path(version_file)
+
         if not ref_db_path:
             raise ValueError(f'No reference database path found for tool {tool}.')
         ref_db_path_abs = os.path.join(root_dir, LIBRARY_DIR, tool, ref_db_path)

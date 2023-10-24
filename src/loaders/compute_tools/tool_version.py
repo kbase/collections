@@ -45,7 +45,7 @@ def extract_latest_reference_db_path(file_path: str) -> str:
         if not found_version:
             raise ValueError(f'Unable to find version: {latest_ver}')
 
-        return found_version.get('reference_db_path')
+        return found_version.get('reference_db_version')
 
 
 def main():

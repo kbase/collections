@@ -1,14 +1,15 @@
-# reference_db_path: directory, relative to the ROOT_DIR/libraries/gtdb_tk, containing the unarchived GTDB-Tk reference data
-#                    download data following the instructions provided on
-#                    https://ecogenomics.github.io/GTDBTk/installing/index.html#gtdb-tk-reference-data
-#                    NOTE: Note that different versions of the GTDB release data may not run on all versions of GTDB-Tk
-#                          Please check gtdb_tk/Dockerfile for the version of GTDB-Tk
+# reference_db_version: directory, relative to the ROOT_DIR/libraries/gtdb_tk, containing the unarchived GTDB-Tk reference data
+#                       download data following the instructions provided on
+#                       https://ecogenomics.github.io/GTDBTk/installing/index.html#gtdb-tk-reference-data
+#                       NOTE: Note that different versions of the GTDB release data may not run on all versions of GTDB-Tk
+#                             Please check gtdb_tk/Dockerfile for the version of GTDB-Tk
+
 versions:
   - version: 0.1.0
     date: 2023-07-19
-    reference_db_path: release207_v2
+    reference_db_version: release207_v2
   - version: 0.1.1
     date: 2023-08-03
     notes: |
       - install jsonlines, pandas to support parsing of GTDB-Tk output
-    reference_db_path: release207_v2
+    reference_db_version: release207_v2

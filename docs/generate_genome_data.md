@@ -87,13 +87,9 @@ ssh user_name@perlmutter-p1.nersc.gov
 
 2. Before executing the jobs, it is necessary to download the libraries essential for tools like GTDB-TK and CheckM2 manually.
 
-   * In case you want to utilize an alternative tooling library, you can download the library and update the global 
-   variable that denotes its location, such as `GTDBTK_DATA_PATH` or `CHECKM2_DB` in the 
-   [task_generator.py](../src/loaders/jobs/taskfarmer/task_generator.py) file.
-
    * The default directory at NERSC for libraries is:
    ```text
-   /global/cfs/cdirs/kbase/collections/libraries
+   /global/cfs/cdirs/kbase/collections/libraries/tool_name
    ```
    * Guidelines for downloading [GTDB-TK](https://ecogenomics.github.io/GTDBTk/installing/index.html#gtdb-tk-reference-data) reference data:
    ```commandline
@@ -106,8 +102,11 @@ ssh user_name@perlmutter-p1.nersc.gov
    * Guidelines for downloading [CheckM2](https://github.com/chklovski/CheckM2#database) DIAMOND DB:
    ```commandline
    # download the database to the default directory at NERSC
-   checkm2 database --download --path /global/cfs/cdirs/kbase/collections/libraries/CheckM2_database
+   checkm2 database --download --path /global/cfs/cdirs/kbase/collections/libraries/checkm2/CheckM2_database
    ```
+   * In case you want to utilize an alternative tooling library, you can specify the reference_db_version (directory name), e.g. release207_v2, CheckM2_database, etc., in the
+     [versions.yaml](../src/loaders/compute_tools/gtdb_tk/versions.yaml) file in each compute tools [directory](../src/loaders/compute_tools).
+  
 
 3. Go to the collections project directory
 
