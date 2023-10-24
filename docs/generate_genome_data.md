@@ -102,8 +102,9 @@ ssh user_name@perlmutter-p1.nersc.gov
    * Guidelines for downloading [CheckM2](https://github.com/chklovski/CheckM2#database) DIAMOND DB:
    ```commandline
    # download the database to the default directory at NERSC
-   checkm2 database --download --path /global/cfs/cdirs/kbase/collections/libraries/checkm2/CheckM2_database
+   checkm2 database --download --path /global/cfs/cdirs/kbase/collections/libraries/checkm2/CheckM2_database_[checkm2_version]
    ```
+    *  Please ensure to rename the DIAMOND DB file name to the value of `DIAMOND_DB_NAME` specified in the [checkm2 Docker file](../src/loaders/compute_tools/checkm2/Dockerfile).
    * In case you want to utilize an alternative tooling library, you can specify the reference_db_version (directory name), e.g. release207_v2, CheckM2_database, etc., in the
      [versions.yaml](../src/loaders/compute_tools/gtdb_tk/versions.yaml) file in each compute tools [directory](../src/loaders/compute_tools).
   

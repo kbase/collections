@@ -65,15 +65,17 @@ VERSION_FILE = 'versions.yaml'
 COMPUTE_TOOLS_DIR = '../../compute_tools'  # relative to task_generator.py
 
 # volume name for the Docker containers (mapping from the tool name to the internal container ref data mount directory)
-TOOL_IMG_VOLUME_NAME = {'checkm2': '/CheckM2_database',
-                        'gtdb_tk': '/gtdbtk_reference_data'}
+TOOL_IMG_VOLUME_NAME = '/reference_data'
+
+TOOLS_REQUIRING_VOLUME_MOUNT = ['checkm2', 'gtdb_tk']
+
 LIBRARY_DIR = 'libraries'  # subdirectory for the library files
 
 
 def _retrieve_tool_volume(tool, root_dir):
     # Retrieve the volume mapping for the specified tool.
 
-    if tool in TOOL_IMG_VOLUME_NAME.keys():
+    if tool in TOOLS_REQUIRING_VOLUME_MOUNT:
         current_dir = os.path.dirname(os.path.abspath(__file__))
         compute_tools_dir = os.path.join(current_dir, COMPUTE_TOOLS_DIR)
         version_file = os.path.join(compute_tools_dir, tool, VERSION_FILE)
@@ -82,7 +84,7 @@ def _retrieve_tool_volume(tool, root_dir):
         if not ref_db_path:
             raise ValueError(f'No reference database path found for tool {tool}.')
         ref_db_path_abs = os.path.join(root_dir, LIBRARY_DIR, tool, ref_db_path)
-        return {ref_db_path_abs: TOOL_IMG_VOLUME_NAME[tool]}
+        return {ref_db_path_abs: TOOL_IMG_VOLUME_NAME}
     else:
         # No reference database path needed for the tool (microtrait, mash).
         return dict()
