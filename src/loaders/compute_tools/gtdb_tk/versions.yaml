@@ -13,3 +13,8 @@ versions:
     notes: |
       - install jsonlines, pandas to support parsing of GTDB-Tk output
     reference_db_version: release207_v2
+  - version: 0.1.2
+    date: 2023-10-24
+    notes: |
+      - update default reference DB path to `/reference_data`
+    reference_db_version: release207_v2

@@ -10,3 +10,8 @@ versions:
     notes: |
       - install jsonlines, pandas to support parsing of CheckM2 output
     reference_db_version: CheckM2_database_1.0.1
+  - version: 0.1.2
+    date: 2023-10-24
+    notes: |
+      - update diamond reference DB default path
+    reference_db_version: CheckM2_database_1.0.1
