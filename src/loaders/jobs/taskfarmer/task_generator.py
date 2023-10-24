@@ -67,9 +67,10 @@ COMPUTE_TOOLS_DIR = '../../compute_tools'  # relative to task_generator.py
 # volume name for the Docker containers
 TOOL_IMG_VOLUME_NAME = {'checkm2': '/CheckM2_database',
                         'gtdb_tk': '/gtdbtk_reference_data'}
+LIBRARY_DIR = 'libraries'  # subdirectory for the library files
 
 
-def _retrieve_tool_volume(tool):
+def _retrieve_tool_volume(tool, root_dir):
     # Retrieve the volume mapping for the specified tool.
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -80,8 +81,8 @@ def _retrieve_tool_volume(tool):
     if tool in TOOL_IMG_VOLUME_NAME.keys():
         if not ref_db_path:
             raise ValueError(f'No reference database path found for tool {tool}.')
-
-        return {ref_db_path: TOOL_IMG_VOLUME_NAME[tool]}
+        ref_db_path_abs = os.path.join(root_dir, LIBRARY_DIR, tool, ref_db_path)
+        return {ref_db_path_abs: TOOL_IMG_VOLUME_NAME[tool]}
     else:
         # No reference database path needed for the tool (microtrait, mash).
         return dict()
@@ -218,7 +219,7 @@ def _create_task_list(
     chunk_size = TASK_META.get(tool, TASK_META['default'])['chunk_size']
     genome_ids_chunks = [genome_ids[i: i + chunk_size] for i in range(0, len(genome_ids), chunk_size)]
 
-    vol_mounts = _retrieve_tool_volume(tool)
+    vol_mounts = _retrieve_tool_volume(tool, root_dir)
 
     task_list = '#!/usr/bin/env bash\n'
     for idx, genome_ids_chunk in enumerate(genome_ids_chunks):

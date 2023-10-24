@@ -1,12 +1,12 @@
-# reference_db_path: DIAMOND database CheckM2 relies on
+# reference_db_path: directory, relative to the ROOT_DIR/libraries/checkm2, containing the DIAMOND database CheckM2 relies on
 #                    download data following the instructions provided on https://github.com/chklovski/CheckM2#database
 
 versions:
   - version: 0.1.0
     date: 2023-07-19
-    reference_db_path: /global/cfs/cdirs/kbase/collections/libraries/CheckM2_database
+    reference_db_path: CheckM2_database
   - version: 0.1.1
     date: 2023-08-04
     notes: |
       - install jsonlines, pandas to support parsing of CheckM2 output
-    reference_db_path: /global/cfs/cdirs/kbase/collections/libraries/CheckM2_database
+    reference_db_path: CheckM2_database
