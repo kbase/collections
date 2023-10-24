@@ -64,7 +64,7 @@ REGISTRY = 'ghcr.io/kbase/collections'
 VERSION_FILE = 'versions.yaml'
 COMPUTE_TOOLS_DIR = '../../compute_tools'  # relative to task_generator.py
 
-# volume name for the Docker containers (mapping from the tool name to the internal container ref data mount directory)
+# volume name for the Docker containers (the internal container ref data mount directory)
 TOOL_IMG_VOLUME_NAME = '/reference_data'
 
 TOOLS_REQUIRING_VOLUME_MOUNT = ['checkm2', 'gtdb_tk']
