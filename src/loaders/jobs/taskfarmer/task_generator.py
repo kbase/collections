@@ -6,7 +6,7 @@ import shutil
 import src.loaders.jobs.taskfarmer.taskfarmer_common as tf_common
 from src.loaders.common import loader_common_names
 from src.loaders.common.loader_helper import make_collection_source_dir
-from src.loaders.compute_tools.tool_version import extract_latest_version, extract_latest_reference_db_path
+from src.loaders.compute_tools.tool_version import extract_latest_version, extract_latest_reference_db_version
 from src.loaders.jobs.taskfarmer.taskfarmer_task_mgr import TFTaskManager, PreconditionError
 
 '''
@@ -67,27 +67,23 @@ COMPUTE_TOOLS_DIR = '../../compute_tools'  # relative to task_generator.py
 # volume name for the Docker containers (the internal container ref data mount directory)
 TOOL_IMG_VOLUME_NAME = '/reference_data'
 
-TOOLS_REQUIRING_VOLUME_MOUNT = ['checkm2', 'gtdb_tk']
-
 LIBRARY_DIR = 'libraries'  # subdirectory for the library files
 
 
 def _retrieve_tool_volume(tool, root_dir):
     # Retrieve the volume mapping for the specified tool.
 
-    if tool in TOOLS_REQUIRING_VOLUME_MOUNT:
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        compute_tools_dir = os.path.join(current_dir, COMPUTE_TOOLS_DIR)
-        version_file = os.path.join(compute_tools_dir, tool, VERSION_FILE)
-        ref_db_path = extract_latest_reference_db_path(version_file)
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    compute_tools_dir = os.path.join(current_dir, COMPUTE_TOOLS_DIR)
+    version_file = os.path.join(compute_tools_dir, tool, VERSION_FILE)
+    ref_db_version = extract_latest_reference_db_version(version_file)
 
-        if not ref_db_path:
-            raise ValueError(f'No reference database path found for tool {tool}.')
-        ref_db_path_abs = os.path.join(root_dir, LIBRARY_DIR, tool, ref_db_path)
-        return {ref_db_path_abs: TOOL_IMG_VOLUME_NAME}
-    else:
+    if not ref_db_version:
         # No reference database path needed for the tool (microtrait, mash).
         return dict()
+
+    ref_db_path_abs = os.path.join(root_dir, LIBRARY_DIR, tool, ref_db_version)
+    return {ref_db_path_abs: TOOL_IMG_VOLUME_NAME}
 
 
 def _pull_image(image_str, job_dir):

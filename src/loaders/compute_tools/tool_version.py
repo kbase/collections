@@ -22,16 +22,16 @@ def extract_latest_version(file_path: str) -> str:
         return latest_version['version']
 
 
-def extract_latest_reference_db_path(file_path: str) -> str:
+def extract_latest_reference_db_version(file_path: str) -> str:
     """
-    Extracts the latest reference database path from a YAML file by referencing the latest date specified within the file.
+    Extracts the latest reference database version from a YAML file by referencing the latest date specified within the file.
 
     Args:
         file_path (str): The path to the YAML file.
 
     Returns:
-        str: The latest reference database path extracted from the YAML file.
-        None: If the latest version does not have a reference database path.
+        str: The latest reference database version extracted from the YAML file.
+        None: If the latest version does not have a reference database version.
     """
 
     latest_ver = extract_latest_version(file_path)
