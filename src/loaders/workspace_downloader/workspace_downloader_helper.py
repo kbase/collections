@@ -46,6 +46,7 @@ class Conf:
         token = loader_helper.get_token(token_filepath)
         self.retrieve_sample = retrieve_sample
         self.ignore_no_sample_error = ignore_no_sample_error
+        ipv4 = loader_helper.get_ip()
         self._start_callback_server(
             docker.from_env(),
             uuid.uuid4().hex,
@@ -53,11 +54,12 @@ class Conf:
             kb_base_url,
             token,
             port,
+            ipv4,
         )
 
         ws_url = os.path.join(kb_base_url, "ws")
         sample_url = os.path.join(kb_base_url, "sampleservice")
-        callback_url = "http://" + loader_helper.get_ip() + ":" + str(port)
+        callback_url = "http://" + ipv4 + ":" + str(port)
         print("callback_url:", callback_url)
 
         self.ws = Workspace(ws_url, token=token)
@@ -77,6 +79,7 @@ class Conf:
             kb_base_url: str,
             token: str,
             port: int,
+            ipv4: str,
     ) -> Tuple[dict[str, Union[int, str]], dict[str, dict[str, str]]]:
         """
         Setup the environment variables and volumes for the callback server.
@@ -99,6 +102,8 @@ class Conf:
         env["KB_BASE_URL"] = kb_base_url
         env["JOB_DIR"] = job_dir
         env["CALLBACK_PORT"] = port
+        env["CALLBACK_IP"] = ipv4  # specify an ipv4 address for the callback server
+                                   # otherwise, the callback container will use the an ipv6 address
 
         # setup volumes required for docker container
         docker_host = os.environ["DOCKER_HOST"]
@@ -118,6 +123,7 @@ class Conf:
             kb_base_url: str,
             token: str,
             port: int,
+            ipv4: str,
     ) -> None:
         """
         Start the callback server.
@@ -130,7 +136,7 @@ class Conf:
             token (str): The KBase token.
             port (int): The port number for the callback server.
         """
-        env, vol = self._setup_callback_server_envs(job_dir, kb_base_url, token, port)
+        env, vol = self._setup_callback_server_envs(job_dir, kb_base_url, token, port, ipv4)
         self.container = client.containers.run(
             name=container_name,
             image=CALLBACK_IMAGE_NAME,
