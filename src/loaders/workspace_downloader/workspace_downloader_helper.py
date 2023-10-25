@@ -46,7 +46,7 @@ class Conf:
         token = loader_helper.get_token(token_filepath)
         self.retrieve_sample = retrieve_sample
         self.ignore_no_sample_error = ignore_no_sample_error
-        self.ipv4 = loader_helper.get_ip()
+        ipv4 = loader_helper.get_ip()
         self._start_callback_server(
             docker.from_env(),
             uuid.uuid4().hex,
@@ -54,12 +54,12 @@ class Conf:
             kb_base_url,
             token,
             port,
-            self.ipv4,
+            ipv4,
         )
 
         ws_url = os.path.join(kb_base_url, "ws")
         sample_url = os.path.join(kb_base_url, "sampleservice")
-        callback_url = "http://" + self.ipv4  + ":" + str(port)
+        callback_url = "http://" + ipv4 + ":" + str(port)
         print("callback_url:", callback_url)
 
         self.ws = Workspace(ws_url, token=token)
