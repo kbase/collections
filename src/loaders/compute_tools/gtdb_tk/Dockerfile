@@ -13,12 +13,12 @@ RUN conda install -n $CONDA_ENV numpy=1.23.1 jsonlines=3.1.0 pandas=2.0.3
 
 RUN echo "source activate $CONDA_ENV" >> ~/.bashrc
 
-RUN mkdir -p /gtdbtk_reference_data
+RUN mkdir -p /reference_data
 RUN mkdir -p /app
 COPY ./ /app/collections
 RUN rm -r /app/collections/.git
 
-ENV GTDBTK_DATA_PATH /gtdbtk_reference_data
+ENV GTDBTK_DATA_PATH /reference_data
 ENV PYTHONPATH /app/collections
 
 WORKDIR /app
