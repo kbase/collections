@@ -106,8 +106,8 @@ ssh user_name@perlmutter-p1.nersc.gov
    # update the 'versions.yaml' file with a new version and set its 'reference_db_version' accordingly
    ```
     *  Please ensure to rename the DIAMOND DB file name to the value of `DIAMOND_DB_NAME` specified in the [checkm2 Docker file](../src/loaders/compute_tools/checkm2/Dockerfile).
-   * If a tool requires reference data/DB, make sure to update the 'versions.yaml' file in the compute tools directory accordingly.
-   Otherwise, the reference data/DB will not be mounted to the compute tools Docker container.
+    * If a tool requires reference data/DB, make sure to update the 'versions.yaml' file in the compute tools directory accordingly.
+      Otherwise, the reference data/DB will not be mounted to the compute tools Docker container.
 
 3. Go to the collections project directory
 
