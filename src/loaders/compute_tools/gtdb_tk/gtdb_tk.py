@@ -34,7 +34,7 @@ GTDB_FAIL_GENOME_FILE = "gtdbtk.failed_genomes.tsv"
 SELECTED_GTDBTK_SUMMARY_FEATURES = set()
 
 # GTDB-TK V2.2+ requirement
-# path of the sketched Mash database required for ANI screening
+# path of the sketched Mash database from the input assembly files required for ANI screening
 # If no database are available (i.e. this is the first time running classify),
 # the --mash_db option will sketch a new Mash database that can be used for subsequent calls.
 MASH_DB_PATH = "mash_sketch/mash_db.msh"
