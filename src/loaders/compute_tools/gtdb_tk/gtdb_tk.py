@@ -83,6 +83,7 @@ def _run_gtdb_tk(
     mash_db_path = output_dir / MASH_DB_PATH
     if mash_db_path.exists():
         # in the event of a rerun, remove an existing Mash database since we want GTDB-TK to create a new one
+        # as the inputs might be a different set of assembly files
         print(f"Removing existing Mash database {mash_db_path}")
         os.remove(mash_db_path)
 
