@@ -37,7 +37,7 @@ SELECTED_GTDBTK_SUMMARY_FEATURES = set()
 # path of the sketched Mash database required for ANI screening
 # If no database are available (i.e. this is the first time running classify),
 # the --mash_db option will sketch a new Mash database that can be used for subsequent calls.
-MASH_DB_DIR = "mash_sketch"
+MASH_DB_PATH = "mash_sketch/mash_db.msh"
 
 
 def _get_id_and_error_message_mapping_from_tsv_files(output_dir: Path):
@@ -80,6 +80,12 @@ def _run_gtdb_tk(
     print(f'Start executing GTDB-TK for {size} genomes')
     start = time.time()
 
+    mash_db_path = output_dir / MASH_DB_PATH
+    if mash_db_path.exists():
+        # in the event of a rerun, remove an existing Mash database since we want GTDB-TK to create a new one
+        print(f"Removing existing Mash database {mash_db_path}")
+        os.remove(mash_db_path)
+
     # create the batch file
     # tab separated in 2 columns (FASTA file, genome ID)
     batch_file_path = output_dir / f'genome.fasta.list'
@@ -91,7 +97,7 @@ def _run_gtdb_tk(
                '--out_dir', str(output_dir),
                '--force',
                '--cpus', str(threads),
-               '--mash_db', str(output_dir / MASH_DB_DIR),
+               '--mash_db', str(mash_db_path),
                ]
     command.append('--debug') if debug else None
     print(f'running {" ".join(command)}')
