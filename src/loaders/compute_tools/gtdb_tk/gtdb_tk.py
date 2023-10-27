@@ -10,6 +10,7 @@ from typing import Dict
 
 import pandas as pd
 
+from src.common.constants import GTDB_UNCLASSIFIED_PREFIX
 from src.loaders.common import loader_common_names
 from src.loaders.compute_tools.tool_common import (
     GenomeTuple,
@@ -22,7 +23,6 @@ from src.loaders.compute_tools.tool_common import (
 from src.loaders.compute_tools.tool_result_parser import (
     process_genome_attri_result,
 )
-from src.common.constants import GTDB_UNCLASSIFIED_PREFIX
 
 # GTDB specific constants
 GTDB_FILTER_FILE_PATTERN = "gtdbtk.*.filtered.tsv"
@@ -32,6 +32,12 @@ GTDB_FAIL_GENOME_FILE = "gtdbtk.failed_genomes.tsv"
 # ('gtdbtk.ar53.summary.tsv' or 'gtdbtk.bac120.summary.tsv') as computed genome attributes
 # If empty, select all available fields
 SELECTED_GTDBTK_SUMMARY_FEATURES = set()
+
+# GTDB-TK V2.2+ requirement
+# path of the sketched Mash database from the input assembly files required for ANI screening
+# If no database are available (i.e. this is the first time running classify),
+# the --mash_db option will sketch a new Mash database that can be used for subsequent calls.
+MASH_DB_PATH = "mash_sketch/mash_db.msh"
 
 
 def _get_id_and_error_message_mapping_from_tsv_files(output_dir: Path):
@@ -74,6 +80,13 @@ def _run_gtdb_tk(
     print(f'Start executing GTDB-TK for {size} genomes')
     start = time.time()
 
+    mash_db_path = output_dir / MASH_DB_PATH
+    if mash_db_path.exists():
+        # in the event of a rerun, remove an existing Mash database since we want GTDB-TK to create a new one
+        # as the inputs might be a different set of assembly files
+        print(f"Removing existing Mash database {mash_db_path}")
+        os.remove(mash_db_path)
+
     # create the batch file
     # tab separated in 2 columns (FASTA file, genome ID)
     batch_file_path = output_dir / f'genome.fasta.list'
@@ -84,7 +97,8 @@ def _run_gtdb_tk(
                '--batchfile', str(batch_file_path),
                '--out_dir', str(output_dir),
                '--force',
-               '--cpus', str(threads)
+               '--cpus', str(threads),
+               '--mash_db', str(mash_db_path),
                ]
     command.append('--debug') if debug else None
     print(f'running {" ".join(command)}')

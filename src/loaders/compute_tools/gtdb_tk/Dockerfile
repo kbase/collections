@@ -1,6 +1,6 @@
 FROM continuumio/miniconda3:22.11.1
 
-ENV GTDB_VER 2.1.1
+ENV GTDB_VER 2.3.2
 ENV CONDA_ENV gtdbtk-$GTDB_VER
 ENV PYTHON_VER 3.8
 
