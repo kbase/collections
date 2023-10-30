@@ -228,7 +228,7 @@ def generate_pmi_biolog_heatmap_data(
             # append a document for the heatmap cell details
             heatmap_cell_details.append({
                 FIELD_HEATMAP_CELL_ID: cell_uuid,
-                FIELD_HEATMAP_VALUES: dict(),  # 'values' for biolog is always empty
+                FIELD_HEATMAP_VALUES: list(),  # 'values' for biolog is always empty
                 FLD_COLLECTION_ID: kbase_collection,
                 FLD_LOAD_VERSION: load_ver,
                 FLD_ARANGO_KEY: collection_data_id_key(kbase_collection, load_ver, cell_uuid),

@@ -9,7 +9,7 @@ columns:
 
    - key: _mtchsel
      type: string
-     filter_strategy: inarray
+     filter_strategy: identity
 
    - key: kbase_id
      type: string
@@ -59,7 +59,7 @@ columns:
    - key: closest_placement_af
      type: float
 
-   - key: placer_taxonomy  # might need better tokenizing
+   - key: pplacer_taxonomy  # might need better tokenizing
      type: string
      filter_strategy: fulltext
 

@@ -9,6 +9,7 @@ import pytest
 
 import src.common.storage.collection_and_field_names as names
 import src.loaders.gtdb.gtdb_genome_attribs_loader as loader
+from src.loaders.common.loader_common_names import DEFAULT_ENV, IMPORT_DIR
 
 
 @pytest.fixture(scope="module")
@@ -28,8 +29,11 @@ def setup_and_teardown():
     shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
-def _exam_genome_attribs_file(result_file, expected_docs_length, expected_doc_keys,
+def _exam_genome_attribs_file(root_dir, expected_docs_length, expected_doc_keys,
                               expected_load_version, expected_collection):
+
+    result_file = os.path.join(root_dir, IMPORT_DIR, DEFAULT_ENV,
+                               f'{expected_collection}_{expected_load_version}_{names.COLL_GENOME_ATTRIBS}.jsonl')
     with jsonlines.open(result_file, 'r') as jsonl_f:
         data = [obj for obj in jsonl_f]
 
@@ -57,13 +61,13 @@ def test_create_json_default(setup_and_teardown):
 
     result_file = os.path.join(tmp_dir, 'test.json')
     load_version = '100-dev'
-    kbase_collections = 'sample_gtdb'
+    kbase_collections = 'GTDB'
     command = ['python', script_file,
                os.path.join(caller_file_dir, 'SAMPLE_ar53_metadata_r207.tsv'),
                os.path.join(caller_file_dir, 'SAMPLE_bac120_metadata_r207.tsv'),
                '--load_ver', load_version,
                '--kbase_collection', kbase_collections,
-               '-o', result_file]
+               '--root_dir', tmp_dir]
 
     _exe_command(command)
 
@@ -73,5 +77,5 @@ def test_create_json_default(setup_and_teardown):
                          '_key', 'coll', 'load_ver', 'checkm_completeness',
                          'trna_selenocysteine_count', 'n50_scaffolds'}  # cherry-pick a few from SELECTED_FEATURES
 
-    _exam_genome_attribs_file(result_file, expected_docs_length, expected_doc_keys,
+    _exam_genome_attribs_file(tmp_dir, expected_docs_length, expected_doc_keys,
                               load_version, kbase_collections)

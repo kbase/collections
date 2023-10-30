@@ -7,9 +7,7 @@ from src.common.storage.db_doc_conversions import (
     collection_load_version_key,
     collection_data_id_key,
 )
-from src.service import errors
-from src.service import models
-from src.service import kb_auth
+from src.service import errors, kb_auth, models, processing
 from src.service.storage_arango import ArangoStorage
 
 from typing import Any, Callable, NamedTuple
@@ -71,9 +69,15 @@ def _get_load_ver_from_collection(collection: models.SavedCollection, data_produ
         f"The {collection.id} collection does not have a {data_product} data product registered.")
 
 
+COLLECTION_KEYS = {names.FLD_COLLECTION_ID, names.FLD_LOAD_VERSION}
+"""
+Special keys in data sets that denote the ID and load version of a collection.
+Usually not returned to the user but needed in the database.
+"""
+
 def remove_collection_keys(doc: dict):
     """ Removes the collection ID and load version keys from a dictionary **in place**. """
-    for k in [names.FLD_COLLECTION_ID, names.FLD_LOAD_VERSION]:
+    for k in COLLECTION_KEYS:
         doc.pop(k, None)
     return doc
 
@@ -178,15 +182,9 @@ async def query_simple_collection_list(
     skip: int = 0,
     start_after: str = None,
     limit: int = 1000,
-    internal_match_id: str | None = None,
-    match_process: models.DataProductProcess | None = None,
-    match_mark: bool = False,
-    match_prefix: str | None = None,
+    match_spec: processing.SubsetSpecification = processing.SubsetSpecification(),
     match_field: str = names.FLD_MATCHED,
-    internal_selection_id: str | None = None,
-    selection_process: models.DataProductProcess | None = None,
-    selection_mark: bool = False,
-    selection_prefix: str | None = None,
+    selection_spec: processing.SubsetSpecification = processing.SubsetSpecification(),
     selection_field: str = names.FLD_SELECTED,
 ):
     f"""
@@ -207,26 +205,14 @@ async def query_simple_collection_list(
         the correct starting record without a table scan. This parameter allows for
         non-O(n^2) paging of data.
     limit - the maximum number of rows to return.
-    internal_match_id - an ID for a match.
-    match_process - the process for a match. If provided, internal_match_id is obtained from the
-        process. If the process is not complete the match information is ignored.
-    match_mark - whether the match should filter or simply mark the matches.
-    match_prefix - the prefix string to apply to the internal_match_id, if any.
+    match_spec - the specification for a match.
     match_field - the name of the field in the document where the match mark should be stored.
-    internal_selection_id - an ID for a selection.
-    selection_process - the process for a selection. If provided, internal_selection_id is obtained
-        from the process. If the process is not complete the selection information is ignored.
-    selection_mark - whether the selection should filter or simply mark the selections.
-    selection_prefix - the prefix string to apply to the internal_selection_id, if any.
+    selection_spec - the specification for a selection.
     selection_field - the name of the field in the document where the selection mark should
         be stored.
     """
     # The number of args for these search methods is ridiculous and growing worse. A 
     # builder may be needed
-    internal_match_id = _calculate_subset_id(
-        internal_match_id, match_process, False, match_prefix)
-    internal_selection_id = _calculate_subset_id(
-        internal_selection_id, selection_process, False, selection_prefix)
     bind_vars = {
         f"@coll": collection,
         "coll_id": collection_id,
@@ -246,15 +232,15 @@ async def query_simple_collection_list(
             FILTER d.@sort > @start_after
         """
         bind_vars["start_after"] = start_after
-    if internal_match_id and not match_mark:
-        bind_vars["internal_match_id"] = internal_match_id
+    if match_spec.get_subset_filtering_id():
+        bind_vars["internal_match_id"] = match_spec.get_subset_filtering_id()
         aql += f"""
             FILTER @internal_match_id IN d.{names.FLD_MATCHES_SELECTIONS}
         """
     # this will AND the match and selection. To OR, just OR the two filters instead of having
     # separate statements.
-    if internal_selection_id and not selection_mark:
-        bind_vars["internal_selection_id"] = internal_selection_id
+    if selection_spec.get_subset_filtering_id():
+        bind_vars["internal_selection_id"] = selection_spec.get_subset_filtering_id()
         aql += f"""
             FILTER @internal_selection_id IN d.{names.FLD_MATCHES_SELECTIONS}
         """
@@ -266,10 +252,12 @@ async def query_simple_collection_list(
     cur = await storage.execute_aql(aql, bind_vars=bind_vars)
     try:
         async for d in cur:
-            if internal_match_id:
-                d[match_field] = internal_match_id in d[names.FLD_MATCHES_SELECTIONS]
-            if internal_selection_id:
-                d[selection_field] = internal_selection_id in d[names.FLD_MATCHES_SELECTIONS]
+            if not match_spec.is_null_subset():
+                d[match_field] = match_spec.get_prefixed_subset_id() in d[
+                    names.FLD_MATCHES_SELECTIONS]
+            if not selection_spec.is_null_subset():
+                d[selection_field] = selection_spec.get_prefixed_subset_id() in d[
+                    names.FLD_MATCHES_SELECTIONS]
             acceptor(d)
     finally:
         await cur.close(ignore_missing=True)
@@ -325,14 +313,8 @@ async def query_table(
     skip: int = 0,
     limit: int = 1000,
     output_table: bool = True,
-    internal_match_id: str | None = None,
-    match_process: models.DataProductProcess | None = None,
-    match_mark: bool = False,
-    match_prefix: str | None = None,
-    internal_selection_id: str | None = None,
-    selection_process: models.DataProductProcess | None = None,
-    selection_mark: bool = False,
-    selection_prefix: str | None = None,
+    match_spec: processing.SubsetSpecification = processing.SubsetSpecification(),
+    selection_spec: processing.SubsetSpecification = processing.SubsetSpecification(),
     document_mutator: Callable[[dict[str, Any]], dict[str, Any]] = lambda x: x,
 ) -> QueryTableResult:
     f"""
@@ -354,20 +336,8 @@ async def query_table(
     limit - the maximum number of rows to return.
     output_table - whether to return the results as a list of lists (e.g. a table) with a separate
         fields entry defining the key for each table column, or a list of key / value dictionaries.
-    internal_match_id - an ID for a match.
-    match_process - the process for a match. If provided, internal_match_id is obtained from the
-        process. If the process is not complete the match information is ignored.
-    match_mark - whether the match should filter or simply mark the matches.
-    match_prefix - the prefix string to apply to the internal_match_id, if any.
-    match_field - the name of the field in the document where the match mark should be stored.
-    match_prefix - a prefix to apply to the match id, if supplied.
-    internal_selection_id - an ID for a selection.
-    selection_process - the process for a selection. If provided, internal_selection_id is obtained
-        from the process. If the process is not complete the selection information is ignored.
-    selection_mark - whether the selection should filter or simply mark the selections.
-    selection_prefix - the prefix string to apply to the internal_selection_id, if any.
-    selection_field - the name of the field in the document where the selection mark should
-        be stored.
+    match_spec - the specification for a match.
+    spelection_spec - the specification for a selection.
     document_mutator - a function applied to a document retrieved from the database before
         returning the results.
     """
@@ -383,15 +353,9 @@ async def query_table(
         sort_descending=sort_descending,
         skip=skip,
         limit=limit,
-        internal_match_id=internal_match_id,
-        match_process=match_process,
-        match_mark=match_mark,
-        match_prefix=match_prefix,
+        match_spec=match_spec,
         match_field=names.FLD_MATCHED_SAFE,
-        internal_selection_id=internal_selection_id,
-        selection_process=selection_process,
-        selection_mark=selection_mark,
-        selection_prefix=selection_prefix,
+        selection_spec=selection_spec,
         selection_field=names.FLD_SELECTED_SAFE,
     )
     # Sort everything since we can't necessarily rely on arango, the client, or the loader
@@ -410,35 +374,13 @@ async def query_table(
         return QueryTableResult(skip=skip, limit=limit, data=data)
 
 
-def _calculate_subset_id(
-    subset_id: str | None,
-    subset_process: models.DataProductProcess | None,
-    subset_mark: str | None,
-    subset_prefix: str | None
-) -> str | None:
-    # could throw an error if subset ID & process are provided at the same time... meh
-    if subset_mark:
-        return None
-    if subset_process:
-        subset_id = subset_process.internal_id if subset_process.is_complete() else None
-    if subset_id and subset_prefix:
-        subset_id = subset_prefix + subset_id
-    return subset_id
-
-
 async def count_simple_collection_list(
     storage: ArangoStorage,
     collection: str,
     collection_id: str,
     load_ver: str,
-    internal_match_id: str | None = None,
-    match_process: models.DataProductProcess | None = None,
-    match_mark: bool = False,
-    match_prefix: str | None = None,
-    internal_selection_id: str | None = None,
-    selection_process: models.DataProductProcess | None = None,
-    selection_mark: bool = False,
-    selection_prefix: str | None = None,
+    match_spec: processing.SubsetSpecification = processing.SubsetSpecification(),
+    selection_spec: processing.SubsetSpecification = processing.SubsetSpecification(),
 ) -> int:
     """
     Count rows in a collection. Index set up is the responsibility of the caller.
@@ -447,27 +389,9 @@ async def count_simple_collection_list(
     collection - the ArangoDB collection containing the data to query.
     collection_id - the ID of the KBase collection to query.
     load_ver - the load version of the KBase collection to query.
-    internal_match_id - an ID for a match.
-    match_process - the process for a match. If provided, internal_match_id is obtained from the
-        process. If the process is not complete the match information is ignored.
-    match_mark - whether the match should filter or simply mark the matches. If the latter, any 
-        match information is ignored in the count.
-    match_prefix - the prefix string to apply to the internal_match_id, if any.
-    internal_selection_id - an ID for a selection.
-    selection_process - the process for a selection. If provided, internal_selection_id is obtained
-        from the process. If the process is not complete the selection information is ignored.
-    selection_mark - whether the selection should filter or simply mark the selections.
-        If the latter, any selection information is ignored in the count.
-    selection_prefix - the prefix string to apply to the internal_selection_id, if any.
+    match_spec - the specification for a match.
+    selection_spec - the specification for a selection.
     """
-    # for now this method doesn't do much. One we have some filtering implemented
-    # it'll need to take that into account.
-
-    internal_match_id = _calculate_subset_id(
-        internal_match_id, match_process, match_mark, match_prefix)
-    internal_selection_id = _calculate_subset_id(
-        internal_selection_id, selection_process, selection_mark, selection_prefix)
-
     bind_vars = {
         f"@coll": collection,
         "coll_id": collection_id,
@@ -478,13 +402,13 @@ async def count_simple_collection_list(
         FILTER d.{names.FLD_COLLECTION_ID} == @coll_id
         FILTER d.{names.FLD_LOAD_VERSION} == @load_ver
     """
-    if internal_match_id:
-        bind_vars["internal_match_id"] = internal_match_id
+    if match_spec.get_subset_filtering_id():
+        bind_vars["internal_match_id"] = match_spec.get_subset_filtering_id()
         aql += f"""
             FILTER @internal_match_id IN d.{names.FLD_MATCHES_SELECTIONS}
         """
-    if internal_selection_id:
-        bind_vars["internal_selection_id"] = internal_selection_id
+    if selection_spec.get_subset_filtering_id():
+        bind_vars["internal_selection_id"] = selection_spec.get_subset_filtering_id()
         aql += f"""
             FILTER @internal_selection_id IN d.{names.FLD_MATCHES_SELECTIONS}
         """

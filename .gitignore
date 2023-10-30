@@ -16,3 +16,4 @@ htmlcov
 .ipynb_checkpoints
 /sigtemp/
 /collections_config_db2.toml
+/collections_config_ci.toml

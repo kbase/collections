@@ -76,6 +76,7 @@ from src.loaders.common.loader_helper import (
     make_collection_source_dir,
     merge_docs,
     create_import_dir,
+    process_columnar_meta,
 )
 from src.loaders.compute_tools.tool_common import run_command
 from src.loaders.compute_tools.tool_result_parser import (
@@ -370,8 +371,13 @@ def _process_genome_attri_tools(genome_attr_tools: set[str],
     meta_lookup = _create_meta_lookup(root_dir, env, kbase_collection, load_ver, tool)
     docs, encountered_types = _update_docs_with_upa_info(res_dict, meta_lookup, check_genome)
 
+    docs, meta_doc = process_columnar_meta(docs, kbase_collection, load_ver)
+
     output = f'{kbase_collection}_{load_ver}_{"_".join(genome_attr_tools)}_{names.COLL_GENOME_ATTRIBS}.jsonl'
     create_import_files(root_dir, env, output, docs)
+
+    meta_output = f'{kbase_collection}_{load_ver}_{"_".join(genome_attr_tools)}_{names.COLL_GENOME_ATTRIBS_META}.jsonl'
+    create_import_files(root_dir, env, meta_output, [meta_doc])
 
     export_types_output = f'{kbase_collection}_{load_ver}_{names.COLL_EXPORT_TYPES}.jsonl'
     types_doc = data_product_export_types_to_doc(

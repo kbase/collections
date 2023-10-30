@@ -19,7 +19,9 @@ from src.common.product_models.heatmap_common_models import (
     FIELD_HEATMAP_DESCR,
     FIELD_HEATMAP_TYPE,
     FIELD_HEATMAP_CATEGORY,
-    ColumnType)
+    FIELD_HEATMAP_CELL_DETAIL_ENTRY_ID,
+    FIELD_HEATMAP_CELL_DETAIL_ENTRY_VALUE,
+    ColumnType,)
 from src.common.storage.field_names import FLD_KBASE_ID
 from src.loaders.common import loader_common_names
 from src.loaders.compute_tools.tool_common import (
@@ -237,8 +239,9 @@ def _run_microtrait(tool_safe_data_id: str, data_id: str, fna_file: Path, genome
 
         trait_counts_df[_DETECTED_GENE_SCORE_COL] = trait_counts_df[
             loader_common_names.UNWRAPPED_GENE_COL].apply(
-            lambda x: {gene: detected_genes_score.get(gene) for gene in str(x).split(';') if
-                       gene in detected_genes_score})
+            lambda x: [{FIELD_HEATMAP_CELL_DETAIL_ENTRY_ID: gene,
+                        FIELD_HEATMAP_CELL_DETAIL_ENTRY_VALUE: detected_genes_score.get(gene)} for gene in
+                       str(x).split(';') if gene in detected_genes_score])
     else:
         raise ValueError('Please set environment variable MT_TRAIT_UNWRAPPED_FILE')
 
