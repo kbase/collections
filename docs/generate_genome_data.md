@@ -87,27 +87,27 @@ ssh user_name@perlmutter-p1.nersc.gov
 
 2. Before executing the jobs, it is necessary to download the libraries essential for tools like GTDB-TK and CheckM2 manually.
 
-   * In case you want to utilize an alternative tooling library, you can download the library and update the global 
-   variable that denotes its location, such as `GTDBTK_DATA_PATH` or `CHECKM2_DB` in the 
-   [task_generator.py](../src/loaders/jobs/taskfarmer/task_generator.py) file.
-
    * The default directory at NERSC for libraries is:
    ```text
-   /global/cfs/cdirs/kbase/collections/libraries
+   /global/cfs/cdirs/kbase/collections/libraries/<tool_name>/<reference data version>
    ```
    * Guidelines for downloading [GTDB-TK](https://ecogenomics.github.io/GTDBTk/installing/index.html#gtdb-tk-reference-data) reference data:
    ```commandline
    # download the reference data to the default directory at NERSC
-   cd /global/cfs/cdirs/kbase/collections/libraries/gtdb_tk
-   wget https://data.gtdb.ecogenomic.org/releases/latest/auxillary_files/gtdbtk_v2_data.tar.gz
-   wget https://data.ace.uq.edu.au/public/gtdb/data/releases/latest/auxillary_files/gtdbtk_v2_data.tar.gz  (or, mirror)
-   tar xvzf gtdbtk_v2_data.tar.gz
+   cd /global/cfs/cdirs/kbase/collections/libraries/gtdb_tk/<reference data version>
+   wget https://data.gtdb.ecogenomic.org/releases/latest/auxillary_files/<reference data version>.tar.gz
+   tar xvzf <reference data version>.tar.gz
+   # update the 'versions.yaml' file with a new version and set its 'reference_db_version' accordingly
    ```
    * Guidelines for downloading [CheckM2](https://github.com/chklovski/CheckM2#database) DIAMOND DB:
    ```commandline
    # download the database to the default directory at NERSC
-   checkm2 database --download --path /global/cfs/cdirs/kbase/collections/libraries/CheckM2_database
+   checkm2 database --download --path /global/cfs/cdirs/kbase/collections/libraries/checkm2/<checkm2 version>
+   # update the 'versions.yaml' file with a new version and set its 'reference_db_version' accordingly
    ```
+    *  Please ensure to rename the DIAMOND DB file name to the value of `DIAMOND_DB_NAME` specified in the [checkm2 Docker file](../src/loaders/compute_tools/checkm2/Dockerfile).
+    * If a tool requires reference data/DB, make sure to update the 'versions.yaml' file in the compute tools directory accordingly.
+      Otherwise, the reference data/DB will not be mounted to the compute tools Docker container.
 
 3. Go to the collections project directory
 

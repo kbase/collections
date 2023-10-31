@@ -6,7 +6,7 @@ import shutil
 import src.loaders.jobs.taskfarmer.taskfarmer_common as tf_common
 from src.loaders.common import loader_common_names
 from src.loaders.common.loader_helper import make_collection_source_dir
-from src.loaders.compute_tools.tool_version import extract_latest_version
+from src.loaders.compute_tools.tool_version import extract_latest_version, extract_latest_reference_db_version
 from src.loaders.jobs.taskfarmer.taskfarmer_task_mgr import TFTaskManager, PreconditionError
 
 '''
@@ -64,21 +64,26 @@ REGISTRY = 'ghcr.io/kbase/collections'
 VERSION_FILE = 'versions.yaml'
 COMPUTE_TOOLS_DIR = '../../compute_tools'  # relative to task_generator.py
 
-# TODO GTDB update readme to specify to get correct version of data, not just latest
-# TODO REPRODUCIBILITY need to version the databases and use the correct version with the
-#                      correct tool version
-# directory containing the unarchived GTDB-Tk reference data
-# download data following the instructions provided on
-# https://ecogenomics.github.io/GTDBTk/installing/index.html#gtdb-tk-reference-data
-GTDBTK_DATA_PATH = '/global/cfs/cdirs/kbase/collections/libraries/gtdb_tk/release207_v2'
+# volume name for the Docker containers (the internal container ref data mount directory)
+TOOL_IMG_VOLUME_NAME = '/reference_data'
 
-# DIAMOND database CheckM2 relies on
-# download data following the instructions provided on https://github.com/chklovski/CheckM2#database
-CHECKM2_DB = '/global/cfs/cdirs/kbase/collections/libraries/CheckM2_database'
+LIBRARY_DIR = 'libraries'  # subdirectory for the library files
 
-# volume mapping for the Docker containers
-TOOL_VOLUME_MAP = {'checkm2': {CHECKM2_DB: '/CheckM2_database'},
-                   'gtdb_tk': {GTDBTK_DATA_PATH: '/gtdbtk_reference_data'}}
+
+def _retrieve_tool_volume(tool, root_dir):
+    # Retrieve the volume mapping for the specified tool.
+
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    compute_tools_dir = os.path.join(current_dir, COMPUTE_TOOLS_DIR)
+    version_file = os.path.join(compute_tools_dir, tool, VERSION_FILE)
+    ref_db_version = extract_latest_reference_db_version(version_file)
+
+    if not ref_db_version:
+        # No reference database path needed for the tool (microtrait, mash).
+        return dict()
+
+    ref_db_path_abs = os.path.join(root_dir, LIBRARY_DIR, tool, ref_db_version)
+    return {ref_db_path_abs: TOOL_IMG_VOLUME_NAME}
 
 
 def _pull_image(image_str, job_dir):
@@ -212,7 +217,7 @@ def _create_task_list(
     chunk_size = TASK_META.get(tool, TASK_META['default'])['chunk_size']
     genome_ids_chunks = [genome_ids[i: i + chunk_size] for i in range(0, len(genome_ids), chunk_size)]
 
-    vol_mounts = TOOL_VOLUME_MAP.get(tool, {})
+    vol_mounts = _retrieve_tool_volume(tool, root_dir)
 
     task_list = '#!/usr/bin/env bash\n'
     for idx, genome_ids_chunk in enumerate(genome_ids_chunks):
