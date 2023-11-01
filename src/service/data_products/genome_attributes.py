@@ -250,8 +250,6 @@ async def _get_filters(
     skip: int,
     limit: int,
 ) -> FilterSet:
-    # TODO FILTERS docs for filters
-    # TODO FILTERS doc how to change / update the arangosearch view: CLI -> config in API
     filter_query = {}
     for q in r.query_params.keys():
         if q.startswith(_FILTER_PREFIX):
@@ -274,9 +272,9 @@ async def _get_filters(
         raise errors.IllegalParameterError(
             f"No such field for collection {coll.id} load version {load_ver}: {sort_on}")
     fs = FilterSet(
-        view_name,
         coll.id,
         load_ver,
+        view=view_name,
         count=count,
         sort_on=sort_on,
         sort_descending=sort_desc,
@@ -435,7 +433,6 @@ async def get_genome_attributes(
     # we have a max limit of 1000, which means sorting is O(n log2 1000).
     # Otherwise we need indexes for every sort
     appstate = app_state.get_app_state(r)
-    store = appstate.arangostorage
     lvo = override_load_version(load_ver_override, match_id, selection_id)
     coll, load_ver = await get_load_version(appstate.arangostorage, collection_id, ID, lvo, user)
     match_spec = await _get_match_spec(appstate, user, coll, match_id, match_mark)
@@ -444,10 +441,10 @@ async def get_genome_attributes(
         r, coll, load_ver, load_ver_override, count, sort_on, sort_desc, conjunction,
         match_spec, sel_spec, skip, limit)
     if filters:
-        return await _perform_filter(store, filters, output_table)
+        return await _perform_filter(appstate.arangostorage, filters, output_table)
     if count:
         count = await count_simple_collection_list(  # may want to make some sort of shared builder
-            store,
+            appstate.arangostorage,
             names.COLL_GENOME_ATTRIBS,
             collection_id,
             load_ver,
@@ -457,7 +454,7 @@ async def get_genome_attributes(
         return {_FLD_SKIP: 0, _FLD_LIMIT: 0, _FLD_COUNT: count}
     else:
         res = await query_table(
-            store,
+            appstate.arangostorage,
             names.COLL_GENOME_ATTRIBS,
             collection_id,
             load_ver,
@@ -519,7 +516,7 @@ async def _get_selection_spec(
 
 
 async def _perform_filter(store: ArangoStorage, filters: FilterSet, output_table: bool):
-    aql, bind_vars = filters.to_arangosearch_aql()
+    aql, bind_vars = filters.to_aql()
     cur = await store.execute_aql(aql, bind_vars=bind_vars)
     try:
         if filters.count:
