@@ -17,6 +17,9 @@ from src.service.filtering.analyzers import DEFAULT_ANALYZER
 from src.service.processing import SubsetSpecification
 
 
+_PARTICLES_IN_UNIVERSE = 10 ** 80
+
+
 class SearchQueryPart(BaseModel):
     variable_assignments: Annotated[dict[str, str] | None, Field(
         description="A mapping of variable name to AQL expression. The variables must be assigned "
@@ -75,8 +78,10 @@ def _to_bool_string(b: bool):
     return "true" if b else "false"
 
 
-def _require_string(s: str, err: str):
+def _require_string(s: str, err: str, optional: bool = False):
     if not s or not s.strip():
+        if optional:
+            return None
         raise errors.MissingParameterError(err)
     return s.strip()
 
@@ -336,7 +341,7 @@ class StringFilter(AbstractFilter):
 
 class FilterSet:
     """
-    A set of filters that can be translated into ArangoSearch AQL.
+    A set of filters that can be translated into AQL.
     """
 
     _FILTER_MAP = {
@@ -348,10 +353,12 @@ class FilterSet:
     
     def __init__(
         self,
-        view: str,
         collection_id: str,
         load_ver: str,
+        view: str = None,
+        collection: str = None,
         count: bool = False,
+        start_after: str = None,
         sort_on: str = None,
         sort_descending: bool = False,
         conjunction: bool = True,
@@ -364,30 +371,46 @@ class FilterSet:
         """
         Create the filter set.
         
-        view - the ArangoSearch view to query.
         collection_id - the ID of the KBase collection to query.
         load_ver - the load version of the data to query.
+        view - the ArangoSearch view to query. Required if any filters are added to this filter
+            set, as therefore ArangoSearch will be used for the query.
+        collection - the Arango collection to query. Required if no filters are added to this
+            filter set, as therefore a standard Arango AQL query will be used.
         count - return the total document count rather than the documents. This may cause a
             large view scan.
         sort_on - the field on which to sort, if any.
         sort_descending - sort in the descending direction vs. ascending.
         conjunction - whether to AND (true) or OR (false) the filters together.
+        start_after - skip any records prior to and including this value in the `sort_on` field,
+            which should contain unique values.
+            It is strongly recommended to set up an index that the query can use to skip to
+            the correct starting record without a table scan. This parameter allows for
+            non-O(n^2) paging of data.
+            start_after is not currently implemented for the case where any filters are appended.
         skip - the number of records to skip. Use this parameter wisely, as paging
             through records via increasing skip incrementally is an O(n^2) operation.
-        limit - the maximum number of records to return.
+        limit - the maximum number of records to return. 0 indicates no limit, which is usually
+            a bad idea.
         doc_var - the variable to use for the ArangoSearch document.
         """
-        self.view = _require_string(view, "view is required")
         self.collection_id = _require_string(collection_id, "collection_id is required")
         self.load_ver = _require_string(load_ver, "load_ver is required")
+        self.view = _require_string(view, "view", True)
+        self.collection = _require_string(collection, "collection", True)
+        if not self.view and not self.collection:
+            raise ValueError("At least one of a view or a collection is required")
         self.count = count
-        self.sort_on = sort_on
+        self.sort_on = _require_string(sort_on, "sort_on", True)
         self.sort_descending = sort_descending
         self.conjunction = conjunction
         self.match_spec = match_spec
         self.selection_spec = selection_spec
+        self.start_after = _require_string(start_after, "start_after", True)
+        if self.start_after and not self.sort_on:
+            raise ValueError("If start_after is supplied sort_on must be supplied")
         self.skip = _gt(skip, 0, "skip")
-        self.limit = _gt(limit, 1, "limit")
+        self.limit = _gt(limit, 0, "limit")
         self.doc_var = _require_string(doc_var, "doc_var is required")
         self._filters = {}
 
@@ -455,13 +478,69 @@ class FilterSet:
             bind_vars.update(search_part.bind_vars)
         return var_lines, aql_lines, bind_vars
 
-    def to_arangosearch_aql(self) -> tuple[str, dict[str, Any]]:
+    def to_aql(self) -> tuple[str, dict[str, Any]]:
         """
-        Generate ArangoSearch AQL and bind vars from the filters. At least one filter must have
-        been added to the filter set prior to calling this method.
+        Generate Arango AQL and bind vars from the filters.
         """
-        if not self._filters:
-            raise ValueError("At least one filter is required")
+        if self._filters:
+            return self._to_arangosearch_aql()
+        else:
+            return self._to_standard_aql()
+        
+    def _to_standard_aql(self):
+        if not self.collection:
+            raise ValueError("If no filters are added to the filter set the collection argument "
+                + "is required in the constructor")
+        bind_vars = {
+            "@collection": self.collection,
+            "collid": self.collection_id,
+            "load_ver": self.load_ver,
+        }
+        aql = f"FOR {self.doc_var} IN @@collection\n"
+        aql += f"    FILTER {self.doc_var}.{names.FLD_COLLECTION_ID} == @collid\n"
+        aql += f"    FILTER {self.doc_var}.{names.FLD_LOAD_VERSION} == @load_ver\n"
+        if self.match_spec.get_subset_filtering_id():
+            bind_vars["internal_match_id"] = self.match_spec.get_subset_filtering_id()
+            aql += (f"    FILTER {self.doc_var}.{names.FLD_MATCHES_SELECTIONS} == "
+                    + "@internal_match_id\n")
+        if self.selection_spec.get_subset_filtering_id():
+            bind_vars["internal_selection_id"] = self.selection_spec.get_subset_filtering_id()
+            aql += (f"    FILTER {self.doc_var}.{names.FLD_MATCHES_SELECTIONS} == "
+                    + "@internal_selection_id\n")
+        if self.start_after:
+            aql += f"    FILTER d.@sort > @start_after\n"
+            bind_vars["start_after"] = self.start_after
+        if self.count:
+            aql += "    COLLECT WITH COUNT INTO length\n"
+            aql += "    RETURN length\n"
+        else:
+            ssl_aql, ssl_bind_vars = self._sort_skip_limit()
+            aql += ssl_aql
+            bind_vars |= ssl_bind_vars
+            aql += f"    RETURN {self.doc_var}\n"
+        return aql, bind_vars
+
+    def _sort_skip_limit(self) -> (str, dict[str, Any]):
+        aql = ""
+        bind_vars = {}
+        if self.sort_on:
+            aql += f"    SORT {self.doc_var}.@sort @sortdir\n"
+            bind_vars |= {
+                "sort": self.sort_on,
+                "sortdir": "DESC" if self.sort_descending else "ASC"
+            }
+        if self.skip or self.limit:
+            aql += f"    LIMIT @skip, @limit\n"
+            bind_vars |= {
+                "skip": self.skip,
+                "limit": self.limit if self.limit > 0 else _PARTICLES_IN_UNIVERSE
+            }
+        return aql, bind_vars
+
+    def _to_arangosearch_aql(self):
+        if not self.view:
+            raise ValueError("If a filter is added to the filter set the view argument is "
+                + "required in the constructor")
         var_lines, aql_lines, bind_vars = self._process_filters()
         aql = ""
         if var_lines:
@@ -489,14 +568,9 @@ class FilterSet:
         aql += f"\n        {op}\n    ".join(aql_parts)
         aql += f"\n    )\n"
         if not self.count:
-            if self.sort_on:
-                aql += f"    SORT {self.doc_var}.@sort @sortdir\n"
-                bind_vars |= {
-                    "sort": self.sort_on,
-                    "sortdir": "DESC" if self.sort_descending else "ASC"
-                }
-            aql += f"    LIMIT @skip, @limit\n"
-            bind_vars |= {"skip": self.skip, "limit": self.limit}
+            ssl_aql, ssl_bind_vars = self._sort_skip_limit()
+            aql += ssl_aql
+            bind_vars |= ssl_bind_vars
         # should check if there's a way to speed up counts by returning less stuff or if
         # the query optimizer is smart enough to just do the count and things are fine as is
         aql += f"    RETURN {self.doc_var}\n"
