@@ -37,7 +37,7 @@ pytest-cov = "==4.1.0"
 ipython = "==8.16.1"
 pytest-asyncio = "==0.21.1"
 # currently for design/experiments/store_mongo.py
-pymongo = "4.4.1"
+pymongo = "4.6.0"
 # later version of dns python has an import problem with httpcore
 # https://stackoverflow.com/questions/76766226/i-cant-import-pymongo
 # Note aioarango forces an old version of httpcore
