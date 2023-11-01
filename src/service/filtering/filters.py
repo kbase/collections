@@ -491,8 +491,6 @@ class FilterSet:
         if not self.collection:
             raise ValueError("If no filters are added to the filter set the collection argument "
                 + "is required in the constructor")
-        if self.start_after and not self.sort_on:
-            raise ValueError("If start_aftger ")
         bind_vars = {
             "@collection": self.collection,
             "collid": self.collection_id,
