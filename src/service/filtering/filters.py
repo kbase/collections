@@ -507,13 +507,13 @@ class FilterSet:
             bind_vars["internal_selection_id"] = self.selection_spec.get_subset_filtering_id()
             aql += (f"    FILTER {self.doc_var}.{names.FLD_MATCHES_SELECTIONS} == "
                     + "@internal_selection_id\n")
-        if self.start_after:
-            aql += f"    FILTER d.@sort > @start_after\n"
-            bind_vars["start_after"] = self.start_after
         if self.count:
             aql += "    COLLECT WITH COUNT INTO length\n"
             aql += "    RETURN length\n"
         else:
+            if self.start_after:
+                aql += f"    FILTER d.@sort > @start_after\n"
+                bind_vars["start_after"] = self.start_after
             ssl_aql, ssl_bind_vars = self._sort_skip_limit()
             aql += ssl_aql
             bind_vars |= ssl_bind_vars

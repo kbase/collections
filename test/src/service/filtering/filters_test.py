@@ -494,6 +494,7 @@ def test_filterset_aql_w_all_args_count():
         conjunction=False,
         match_spec=SubsetSpecification(internal_subset_id="matchy", prefix="m_"),
         selection_spec=SubsetSpecification(internal_subset_id="selly", prefix="s_"),
+        start_after="a_unique_field",
         skip=24,
         limit=2,
         doc_var="d",
