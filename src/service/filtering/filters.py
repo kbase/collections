@@ -366,6 +366,7 @@ class FilterSet:
         selection_spec: SubsetSpecification = SubsetSpecification(),
         skip: int = 0,
         limit: int = 1000,
+        keep: list[str] = None,
         doc_var: str = "doc",
     ):
         """
@@ -411,6 +412,9 @@ class FilterSet:
             raise ValueError("If start_after is supplied sort_on must be supplied")
         self.skip = _gt(skip, 0, "skip")
         self.limit = _gt(limit, 0, "limit")
+        self.keep = keep if keep else []
+        if any([not bool(x.strip() if x else x) for x in self.keep]):
+            raise ValueError("Falsy value in keep")
         self.doc_var = _require_string(doc_var, "doc_var is required")
         self._filters = {}
 
@@ -516,7 +520,11 @@ class FilterSet:
             ssl_aql, ssl_bind_vars = self._sort_skip_limit()
             aql += ssl_aql
             bind_vars |= ssl_bind_vars
-            aql += f"    RETURN {self.doc_var}\n"
+            if self.keep:
+                aql += f"    RETURN KEEP({self.doc_var}, @keep)\n"
+                bind_vars["keep"] = self.keep
+            else:
+                aql += f"    RETURN {self.doc_var}\n"
         return aql, bind_vars
 
     def _sort_skip_limit(self) -> (str, dict[str, Any]):
@@ -570,9 +578,13 @@ class FilterSet:
             ssl_aql, ssl_bind_vars = self._sort_skip_limit()
             aql += ssl_aql
             bind_vars |= ssl_bind_vars
+        if self.keep:
+            aql += f"    RETURN KEEP({self.doc_var}, @keep)\n"
+            bind_vars["keep"] = self.keep
+        else:
+            aql += f"    RETURN {self.doc_var}\n"
         # should check if there's a way to speed up counts by returning less stuff or if
         # the query optimizer is smart enough to just do the count and things are fine as is
-        aql += f"    RETURN {self.doc_var}\n"
         if self.count:
             aql += ")\n"
         return aql, bind_vars
