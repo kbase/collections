@@ -511,7 +511,7 @@ class FilterSet:
             aql += "    RETURN length\n"
         else:
             if self.start_after:
-                aql += f"    FILTER d.@sort > @start_after\n"
+                aql += f"    FILTER {self.doc_var}.@sort > @start_after\n"
                 bind_vars["start_after"] = self.start_after
             ssl_aql, ssl_bind_vars = self._sort_skip_limit()
             aql += ssl_aql

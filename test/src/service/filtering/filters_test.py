@@ -405,20 +405,20 @@ def test_filterset_aql_w_all_args():
         start_after="a_unique_field",
         skip=24,
         limit=2,
-        doc_var="d",
+        doc_var="dc",
     )
     aql, bind_vars = fs.to_aql()
     
     assert aql == """
-FOR d IN @@collection
-    FILTER d.coll == @collid
-    FILTER d.load_ver == @load_ver
-    FILTER @internal_match_id IN d._mtchsel
-    FILTER @internal_selection_id IN d._mtchsel
-    FILTER d.@sort > @start_after
-    SORT d.@sort @sortdir
+FOR dc IN @@collection
+    FILTER dc.coll == @collid
+    FILTER dc.load_ver == @load_ver
+    FILTER @internal_match_id IN dc._mtchsel
+    FILTER @internal_selection_id IN dc._mtchsel
+    FILTER dc.@sort > @start_after
+    SORT dc.@sort @sortdir
     LIMIT @skip, @limit
-    RETURN d
+    RETURN dc
 """.strip() + "\n"
     assert bind_vars == {
         "@collection": "my_arango_collection",
