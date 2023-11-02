@@ -413,8 +413,8 @@ def test_filterset_aql_w_all_args():
 FOR d IN @@collection
     FILTER d.coll == @collid
     FILTER d.load_ver == @load_ver
-    FILTER d._mtchsel == @internal_match_id
-    FILTER d._mtchsel == @internal_selection_id
+    FILTER @internal_match_id IN d._mtchsel
+    FILTER @internal_selection_id IN d._mtchsel
     FILTER d.@sort > @start_after
     SORT d.@sort @sortdir
     LIMIT @skip, @limit
@@ -505,8 +505,8 @@ def test_filterset_aql_w_all_args_count():
 FOR d IN @@collection
     FILTER d.coll == @collid
     FILTER d.load_ver == @load_ver
-    FILTER d._mtchsel == @internal_match_id
-    FILTER d._mtchsel == @internal_selection_id
+    FILTER @internal_match_id IN d._mtchsel
+    FILTER @internal_selection_id IN d._mtchsel
     COLLECT WITH COUNT INTO length
     RETURN length
 """.strip() + "\n"

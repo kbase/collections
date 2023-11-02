@@ -499,14 +499,13 @@ class FilterSet:
         aql = f"FOR {self.doc_var} IN @@collection\n"
         aql += f"    FILTER {self.doc_var}.{names.FLD_COLLECTION_ID} == @collid\n"
         aql += f"    FILTER {self.doc_var}.{names.FLD_LOAD_VERSION} == @load_ver\n"
+        matchsel = f"{self.doc_var}.{names.FLD_MATCHES_SELECTIONS}"
         if self.match_spec.get_subset_filtering_id():
             bind_vars["internal_match_id"] = self.match_spec.get_subset_filtering_id()
-            aql += (f"    FILTER {self.doc_var}.{names.FLD_MATCHES_SELECTIONS} == "
-                    + "@internal_match_id\n")
+            aql += f"    FILTER @internal_match_id IN {matchsel}\n"
         if self.selection_spec.get_subset_filtering_id():
             bind_vars["internal_selection_id"] = self.selection_spec.get_subset_filtering_id()
-            aql += (f"    FILTER {self.doc_var}.{names.FLD_MATCHES_SELECTIONS} == "
-                    + "@internal_selection_id\n")
+            aql += f"    FILTER @internal_selection_id IN {matchsel}\n"
         if self.count:
             aql += "    COLLECT WITH COUNT INTO length\n"
             aql += "    RETURN length\n"
