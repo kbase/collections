@@ -499,20 +499,19 @@ class FilterSet:
         aql = f"FOR {self.doc_var} IN @@collection\n"
         aql += f"    FILTER {self.doc_var}.{names.FLD_COLLECTION_ID} == @collid\n"
         aql += f"    FILTER {self.doc_var}.{names.FLD_LOAD_VERSION} == @load_ver\n"
+        matchsel = f"{self.doc_var}.{names.FLD_MATCHES_SELECTIONS}"
         if self.match_spec.get_subset_filtering_id():
             bind_vars["internal_match_id"] = self.match_spec.get_subset_filtering_id()
-            aql += (f"    FILTER {self.doc_var}.{names.FLD_MATCHES_SELECTIONS} == "
-                    + "@internal_match_id\n")
+            aql += f"    FILTER @internal_match_id IN {matchsel}\n"
         if self.selection_spec.get_subset_filtering_id():
             bind_vars["internal_selection_id"] = self.selection_spec.get_subset_filtering_id()
-            aql += (f"    FILTER {self.doc_var}.{names.FLD_MATCHES_SELECTIONS} == "
-                    + "@internal_selection_id\n")
+            aql += f"    FILTER @internal_selection_id IN {matchsel}\n"
         if self.count:
             aql += "    COLLECT WITH COUNT INTO length\n"
             aql += "    RETURN length\n"
         else:
             if self.start_after:
-                aql += f"    FILTER d.@sort > @start_after\n"
+                aql += f"    FILTER {self.doc_var}.@sort > @start_after\n"
                 bind_vars["start_after"] = self.start_after
             ssl_aql, ssl_bind_vars = self._sort_skip_limit()
             aql += ssl_aql
