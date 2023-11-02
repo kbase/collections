@@ -21,7 +21,6 @@ from src.service.data_products.common_functions import (
     get_load_version,
     remove_collection_keys,
     COLLECTION_KEYS,
-    count_simple_collection_list,
     mark_data_by_kbase_id,
     remove_marked_subset,
     override_load_version,
@@ -238,6 +237,7 @@ _FILTER_PREFIX = "filter_"
 
 async def _get_filters(
     r: Request,
+    arango_coll,
     coll: models.ActiveCollection,
     load_ver: str,
     load_ver_override: bool,
@@ -258,22 +258,21 @@ async def _get_filters(
                 raise errors.IllegalParameterError(
                     f"More than one filter specification provided for field {field}")
             filter_query[field] = r.query_params[q]
-    if not filter_query:
-        return None
     appstate = app_state.get_app_state(r)
     column_meta = await _get_genome_attributes_meta_internal(
         appstate.arangostorage, coll.id, load_ver, load_ver_override)
     view_name = coll.get_data_product(ID).search_view
-    if not view_name:
+    if filter_query and not view_name:
         raise ValueError(f"No search view name configured for collection {coll.id}, "
             + "data product {ID}. Cannot perform filtering operation")
     columns = {c.key: c for c in column_meta.columns}
-    if sort_on not in columns:
+    if sort_on and sort_on not in columns:
         raise errors.IllegalParameterError(
             f"No such field for collection {coll.id} load version {load_ver}: {sort_on}")
     fs = FilterSet(
         coll.id,
         load_ver,
+        collection=arango_coll,
         view=view_name,
         count=count,
         sort_on=sort_on,
@@ -438,42 +437,18 @@ async def get_genome_attributes(
     match_spec = await _get_match_spec(appstate, user, coll, match_id, match_mark)
     sel_spec = await _get_selection_spec(appstate, coll, selection_id, selection_mark)
     filters = await _get_filters(
-        r, coll, load_ver, load_ver_override, count, sort_on, sort_desc, conjunction,
-        match_spec, sel_spec, skip, limit)
-    if filters:
-        return await _perform_filter(appstate.arangostorage, filters, output_table)
-    if count:
-        count = await count_simple_collection_list(  # may want to make some sort of shared builder
-            appstate.arangostorage,
-            names.COLL_GENOME_ATTRIBS,
-            collection_id,
-            load_ver,
-            match_spec=match_spec,
-            selection_spec=sel_spec,
-        )
-        return {_FLD_SKIP: 0, _FLD_LIMIT: 0, _FLD_COUNT: count}
-    else:
-        res = await query_table(
-            appstate.arangostorage,
-            names.COLL_GENOME_ATTRIBS,
-            collection_id,
-            load_ver,
-            sort_on,
-            sort_descending=sort_desc,
-            skip=skip,
-            limit=limit,
-            output_table=output_table,
-            match_spec=match_spec,
-            selection_spec=sel_spec,
-            document_mutator=_remove_keys
-        )
-        return {
-            _FLD_SKIP: res.skip,
-            _FLD_LIMIT: res.limit,
-            "fields": res.fields,
-            "table": res.table,
-            "data": res.data
-        }
+        r, names.COLL_GENOME_ATTRIBS, coll, load_ver, load_ver_override, count,
+        sort_on, sort_desc, conjunction, match_spec, sel_spec, skip, limit)
+    res = await query_table(
+        appstate.arangostorage, filters, output_table=output_table, document_mutator=_remove_keys)
+    return {
+        _FLD_SKIP: res.skip,
+        _FLD_LIMIT: res.limit,
+        _FLD_COUNT: res.count,
+        "fields": res.fields,
+        "table": res.table,
+        "data": res.data
+    }
 
 
 async def _get_match_spec(
@@ -513,47 +488,6 @@ async def _get_selection_spec(
         mark_only=selection_mark,
         prefix=SELECTION_ID_PREFIX
     )
-
-
-async def _perform_filter(store: ArangoStorage, filters: FilterSet, output_table: bool):
-    aql, bind_vars = filters.to_aql()
-    cur = await store.execute_aql(aql, bind_vars=bind_vars)
-    try:
-        if filters.count:
-            count = await cur.next()
-            return {
-                _FLD_SKIP: 0,
-                _FLD_LIMIT: 0,
-                _FLD_COUNT: count
-            }
-        else:
-            data = []
-            doc = None
-            ms = filters.match_spec
-            ss = filters.selection_spec
-            async for doc in cur:
-                # TODO FILTERS this code is very similar to the query_table code.
-                # See if it can be merged once everything's functional
-                if not ms.is_null_subset():
-                    doc[names.FLD_MATCHED_SAFE] = ms.get_prefixed_subset_id() in doc[
-                        names.FLD_MATCHES_SELECTIONS]
-                if not ss.is_null_subset():
-                    doc[names.FLD_SELECTED_SAFE] = ss.get_prefixed_subset_id() in doc[
-                    names.FLD_MATCHES_SELECTIONS]
-                doc = _remove_keys(doc)
-                if output_table:
-                    data.append([doc[k] for k in sorted(doc)])
-                else:
-                    data.append({k: doc[k] for k in sorted(doc)})
-            fields = [{"name": k} for k in sorted(doc)] if doc else []
-            return {
-                _FLD_SKIP: filters.skip,
-                _FLD_LIMIT: filters.limit,
-                "fields": fields,
-                "table" if output_table else "data": data,
-            }
-    finally:
-        await cur.close(ignore_missing=True)
 
 
 async def perform_gtdb_lineage_match(
