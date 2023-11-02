@@ -24,3 +24,8 @@ versions:
       - update GTDB-Tk version to 2.3.2
       - use reference data from release 214
     reference_db_version: release214
+  - version: 0.1.4
+    date: 2023-11-01
+    notes: |
+      - using --skip_ani_screen option to skip pre ANI screening step to improve performance
+    reference_db_version: release214
