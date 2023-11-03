@@ -1,7 +1,8 @@
 """
 usage: workspace_uploader.py [-h] --workspace_id WORKSPACE_ID [--kbase_collection KBASE_COLLECTION] [--source_ver SOURCE_VER]
                              [--root_dir ROOT_DIR] [--token_filepath TOKEN_FILEPATH] [--env {CI,NEXT,APPDEV,PROD}]
-                             [--upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]] [--workers WORKERS] [--keep_job_dir]
+                             [--upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]] [--workers WORKERS] [--batch_size BATCH_SIZE]
+                             [--keep_job_dir]
 
 PROTOTYPE - Upload assembly files to the workspace service (WSS).
 
@@ -30,6 +31,8 @@ optional arguments:
   --upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]
                         Upload only files that match given extensions (default: ['genomic.fna.gz'])
   --workers WORKERS     Number of workers for multiprocessing (default: 5)
+  --batch_size BATCH_SIZE
+                        Number of files to upload per batch (default: 1000)
   --keep_job_dir        Keep SDK job directory after upload task is completed
 
 e.g.
@@ -51,6 +54,7 @@ import argparse
 import os
 import shutil
 import time
+from collections import namedtuple
 from datetime import datetime
 from multiprocessing import cpu_count
 from pathlib import Path
@@ -59,7 +63,7 @@ from typing import Generator
 import yaml
 
 from src.loaders.common import loader_common_names, loader_helper
-from src.loaders.workspace_downloader.workspace_downloader_helper import Conf
+from src.loaders.workspace_uploader.workspace_uploader_helper import Conf
 
 # setup KB_AUTH_TOKEN as env or provide a token_filepath in --token_filepath
 # export KB_AUTH_TOKEN="your-kb-auth-token"
@@ -67,8 +71,8 @@ from src.loaders.workspace_downloader.workspace_downloader_helper import Conf
 UPLOAD_FILE_EXT = ["genomic.fna.gz"]  # uplaod only files that match given extensions
 JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER = "/kb/module/work/tmp"
 UPLOADED_YAML = "uploaded.yaml"
-MAX_DATA_SIZE = 1024 * 1024 * 1024 # can cause memeory issues if the serialized data is > 1GB
-MEMORY_UTILIZATION = 0.01 # approximately 8 assemblies per batch
+
+AssemblyTuple = namedtuple("AssemblyTuple", ["assembly_name", "host_assembly_dir", "container_internal_assembly_path"])
 
 
 def _get_parser():
@@ -136,6 +140,12 @@ def _get_parser():
         help="Number of workers for multiprocessing",
     )
     optional.add_argument(
+        "--batch_size",
+        type=int,
+        default=1000,
+        help="Number of files to upload per batch",
+    )
+    optional.add_argument(
         "--keep_job_dir",
         action="store_true",
         help="Keep SDK job directory after upload task is completed",
@@ -165,35 +175,29 @@ def _get_source_file(assembly_dir: str, assembly_file: str) -> str:
 def _upload_assemblies_to_workspace(
         conf: Conf,
         workspace_id: int,
-        file_paths: tuple[str, ...],
-        assembly_names: tuple[str, ...],
+        assembly_tuples: list[AssemblyTuple],
 ) -> tuple[str, ...]:
     """
     Upload assembly files to the target workspace in batch. The bulk method fails
     and an error will be thrown if any of the assembly files in batch fails to upload.
     """
-    inputs = [{"file": f, "assembly_name": n}
-              for f, n in zip(file_paths, assembly_names)]
+    inputs = [
+        {
+            "file": assembly_tuple.container_internal_assembly_path,
+            "assembly_name": assembly_tuple.assembly_name,
+        }
+        for assembly_tuple in assembly_tuples
+    ]
 
-    success, attempts, max_attempts = False, 0, 3
-    while attempts < max_attempts and not success:
-        try:
-            time.sleep(attempts)
-            assembly_ref = conf.asu.save_assemblies_from_fastas(
-                {
-                    "workspace_id": workspace_id,
-                    "inputs": inputs
-                }
-            )
-            success = True
-        except Exception as e:
-            print(f"Error:\n{e}\nfrom attempt {attempts + 1}.\nTrying to rerun.")
-            attempts += 1
-
-    if not success:
-        raise ValueError(
-            f"Upload Failed for {file_paths} after {max_attempts} attempts!"
+    try:
+        assembly_ref = conf.asu.save_assemblies_from_fastas(
+            {
+                "workspace_id": workspace_id,
+                "inputs": inputs
+            }
         )
+    except Exception as e:
+        raise e
 
     upas = tuple([result_dict["upa"].replace("/", "_")
                   for result_dict in assembly_ref["results"]])
@@ -340,62 +344,13 @@ def _post_process(
     loader_helper.create_softlink_between_dirs(new_dir, target_dir)
 
 
-def _process_input(conf: Conf) -> None:
-    """
-    Process input from input_queue and put the result in output_queue.
-    """
-    while True:
-        task = conf.input_queue.get(block=True)
-        if not task:
-            print("Stopping")
-            break
-
-        (
-            upload_env_key,
-            workspace_id,
-            batch_container_internal_assembly_paths,
-            batch_host_assembly_dirs,
-            batch_assembly_names,
-            upload_dir,
-            file_counter,
-            assembly_files_len,
-        ) = task
-
-        batch_upas = (None, ) * len(batch_assembly_names)
-        try:
-            batch_upas = _upload_assemblies_to_workspace(
-                conf, workspace_id, batch_container_internal_assembly_paths, batch_assembly_names
-            )
-            for host_assembly_dir, assembly_name, upa in zip(
-                batch_host_assembly_dirs, batch_assembly_names, batch_upas
-            ):
-                _post_process(
-                    upload_env_key,
-                    workspace_id,
-                    host_assembly_dir,
-                    assembly_name,
-                    upload_dir,
-                    conf.output_dir,
-                    upa
-                )
-        except Exception as e:
-            print(f"Failed assembly names: {batch_assembly_names}. Exception:")
-            print(e)
-
-        conf.output_queue.put((batch_assembly_names, batch_upas))
-
-        if file_counter % 3000 == 0:
-            print(f"Assemblies processed: {file_counter}/{assembly_files_len}, "
-                  f"Percentage: {file_counter / assembly_files_len * 100:.2f}%, "
-                  f"Time: {datetime.now()}")
-
-
 def _upload_assembly_files_in_parallel(
         conf: Conf,
         upload_env_key: str,
         workspace_id: int,
         upload_dir: str,
         wait_to_upload_assemblies: dict[str, str],
+        batch_size: int,
 ) -> list[str]:
     """
     Upload assembly files to the target workspace in parallel using multiprocessing.
@@ -406,62 +361,63 @@ def _upload_assembly_files_in_parallel(
         workspace_id: target workspace id
         upload_dir: a directory in collectionssource that creates new directories linking to sourcedata
         wait_to_upload_assemblies: a dictionary that maps assembly file name to assembly directory
+        batch_size: a number of files to upload per batch
 
     Returns:
-        a list of assembly names that failed to upload
+        a count on assembly files uploded
     """
     assembly_files_len = len(wait_to_upload_assemblies)
-    print(f"Start uploading {assembly_files_len} assembly files with {conf.workers} workers\n")
+    print(f"Start uploading {assembly_files_len} assembly files\n")
 
-    # Put the assembly files in the input_queue
-    file_counter = 0
-    iter_counter = 0
-    for (
-        batch_container_internal_assembly_paths,
-        batch_host_assembly_dirs,
-        batch_assembly_names,
-        batch_size,
-    ) in _gen(conf, wait_to_upload_assemblies):
+    uploaded_count = 0
+    for assembly_tuples in _gen(wait_to_upload_assemblies, batch_size):
 
-        file_counter += batch_size
-        conf.input_queue.put(
-            (
+        try:
+            batch_upas = _upload_assemblies_to_workspace(conf, workspace_id, assembly_tuples)
+        except Exception as e:
+            print(e)
+            failed_objects_names = [assembly_tuple.assembly_name for assembly_tuple in assembly_tuples]
+            assembly_objects_in_ws = loader_helper.list_objects(
+                workspace_id,
+                conf,
+                loader_common_names.OBJECTS_NAME_ASSEMBLY,
+            )
+            assembly_names_in_ws = [object_info[1] for object_info in assembly_objects_in_ws]
+            objects_names_to_delete_from_ws = set(assembly_names_in_ws) & set(failed_objects_names)
+            if objects_names_to_delete_from_ws:
+                conf.ws.delete_objects(
+                    [
+                        {"wsid": workspace_id, "name": object_name}
+                        for object_name in objects_names_to_delete_from_ws
+                    ]
+                )
+                print(f"workspace {workspace_id} cleanup done ...")
+            return uploaded_count
+
+        for assembly_tuple, upa in zip(assembly_tuples, batch_upas):
+            _post_process(
                 upload_env_key,
                 workspace_id,
-                batch_container_internal_assembly_paths,
-                batch_host_assembly_dirs,
-                batch_assembly_names,
+                assembly_tuple.host_assembly_dir,
+                assembly_tuple.assembly_name,
                 upload_dir,
-                file_counter,
-                assembly_files_len,
+                conf.output_dir,
+                upa
             )
-        )
-
-        if file_counter % 5000 == 0:
-            print(f"Jobs added to the queue: {file_counter}/{assembly_files_len}, "
-                  f"Percentage: {file_counter / assembly_files_len * 100:.2f}%, "
+        
+        uploaded_count += len(assembly_tuples)
+        if uploaded_count % 1000 == 0:
+            print(f"Assemblies uploaded: {uploaded_count}/{assembly_files_len}, "
+                  f"Percentage: {uploaded_count / assembly_files_len * 100:.2f}%, "
                   f"Time: {datetime.now()}")
 
-        iter_counter += 1
-
-    # Signal the workers to terminate when they finish uploading assembly files
-    for _ in range(conf.workers):
-        conf.input_queue.put(None)
-
-    results = [conf.output_queue.get() for _ in range(iter_counter)]
-    failed_names = [name for names, upas in results for name, upa in zip(names, upas) if upa is None]
-
-    # Close and join the processes
-    conf.pools.close()
-    conf.pools.join()
-
-    return failed_names
+    return uploaded_count
 
 
 def _gen(
-        conf: Conf,
-        wait_to_upload_assemblies: dict[str, str]
-) -> Generator[tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...], int], None, None]:
+        wait_to_upload_assemblies: dict[str, str],
+        batch_size: int,
+) -> Generator[list[AssemblyTuple], None, None]:
     """
     Generator function to yield the assembly files to upload.
     """
@@ -475,37 +431,19 @@ def _gen(
         ]
     )
 
-    start_idx = 0
-    cumsize = 0
-    # to avoid memory issue, upload 1GB * MEMORY_UTILIZATION of assembly files at a time
-    max_cumsize = MAX_DATA_SIZE * MEMORY_UTILIZATION
-    for idx, assembly_name in enumerate(assembly_names):
-        file_path = os.path.join(conf.job_data_dir, assembly_name)
-        if not os.path.exists(file_path):
-            raise ValueError(f"{file_path} does not exist. "
-                             f"Ensure file {assembly_name} exist in {conf.job_data_dir}")
-        file_size = os.path.getsize(file_path)
-        # cumulate assembly files until the total size is greater than max_cumsize
-        if file_size + cumsize <= max_cumsize:
-            cumsize += file_size
-        else:
-            yield (
-                container_internal_assembly_paths[start_idx:idx],
-                host_assembly_dirs[start_idx:idx],
-                assembly_names[start_idx:idx],
-                idx - start_idx,
-            )
-            # reset start_idx and cumsize
-            start_idx = idx
-            cumsize = file_size
+    # construct a list of nametuples to ensure consistency
+    assemblyTuple_list = [
+        AssemblyTuple(
+            assembly_names[idx],
+            host_assembly_dirs[idx],
+            container_internal_assembly_paths[idx],
+        )
+        for idx in range(assembly_files_len)
+    ]
 
-    # yield the remaining assembly files
-    yield (
-        container_internal_assembly_paths[start_idx:],
-        host_assembly_dirs[start_idx:],
-        assembly_names[start_idx:],
-        assembly_files_len - start_idx,
-    )
+    # yield AssemblyTuples in batch
+    for idx in range(0, assembly_files_len, batch_size):
+        yield assemblyTuple_list[idx: idx + batch_size]
 
 
 def main():
@@ -519,6 +457,7 @@ def main():
     token_filepath = args.token_filepath
     upload_file_ext = args.upload_file_ext
     workers = args.workers
+    batch_size = args.batch_size
     keep_job_dir = args.keep_job_dir
 
     env = args.env
@@ -526,6 +465,8 @@ def main():
 
     if workspace_id <= 0:
         parser.error(f"workspace_id needs to be > 0")
+    if batch_size <= 0:
+        parser.error(f"batch_size needs to be > 0")
     if workers < 1 or workers > cpu_count():
         parser.error(f"minimum worker is 1 and maximum worker is {cpu_count()}")
 
@@ -546,15 +487,8 @@ def main():
         # start podman service
         proc = loader_helper.start_podman_service(uid)
 
-        # set up conf, start callback server, and upload assemblies to workspace
-        conf = Conf(
-            job_dir,
-            output_dir,
-            _process_input,
-            kb_base_url,
-            token_filepath,
-            workers,
-        )
+        # set up conf for uploader, start callback server, and upload assemblies to workspace
+        conf = Conf(job_dir, output_dir, kb_base_url, token_filepath)
 
         count, wait_to_upload_assemblies = _fetch_assemblies_to_upload(
             env, 
@@ -575,23 +509,20 @@ def main():
         print(f"{wtus_len} assemblies in {data_dir} are ready to upload to workspace {workspace_id}")
 
         start = time.time()
-        failed_names = _upload_assembly_files_in_parallel(
+        uploaded_count = _upload_assembly_files_in_parallel(
             conf,
             env,
             workspace_id,
             upload_dir,
             wait_to_upload_assemblies,
+            batch_size,
         )
-        
-        assembly_count = wtus_len - len(failed_names)
+
         upload_time = (time.time() - start) / 60
-        assy_per_min = assembly_count / upload_time
+        assy_per_min = uploaded_count / upload_time
 
-        print(f"\n{workers} workers took {upload_time:.2f} minutes to upload {assembly_count} assemblies, "
+        print(f"\ntook {upload_time:.2f} minutes to upload {uploaded_count} assemblies, "
               f"averaging {assy_per_min:.2f} assemblies per minute")
-
-        if failed_names:
-            raise ValueError(f"\nFailed to upload {failed_names}")
 
     finally:
         # stop callback server if it is on

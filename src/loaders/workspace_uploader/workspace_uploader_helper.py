@@ -1,13 +1,11 @@
 import os
 import time
 import uuid
-from multiprocessing import Pool, Queue
-from typing import Callable, Tuple, Union
+from typing import Tuple, Union
 
 import docker
 
 from src.clients.AssemblyUtilClient import AssemblyUtil
-from src.clients.SampleServiceClient import SampleService
 from src.clients.workspaceClient import Workspace
 from src.loaders.common import loader_helper
 from src.loaders.common.loader_common_names import CALLBACK_IMAGE_NAME
@@ -15,18 +13,14 @@ from src.loaders.common.loader_common_names import CALLBACK_IMAGE_NAME
 
 class Conf:
     """
-    Configuration class for the workspace downloader script.
+    Configuration class for the workspace uploader script.
     """
     def __init__(
             self,
             job_dir: str,
             output_dir: str,
-            worker_function: Callable,
             kb_base_url: str = "https://ci.kbase.us/services/",
             token_filepath: str | None = None,
-            workers: int = 5,
-            retrieve_sample: bool = False,
-            ignore_no_sample_error: bool = False,
     ) -> None:
         """
         Initialize the configuration class.
@@ -34,18 +28,12 @@ class Conf:
         Args:
             job_dir (str): The directory for SDK jobs per user.
             output_dir (str): The directory for a specific workspace id under sourcedata/ws.
-            worker_function (Callable): The function that will be called by the workers.
             kb_base_url (str): The base url of the KBase services.
             token_filepath (str): The file path that stores a KBase token appropriate for the KBase environment. 
                                 If not supplied, the token must be provided in the environment variable KB_AUTH_TOKEN.
-            workers (int): The number of workers to use for multiprocessing.
-            retrieve_sample (bool): Whether to retrieve sample for each genome object.
-            ignore_no_sample_error (bool): Whether to ignore the error when no sample data is found.
         """
         port = loader_helper.find_free_port()
         token = loader_helper.get_token(token_filepath)
-        self.retrieve_sample = retrieve_sample
-        self.ignore_no_sample_error = ignore_no_sample_error
         ipv4 = loader_helper.get_ip()
         self._start_callback_server(
             docker.from_env(),
@@ -58,19 +46,14 @@ class Conf:
         )
 
         ws_url = os.path.join(kb_base_url, "ws")
-        sample_url = os.path.join(kb_base_url, "sampleservice")
         callback_url = "http://" + ipv4 + ":" + str(port)
         print("callback_url:", callback_url)
 
         self.ws = Workspace(ws_url, token=token)
         self.asu = AssemblyUtil(callback_url, token=token)
-        self.ss = SampleService(sample_url, token=token)
 
-        self.workers = workers
         self.output_dir = output_dir
-        self.input_queue = Queue()
         self.job_data_dir = loader_helper.make_job_data_dir(job_dir)
-        self.pools = Pool(workers, worker_function, [self])
 
     def _setup_callback_server_envs(
             self,

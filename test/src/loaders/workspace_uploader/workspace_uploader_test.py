@@ -1,16 +1,14 @@
 import os
 import shutil
 import uuid
-from multiprocessing import Queue
 from pathlib import Path
 from typing import NamedTuple
-from unittest.mock import Mock, create_autospec
+from unittest.mock import MagicMock, Mock, create_autospec
 
 import pytest
 
 from src.clients.AssemblyUtilClient import AssemblyUtil
 from src.loaders.common import loader_helper
-from src.loaders.workspace_downloader.workspace_downloader_helper import Conf
 from src.loaders.workspace_uploader import workspace_uploader
 
 ASSEMBLY_DIR_NAMES = ["GCF_000979855.1", "GCF_000979175.1"]
@@ -223,31 +221,66 @@ def test_post_process(setup_and_teardown):
 
 
 def test_upload_assembly_to_workspace(setup_and_teardown):
-    _ = setup_and_teardown
+    params = setup_and_teardown
     assembly_name = ASSEMBLY_NAMES[0]
+    host_assembly_dir = params.assembly_dirs[0]
 
     conf = Mock()
     conf.asu = create_autospec(AssemblyUtil, spec_set=True, instance=True)
-    conf.asu.save_assembly_from_fasta2.return_value = {"upa": "12345/58/1"}
-    upa = workspace_uploader._upload_assembly_to_workspace(
-        conf, 12345, "/path/to/file/in/AssembilyUtil", assembly_name
+    conf.asu.save_assemblies_from_fastas.return_value = {"results":[{"upa": "12345/58/1"}]}
+    assembly_tuple = workspace_uploader.AssemblyTuple(
+        assembly_name, host_assembly_dir, "/path/to/file/in/AssembilyUtil"
     )
-
-    assert upa == "12345_58_1"
-    conf.asu.save_assembly_from_fasta2.assert_called_once_with(
+    upas = workspace_uploader._upload_assemblies_to_workspace(conf, 12345, [assembly_tuple])
+    assert upas == tuple(["12345_58_1"])
+    conf.asu.save_assemblies_from_fastas.assert_called_once_with(
         {
-            "file": {"path": "/path/to/file/in/AssembilyUtil"},
             "workspace_id": 12345,
-            "assembly_name": assembly_name,
+            "inputs": [
+                {
+                    "file": assembly_tuple.container_internal_assembly_path,
+                    "assembly_name": assembly_tuple.assembly_name
+                }
+            ]
         }
     )
 
 
-def test_assembly_files_in_parallel(setup_and_teardown):
+def test_generator(setup_and_teardown):
     params = setup_and_teardown
+    assembly_dirs = params.assembly_dirs
+    wait_to_upload_assemblies = {
+        assembly_name: assembly_dir
+        for assembly_name, assembly_dir in zip(ASSEMBLY_NAMES, assembly_dirs)
+    }
+    assemblyTuple_list = list(workspace_uploader._gen(wait_to_upload_assemblies, 1))
+    expected_assemblyTuple_list = [
+        [
+            workspace_uploader.AssemblyTuple(
+                "GCF_000979855.1_gtlEnvA5udCFS_genomic.fna.gz",
+                assembly_dirs[0],
+                "/kb/module/work/tmp/GCF_000979855.1_gtlEnvA5udCFS_genomic.fna.gz",
+            )
+        ],
+        [
+            workspace_uploader.AssemblyTuple(
+                "GCF_000979175.1_gtlEnvA5udCFS_genomic.fna.gz",
+                assembly_dirs[1],
+                "/kb/module/work/tmp/GCF_000979175.1_gtlEnvA5udCFS_genomic.fna.gz",
+            )
+        ],
+    ]
+    assert assemblyTuple_list == expected_assemblyTuple_list
+
+
+def test_upload_assembly_files_in_parallel(setup_and_teardown):
+    params = setup_and_teardown
+    src_files = params.target_files
+    assembly_dirs = params.assembly_dirs
     upload_dir = Path(params.tmp_dir) / "upload_dir"
     upload_dir.mkdir()
-    assembly_dirs = params.assembly_dirs
+    output_dir = Path(params.tmp_dir) / "output_dir"
+    output_dir.mkdir()
 
     wait_to_upload_assemblies = {
         assembly_name: assembly_dir
@@ -255,46 +288,58 @@ def test_assembly_files_in_parallel(setup_and_teardown):
     }
 
     conf = Mock()
-    conf.workers = 5
-    conf.input_queue = Queue()
-    conf.output_queue = Queue()
+    conf.output_dir = output_dir
+    conf.asu = create_autospec(AssemblyUtil, spec_set=True, instance=True)
+    conf.asu.save_assemblies_from_fastas.return_value = {
+        "results":[
+            {"upa": "12345/58/1"},
+            {"upa": "12345/60/1"}
+        ]
+    }
 
-    # an uploaded successful
-    conf.output_queue.put((ASSEMBLY_NAMES[0], "12345_58_1"))
-    # an upload failed
-    conf.output_queue.put((ASSEMBLY_NAMES[1], None))
-
-    failed_names = workspace_uploader._upload_assembly_files_in_parallel(
-        conf, "CI", 12345, upload_dir, wait_to_upload_assemblies
+    uploaded_count = workspace_uploader._upload_assembly_files_in_parallel(
+        conf, "CI", 12345, upload_dir, wait_to_upload_assemblies, 2
     )
 
-    expected_tuple1 = (
-        "CI",
-        12345,
-        os.path.join(
-            workspace_uploader.JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER, ASSEMBLY_NAMES[0]
-        ),
-        assembly_dirs[0],
-        ASSEMBLY_NAMES[0],
-        upload_dir,
-        1,
-        len(ASSEMBLY_NAMES),
+    assert uploaded_count == 2
+
+    # check softlink for post_process
+    assert os.readlink(os.path.join(upload_dir, "12345_58_1")) == os.path.join(
+        output_dir, "12345_58_1"
+    )
+    assert os.readlink(os.path.join(upload_dir, "12345_60_1")) == os.path.join(
+        output_dir, "12345_60_1"
     )
 
-    expected_tuple2 = (
-        "CI",
-        12345,
-        os.path.join(
-            workspace_uploader.JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER, ASSEMBLY_NAMES[1]
-        ),
-        assembly_dirs[1],
-        ASSEMBLY_NAMES[1],
-        upload_dir,
-        2,
-        len(ASSEMBLY_NAMES),
+    # check hardlink for post_process
+    assert os.path.samefile(
+        src_files[0], os.path.join(os.path.join(output_dir, "12345_58_1"), f"12345_58_1.fna.gz")
     )
 
-    assert conf.input_queue.get() == expected_tuple1
-    assert conf.input_queue.get() == expected_tuple2
-    assert conf.output_queue.empty()
-    assert failed_names == [ASSEMBLY_NAMES[1]]
+    assert os.path.samefile(
+        src_files[1], os.path.join(os.path.join(output_dir, "12345_60_1"), f"12345_60_1.fna.gz")
+    )
+
+
+def test_fail_upload_assembly_files_in_parallel(setup_and_teardown):
+    params = setup_and_teardown
+    assembly_dirs = params.assembly_dirs
+    upload_dir = Path(params.tmp_dir) / "upload_dir"
+    upload_dir.mkdir()
+    output_dir = Path(params.tmp_dir) / "output_dir"
+    output_dir.mkdir()
+
+    wait_to_upload_assemblies = {
+        assembly_name: assembly_dir
+        for assembly_name, assembly_dir in zip(ASSEMBLY_NAMES, assembly_dirs)
+    }
+
+    conf = MagicMock()
+    conf.asu = create_autospec(AssemblyUtil, spec_set=True, instance=True)
+    conf.asu.save_assemblies_from_fastas.side_effect = Exception("Illegal character in object name")
+
+    uploaded_count = workspace_uploader._upload_assembly_files_in_parallel(
+        conf, "CI", 12345, upload_dir, wait_to_upload_assemblies, 2
+    )
+
+    assert uploaded_count == 0
