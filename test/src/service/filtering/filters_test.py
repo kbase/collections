@@ -204,10 +204,11 @@ def _filterset_with_defaults_append_filters(fs: FilterSet):
     return fs
 
 
-def test_filterset_w_defaults():
-    fs = _filterset_with_defaults_append_filters(FilterSet("my_search_view", "coll24", "loadver9"))
+def test_filterset_arangosearch_w_defaults():
+    fs = _filterset_with_defaults_append_filters(FilterSet(
+        "coll24", "loadver9", view="my_search_view"))
 
-    aql, bind_vars = fs.to_arangosearch_aql()
+    aql, bind_vars = fs.to_aql()
     
     assert aql == """
 LET v2_prefixes = TOKENS(@v2_input, "text_en")
@@ -250,11 +251,32 @@ FOR doc IN @@view
     assert len(fs) == 6
 
 
-def test_filterset_w_defaults_count():
-    fs = _filterset_with_defaults_append_filters(
-        FilterSet("my_search_view", "coll24", "loadver9", count=True))
+def test_filterset_aql_w_defaults():
+    fs = FilterSet("coll24", "loadver9", collection="my_coll")
 
-    aql, bind_vars = fs.to_arangosearch_aql()
+    aql, bind_vars = fs.to_aql()
+    
+    assert aql == """
+FOR doc IN @@collection
+    FILTER doc.coll == @collid
+    FILTER doc.load_ver == @load_ver
+    LIMIT @skip, @limit
+    RETURN doc
+""".strip() + "\n"
+    assert bind_vars == {
+        "@collection": "my_coll",
+        "collid": "coll24",
+        "load_ver": "loadver9",
+        "skip": 0,
+        "limit": 1000,
+    }
+    assert len(fs) == 0
+
+def test_filterset_arangosearch_w_defaults_count():
+    fs = _filterset_with_defaults_append_filters(
+        FilterSet("coll24", "loadver9", view="my_search_view", count=True))
+
+    aql, bind_vars = fs.to_aql()
     
     assert aql == """
 LET v2_prefixes = TOKENS(@v2_input, "text_en")
@@ -295,11 +317,31 @@ RETURN COUNT(FOR doc IN @@view
     assert len(fs) == 6
 
 
-def test_filterset_w_all_args():
+def test_filterset_aql_w_defaults_count():
+    fs = FilterSet("coll24", "loadver9", collection="my_coll", count=True)
+
+    aql, bind_vars = fs.to_aql()
+    
+    assert aql == """
+FOR doc IN @@collection
+    FILTER doc.coll == @collid
+    FILTER doc.load_ver == @load_ver
+    COLLECT WITH COUNT INTO length
+    RETURN length
+""".strip() + "\n"
+    assert bind_vars == {
+        "@collection": "my_coll",
+        "collid": "coll24",
+        "load_ver": "loadver9",
+    }
+    assert len(fs) == 0
+    
+
+def test_filterset_arangosearch_w_all_args():
     fs = FilterSet(
-        "my_other_search_view",
         "mycollection",
         "loadver6",
+        view="my_other_search_view",
         sort_on="sortfield",
         sort_descending=True,
         conjunction=False,
@@ -311,7 +353,7 @@ def test_filterset_w_all_args():
     )
     fs.append("rangefield", ColumnType.INT, "[-2,6]")
     fs.append("prefixfield", ColumnType.STRING, "thingy", "text_en", FilterStrategy.PREFIX)
-    aql, bind_vars = fs.to_arangosearch_aql()
+    aql, bind_vars = fs.to_aql()
     
     assert aql == """
 LET v2_prefixes = TOKENS(@v2_input, "text_en")
@@ -350,11 +392,54 @@ FOR d IN @@view
     assert len(fs) == 2
 
 
-def test_filterset_w_all_args_count():
+def test_filterset_aql_w_all_args():
     fs = FilterSet(
-        "my_other_search_view",
         "mycollection",
         "loadver6",
+        collection="my_arango_collection",
+        sort_on="sortfield",
+        sort_descending=True,
+        conjunction=False,
+        match_spec=SubsetSpecification(internal_subset_id="matchy", prefix="m_"),
+        selection_spec=SubsetSpecification(internal_subset_id="selly", prefix="s_"),
+        start_after="a_unique_field",
+        skip=24,
+        limit=2,
+        doc_var="dc",
+    )
+    aql, bind_vars = fs.to_aql()
+    
+    assert aql == """
+FOR dc IN @@collection
+    FILTER dc.coll == @collid
+    FILTER dc.load_ver == @load_ver
+    FILTER @internal_match_id IN dc._mtchsel
+    FILTER @internal_selection_id IN dc._mtchsel
+    FILTER dc.@sort > @start_after
+    SORT dc.@sort @sortdir
+    LIMIT @skip, @limit
+    RETURN dc
+""".strip() + "\n"
+    assert bind_vars == {
+        "@collection": "my_arango_collection",
+        "collid": "mycollection",
+        "load_ver": "loadver6",
+        "sort": "sortfield",
+        "sortdir":"DESC",
+        "internal_match_id": "m_matchy",
+        "internal_selection_id": "s_selly",
+        'start_after': 'a_unique_field',
+        "skip": 24,
+        "limit": 2,
+    }
+    assert len(fs) == 0
+
+
+def test_filterset_arangosearch_w_all_args_count():
+    fs = FilterSet(
+        "mycollection",
+        "loadver6",
+        view="my_other_search_view",
         sort_on="sortfield",  # should be ignored
         sort_descending=True,
         count=True,
@@ -367,7 +452,7 @@ def test_filterset_w_all_args_count():
     )
     fs.append("rangefield", ColumnType.INT, "[-2,6]")
     fs.append("prefixfield", ColumnType.STRING, "thingy", "text_en", FilterStrategy.PREFIX)
-    aql, bind_vars = fs.to_arangosearch_aql()
+    aql, bind_vars = fs.to_aql()
     
     assert aql == """
 LET v2_prefixes = TOKENS(@v2_input, "text_en")
@@ -398,15 +483,54 @@ RETURN COUNT(FOR d IN @@view
     assert len(fs) == 2
 
 
-def test_filterset_sort_asc():
+def test_filterset_aql_w_all_args_count():
     fs = FilterSet(
-        "sorty_sort",
+        "mycollection",
+        "loadver6",
+        collection="my_arango_collection",
+        sort_on="sortfield",
+        sort_descending=True,
+        count=True,
+        conjunction=False,
+        match_spec=SubsetSpecification(internal_subset_id="matchy", prefix="m_"),
+        selection_spec=SubsetSpecification(internal_subset_id="selly", prefix="s_"),
+        start_after="a_unique_field",
+        skip=24,
+        limit=2,
+        doc_var="d",
+    )
+    aql, bind_vars = fs.to_aql()
+    
+    assert aql == """
+FOR d IN @@collection
+    FILTER d.coll == @collid
+    FILTER d.load_ver == @load_ver
+    FILTER @internal_match_id IN d._mtchsel
+    FILTER @internal_selection_id IN d._mtchsel
+    COLLECT WITH COUNT INTO length
+    RETURN length
+""".strip() + "\n"
+    assert bind_vars == {
+        "@collection": "my_arango_collection",
+        "collid": "mycollection",
+        "load_ver": "loadver6",
+        "internal_match_id": "m_matchy",
+        "internal_selection_id": "s_selly",
+    }
+    assert len(fs) == 0
+
+
+def test_filterset_arangosearch_sort_asc_and_limit_0():
+    fs = FilterSet(
         "sortcol",
         "loadver89",
-        sort_on="somefield",  # should be ignored
+        view="sorty_sort",
+        sort_on="somefield",
+        skip=1,
+        limit=0,
     )
     fs.append("rangefield", ColumnType.INT, "[-2,6]")
-    aql, bind_vars = fs.to_arangosearch_aql()
+    aql, bind_vars = fs.to_aql()
     assert aql == """
 FOR doc IN @@view
     SEARCH (
@@ -426,22 +550,54 @@ FOR doc IN @@view
         "load_ver": "loadver89",
         "sort": "somefield",
         "sortdir": "ASC",
-        "skip": 0,
-        "limit": 1000,
+        "skip": 1,
+        "limit": 100000000000000000000000000000000000000000000000000000000000000000000000000000000,
         'v1_low': -2.0,
         'v1_high': 6.0,
     }
     assert len(fs) == 1
 
 
-def test_filterset_w_1_filter():
+def test_filterset_aql_sort_asc_and_limit_0():
     fs = FilterSet(
-        "so_many_search_views",
+        "sortcol",
+        "loadver89",
+        collection="sorty_sort",
+        sort_on="somefield",
+        skip=1,
+        limit=0,
+    )
+    aql, bind_vars = fs.to_aql()
+    assert aql == """
+FOR doc IN @@collection
+    FILTER doc.coll == @collid
+    FILTER doc.load_ver == @load_ver
+    SORT doc.@sort @sortdir
+    LIMIT @skip, @limit
+    RETURN doc
+""".strip() + "\n"
+    assert bind_vars == {
+        "@collection": "sorty_sort",
+        "collid": "sortcol",
+        "load_ver": "loadver89",
+        "sort": "somefield",
+        "sortdir": "ASC",
+        "skip": 1,
+        "limit": 100000000000000000000000000000000000000000000000000000000000000000000000000000000,
+    }
+    assert len(fs) == 0
+
+
+def test_filterset_arangosearch_w_1_filter_and_0_skip_limit():
+    fs = FilterSet(
         "PMI",
         "loadyload",
+        view="so_many_search_views",
+        skip=0,
+        limit=0,
     )
     fs.append("shoe_size", ColumnType.FLOAT, "[-56.9, 32.1)")
-    aql, bind_vars = fs.to_arangosearch_aql()
+    aql, bind_vars = fs.to_aql()
     
     assert aql == """
 FOR doc IN @@view
@@ -452,44 +608,70 @@ FOR doc IN @@view
     ) AND (
         IN_RANGE(doc.shoe_size, @v1_low, @v1_high, true, false)
     )
-    LIMIT @skip, @limit
     RETURN doc
 """.strip() + "\n"
     assert bind_vars == {
         "@view": "so_many_search_views",
         "collid": "PMI",
         "load_ver": "loadyload",
-        "skip": 0,
-        "limit": 1000,
         'v1_low': -56.9,
         'v1_high': 32.1,
     }
     assert len(fs) == 1
 
 
-def test_filterset_len_0():
-    assert len(FilterSet("v", "c", "lv")) == 0
+def test_filterset_aql_w_1_filter_and_0_skip_limit():
+    fs = FilterSet(
+        "PMI",
+        "loadyload",
+        collection="so_many_collections",
+        skip=0,
+        limit=0,
+    )
+    aql, bind_vars = fs.to_aql()
+    
+    assert aql == """
+FOR doc IN @@collection
+    FILTER doc.coll == @collid
+    FILTER doc.load_ver == @load_ver
+    RETURN doc
+""".strip() + "\n"
+    assert bind_vars == {
+        "@collection": "so_many_collections",
+        "collid": "PMI",
+        "load_ver": "loadyload",
+    }
+    assert len(fs) == 0
 
 
 def test_filterset_fail_construct():
     m = errors.MissingParameterError
     i = errors.IllegalParameterError
-    _filterset_fail_construct(None, "c", "lv", 0, 1, "d", m, "view is required")
-    _filterset_fail_construct("   \t  ", "c", "lv", 0, 1, "d", m, "view is required")
-    _filterset_fail_construct("v", None, "lv", 0, 1, "d", m, "collection_id is required")
-    _filterset_fail_construct("v", "    \t   ", "lv", 0, 1, "d", m, "collection_id is required")
-    _filterset_fail_construct("v", "c", None, 0, 1, "d", m, "load_ver is required")
-    _filterset_fail_construct("v", "c", "  \t  ", 0, 1, "d", m, "load_ver is required")
-    _filterset_fail_construct("v", "c", "lv", 0, 1, None, m, "doc_var is required")
-    _filterset_fail_construct("v", "c", "lv", 0, 1, "   \t   ", m, "doc_var is required")
-    _filterset_fail_construct("v", "c", "lv", -1, 1, "d", i, "skip must be >= 0")
-    _filterset_fail_construct("v", "c", "lv", 1, 0, "d", i, "limit must be >= 1")
+    v = ValueError
+    n = None
+    _filterset_fail_construct(n, "lv", "v", "c", n, 0, 1, "d", m, "collection_id is required")
+    _filterset_fail_construct("    \t   ", "lv", "v", "c", n, 0, 1, "d", m,
+                              "collection_id is required")
+    _filterset_fail_construct("c", n, "v", "c", n, 0, 1, "d", m, "load_ver is required")
+    _filterset_fail_construct("c", "  \t  ", "v", "c", n, 0, 1, "d", m, "load_ver is required")
+    _filterset_fail_construct("c", "lv", n, n, n, 0, 1, "d", v,
+                              "At least one of a view or a collection is required")
+    _filterset_fail_construct("c", "lv", "   \t  ", "   \t  ", n, 0, 1, "d", v,
+                              "At least one of a view or a collection is required")
+    _filterset_fail_construct("c", "lv", "v", "c", "start", 1, 1, "d", v,
+                              "If start_after is supplied sort_on must be supplied")
+    _filterset_fail_construct("c", "lv", "v", "c", n, -1, 1, "d", i, "skip must be >= 0")
+    _filterset_fail_construct("c", "lv", "v", "c", n, 1, -1, "d", i, "limit must be >= 0")
+    _filterset_fail_construct("c", "lv", "v", "c", n, 0, 1, n, m, "doc_var is required")
+    _filterset_fail_construct("c", "lv", "v", "c", n, 0, 1, "   \t   ", m, "doc_var is required")
 
 
 def _filterset_fail_construct(
-        view: str,
         coll_id: str,
         load_ver: str,
+        view: str,
+        coll: str,
+        start_after: str,
         skip: int,
         limit: int,
         doc_var: str,
@@ -497,7 +679,9 @@ def _filterset_fail_construct(
         expected: str
     ):
     with raises(errclass, match=f"^{re.escape(expected)}$"):
-        FilterSet(view, coll_id, load_ver, skip=skip, limit=limit, doc_var=doc_var)
+        FilterSet(
+            coll_id, load_ver, view=view, collection=coll, start_after=start_after,
+            skip=skip, limit=limit, doc_var=doc_var)
 
 
 def test_filterset_fail_append():
@@ -531,18 +715,27 @@ def _filterset_fail_append(
         expected: str
     ):
     with raises(errclass, match=f"^{re.escape(expected)}$"):
-        FilterSet("v", "c", "lv").append(field, coltype, string, None, strategy)
+        FilterSet("c", "lv", view="v").append(field, coltype, string, None, strategy)
 
 
 def test_filterset_fail_append_duplicate_field():
     expected = "Filter for field myfield was provided more than once"
     with raises(errors.IllegalParameterError, match=f"^{re.escape(expected)}$"):
-        FilterSet("v", "c", "lv"
+        FilterSet("c", "lv", view="v"
             ).append("myfield", ColumnType.INT, "8,"
             ).append("myfield", ColumnType.STRING, "foo", "text_en", FilterStrategy.FULL_TEXT)
 
 
-def test_filterset_fail_to_arangosearch_aql():
-    expected = "At least one filter is required"
+def test_filterset_fail_to_aql_std_aql():
+    expected = ("If no filters are added to the filter set the collection argument is required "
+                + "in the constructor")
     with raises(ValueError, match=f"^{re.escape(expected)}$"):
-        FilterSet("v", "c", "lv").to_arangosearch_aql()
+        FilterSet("c", "lv", view="v").to_aql()
+
+def test_filterset_fail_to_aql_arangosearch_aql():
+    expected = ("If a filter is added to the filter set the view argument is required "
+                + "in the constructor")
+    with raises(ValueError, match=f"^{re.escape(expected)}$"):
+        FilterSet("c", "lv", collection="c"
+            ).append("myfield", ColumnType.INT, "[1,"
+            ).to_aql()
