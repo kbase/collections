@@ -44,7 +44,7 @@ This step is computationally intensive, resulting in an execution time of over 2
 In response to this performance challenge, we've made several adjustments:
 
 1. increased the number of program threads from 32 to 256.
-2. The execution time for GTDB-Tk has been extended from 65 minutes to 300 minutes.
+2. The execution time for GTDB-Tk has been extended from 65 minutes to 305 minutes.
 3. Additionally, we've raised the NODE_TIME_LIMIT to 10 hours to ensure time for job completion without any timeouts.
 '''
 
