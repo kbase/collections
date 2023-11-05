@@ -37,24 +37,23 @@ optional arguments:
   --source_file_ext SOURCE_FILE_EXT
                         Select files from source data directory that match the given extension.
                         
-Note: Based on our experiment with GTDB-Tk, we have determined that the optimal chunk size is 1000 genomes.
-With 4 batches running in parallel, each using 32 cores, it takes around 50 minutes to process a single chunk.
-To reflect this, we have set the "threads" and "program_threads" parameters in "_create_task_list" to 32, 
-indicating that each batch will use 32 cores. We have also set the execution time for GTDB-Tk to 65 minutes, 
-with some additional buffer time. To allow for a sufficient number of batches to be run within a given time limit, 
-we have set the "NODE_TIME_LIMIT" to 5 hours. With these settings, we expect to be able to process up to 16 batches, 
-or 16,000 genomes, per node within the 5-hour time limit. We plan to make these parameters configurable based on 
-the specific tool being used. After conducting performance tests, we found that utilizing 32 cores per batch and 
-running 4 batches in parallel per NERSC node resulted in optimal performance, despite each node having a total of 
-256 cores.
+Note: Based on our experimentation with GTDB-TK (v2.3+), we have optimized the chunk size, reducing it from processing 
+1000 genomes per batch to 500 genomes per batch. The initial ani_screen step involves comparing user genomes against 
+a Mash database consisting of all GTDB representative genomes and verifying the best Mash hits using FastANI. 
+This step is computationally intensive, resulting in an execution time of over 2 hours for 500 genomes. 
+In response to this performance challenge, we've made several adjustments:
+
+1. increased the number of program threads from 32 to 256.
+2. The execution time for GTDB-Tk has been extended from 65 minutes to 300 minutes.
+3. Additionally, we've raised the NODE_TIME_LIMIT to 10 hours to ensure time for job completion without any timeouts.
 '''
 
 TOOLS_AVAILABLE = ['gtdb_tk', 'checkm2', 'microtrait', 'mash']
 
 # estimated execution time (in minutes) for each tool to process a chunk of data
-TASK_META = {'gtdb_tk': {'chunk_size': 1000, 'exe_time': 65},
+TASK_META = {'gtdb_tk': {'chunk_size': 500, 'exe_time': 300},
              'default': {'chunk_size': 5000, 'exe_time': 60}}
-NODE_TIME_LIMIT = 5  # hours  # TODO: automatically calculate this based on tool execution time and NODE_THREADS
+NODE_TIME_LIMIT = 10  # hours  # TODO: automatically calculate this based on tool execution time and NODE_THREADS
 MAX_NODE_NUM = 100  # maximum number of nodes to use
 # The THREADS variable controls the number of parallel tasks per node
 # TODO: make this configurable based on tool used. At present, we have set the value to 4 for optimal performance with GTDB-Tk.
@@ -194,8 +193,8 @@ def _create_task_list(
         wrapper_file: str,
         job_dir: str,
         root_dir: str,
-        threads: int = 32,
-        program_threads: int = 32,
+        threads: int = 256,
+        program_threads: int = 256,
         source_file_ext: str = 'genomic.fna.gz'):
     """
     Create task list file (tasks.txt)
@@ -208,7 +207,8 @@ def _create_task_list(
     have the same value. This ensures that parallelization only happens between tasks, and not within them.
 
     TODO: make threads/program_threads configurable based on tool used. However, for the time being, we have set
-    these parameters to 32 and , since this value has produced the highest throughput in our experiments.
+    these parameters to 256 (optimize CPU utilization on each node to its fullest capacity),
+    since this value has produced the highest throughput in our experiments.
     """
     source_data_dir = make_collection_source_dir(root_dir, env, kbase_collection, source_ver)
     genome_ids = [path for path in os.listdir(source_data_dir) if
