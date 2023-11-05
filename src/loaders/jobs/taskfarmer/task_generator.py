@@ -51,7 +51,7 @@ In response to this performance challenge, we've made several adjustments:
 TOOLS_AVAILABLE = ['gtdb_tk', 'checkm2', 'microtrait', 'mash']
 
 # estimated execution time (in minutes) for each tool to process a chunk of data
-TASK_META = {'gtdb_tk': {'chunk_size': 500, 'exe_time': 300},
+TASK_META = {'gtdb_tk': {'chunk_size': 500, 'exe_time': 305},
              'default': {'chunk_size': 5000, 'exe_time': 60}}
 NODE_TIME_LIMIT = 10  # hours  # TODO: automatically calculate this based on tool execution time and NODE_THREADS
 MAX_NODE_NUM = 100  # maximum number of nodes to use
