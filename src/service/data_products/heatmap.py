@@ -3,6 +3,7 @@ Reusable code for creating a heatmap based data product.
 """
 
 import json
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Request, Query, Path, Response
 
@@ -16,7 +17,6 @@ from src.service.data_products.common_functions import (
     get_doc_from_collection_by_unique_id,
     remove_collection_keys,
     query_simple_collection_list,
-    count_simple_collection_list,
     remove_marked_subset,
 )
 from src.service.data_products.common_models import (
@@ -38,12 +38,12 @@ from src.service.data_products.data_product_processing import (
     get_load_version_and_processes,
     get_missing_ids,
 )
+from src.service.filtering.filters import FilterSet
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.processing import SubsetSpecification
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
 
-from typing import Annotated, Any
 
 _OPT_AUTH = KBaseHTTPBearer(optional=True)
 
@@ -261,31 +261,22 @@ class HeatMapController:
         )
         if status_only:
             return self._response(dp_match=dp_match, dp_sel=dp_sel)
-        elif count:
-            # may want to make some sort of shared builder
-            count = await count_simple_collection_list(
-                appstate.arangostorage,
-                self._colname_data,
-                collection_id,
-                load_ver,
-                match_spec=SubsetSpecification(
-                    subset_process=dp_match, mark_only=match_mark, prefix=MATCH_ID_PREFIX),
-                selection_spec=SubsetSpecification(
-                    subset_process=dp_sel, mark_only=selection_mark, prefix=SELECTION_ID_PREFIX)
-            )
-            return self._response(dp_match=dp_match, dp_sel=dp_sel, count=count)
-        else:
-            return await self._query(  # may want a sort direction arg?
-                appstate.arangostorage,
-                collection_id,
-                load_ver,
-                start_after,
-                limit,
-                match_proc=dp_match,
-                match_mark=match_mark,
-                selection_proc=dp_sel,
-                selection_mark=selection_mark,
-            )
+        filters = FilterSet(
+            collection_id,
+            load_ver,
+            collection=self._colname_data,
+            count=count,
+            match_spec=SubsetSpecification(
+                subset_process=dp_match, mark_only=match_mark, prefix=MATCH_ID_PREFIX),
+            selection_spec=SubsetSpecification(
+                subset_process=dp_sel, mark_only=selection_mark, prefix=SELECTION_ID_PREFIX),
+            sort_on=names.FLD_KBASE_ID,
+            sort_descending=False,
+            start_after=start_after,
+            limit=limit,
+        )
+        return await self._query(
+            appstate.arangostorage, filters, match_proc=dp_match, selection_proc=dp_sel)
 
     async def get_missing_ids(
         self,
@@ -331,44 +322,30 @@ class HeatMapController:
         return doc
 
     async def _query(
-        # ew. too many args
         self,
         store: ArangoStorage,
-        collection_id: str,
-        load_ver: str,
-        start_after: str,
-        limit: int,
+        filters: FilterSet,
         match_proc: models.DataProductProcess | None,
-        match_mark: bool,
         selection_proc: models.DataProductProcess | None,
-        selection_mark: bool,
     ) -> heatmap_models.HeatMap:
         data = []
         await query_simple_collection_list(
             store,
-            self._colname_data,
-            lambda doc: data.append(self._remove_doc_keys(doc)),
-            collection_id,
-            load_ver,
-            names.FLD_KBASE_ID,
-            sort_descending=False,
-            skip=0,
-            start_after=start_after,
-            limit=limit,
-            match_spec=SubsetSpecification(
-                subset_process=match_proc, mark_only=match_mark, prefix=MATCH_ID_PREFIX),
-            selection_spec=SubsetSpecification(
-                subset_process=selection_proc, mark_only=selection_mark, prefix=SELECTION_ID_PREFIX
+            filters,
+            lambda doc: data.append(doc) if filters.count else
+                data.append(self._remove_doc_keys(doc)),
+        )
+        if filters.count:
+            return self._response(dp_match=match_proc, dp_sel=selection_proc, count=data[0])
+        else:
+            vals = set()
+            for r in data:  # lazy lazy lazy
+                vals |= {c[heatmap_models.FIELD_HEATMAP_CELL_VALUE]
+                         for c in r[heatmap_models.FIELD_HEATMAP_ROW_CELLS]}
+            return self._response(
+                dp_match=match_proc,
+                dp_sel=selection_proc,
+                data=data,
+                min_value=min(_bools_to_ints(vals)) if vals else None,
+                max_value=max(_bools_to_ints(vals)) if vals else None
             )
-        )
-        vals = set()
-        for r in data:  # lazy lazy lazy
-            vals |= {c[heatmap_models.FIELD_HEATMAP_CELL_VALUE]
-                     for c in r[heatmap_models.FIELD_HEATMAP_ROW_CELLS]}
-        return self._response(
-            dp_match=match_proc,
-            dp_sel=selection_proc,
-            data=data,
-            min_value=min(_bools_to_ints(vals)) if vals else None,
-            max_value=max(_bools_to_ints(vals)) if vals else None
-        )
