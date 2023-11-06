@@ -1,8 +1,7 @@
 """
 usage: workspace_uploader.py [-h] --workspace_id WORKSPACE_ID [--kbase_collection KBASE_COLLECTION] [--source_ver SOURCE_VER]
                              [--root_dir ROOT_DIR] [--token_filepath TOKEN_FILEPATH] [--env {CI,NEXT,APPDEV,PROD}]
-                             [--upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]] [--workers WORKERS] [--batch_size BATCH_SIZE]
-                             [--keep_job_dir]
+                             [--upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]] [--batch_size BATCH_SIZE] [--keep_job_dir]
 
 PROTOTYPE - Upload assembly files to the workspace service (WSS).
 
@@ -30,7 +29,6 @@ optional arguments:
                         KBase environment (default: PROD)
   --upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]
                         Upload only files that match given extensions (default: ['genomic.fna.gz'])
-  --workers WORKERS     Number of workers for multiprocessing (default: 5)
   --batch_size BATCH_SIZE
                         Number of files to upload per batch (default: 1000)
   --keep_job_dir        Keep SDK job directory after upload task is completed
@@ -134,12 +132,6 @@ def _get_parser():
         help="Upload only files that match given extensions",
     )
     optional.add_argument(
-        "--workers",
-        type=int,
-        default=5,
-        help="Number of workers for multiprocessing",
-    )
-    optional.add_argument(
         "--batch_size",
         type=int,
         default=1000,
@@ -197,6 +189,7 @@ def _upload_assemblies_to_workspace(
             }
         )
     except Exception as e:
+        print(e)
         raise e
 
     upas = tuple([result_dict["upa"].replace("/", "_")
@@ -364,7 +357,7 @@ def _upload_assembly_files_in_parallel(
         batch_size: a number of files to upload per batch
 
     Returns:
-        a count on assembly files uploded
+        number of assembly files have been sucessfully uploaded from wait_to_upload_assemblies
     """
     assembly_files_len = len(wait_to_upload_assemblies)
     print(f"Start uploading {assembly_files_len} assembly files\n")
@@ -375,7 +368,6 @@ def _upload_assembly_files_in_parallel(
         try:
             batch_upas = _upload_assemblies_to_workspace(conf, workspace_id, assembly_tuples)
         except Exception as e:
-            print(e)
             failed_objects_names = [assembly_tuple.assembly_name for assembly_tuple in assembly_tuples]
             assembly_objects_in_ws = loader_helper.list_objects(
                 workspace_id,
@@ -456,7 +448,6 @@ def main():
     root_dir = getattr(args, loader_common_names.ROOT_DIR_ARG_NAME)
     token_filepath = args.token_filepath
     upload_file_ext = args.upload_file_ext
-    workers = args.workers
     batch_size = args.batch_size
     keep_job_dir = args.keep_job_dir
 
@@ -467,8 +458,6 @@ def main():
         parser.error(f"workspace_id needs to be > 0")
     if batch_size <= 0:
         parser.error(f"batch_size needs to be > 0")
-    if workers < 1 or workers > cpu_count():
-        parser.error(f"minimum worker is 1 and maximum worker is {cpu_count()}")
 
     uid = os.getuid()
     username = os.getlogin()

@@ -3,7 +3,7 @@ import shutil
 import uuid
 from pathlib import Path
 from typing import NamedTuple
-from unittest.mock import MagicMock, Mock, create_autospec
+from unittest.mock import Mock, create_autospec
 
 import pytest
 
@@ -334,9 +334,12 @@ def test_fail_upload_assembly_files_in_parallel(setup_and_teardown):
         for assembly_name, assembly_dir in zip(ASSEMBLY_NAMES, assembly_dirs)
     }
 
-    conf = MagicMock()
+    conf = Mock()
     conf.asu = create_autospec(AssemblyUtil, spec_set=True, instance=True)
     conf.asu.save_assemblies_from_fastas.side_effect = Exception("Illegal character in object name")
+
+    loader_helper.list_objects = create_autospec(loader_helper.list_objects)
+    loader_helper.list_objects.return_value = []
 
     uploaded_count = workspace_uploader._upload_assembly_files_in_parallel(
         conf, "CI", 12345, upload_dir, wait_to_upload_assemblies, 2
