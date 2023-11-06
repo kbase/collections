@@ -393,6 +393,7 @@ class FilterSet:
             through records via increasing skip incrementally is an O(n^2) operation.
         limit - the maximum number of records to return. 0 indicates no limit, which is usually
             a bad idea.
+        keep - the fields to return from the database.
         doc_var - the variable to use for the ArangoSearch document.
         """
         self.collection_id = _require_string(collection_id, "collection_id is required")
