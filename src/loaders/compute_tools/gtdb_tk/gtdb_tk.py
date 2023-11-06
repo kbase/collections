@@ -33,12 +33,6 @@ GTDB_FAIL_GENOME_FILE = "gtdbtk.failed_genomes.tsv"
 # If empty, select all available fields
 SELECTED_GTDBTK_SUMMARY_FEATURES = set()
 
-# GTDB-TK V2.2+ requirement
-# path of the sketched Mash database from the input assembly files required for ANI screening
-# If no database are available (i.e. this is the first time running classify),
-# the --mash_db option will sketch a new Mash database that can be used for subsequent calls.
-MASH_DB_PATH = "mash_sketch/mash_db.msh"
-
 
 def _get_id_and_error_message_mapping_from_tsv_files(output_dir: Path):
     genome_dict = dict()
@@ -80,25 +74,23 @@ def _run_gtdb_tk(
     print(f'Start executing GTDB-TK for {size} genomes')
     start = time.time()
 
-    mash_db_path = output_dir / MASH_DB_PATH
-    if mash_db_path.exists():
-        # in the event of a rerun, remove an existing Mash database since we want GTDB-TK to create a new one
-        # as the inputs might be a different set of assembly files
-        print(f"Removing existing Mash database {mash_db_path}")
-        os.remove(mash_db_path)
-
     # create the batch file
     # tab separated in 2 columns (FASTA file, genome ID)
     batch_file_path = output_dir / f'genome.fasta.list'
     with open(batch_file_path, "w") as batch_file:
         for tool_safe_data_id, genome_tuple in ids_to_files.items():
             batch_file.write(f'{genome_tuple.source_file}\t{tool_safe_data_id}\n')
+
+    # NERSC occasionally experiences timeouts when utilizing the --mash_db option (introduced in V2.3+) for
+    # creating a new Mash database.
+    # Using the --skip_ani_screen option to skip the initial pre-screening step and classify all genomes,
+    # similar to the behavior in previous versions of GTDB-Tk.
     command = ['gtdbtk', 'classify_wf',
                '--batchfile', str(batch_file_path),
                '--out_dir', str(output_dir),
                '--force',
                '--cpus', str(threads),
-               '--mash_db', str(mash_db_path),
+               '--skip_ani_screen',
                ]
     command.append('--debug') if debug else None
     print(f'running {" ".join(command)}')
