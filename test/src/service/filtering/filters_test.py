@@ -349,6 +349,7 @@ def test_filterset_arangosearch_w_all_args():
         selection_spec=SubsetSpecification(internal_subset_id="selly", prefix="s_"),
         skip=24,
         limit=2,
+        keep=["field1", "field2"],
         doc_var="d",
     )
     fs.append("rangefield", ColumnType.INT, "[-2,6]")
@@ -373,7 +374,7 @@ FOR d IN @@view
     )
     SORT d.@sort @sortdir
     LIMIT @skip, @limit
-    RETURN d
+    RETURN KEEP(d, @keep)
 """.strip() + "\n"
     assert bind_vars == {
         "@view": "my_other_search_view",
@@ -385,6 +386,7 @@ FOR d IN @@view
         "internal_selection_id": "s_selly",
         "skip": 24,
         "limit": 2,
+        "keep": ["field1", "field2"],
         'v1_low': -2.0,
         'v1_high': 6.0,
         'v2_input': 'thingy',
@@ -405,6 +407,7 @@ def test_filterset_aql_w_all_args():
         start_after="a_unique_field",
         skip=24,
         limit=2,
+        keep=["thing", "thang"],
         doc_var="dc",
     )
     aql, bind_vars = fs.to_aql()
@@ -418,7 +421,7 @@ FOR dc IN @@collection
     FILTER dc.@sort > @start_after
     SORT dc.@sort @sortdir
     LIMIT @skip, @limit
-    RETURN dc
+    RETURN KEEP(dc, @keep)
 """.strip() + "\n"
     assert bind_vars == {
         "@collection": "my_arango_collection",
@@ -429,6 +432,7 @@ FOR dc IN @@collection
         "internal_match_id": "m_matchy",
         "internal_selection_id": "s_selly",
         'start_after': 'a_unique_field',
+        "keep": ["thing", "thang"],
         "skip": 24,
         "limit": 2,
     }
@@ -649,21 +653,26 @@ def test_filterset_fail_construct():
     i = errors.IllegalParameterError
     v = ValueError
     n = None
-    _filterset_fail_construct(n, "lv", "v", "c", n, 0, 1, "d", m, "collection_id is required")
-    _filterset_fail_construct("    \t   ", "lv", "v", "c", n, 0, 1, "d", m,
+    _filterset_fail_construct(n, "lv", "v", "c", n, 0, 1, n, "d", m, "collection_id is required")
+    _filterset_fail_construct("    \t   ", "lv", "v", "c", n, 0, 1, n, "d", m,
                               "collection_id is required")
-    _filterset_fail_construct("c", n, "v", "c", n, 0, 1, "d", m, "load_ver is required")
-    _filterset_fail_construct("c", "  \t  ", "v", "c", n, 0, 1, "d", m, "load_ver is required")
-    _filterset_fail_construct("c", "lv", n, n, n, 0, 1, "d", v,
+    _filterset_fail_construct("c", n, "v", "c", n, 0, 1, n, "d", m, "load_ver is required")
+    _filterset_fail_construct("c", "  \t  ", "v", "c", n, 0, 1, n, "d", m, "load_ver is required")
+    _filterset_fail_construct("c", "lv", n, n, n, 0, 1, n, "d", v,
                               "At least one of a view or a collection is required")
-    _filterset_fail_construct("c", "lv", "   \t  ", "   \t  ", n, 0, 1, "d", v,
+    _filterset_fail_construct("c", "lv", "   \t  ", "   \t  ", n, 0, 1, n, "d", v,
                               "At least one of a view or a collection is required")
-    _filterset_fail_construct("c", "lv", "v", "c", "start", 1, 1, "d", v,
+    _filterset_fail_construct("c", "lv", "v", "c", "start", 1, 1, n, "d", v,
                               "If start_after is supplied sort_on must be supplied")
-    _filterset_fail_construct("c", "lv", "v", "c", n, -1, 1, "d", i, "skip must be >= 0")
-    _filterset_fail_construct("c", "lv", "v", "c", n, 1, -1, "d", i, "limit must be >= 0")
-    _filterset_fail_construct("c", "lv", "v", "c", n, 0, 1, n, m, "doc_var is required")
-    _filterset_fail_construct("c", "lv", "v", "c", n, 0, 1, "   \t   ", m, "doc_var is required")
+    _filterset_fail_construct("c", "lv", "v", "c", n, -1, 1, n, "d", i, "skip must be >= 0")
+    _filterset_fail_construct("c", "lv", "v", "c", n, 1, -1, n, "d", i, "limit must be >= 0")
+    _filterset_fail_construct("c", "lv", "v", "c", n, 1, 1, ["a", None], "d", v,
+                              "Falsy value in keep")
+    _filterset_fail_construct("c", "lv", "v", "c", n, 1, 1, ["a", "b", "  \t  "], "d", v,
+                              "Falsy value in keep")
+    _filterset_fail_construct("c", "lv", "v", "c", n, 0, 1, n, n, m, "doc_var is required")
+    _filterset_fail_construct("c", "lv", "v", "c", n, 0, 1, n, "   \t   ", m,
+                              "doc_var is required")
 
 
 def _filterset_fail_construct(
@@ -674,6 +683,7 @@ def _filterset_fail_construct(
         start_after: str,
         skip: int,
         limit: int,
+        keep: list[str],
         doc_var: str,
         errclass: Exception,
         expected: str
@@ -681,7 +691,7 @@ def _filterset_fail_construct(
     with raises(errclass, match=f"^{re.escape(expected)}$"):
         FilterSet(
             coll_id, load_ver, view=view, collection=coll, start_after=start_after,
-            skip=skip, limit=limit, doc_var=doc_var)
+            skip=skip, limit=limit, keep=keep, doc_var=doc_var)
 
 
 def test_filterset_fail_append():

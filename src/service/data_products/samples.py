@@ -11,10 +11,10 @@ from src.common.product_models.common_models import SubsetProcessStates
 from src.service import app_state, errors, kb_auth, models
 from src.service.data_products.common_functions import (
     remove_collection_keys,
-    count_simple_collection_list,
     remove_marked_subset,
     query_table,
-    get_load_version
+    get_load_version,
+    QueryTableResult
 )
 from src.service.data_products import common_models
 from src.service.data_products.data_product_processing import (
@@ -24,6 +24,7 @@ from src.service.data_products.data_product_processing import (
     get_missing_ids as _get_missing_ids
 )
 from src.service.data_products.table_models import TableAttributes
+from src.service.filtering.filters import FilterSet
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.processing import SubsetSpecification
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
@@ -203,71 +204,49 @@ async def get_samples(
         match_id=match_id,
         selection_id=selection_id,
     )
-    match_spec=SubsetSpecification(
-        subset_process=dp_match, mark_only=match_mark, prefix=MATCH_ID_PREFIX)
-    selection_spec=SubsetSpecification(
-        subset_process=dp_sel, mark_only=selection_mark, prefix=SELECTION_ID_PREFIX)
     if status_only:
         return _response(dp_match=dp_match, dp_sel=dp_sel)
-    if count:
-        # for now this method doesn't do much. One we have some filtering implemented
-        # it'll need to take that into account.
-        # may want to make some sort of shared builder
-        count = await count_simple_collection_list(
-            appstate.arangostorage,
-            names.COLL_SAMPLES,
-            collection_id,
-            load_ver,
-            match_spec=match_spec,
-            selection_spec=selection_spec,
-        )
-        return _response(dp_match=dp_match, dp_sel=dp_sel, count=count)
-    else:
-        res = await query_table(
-            appstate.arangostorage,
-            names.COLL_SAMPLES,
-            collection_id,
-            load_ver,
-            sort_on,
-            sort_descending=sort_desc,
-            skip=skip,
-            limit=limit,
-            output_table=output_table,
-            match_spec=match_spec,
-            selection_spec=selection_spec,
-            document_mutator=_remove_keys,
-        )
-        return _response(
-            skip=res.skip,
-            limit=res.limit,
-            dp_match=dp_match,
-            dp_sel=dp_sel,
-            fields=res.fields,
-            table=res.table,
-            data=res.data
-        )
+    filters = FilterSet(
+        collection_id,
+        load_ver,
+        collection=names.COLL_SAMPLES,
+        count=count,
+        match_spec=SubsetSpecification(
+            subset_process=dp_match, mark_only=match_mark, prefix=MATCH_ID_PREFIX),
+        selection_spec=SubsetSpecification(
+            subset_process=dp_sel, mark_only=selection_mark, prefix=SELECTION_ID_PREFIX),
+        sort_on=sort_on,
+        sort_descending=sort_desc,
+        skip=skip,
+        limit=limit,
+    )
+    res = await query_table(appstate.arangostorage, filters, output_table, _remove_keys)
+    return _response(dp_match=dp_match, dp_sel=dp_sel, res=res)
 
 
 def _response(
     dp_match: models.DataProductProcess = None,
     dp_sel: models.DataProductProcess = None,
-    count: int = None,
-    skip: int = 0,
-    limit: int = 0,
-    fields: list[dict[str, str]] = None,
-    table: list[list[Any]] = None,
-    data: list[dict[str, Any]] = None,
+    res: QueryTableResult = None,
 ) -> SamplesTable:
-    return SamplesTable(
-        skip=skip,
-        limit=limit,
-        count=count,
-        match_state=dp_match.state if dp_match else None,
-        selection_state=dp_sel.state if dp_sel else None,
-        fields=fields,
-        table=table,
-        data=data,
-    )
+    if res:
+        return SamplesTable(
+            skip=res.skip,
+            limit=res.limit,
+            count=res.count,
+            match_state=dp_match.state if dp_match else None,
+            selection_state=dp_sel.state if dp_sel else None,
+            fields=res.fields,
+            table=res.table,
+            data=res.data,
+        )
+    else:
+        return SamplesTable(
+            skip=0,
+            limit=0,
+            match_state=dp_match.state if dp_match else None,
+            selection_state=dp_sel.state if dp_sel else None,
+        )
 
 
 def _get_subset_id(subset_process: models.DataProductProcess, subset_prefix: str):

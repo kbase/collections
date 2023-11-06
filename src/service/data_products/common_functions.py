@@ -1,16 +1,16 @@
 """
 Functions common to all data products
 """
+from typing import Any, Callable, NamedTuple
 
 import src.common.storage.collection_and_field_names as names
 from src.common.storage.db_doc_conversions import (
     collection_load_version_key,
     collection_data_id_key,
 )
-from src.service import errors, kb_auth, models, processing
+from src.service import errors, kb_auth, models
+from src.service.filtering.filters import FilterSet
 from src.service.storage_arango import ArangoStorage
-
-from typing import Any, Callable, NamedTuple
 
 
 def override_load_version(
@@ -171,93 +171,34 @@ async def _query_collection(
 
 
 async def query_simple_collection_list(
-    # too many args, ew
     storage: ArangoStorage,
-    collection: str,
+    filters: FilterSet,
     acceptor: Callable[[dict[str, Any]], None],
-    collection_id: str,
-    load_ver: str,
-    sort_on: str,
-    sort_descending: bool = False,
-    skip: int = 0,
-    start_after: str = None,
-    limit: int = 1000,
-    match_spec: processing.SubsetSpecification = processing.SubsetSpecification(),
     match_field: str = names.FLD_MATCHED,
-    selection_spec: processing.SubsetSpecification = processing.SubsetSpecification(),
     selection_field: str = names.FLD_SELECTED,
 ):
     f"""
     Query rows in a collection. Index set up is the responsibility of the caller.
 
     storage - the storage system.
-    collection - the ArangoDB collection containing the data to query.
-    acceptor - a callable to accept the returned data. 
-    collection_id - the ID of the KBase collection to query.
-    load_ver - the load version of the KBase collection to query.
-    sort_on - the field to sort on.
-    sort_descending - sort in descending order rather than ascending.
-    skip - the number of records to skip. Use this parameter wisely, as paging through records via
-        increasing skip incrementally is an O(n^2) operation.
-    start_after - skip any records prior to and including this value in the `sort_on` field,
-        which should contain unique values.
-        It is strongly recommended to set up an index that the query can use to skip to
-        the correct starting record without a table scan. This parameter allows for
-        non-O(n^2) paging of data.
-    limit - the maximum number of rows to return.
-    match_spec - the specification for a match.
+    filters - the filters to apply to the search.
+    acceptor - a callable to accept the returned data. If filters.count is true, the count will
+        be returned to the acceptor.
     match_field - the name of the field in the document where the match mark should be stored.
-    selection_spec - the specification for a selection.
     selection_field - the name of the field in the document where the selection mark should
         be stored.
     """
-    # The number of args for these search methods is ridiculous and growing worse. A 
-    # builder may be needed
-    bind_vars = {
-        f"@coll": collection,
-        "coll_id": collection_id,
-        "load_ver": load_ver,
-        "sort": sort_on,
-        "sort_dir": "DESC" if sort_descending else "ASC",
-        "skip": skip if skip > 0 else 0,
-        "limit": limit
-    }
-    aql = f"""
-    FOR d IN @@coll
-        FILTER d.{names.FLD_COLLECTION_ID} == @coll_id
-        FILTER d.{names.FLD_LOAD_VERSION} == @load_ver
-    """
-    if start_after:
-        aql += f"""
-            FILTER d.@sort > @start_after
-        """
-        bind_vars["start_after"] = start_after
-    if match_spec.get_subset_filtering_id():
-        bind_vars["internal_match_id"] = match_spec.get_subset_filtering_id()
-        aql += f"""
-            FILTER @internal_match_id IN d.{names.FLD_MATCHES_SELECTIONS}
-        """
-    # this will AND the match and selection. To OR, just OR the two filters instead of having
-    # separate statements.
-    if selection_spec.get_subset_filtering_id():
-        bind_vars["internal_selection_id"] = selection_spec.get_subset_filtering_id()
-        aql += f"""
-            FILTER @internal_selection_id IN d.{names.FLD_MATCHES_SELECTIONS}
-        """
-    aql += f"""
-        SORT d.@sort @sort_dir
-        LIMIT @skip, @limit
-        RETURN d
-    """
+    aql, bind_vars = filters.to_aql()
     cur = await storage.execute_aql(aql, bind_vars=bind_vars)
     try:
         async for d in cur:
-            if not match_spec.is_null_subset():
-                d[match_field] = match_spec.get_prefixed_subset_id() in d[
-                    names.FLD_MATCHES_SELECTIONS]
-            if not selection_spec.is_null_subset():
-                d[selection_field] = selection_spec.get_prefixed_subset_id() in d[
-                    names.FLD_MATCHES_SELECTIONS]
+            if not filters.count:
+                if not filters.match_spec.is_null_subset():
+                    d[match_field] = filters.match_spec.get_prefixed_subset_id() in d[
+                        names.FLD_MATCHES_SELECTIONS]
+                if not filters.selection_spec.is_null_subset():
+                    d[selection_field] = filters.selection_spec.get_prefixed_subset_id() in d[
+                        names.FLD_MATCHES_SELECTIONS]
             acceptor(d)
     finally:
         await cur.close(ignore_missing=True)
@@ -269,9 +210,12 @@ def _query_acceptor(
     doc: dict[str, Any],
     output_table: bool,
     document_mutator: Callable[[dict[str, Any]], dict[str, Any]],
+    count: bool,
 ):
     last[0] = doc
-    if output_table:
+    if count:
+        data.append(doc)
+    elif output_table:
         data.append([doc[k] for k in sorted(document_mutator(doc))])
     else:
         data.append({k: doc[k] for k in sorted(document_mutator(doc))})
@@ -283,6 +227,8 @@ class QueryTableResult(NamedTuple):
     """ The provided skip value. """
     limit: int
     """ The provided limit value. """
+    count: int = None
+    """ The count of the results. If provided, fields, table, and data will be null. """
     fields: list[dict[str, str]] = None
     """
     The list of fields in the table, provided as "name" -> <field name> dictionaries.
@@ -303,41 +249,23 @@ class QueryTableResult(NamedTuple):
 
 
 async def query_table(
-    # ew. too many args
     store: ArangoStorage,
-    collection: str,
-    collection_id: str,
-    load_ver: str,
-    sort_on: str,
-    sort_descending: bool = False,
-    skip: int = 0,
-    limit: int = 1000,
+    filters: FilterSet,
     output_table: bool = True,
-    match_spec: processing.SubsetSpecification = processing.SubsetSpecification(),
-    selection_spec: processing.SubsetSpecification = processing.SubsetSpecification(),
     document_mutator: Callable[[dict[str, Any]], dict[str, Any]] = lambda x: x,
 ) -> QueryTableResult:
     f"""
     Similar to query_simple_collections_list, but tailored to querying what is effectively a
     table of key / value pairs.
 
-    If match and / or selection IDs are provided, the special keys `{names.FLD_MATCHED_SAFE}` and
-    `{names.FLD_SELECTED_SAFE}` will be used to mark which rows are matched / selected by a value
-    of `True`.
+    If match and / or selection IDs are provided in the filter set,
+    the special keys `{names.FLD_MATCHED_SAFE}` and `{names.FLD_SELECTED_SAFE}`
+    will be used to mark which rows are matched / selected by a value of `True`.
 
     storage - the storage system.
-    collection - the ArangoDB collection containing the data to query.
-    collection_id - the ID of the KBase collection to query.
-    load_ver - the load version of the KBase collection to query.
-    sort_on - the field to sort on.
-    sort_descending - sort in descending order rather than ascending.
-    skip - the number of records to skip. Use this parameter wisely, as paging through records via
-        increasing skip incrementally is an O(n^2) operation.
-    limit - the maximum number of rows to return.
+    filters - the filters to apply to the search
     output_table - whether to return the results as a list of lists (e.g. a table) with a separate
         fields entry defining the key for each table column, or a list of key / value dictionaries.
-    match_spec - the specification for a match.
-    spelection_spec - the specification for a selection.
     document_mutator - a function applied to a document retrieved from the database before
         returning the results.
     """
@@ -345,82 +273,29 @@ async def query_table(
     last = [None]
     await query_simple_collection_list(
         store,
-        collection,
-        lambda doc: _query_acceptor(data, last, doc, output_table, document_mutator),
-        collection_id,
-        load_ver,
-        sort_on,
-        sort_descending=sort_descending,
-        skip=skip,
-        limit=limit,
-        match_spec=match_spec,
+        filters,
+        lambda doc: _query_acceptor(
+            data, last, doc, output_table, document_mutator, filters.count),
         match_field=names.FLD_MATCHED_SAFE,
-        selection_spec=selection_spec,
         selection_field=names.FLD_SELECTED_SAFE,
     )
+    if filters.count:
+        return QueryTableResult(skip=0, limit=0, count=data[0])
     # Sort everything since we can't necessarily rely on arango, the client, or the loader
     # to have the same insertion order for the dicts
     # If we want a specific order the loader should stick a keys doc or something into arango
     # and we order by that
     fields = []
     if last[0]:
-        if sort_on not in last[0]: 
+        if filters.sort_on not in last[0]: 
             raise errors.IllegalParameterError(
-                f"No such field for collection {collection_id} load version {load_ver}: {sort_on}")
+                f"No such field for collection {filters.collection_id} load version "
+                + f"{filters.load_ver}: {filters.sort_on}")
         fields = [{"name": k} for k in sorted(last[0])]
     if output_table:
-        return QueryTableResult(skip=skip, limit=limit, fields=fields, table=data)
+        return QueryTableResult(skip=filters.skip, limit=filters.limit, fields=fields, table=data)
     else:
-        return QueryTableResult(skip=skip, limit=limit, data=data)
-
-
-async def count_simple_collection_list(
-    storage: ArangoStorage,
-    collection: str,
-    collection_id: str,
-    load_ver: str,
-    match_spec: processing.SubsetSpecification = processing.SubsetSpecification(),
-    selection_spec: processing.SubsetSpecification = processing.SubsetSpecification(),
-) -> int:
-    """
-    Count rows in a collection. Index set up is the responsibility of the caller.
-
-    storage - the storage system.
-    collection - the ArangoDB collection containing the data to query.
-    collection_id - the ID of the KBase collection to query.
-    load_ver - the load version of the KBase collection to query.
-    match_spec - the specification for a match.
-    selection_spec - the specification for a selection.
-    """
-    bind_vars = {
-        f"@coll": collection,
-        "coll_id": collection_id,
-        "load_ver": load_ver,
-    }
-    aql = f"""
-    FOR d IN @@coll
-        FILTER d.{names.FLD_COLLECTION_ID} == @coll_id
-        FILTER d.{names.FLD_LOAD_VERSION} == @load_ver
-    """
-    if match_spec.get_subset_filtering_id():
-        bind_vars["internal_match_id"] = match_spec.get_subset_filtering_id()
-        aql += f"""
-            FILTER @internal_match_id IN d.{names.FLD_MATCHES_SELECTIONS}
-        """
-    if selection_spec.get_subset_filtering_id():
-        bind_vars["internal_selection_id"] = selection_spec.get_subset_filtering_id()
-        aql += f"""
-            FILTER @internal_selection_id IN d.{names.FLD_MATCHES_SELECTIONS}
-        """
-    aql += f"""
-        COLLECT WITH COUNT INTO length
-        RETURN length
-    """
-    cur = await storage.execute_aql(aql, bind_vars=bind_vars)
-    try:
-        return await cur.next()
-    finally:
-        await cur.close(ignore_missing=True)
+        return QueryTableResult(skip=filters.skip, limit=filters.limit, data=data)
 
 
 async def mark_data_by_kbase_id(
