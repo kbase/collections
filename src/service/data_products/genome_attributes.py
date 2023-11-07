@@ -580,7 +580,7 @@ class XYScatter(BaseModel):
     )]
     ycolumn: Annotated[str, Field(
         example="Contamination",
-        description="The name of the xy column."
+        description="The name of the y column."
     )]
     data: Annotated[list[dict[str, float]], Field(
         example=[{"x": 6.0, "y": 3.4}, [{"x": 8.9, "y": 2.2}]],
