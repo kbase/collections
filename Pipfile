@@ -28,6 +28,7 @@ PyYAML = "==6.0.1"
 # abandonware
 urllib3 = "==1.26.17"
 python-dateutil = "==2.8.2"
+numpy = "==1.26.1"
 
 [dev-packages]
 pytest = "==7.4.2"

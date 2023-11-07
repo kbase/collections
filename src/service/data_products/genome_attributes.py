@@ -7,6 +7,10 @@ import logging
 from typing import Any, Callable, Annotated
 
 from fastapi import APIRouter, Request, Depends, Query
+from pydantic import BaseModel
+from pydantic import Field
+
+import numpy as np
 
 import src.common.storage.collection_and_field_names as names
 from src.common.product_models import columnar_attribs_common_models as col_models
@@ -25,6 +29,7 @@ from src.service.data_products.common_functions import (
     remove_marked_subset,
     override_load_version,
     query_table,
+    query_simple_collection_list,
     get_collection_singleton_from_db,
 )
 from src.service.data_products import common_models
@@ -47,6 +52,52 @@ from src.service.timestamp import now_epoch_millis
 ID = names.GENOME_ATTRIBS_PRODUCT_ID
 
 _ROUTER = APIRouter(tags=["Genome Attributes"], prefix=f"/{ID}")
+
+_FILTERING_TEXT = """
+**FILTERING:**
+
+The returned data can be filtered by column content by adding query parameters of the format
+```
+filter_<column name>=<filter criteria>
+```
+For example:
+```
+GET <host>/collections/GTBD/data_products/genome_attribs/?filter_Completeness=[80,90]
+```
+
+The filter criteria depends on the type of the column and its filter strategy.
+
+```
+Type    Strategy  Filter criteria
+------  --------  ---------------
+string  fulltext  arbitrary string
+string  prefix    arbitrary string
+date              range (see below)
+int               range (see below)
+float             range (see below)
+```
+
+Full text searches tokenize, stem, and normalize the input and removes stop words.  
+Prefix searches tokenize and lower case the input and match the beginning of words in the
+data being searched.  
+
+Range criteria takes the form of a low and high limit to apply to the data. At least one of the
+two limits must be provided. A comma separated the limits. Square brackets on either side
+of the limits denote the limit is inclusive; parentheses or no character denote that the limit
+is exclusive. For example:
+
+```
+1,          numbers greater than 1
+[1,         numbers greater or equal to 1
+,6)         numbers less than 6
+,6]         numbers less than or equal to six
+1,6         numbers greater than 1 and less than six
+[1,6]       numbers between 1 and 6, inclusive
+```
+
+Note that the OpenAPI UI does not allow entering arbitrary query parameters and therefore is
+not usable for column filtering operations.
+"""
 
 
 class GenomeAttribsSpec(common_models.DataProductSpec):
@@ -235,21 +286,7 @@ def _remove_keys(doc):
 _FILTER_PREFIX = "filter_"
 
 
-async def _get_filters(
-    r: Request,
-    arango_coll,
-    coll: models.ActiveCollection,
-    load_ver: str,
-    load_ver_override: bool,
-    count: bool,
-    sort_on: str,
-    sort_desc: bool,
-    filter_conjunction: bool,
-    match_spec: SubsetSpecification,
-    selection_spec: SubsetSpecification,
-    skip: int,
-    limit: int,
-) -> FilterSet:
+def _get_filter_map(r: Request) -> dict[str, str]:
     filter_query = {}
     for q in r.query_params.keys():
         if q.startswith(_FILTER_PREFIX):
@@ -258,19 +295,52 @@ async def _get_filters(
                 raise errors.IllegalParameterError(
                     f"More than one filter specification provided for field {field}")
             filter_query[field] = r.query_params[q]
+    return filter_query
+
+
+async def _get_filters(
+    r: Request,
+    arango_coll: str,
+    coll_id: str,
+    load_ver: str,
+    load_ver_override: bool,
+    view_name: str = None,
+    count: bool = False,
+    sort_on: str = None,
+    sort_desc: bool = False,
+    filter_conjunction: bool = True,
+    match_spec: SubsetSpecification = None,
+    selection_spec: SubsetSpecification = None,
+    keep: dict[str, set[col_models.ColumnType]] = None,
+    skip: int = 0,
+    limit: int = 1000,
+) -> FilterSet:
+    filter_query = _get_filter_map(r)
     appstate = app_state.get_app_state(r)
     column_meta = await _get_genome_attributes_meta_internal(
-        appstate.arangostorage, coll.id, load_ver, load_ver_override)
-    view_name = coll.get_data_product(ID).search_view
+        appstate.arangostorage, coll_id, load_ver, load_ver_override)
     if filter_query and not view_name:
-        raise ValueError(f"No search view name configured for collection {coll.id}, "
+        if load_ver_override:
+            # If we need this feature than the admin needs to supply the view name to use
+            # via the API
+            raise ValueError("Filtering is not supported with a load version override.")
+        raise ValueError(f"No search view name configured for collection {coll_id}, "
             + "data product {ID}. Cannot perform filtering operation")
     columns = {c.key: c for c in column_meta.columns}
     if sort_on and sort_on not in columns:
         raise errors.IllegalParameterError(
-            f"No such field for collection {coll.id} load version {load_ver}: {sort_on}")
+            f"No such field for collection {coll_id} load version {load_ver}: {sort_on}")
+    if keep:
+        for col in keep:
+            if col not in columns:
+                raise errors.IllegalParameterError(
+                    f"No such field for collection {coll_id} load version {load_ver}: {col}")
+            if keep[col] and columns[col].type not in keep[col]:
+                raise errors.IllegalParameterError(
+                    f"Column {col} is type '{columns[col].type}', which is not one of the "
+                    + f"acceptable types for this operation: {[t.value for t in keep[col]]}")
     fs = FilterSet(
-        coll.id,
+        coll_id,
         load_ver,
         collection=arango_coll,
         view=view_name,
@@ -280,9 +350,18 @@ async def _get_filters(
         conjunction=filter_conjunction,
         match_spec=match_spec,
         selection_spec=selection_spec,
+        keep=list(keep.keys()) if keep else None,
         skip=skip,
         limit=limit
     )
+    return _append_filters(fs, filter_query, columns)
+
+
+def _append_filters(
+    fs: FilterSet,
+    filter_query: dict[str, str],
+    columns: dict[str, col_models.AttributesColumn]
+) -> FilterSet:
     for field, querystring in filter_query.items():
         if field not in columns:
             raise errors.IllegalParameterError(f"No such filter field: {field}")
@@ -364,50 +443,8 @@ version; in the latter case service administration permissions are required.
 When creating selections from genome attributes, use the
 `{names.FLD_KBASE_ID}` field values as input.
 
-**FILTERING:**
-
-The returned data can be filtered by column content by adding query parameters of the format
-```
-filter_<column name>=<filter criteria>
-```
-For example:
-```
-GET <host>/collections/GTBD/data_products/genome_attribs/?filter_Completeness=[80,90]
-```
-
-The filter criteria depends on the type of the column and its filter strategy.
-
-```
-Type    Strategy  Filter criteria
-------  --------  ---------------
-string  fulltext  arbitrary string
-string  prefix    arbitrary string
-date              range (see below)
-int               range (see below)
-float             range (see below)
-```
-
-Full text searches tokenize, stem, and normalize the input and removes stop words.  
-Prefix searches tokenize and lower case the input and match the beginning of words in the
-data being searched.  
-
-Range criteria takes the form of a low and high limit to apply to the data. At least one of the
-two limits must be provided. A comma separated the limits. Square brackets on either side
-of the limits denote the limit is inclusive; parentheses or no character denote that the limit
-is exclusive. For example:
-
-```
-1,          numbers greater than 1
-[1,         numbers greater or equal to 1
-,6)         numbers less than 6
-,6]         numbers less than or equal to six
-1,6         numbers greater than 1 and less than six
-[1,6]       numbers between 1 and 6, inclusive
-```
-
-Note that the OpenAPI UI does not allow entering arbitrary query parameters and therefore is
-not usable for column filtering operations.
-""")
+""" + _FILTERING_TEXT
+)
 async def get_genome_attributes(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
@@ -417,9 +454,7 @@ async def get_genome_attributes(
     limit: common_models.QUERY_VALIDATOR_LIMIT = 1000,
     output_table: common_models.QUERY_VALIDATOR_OUTPUT_TABLE = True,
     count: common_models.QUERY_VALIDATOR_COUNT = False,
-    conjunction: Annotated[bool, Query(
-        description="Whether to AND (true) or OR (false) filters together."
-    )] = True,
+    conjunction: common_models.QUERY_VALIDATOR_CONJUNCTION = True,
     match_id: common_models.QUERY_VALIDATOR_MATCH_ID = None,
     # TODO FEATURE support a choice of AND or OR for matches & selections
     match_mark: common_models.QUERY_VALIDATOR_MATCH_MARK_SAFE = False,
@@ -437,8 +472,21 @@ async def get_genome_attributes(
     match_spec = await _get_match_spec(appstate, user, coll, match_id, match_mark)
     sel_spec = await _get_selection_spec(appstate, coll, selection_id, selection_mark)
     filters = await _get_filters(
-        r, names.COLL_GENOME_ATTRIBS, coll, load_ver, load_ver_override, count,
-        sort_on, sort_desc, conjunction, match_spec, sel_spec, skip, limit)
+        r,
+        names.COLL_GENOME_ATTRIBS,
+        collection_id,
+        load_ver,
+        load_ver_override,
+        view_name=coll.get_data_product(ID).search_view if coll else None,
+        count=count,
+        sort_on=sort_on,
+        sort_desc=sort_desc,
+        filter_conjunction=conjunction,
+        match_spec=match_spec,
+        selection_spec=sel_spec,
+        skip=skip,
+        limit=limit,
+    )
     res = await query_table(
         appstate.arangostorage, filters, output_table=output_table, document_mutator=_remove_keys)
     return {
@@ -451,12 +499,85 @@ async def get_genome_attributes(
     }
 
 
+class Histogram(BaseModel):
+    
+    bins: Annotated[list[float], Field(
+        example=[2.5, 3.5, 4.5, 5.5],
+        description="The location of the histogram bins. Each bin starts at index i, "
+            + "inclusive, and ends at index i + 1, exclusive, except for the last bin which is "
+            + "inclusive at both sides. As such, if there are n bins, there will be n + 1 bin "
+            + "locations in the array."
+    )]
+    values: Annotated[list[int], Field(
+        example=[78, 96, 1],
+        description="The values of the bins."
+    )]
+
+
+@_ROUTER.get(
+    "/hist",
+    response_model=Histogram,
+    description=
+"""
+Get a histogram for the data in one column in the table.
+
+Authentication is not required unless submitting a match ID or overriding the load
+version; in the latter case service administration permissions are required.
+
+""" + _FILTERING_TEXT
+)
+async def get_histogram(
+    r: Request,
+    column: Annotated[str, Query(
+        example="Completeness",
+        description="The column containing the data to include in the histogram."
+    )],
+    collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
+    conjunction: common_models.QUERY_VALIDATOR_CONJUNCTION = True,
+    match_id: common_models.QUERY_VALIDATOR_MATCH_ID_NO_MARK = None,
+    # TODO FEATURE support a choice of AND or OR for matches & selections
+    selection_id: common_models.QUERY_VALIDATOR_SELECTION_ID_NO_MARK = None,
+    load_ver_override: common_models.QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
+    user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
+):
+    appstate = app_state.get_app_state(r)
+    lvo = override_load_version(load_ver_override, match_id, selection_id)
+    coll, load_ver = await get_load_version(appstate.arangostorage, collection_id, ID, lvo, user)
+    match_spec = await _get_match_spec(appstate, user, coll, match_id)
+    sel_spec = await _get_selection_spec(appstate, coll, selection_id)
+    filters = await _get_filters(
+        r,
+        names.COLL_GENOME_ATTRIBS,
+        collection_id,
+        load_ver,
+        load_ver_override,
+        view_name=coll.get_data_product(ID).search_view if coll else None,
+        filter_conjunction=conjunction,
+        match_spec=match_spec,
+        selection_spec=sel_spec,
+        # May want to support strings & dates in the future, but will need to figure out how to
+        # get the histogram code to work with dates (truncated ISO8601 in the DB).
+        # For strings just need to make a sorted dict and skip the histogram code altogether
+        keep={column: {col_models.ColumnType.FLOAT, col_models.ColumnType.INT}},
+        limit=0,
+    )
+    data = []
+    await query_simple_collection_list(
+        appstate.arangostorage,
+        filters,
+        lambda d: data.append(d[column]),
+    )
+    # may want to add some controls for histogram, like bin count / range?
+    hist, bin_edges = np.histogram(data)
+    return Histogram(bins=bin_edges, values=hist)
+
+
 async def _get_match_spec(
     appstate: CollectionsState,
     user: kb_auth.KBaseUser,
     coll: models.SavedCollection,
     match_id: str,
-    match_mark: bool,
+    match_mark: bool = False,
 ) -> SubsetSpecification:
     if not match_id:
         return SubsetSpecification()
@@ -477,7 +598,7 @@ async def _get_selection_spec(
     appstate: CollectionsState,
     coll: models.SavedCollection,
     selection_id: str,
-    selection_mark: bool,
+    selection_mark: bool = False,
 ) -> SubsetSpecification:
     if not selection_id:
         return SubsetSpecification()
