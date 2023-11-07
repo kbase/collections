@@ -502,13 +502,14 @@ async def get_genome_attributes(
 class Histogram(BaseModel):
     
     bins: Annotated[list[float], Field(
-        example=[2.5, 3.5, 4.5],
+        example=[2.5, 3.5, 4.5, 5.5],
         description="The location of the histogram bins. Each bin starts at index i, "
             + "inclusive, and ends at index i + 1, exclusive, except for the last bin which is "
-            + "inclusive at both sides."
+            + "inclusive at both sides. As such, if there are n bins, there will be n + 1 bin "
+            + "locations in the array."
     )]
     values: Annotated[list[int], Field(
-        example=[78.5, 96, 1],
+        example=[78, 96, 1],
         description="The values of the bins."
     )]
 
