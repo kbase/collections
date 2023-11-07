@@ -148,6 +148,15 @@ QUERY_VALIDATOR_MATCH_ID = Annotated[str, Query(
 )]
 
 
+QUERY_VALIDATOR_MATCH_ID_NO_MARK = Annotated[str, Query(
+    description="A match ID to set the view to the match rather than "
+        + "the entire collection. Authentication is required. If a match ID is "
+        # matches are against a specific load version, so...
+        + "set, any load version override is ignored. "
+        + "If a selection filter and a match filter are provided, they are ANDed together."
+)]
+
+
 QUERY_VALIDATOR_MATCH_MARK = Annotated[bool, Query(
     description="Whether to mark matched rows rather than filter based on the match ID."
 )]
@@ -165,6 +174,13 @@ QUERY_VALIDATOR_SELECTION_ID = Annotated[str, Query(
         + "collection. If a selection ID is set, any load version override is ignored. "
         + "If a selection filter and a match filter are provided, they are ANDed together. "
         + "Has no effect on a `count` if `selection_mark` is true."
+)]
+
+
+QUERY_VALIDATOR_SELECTION_ID_NO_MARK = Annotated[str, Query(
+    description="A selection ID to set the view to the selection rather than the entire "
+        + "collection. If a selection ID is set, any load version override is ignored. "
+        + "If a selection filter and a match filter are provided, they are ANDed together."
 )]
 
 
@@ -199,3 +215,9 @@ QUERY_VALIDATOR_SORT_DIRECTION = Annotated[bool, Query(
 QUERY_VALIDATOR_OUTPUT_TABLE = Annotated[bool, Query(
     description="Whether to return the data in table form or dictionary list form"
 )]
+
+
+QUERY_VALIDATOR_CONJUNCTION = Annotated[bool, Query(
+    description="Whether to AND (true) or OR (false) filters together."
+)]
+
