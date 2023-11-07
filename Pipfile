@@ -31,7 +31,7 @@ python-dateutil = "==2.8.2"
 numpy = "==1.26.1"
 
 [dev-packages]
-pytest = "==7.4.2"
+pytest = "==7.4.3"
 python-dateutil = "==2.8.2"
 coverage = "==7.3.2"
 pytest-cov = "==4.1.0"
