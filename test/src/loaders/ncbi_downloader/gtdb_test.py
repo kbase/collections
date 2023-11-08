@@ -98,3 +98,28 @@ def test_download_genome_file(setup_and_teardown):
     assert len(downloaded_files) == 1
     assert downloaded_files[0].endswith('assembly_report.txt')
 
+
+def test_remove_ids_with_existing_data(setup_and_teardown):
+    tmp_dir, script_file = setup_and_teardown
+    work_dir = ncbi_downloader_helper.get_work_dir(tmp_dir)
+    data_dir_1 = Path(os.path.join(work_dir, 'GCA_000172955.1'))
+    data_dir_2 = Path(os.path.join(work_dir, 'GCF_000979585.1'))
+
+    # create 2 genome folders
+    os.makedirs(data_dir_1)
+    os.makedirs(data_dir_2)
+
+    # dir_1 has both assembly and genome files required while dir_2 is missing genome
+    Path.touch(data_dir_1 / 'GCA_000172955.1_ASM17295v1_genomic.fna.gz')
+    Path.touch(data_dir_1 / 'GCA_000172955.1_ASM17295v1_genomic.gbff.gz')
+    Path.touch(data_dir_2 / 'GCF_000979585.1_gtlEnvA5udCFS_genomic.fna.gz')
+
+    genome_ids = ncbi_downloader_helper.remove_ids_with_existing_data(
+        tmp_dir,
+        ['GCA_000172955.1', 'GCF_000979585.1'],
+        ["genomic.fna.gz", "genomic.gbff.gz"],
+        ['cds_from', 'rna_from', 'ERR'],
+        False,
+    )
+
+    assert genome_ids == ['GCF_000979585.1']
