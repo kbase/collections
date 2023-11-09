@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 from typing import Dict
 
+from src.common.storage.field_names import FLD_KBASE_ID
 from src.loaders.compute_tools.tool_common import (
     GenomeTuple,
     ToolRunner,
@@ -59,7 +60,7 @@ def _run_checkm2(
     # create fatal error file if any genome is missing from the result file
     fatal_tuples = []
     error_message = f"Result missing in the CheckM2 output file."
-    success_ids = [genome_attri_doc['kbase_id'] for genome_attri_doc in genome_attri_docs]
+    success_ids = [genome_attri_doc[FLD_KBASE_ID] for genome_attri_doc in genome_attri_docs]
     missing_ids = set(ids_to_files.keys()) - set(success_ids)
     print(f"Found {len(missing_ids)} genomes missing from the CheckM2 output file.")
     for missing_id in missing_ids:
