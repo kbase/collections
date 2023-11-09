@@ -242,11 +242,12 @@ def main():
     else:
         print(f"\nSuccessfully downloaded {len(genome_ids)} genome files")
 
-    genome_ids_clean = set(genome_ids) - set(failed_ids)
+    # include a full set of genome_ids for each release version inside collectionssource dir
+    genome_ids_success = list(set(genome_ids_unprocessed) - set(failed_ids))
     loader_helper.create_softlinks_in_collection_source_dir(
         collection_source_dir,
         work_dir,
-        list(genome_ids_clean),
+        genome_ids_success,
         taxonomy_files,
     )
 
