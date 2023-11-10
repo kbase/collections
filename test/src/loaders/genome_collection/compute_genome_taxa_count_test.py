@@ -66,11 +66,21 @@ def _exe_command(command):
 
 
 def _create_taxa_count_result_file(tmp_dir, env, kbase_collection, load_version):
-    return os.path.join(tmp_dir, IMPORT_DIR, env, f'{kbase_collection}_{load_version}_{names.COLL_TAXA_COUNT}.jsonl')
+    return os.path.join(tmp_dir,
+                        IMPORT_DIR,
+                        env,
+                        kbase_collection,
+                        load_version,
+                        f'{kbase_collection}_{load_version}_{names.COLL_TAXA_COUNT}.jsonl')
 
 
 def _create_taxa_count_ranks_result_file(tmp_dir, env, kbase_collection, load_version):
-    return os.path.join(tmp_dir, IMPORT_DIR, env, f'{kbase_collection}_{load_version}_{names.COLL_TAXA_COUNT_RANKS}.jsonl')
+    return os.path.join(tmp_dir,
+                        IMPORT_DIR,
+                        env,
+                        kbase_collection,
+                        load_version,
+                        f'{kbase_collection}_{load_version}_{names.COLL_TAXA_COUNT_RANKS}.jsonl')
 
 
 def test_create_json_default(setup_and_teardown):
