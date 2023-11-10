@@ -329,11 +329,12 @@ class StringFilter(AbstractFilter):
                         + f"\"{self.analyzer}\")"
                 ]
             case FilterStrategy.NGRAM:
-                # Use the default threshold of 0.7. Could make a param for it if necessary
-                # This makes the match a little fuzzy
-                aql_lines = [
-                    f"NGRAM_MATCH({identifier}, @{bindvar}, 0.7, \"{self.analyzer}\")"
-                ]
+                # Could make the search fuzzy by reducing the threshold from 1
+                # Maybe add a param for it if this is something we're interested in
+                # Note there's a possible bug in ngram matching that makes it less suitable
+                # for substring matching:
+                # https://github.com/arangodb/arangodb/issues/20118
+                aql_lines = [f"NGRAM_MATCH({identifier}, @{bindvar}, 1, \"{self.analyzer}\")"]
                 var_assigns = None
             case _:
                 # this is impossible to test currently but is here for safety
