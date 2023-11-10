@@ -248,6 +248,6 @@ def generate_pmi_biolog_heatmap_data(
     rows_output = f'{kbase_collection}_{load_ver}_{tool}_{HEATMAP_FILE_ROOT}_{COLL_BIOLOG_DATA}.jsonl'
     cell_details_output = f'{kbase_collection}_{load_ver}_{tool}_{HEATMAP_FILE_ROOT}_{COLL_BIOLOG_CELLS}.jsonl'
 
-    create_import_files(root_dir, env, meta_output, [heatmap_meta_dict])
-    create_import_files(root_dir, env, rows_output, heatmap_rows)
-    create_import_files(root_dir, env, cell_details_output, heatmap_cell_details)
+    create_import_files(root_dir, env, kbase_collection, load_ver, meta_output, [heatmap_meta_dict])
+    create_import_files(root_dir, env, kbase_collection, load_ver, rows_output, heatmap_rows)
+    create_import_files(root_dir, env, kbase_collection, load_ver, cell_details_output, heatmap_cell_details)

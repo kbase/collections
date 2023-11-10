@@ -148,11 +148,11 @@ def main():
 
     # Create taxa counts jsonl file
     count_jsonl = f'{kbase_collection}_{load_version}_{names.COLL_TAXA_COUNT}.jsonl'
-    create_import_files(root_dir, env, count_jsonl, count_docs)
+    create_import_files(root_dir, env, kbase_collection, load_version, count_jsonl, count_docs)
 
     # Create identical ranks jsonl file
     count_ranks_jsonl = f'{kbase_collection}_{load_version}_{names.COLL_TAXA_COUNT_RANKS}.jsonl'
-    create_import_files(root_dir, env, count_ranks_jsonl, rank_doc)
+    create_import_files(root_dir, env, kbase_collection, load_version, count_ranks_jsonl, rank_doc)
 
 
 if __name__ == "__main__":

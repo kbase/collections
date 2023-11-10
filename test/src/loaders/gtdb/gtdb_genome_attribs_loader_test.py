@@ -32,7 +32,11 @@ def setup_and_teardown():
 def _exam_genome_attribs_file(root_dir, expected_docs_length, expected_doc_keys,
                               expected_load_version, expected_collection):
 
-    result_file = os.path.join(root_dir, IMPORT_DIR, DEFAULT_ENV,
+    result_file = os.path.join(root_dir,
+                               IMPORT_DIR,
+                               DEFAULT_ENV,
+                               expected_collection,
+                               expected_load_version,
                                f'{expected_collection}_{expected_load_version}_{names.COLL_GENOME_ATTRIBS}.jsonl')
     with jsonlines.open(result_file, 'r') as jsonl_f:
         data = [obj for obj in jsonl_f]
