@@ -135,7 +135,7 @@ def process_columnar_meta(
         )
         columns.append(attri_column)
 
-    columnar_attri_meta = ColumnarAttributesMeta(columns=columns)
+    columnar_attri_meta = ColumnarAttributesMeta(columns=columns, count=len(docs))
 
     meta_doc = columnar_attri_meta.model_dump()
     meta_doc.update({

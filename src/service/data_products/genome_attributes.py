@@ -408,7 +408,7 @@ async def get_genome_attributes_meta(
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     load_ver_override: common_models.QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
-    ):
+    ) -> col_models.ColumnarAttributesMeta:
     storage = app_state.get_app_state(r).arangostorage
     _, load_ver = await get_load_version(storage, collection_id, ID, load_ver_override, user)
     meta = await _get_genome_attributes_meta_internal(
@@ -428,9 +428,9 @@ async def _get_genome_attributes_meta_internal(
             load_ver,
             bool(load_ver_override)
     )
-    doc[col_models.FIELD_COLUMNS] = [col_models.AttributesColumn.model_construct(**d)
+    doc[col_models.FIELD_COLUMNS] = [col_models.AttributesColumn(**d)
                                      for d in doc[col_models.FIELD_COLUMNS]]
-    return col_models.ColumnarAttributesMeta.model_construct(**remove_collection_keys(doc))
+    return col_models.ColumnarAttributesMeta(**remove_collection_keys(doc))
 
 
 @_ROUTER.get(

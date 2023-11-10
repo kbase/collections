@@ -60,6 +60,7 @@ from src.common.product_models.heatmap_common_models import (
     FIELD_HEATMAP_MIN_VALUE,
     FIELD_HEATMAP_MAX_VALUE,
     FIELD_HEATMAP_CELL_VALUE,
+    FIELD_HEATMAP_COUNT,
 )
 from src.common.storage.db_doc_conversions import (
     collection_load_version_key,
@@ -423,7 +424,9 @@ def _build_heatmap_meta(
         kbase_collection: str,
         load_ver: str,
         min_value: float,
-        max_value: float) -> dict:
+        max_value: float,
+        total_rows: int,
+) -> dict:
     # Build the heatmap metadata from the reference metadata (list of metadata)
 
     heatmap_categories = dict()
@@ -452,6 +455,7 @@ def _build_heatmap_meta(
     heatmap_meta = {FIELD_HEATMAP_CATEGORIES: sorted_categories,
                     FIELD_HEATMAP_MIN_VALUE: min_value,
                     FIELD_HEATMAP_MAX_VALUE: max_value,
+                    FIELD_HEATMAP_COUNT: total_rows,
                     names.FLD_ARANGO_KEY: collection_load_version_key(kbase_collection, load_ver),
                     names.FLD_COLLECTION_ID: kbase_collection,
                     names.FLD_LOAD_VERSION: load_ver}
@@ -514,7 +518,8 @@ def microtrait(root_dir, env, kbase_collection, load_ver, fatal_ids):
                 if metas != reference_meta:
                     raise ValueError(f'Inconsistent metadata for {data_dir}')
 
-    heatmap_meta = _build_heatmap_meta(reference_meta, kbase_collection, load_ver, min_value, max_value)
+    heatmap_meta = _build_heatmap_meta(
+        reference_meta, kbase_collection, load_ver, min_value, max_value, len(heatmap_rows))
 
     return heatmap_meta, heatmap_rows, heatmap_cell_details
 
