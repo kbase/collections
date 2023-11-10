@@ -180,7 +180,7 @@ def test_stringfilter_to_arangosearch_aql_prefix():
 def test_stringfilter_to_arangosearch_aql_ngram():
     sf = StringFilter.from_string(None, "flaviobact", "ngram", FilterStrategy.NGRAM)
     assert sf.to_arangosearch_aql("d.classification", "first_") == SearchQueryPart(
-        aql_lines=["NGRAM_MATCH(d.classification, @first_input, 0.7, \"ngram\")"],
+        aql_lines=["NGRAM_MATCH(d.classification, @first_input, 1, \"ngram\")"],
         bind_vars={"first_input": "flaviobact"}
     )
 
@@ -238,7 +238,7 @@ FOR doc IN @@view
         AND
         doc.datefield <= @v5_high
         AND
-        NGRAM_MATCH(doc.ngramfield, @v6_input, 0.7, "ngram_stuff")
+        NGRAM_MATCH(doc.ngramfield, @v6_input, 1, "ngram_stuff")
         AND
         doc.strident == @v7_input
     )
@@ -309,7 +309,7 @@ RETURN COUNT(FOR doc IN @@view
         AND
         doc.datefield <= @v5_high
         AND
-        NGRAM_MATCH(doc.ngramfield, @v6_input, 0.7, "ngram_stuff")
+        NGRAM_MATCH(doc.ngramfield, @v6_input, 1, "ngram_stuff")
         AND
         doc.strident == @v7_input
     )
