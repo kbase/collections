@@ -328,9 +328,15 @@ class StringFilter(AbstractFilter):
                     f"ANALYZER(STARTS_WITH({identifier}, {prefixvar}, LENGTH({prefixvar})), "
                         + f"\"{self.analyzer}\")"
                 ]
+            case FilterStrategy.NGRAM:
+                # Use the default threshold of 0.7. Could make a param for it if necessary
+                # This makes the match a little fuzzy
+                aql_lines = [
+                    f"NGRAM_MATCH({identifier}, @{bindvar}, 0.7, \"{self.analyzer}\")"
+                ]
+                var_assigns = None
             case _:
-                # this is impossible to test currently but is here for safety for when we add
-                # substring search
+                # this is impossible to test currently but is here for safety
                 raise ValueError(f"Unexpected filter strategy: {self.strategy}")
         return SearchQueryPart(
             variable_assignments=var_assigns,

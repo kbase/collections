@@ -49,7 +49,7 @@ def test_all_specs_load_merge():
     it = ColumnType.INT
     
     ident = FilterStrategy.IDENTITY
-    ftext = FilterStrategy.FULL_TEXT
+    ngram = FilterStrategy.NGRAM
     
     spec = load_specs.load_spec("genome_attribs")
     assert {f.name for f in spec.spec_files} == {
@@ -60,7 +60,7 @@ def test_all_specs_load_merge():
     assert key2spec["kbase_id"] == AttributesColumnSpec(
         key="kbase_id", type=st, filter_strategy=ident)
     assert key2spec["classification"] == AttributesColumnSpec(
-            key="classification", type=st, filter_strategy=ftext)
+            key="classification", type=st, filter_strategy=ngram)
     assert key2spec["Contamination"] == AttributesColumnSpec(key="Contamination", type=ft)
     assert key2spec["checkm_contamination"] == AttributesColumnSpec(
             key="checkm_contamination", type=ft)
@@ -76,7 +76,8 @@ def test_load_single_spec_from_toolchain():
     it = ColumnType.INT
     
     ident = FilterStrategy.IDENTITY
-    ftext = FilterStrategy.FULL_TEXT
+    ngram = FilterStrategy.NGRAM
+    
     for col in ["GROW", "PMI", "ENIGMA"]:
         spec = load_specs.load_spec("genome_attribs", col)
         
@@ -87,7 +88,7 @@ def test_load_single_spec_from_toolchain():
             key="kbase_id", type=st, filter_strategy=ident)
         assert key2spec["Contamination"] == AttributesColumnSpec(key="Contamination", type=ft)
         assert key2spec["classification"] == AttributesColumnSpec(
-            key="classification", type=st, filter_strategy=ftext)
+            key="classification", type=st, filter_strategy=ngram)
         assert key2spec["translation_table"] == AttributesColumnSpec(
             key="translation_table", type=it)
 

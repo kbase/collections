@@ -43,8 +43,8 @@ class FilterStrategy(str, Enum):
     """ A string prefix search. """
     FULL_TEXT = "fulltext"
     """ A full text string search. """
-    
-    # TODO FILTERS substring search
+    NGRAM = "ngram"
+    """ A searcfh based on ngram matching. """
 
 
 class AttributesColumnSpec(BaseModel):

@@ -325,7 +325,7 @@ async def _get_filters(
             # via the API
             raise ValueError("Filtering is not supported with a load version override.")
         raise ValueError(f"No search view name configured for collection {coll_id}, "
-            + "data product {ID}. Cannot perform filtering operation")
+            + f"data product {ID}. Cannot perform filtering operation")
     columns = {c.key: c for c in column_meta.columns}
     if sort_on and sort_on not in columns:
         raise errors.IllegalParameterError(
@@ -366,6 +366,10 @@ def _append_filters(
         if field not in columns:
             raise errors.IllegalParameterError(f"No such filter field: {field}")
         column = columns[field]
+        minlen = analyzers.get_minimum_query_length(column.filter_strategy)
+        if minlen and len(querystring) < minlen:
+            raise errors.IllegalParameterError(
+                f"Filter field '{field}' requires a minimum query length of {minlen}")
         fs.append(
             field,
             column.type,
