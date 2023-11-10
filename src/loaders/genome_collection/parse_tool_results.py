@@ -223,9 +223,14 @@ def _process_mash_tool(root_dir: str,
                 raise ValueError(f'Unable to locate the sketch file: {sketch_file} for genome: {data_id}')
             sketch_files.append(sketch_file)
 
-    create_import_files(root_dir, env, f'{kbase_collection}_{load_ver}_{SEQ_METADATA}', seq_meta)
+    create_import_files(root_dir,
+                        env,
+                        kbase_collection,
+                        load_ver,
+                        f'{kbase_collection}_{load_ver}_{SEQ_METADATA}',
+                        seq_meta)
 
-    import_dir = create_import_dir(root_dir, env)
+    import_dir = create_import_dir(root_dir, env, kbase_collection, load_ver)
     mash_output_prefix = import_dir / f'{kbase_collection}_{load_ver}_merged_sketch'
 
     # write the lines from sketch_files into a temporary file
@@ -261,9 +266,9 @@ def _process_heatmap_tools(heatmap_tools: set[str],
         rows_output = f'{kbase_collection}_{load_ver}_{tool}_{HEATMAP_FILE_ROOT}_{names.COLL_MICROTRAIT_DATA}.jsonl'
         cell_details_output = f'{kbase_collection}_{load_ver}_{tool}_{HEATMAP_FILE_ROOT}_{names.COLL_MICROTRAIT_CELLS}.jsonl'
 
-        create_import_files(root_dir, env, meta_output, [heatmap_meta_dict])
-        create_import_files(root_dir, env, rows_output, heatmap_rows_list)
-        create_import_files(root_dir, env, cell_details_output, heatmap_cell_details_list)
+        create_import_files(root_dir, env, kbase_collection, load_ver, meta_output, [heatmap_meta_dict])
+        create_import_files(root_dir, env, kbase_collection, load_ver, rows_output, heatmap_rows_list)
+        create_import_files(root_dir, env, kbase_collection, load_ver, cell_details_output, heatmap_cell_details_list)
 
 
 def _process_fatal_error_tools(check_fatal_error_tools: set[str],
@@ -308,7 +313,7 @@ def _process_fatal_error_tools(check_fatal_error_tools: set[str],
                         loader_common_names.FATAL_FILE: fatal_errors[kbase_id][loader_common_names.FATAL_FILE],
                         loader_common_names.FATAL_ERRORS: [fatal_dict_info]}
 
-    import_dir = create_import_dir(root_dir, env)
+    import_dir = create_import_dir(root_dir, env, kbase_collection, load_ver)
     fatal_output = f"{kbase_collection}_{load_ver}_{loader_common_names.FATAL_ERROR_FILE}"
     fatal_error_path = os.path.join(import_dir, fatal_output)
     print(f"Creating a merged {loader_common_names.FATAL_ERROR_FILE}: {fatal_error_path}")
@@ -374,10 +379,10 @@ def _process_genome_attri_tools(genome_attr_tools: set[str],
     docs, meta_doc = process_columnar_meta(docs, kbase_collection, load_ver)
 
     output = f'{kbase_collection}_{load_ver}_{"_".join(genome_attr_tools)}_{names.COLL_GENOME_ATTRIBS}.jsonl'
-    create_import_files(root_dir, env, output, docs)
+    create_import_files(root_dir, env, kbase_collection, load_ver, output, docs)
 
     meta_output = f'{kbase_collection}_{load_ver}_{"_".join(genome_attr_tools)}_{names.COLL_GENOME_ATTRIBS_META}.jsonl'
-    create_import_files(root_dir, env, meta_output, [meta_doc])
+    create_import_files(root_dir, env, kbase_collection, load_ver, meta_output, [meta_doc])
 
     export_types_output = f'{kbase_collection}_{load_ver}_{names.COLL_EXPORT_TYPES}.jsonl'
     types_doc = data_product_export_types_to_doc(
@@ -386,7 +391,7 @@ def _process_genome_attri_tools(genome_attr_tools: set[str],
         load_ver,
         sorted(encountered_types)
     )
-    create_import_files(root_dir, env, export_types_output, [types_doc])
+    create_import_files(root_dir, env, kbase_collection, load_ver, export_types_output, [types_doc])
 
 
 def _create_meta_lookup(root_dir, env, kbase_collection, load_ver, tool):
@@ -544,6 +549,8 @@ def _retrieve_sample(root_dir, env, kbase_collection, source_ver, load_ver):
 
     create_import_files(root_dir,
                         env,
+                        kbase_collection,
+                        load_ver,
                         f'{kbase_collection}_{load_ver}_{names.COLL_SAMPLES}.jsonl',
                         prepared_samples_data)
 
