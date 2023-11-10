@@ -49,7 +49,7 @@ columns:
 
    - key: classification  # GTDB classification, might need better tokenizing
      type: string
-     filter_strategy: fulltext
+     filter_strategy: ngram
 
    - key: longest_contig
      type: int
