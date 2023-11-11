@@ -3,10 +3,12 @@ Common pydantic models for heat map data products.
 """
 
 from enum import Enum
+from typing import Annotated
 
 from pydantic import BaseModel, Field
 
 from src.common.product_models.common_models import SubsetProcessStates
+
 
 # these fields need to match the fields in the models below.
 FIELD_HEATMAP_DATA = "data"
@@ -101,6 +103,10 @@ class HeatMapMeta(BaseModel):
         example=42.0,
         description="The maximum value of the heat map data in the entire data set."
     )
+    count: Annotated[int, Field(
+        example=3,
+        description="The number of rows in the heatmap."
+    )]
 
 
 class Cell(BaseModel):

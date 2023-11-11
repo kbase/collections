@@ -21,6 +21,7 @@ from src.common.product_models.heatmap_common_models import (
     FIELD_HEATMAP_VALUES,
     FIELD_HEATMAP_CATEGORY,
     FIELD_HEATMAP_CATEGORIES,
+    FIELD_HEATMAP_COUNT,
 )
 from src.common.storage.collection_and_field_names import (
     FLD_ARANGO_KEY,
@@ -242,6 +243,7 @@ def generate_pmi_biolog_heatmap_data(
 
     heatmap_meta_dict[FIELD_HEATMAP_MIN_VALUE] = min_value
     heatmap_meta_dict[FIELD_HEATMAP_MAX_VALUE] = max_value
+    heatmap_meta_dict[FIELD_HEATMAP_COUNT] = len(heatmap_rows)
 
     tool = 'biolog'
     meta_output = f'{kbase_collection}_{load_ver}_{tool}_{HEATMAP_FILE_ROOT}_{COLL_BIOLOG_META}.jsonl'
