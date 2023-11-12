@@ -95,6 +95,7 @@ async def save_selection(
         collection_ver=coll.ver_num,
         data_product=coll.default_select,
         selection_ids=selection_ids,
+        selection_count=len(selection_ids),
         created=now,
         state=models.ProcessState.PROCESSING,
         state_updated=now,

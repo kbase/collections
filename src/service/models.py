@@ -46,9 +46,11 @@ FIELD_MATCHERS_MATCHER = "matcher"
 FIELD_MATCH_INTERNAL_MATCH_ID = "internal_match_id"
 FIELD_MATCH_USER_PERMS = "user_last_perm_check"
 FIELD_MATCH_MATCHES = "matches"
+FIELD_MATCH_MATCH_COUNT = "match_count"
 FIELD_MATCH_WSIDS = "wsids"
 FIELD_SELECTION_INTERNAL_SELECTION_ID = "internal_selection_id"
 FIELD_SELECTION_UNMATCHED_IDS = "unmatched_ids"
+FIELD_SELECTION_UNMATCHED_COUNT = "unmatched_count"
 FIELD_DATA_PRODUCT_PROCESS_MISSING_IDS = "missing_ids"
 FIELD_DATE_CREATE = "date_create"
 FIELD_USER_CREATE = "user_create"
@@ -434,6 +436,16 @@ class Match(CollectionSpec, ProcessStateField):
         example=FIELD_MATCHER_PARAMETERS_EXAMPLE,
         description=FIELD_MATCHER_PARAMETERS_DESCRIPTION,
     )
+    upa_count: Annotated[int, Field(
+        example=10,
+        description="The number of UPAs involved in the match. The count is taken after "
+            + "expanding any sets in the input."
+    )]
+    match_count: Annotated[int | None, Field(
+        example=121,
+        description="The number of matches in the match if the match has completed, or null "
+            + "otherwise."
+    )] = None
 
 
 class MatchVerbose(Match):
@@ -562,6 +574,15 @@ class Selection(CollectionSpec, ProcessStateField):
         # * the collection ID and version
         # * the selection data, sorted
     )
+    selection_count: Annotated[int, Field(
+        example=10,
+        description="The number of items in the selection."
+    )]
+    unmatched_count: Annotated[int | None, Field(
+        example=121,
+        description="The number of selection IDs that didn't match any data if the "
+            + "selection completed, or null otherwise."
+    )] = None
 
 
 class SelectionVerbose(Selection):

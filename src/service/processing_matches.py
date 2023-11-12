@@ -66,6 +66,7 @@ async def create_match(
         state=models.ProcessState.PROCESSING,
         state_updated=perm_check,
         upas=upas,
+        upa_count=len(upas),
         matches=[],
         internal_match_id=internal_match_id,
         wsids=wsids,
