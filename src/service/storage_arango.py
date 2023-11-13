@@ -880,6 +880,7 @@ class ArangoStorage:
             filter_key=models.FIELD_MATCH_INTERNAL_MATCH_ID,
             data_list=matches,
             data_list_field=models.FIELD_MATCH_MATCHES,
+            data_count_field=models.FIELD_MATCH_MATCH_COUNT
         )
 
     async def _update_state(
@@ -892,6 +893,7 @@ class ArangoStorage:
         filter_key: str = names.FLD_ARANGO_KEY,
         data_list: list[str] = None,
         data_list_field: str = None,
+        data_count_field: str = None,
     ):
         bind_vars = {
             f"@{_FLD_COLLECTION}": collection,
@@ -906,11 +908,16 @@ class ArangoStorage:
                     {models.FIELD_PROCESS_STATE}: @state,
                     {models.FIELD_PROCESS_STATE_UPDATED}: @update_time,
             """
-        if data_list:
+        if data_list is not None:
             aql += f"""
-                    {data_list_field}: @items
+                    {data_list_field}: @items,
             """
             bind_vars["items"] = data_list
+            if data_count_field:
+                aql += f"""
+                    {data_count_field}: @count,
+                """
+                bind_vars["count"] = len(data_list)
         aql += f"""
                 }} IN @@{_FLD_COLLECTION}
                 OPTIONS {{exclusive: true}}
@@ -1299,6 +1306,7 @@ class ArangoStorage:
             filter_key=models.FIELD_SELECTION_INTERNAL_SELECTION_ID,
             data_list=missing_selections,
             data_list_field=models.FIELD_SELECTION_UNMATCHED_IDS,
+            data_count_field=models.FIELD_SELECTION_UNMATCHED_COUNT,
         )
 
     async def update_selection_last_access(self, selection_id, last_access):
