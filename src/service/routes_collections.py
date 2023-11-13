@@ -212,6 +212,7 @@ class SelectionTypes(BaseModel):
 class SetSaveInformation(BaseModel):
     """ Information to provide when saving a set. """
     description: str | None = Field(
+        max_length=800,
         description="An arbitrary description of a set, no more than 800 bytes."
     )
 
@@ -428,7 +429,15 @@ async def create_sets(
     desc = setinfo.description if setinfo else None
     appstate = app_state.get_app_state(r)
     upa, type_ = await processing_selections.save_set_to_workspace(
-        appstate, selection_id, user, workspace_id, object_name, ws_type, desc)
+        appstate,
+        selection_id,
+        user,
+        workspace_id,
+        object_name,
+        ws_type,
+        service_ver=VERSION,
+        description=desc,
+    )
     return CreatedSet(set=WorkspaceSet(upa=upa, type=type_))
 
 

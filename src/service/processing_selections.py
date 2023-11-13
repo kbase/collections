@@ -21,6 +21,10 @@ from src.service.workspace_wrapper import WorkspaceWrapper, SetSpec
 
 MAX_SELECTION_IDS = 10000
 
+# The set descriptions go in the workspace metadata, which has a maximum size of 900 for the
+# key and value
+_MAX_DESCRIPTION_LENGTH=800
+
 _UTF_8 = "utf-8"
 
 
@@ -244,7 +248,8 @@ async def save_set_to_workspace(
     workspace_id: int,
     object_name: str,
     ws_type: str,
-    description: str = None
+    service_ver: str = None,
+    description: str = None,
 ) -> tuple[str, str]:
     """
     Save the contents of a selection to a workspace set.
@@ -259,6 +264,11 @@ async def save_set_to_workspace(
 
     Returns the set upa and type.
     """
+    if description and len(description) > _MAX_DESCRIPTION_LENGTH:
+        raise errors.IllegalParameterError(
+            # could be > 800 bytes if there are a lot of non-ascii chars... meh
+            # workspace will catch it
+            f"A set description cannot be longer than {_MAX_DESCRIPTION_LENGTH} characters")
     sel, coll, _, types = await _get_types(appstate, selection_id)
     # might want to check the collection is active here...?
     if ws_type not in types:
@@ -275,7 +285,25 @@ async def save_set_to_workspace(
     ww = WorkspaceWrapper(appstate.sdk_client, token=user.token)
     setupas = await ww.save_sets(
         workspace_id,
-        [SetSpec(name=object_name, upas=upas, description=description, upa_type=ws_type)]
+        [SetSpec(
+            name=object_name,
+            upas=upas,
+            description=description,
+            upa_type=ws_type,
+            # TODO PROVENANCE handle match info
+            provenance={
+                "epoch": appstate.get_epoch_ms(),
+                "service": "collections",
+                "service_ver": service_ver,
+                "method": "toset",
+                "custom": {
+                    "collection": sel.collection_id,
+                    "collection_version": sel.collection_ver,
+                    
+                },
+                "description": "A set saved by the KBase Collections Service from the "
+                    + "user's selection"}
+        )]
     )
     return next(iter(setupas.items()))
 
