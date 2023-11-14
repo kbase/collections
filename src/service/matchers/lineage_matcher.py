@@ -39,7 +39,8 @@ class GTDBLineageMatcherCollectionParameters(BaseModel):
 
 class GTDBLineageMatcherUserParameters(BaseModel):
     "User parameters for the GTDB lineage matcher."
-    gtdb_rank: GTDBRank | None = Field(
+    gtdb_rank: GTDBRank = Field(
+        default=GTDBRank.SPECIES,
         example=GTDBRank.SPECIES,
         description="A rank in the the GTDB lineage."
     )
@@ -102,8 +103,7 @@ class GTDBLineageMatcher(Matcher):
         token - the user's token.
         """
         lineages = set()  # remove duplicates
-        rank = user_parameters.get("gtdb_rank") if user_parameters else None
-        rank = GTDBRank(rank) if rank else GTDBRank.SPECIES
+        rank = GTDBRank(user_parameters["gtdb_rank"])
         for upa, meta in metadata.items():
             lin = meta.get(_GTDB_LINEAGE_METADATA_KEY)
             if not lin:
