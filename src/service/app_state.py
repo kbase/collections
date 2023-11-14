@@ -37,7 +37,9 @@ async def build_app(
     data_products - the data products installed in the system
     matchers - the matchers installed in the system
     """
+    print("Connecting to KBase auth service... ", end="", flush=True)
     auth = await KBaseAuth.create(cfg.auth_url, cfg.auth_full_admin_roles)
+    print("Done")
     sdk_client = SDKAsyncClient(cfg.workspace_url)
     cli = None
     try:
@@ -86,6 +88,7 @@ def _get_app_state_from_app(app: FastAPI) -> CollectionsState:
 
 
 async def _check_workspace_url(sdk_cli: SDKAsyncClient, ws_url: str) -> str:
+    print("Connecting to KBase workspace service... ", flush=True)
     try:
         ver = await sdk_cli.call("Workspace.ver")
         # could check the version later if we add dependencies on newer versions

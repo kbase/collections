@@ -422,12 +422,22 @@ async def create_sets(
         min_length=1,
         max_length=255,
     ),
-    user: kb_auth.KBaseUser=Depends(_AUTH),
+    # TODO SELECTION allow recording a match ID when making a selection or
+    #                making a selection directly from a match?
+    #                This'll work for now, improve later. Will complicate match / selection
+    #                expiration a lot - should the match expire if a selection points to it?
+    #                Maybe just record match params, matcher_id, & whether
+    #                selection_ids == match_ids, which is the info we need here
+    match_id: Annotated[str, Query(
+        description="The match ID from which the selection was generated."
+    )] = None,
+    user: kb_auth.KBaseUser = Depends(_AUTH),
 ) -> CreatedSet:
-    # TODO ERRORS assemblyset description is in autometadata, which means it can't be more than
-    #             ~850 bytes. What do?
     desc = setinfo.description if setinfo else None
     appstate = app_state.get_app_state(r)
+    match_ = None
+    if match_id:
+        match_ = await processing_matches.get_match(appstate, match_id, user, verbose=True)
     upa, type_ = await processing_selections.save_set_to_workspace(
         appstate,
         selection_id,
@@ -437,6 +447,7 @@ async def create_sets(
         ws_type,
         service_ver=VERSION,
         description=desc,
+        match_=match_, 
     )
     return CreatedSet(set=WorkspaceSet(upa=upa, type=type_))
 
