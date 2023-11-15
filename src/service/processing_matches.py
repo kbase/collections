@@ -7,7 +7,9 @@ as starting match processes and recovering processes that are stalled when reque
 import hashlib
 import json
 import jsonschema
+import jsonschema_default
 import logging
+import mergedeep
 import uuid
 
 from typing import Any, Callable, Awaitable
@@ -43,19 +45,19 @@ async def create_match(
 ) -> models.Match:
     coll = await appstate.arangostorage.get_collection_active(collection_id)
     matcher_info = _get_matcher_from_collection(coll, matcher_id)
+    matcher = appstate.get_matcher(matcher_info.matcher)
+    params = _process_user_params(match_params, matcher)
     ww = WorkspaceWrapper(appstate.sdk_client, token=user.token)
     internal_match_id = str(uuid.uuid4())
-    matcher = appstate.get_matcher(matcher_info.matcher)
     match_process, upas, wsids = await _create_match_process(
         internal_match_id,
         matcher,
         ww,
         upas,
-        match_params,
+        params,
         matcher_info.parameters,
     )
     perm_check = appstate.get_epoch_ms()
-    params = match_params or {}
     int_match = models.InternalMatch(
         match_id=_calc_match_id_md5(matcher_id, collection_id, coll.ver_num, params, upas),
         matcher_id=matcher_id,
@@ -79,6 +81,19 @@ async def create_match(
     if not exists:
         match_process.start(appstate.get_pickleable_dependencies())
     return curr_match
+
+
+def _process_user_params(params: dict[str, Any], matcher: Matcher):
+    ret = jsonschema_default.create_from(matcher.user_parameters)
+    if params:
+        ret = mergedeep.merge(ret, params, strategy=mergedeep.Strategy.REPLACE)
+        try:
+            jsonschema.validate(instance=ret, schema=matcher.user_parameters)
+        except jsonschema.exceptions.ValidationError as e:
+            raise errors.IllegalParameterError(
+                # TODO MATCHERS str(e) is pretty gnarly. Figure out a nicer representation
+                f"Failed to validate user parameters for matcher {matcher.id}: {e}")
+    return ret
 
 
 def _get_matcher_from_collection(collection: models.SavedCollection, matcher_id: str
@@ -276,13 +291,6 @@ async def _create_match_process(
     # leave that to the matchers themselves, which should probably start a ee2 (?) job if object
     # downloads are required
     upas, _ = _check_and_sort_UPAs_and_get_wsids(upas)
-    if user_parameters:
-        try:
-            jsonschema.validate(instance=user_parameters, schema=matcher.user_parameters)
-        except jsonschema.exceptions.ValidationError as e:
-            raise errors.IllegalParameterError(
-                # TODO MATCHERS str(e) is pretty gnarly. Figure out a nicer representation
-                f"Failed to validate user parameters for matcher {matcher.id}: {e}")
     if len(upas) > MAX_UPAS:
         raise errors.IllegalParameterError(f"No more than {MAX_UPAS} UPAs are allowed per match")
     meta = await ww.get_object_metadata(

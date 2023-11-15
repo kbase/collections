@@ -260,7 +260,6 @@ def _make_prov(
              "user's selection"
     }
     if match_:
-        # TODO PROV Need to fill match with default params if not provided by user
         prov["method_params"] = [match_.user_parameters, match_.collection_parameters]
         prov["custom"] |= {
             "matcher_id": match_.matcher_id,
