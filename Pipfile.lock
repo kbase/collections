@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "938126f11e8258f71dd4053f4232ae398f0ab33bf45e9f9f2dda4c5a9ff4a979"
+            "sha256": "b967319a9347faa6cbddf4810b0699d4555b0d387d2eb809810c8ace914032da"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -16,14 +16,6 @@
         ]
     },
     "default": {
-        "aioarango": {
-            "hashes": [
-                "sha256:8a7e06814c95323a5a29c4ac73eb300f451f7e894e2a1dc5a064506a5d0a81af",
-                "sha256:9a8983234c252375cda763105460906565045e4886d167179d3c037e6b7ddfe6"
-            ],
-            "index": "pypi",
-            "version": "==1.0.0"
-        },
         "aiodns": {
             "hashes": [
                 "sha256:1073eac48185f7a4150cad7f96a5192d6911f12b4fb894de80a088508c9b3a99",
@@ -526,7 +518,7 @@
                 "sha256:979afafecb7d22a1d10340bafb403cf2cb75aff214426ff206521fc79d26408c",
                 "sha256:9f99c15d33642d38bce8405df088c1c4cfd940284b4290cacbfb02e64f4877c6"
             ],
-            "markers": "python_version >= '3.6'",
+            "index": "pypi",
             "version": "==0.18.2"
         },
         "idna": {
@@ -1003,14 +995,6 @@
             "markers": "python_version >= '3.7'",
             "version": "==2.14.1"
         },
-        "pyjwt": {
-            "hashes": [
-                "sha256:57e28d156e3d5c10088e0c68abb90bfac3df82b40a71bd0daa20c65ccd5c23de",
-                "sha256:59127c392cc44c2da5bb3192169a91f429924e17aff6534d70fdc02ab3e04320"
-            ],
-            "markers": "python_version >= '3.7'",
-            "version": "==2.8.0"
-        },
         "python-dateutil": {
             "hashes": [
                 "sha256:0123cacc1627ae19ddf3c27a5de5bd67ee4586fbdd6440d9748f8abb483d3e86",
@@ -1110,6 +1094,7 @@
                 "sha256:380606e1d10dc85c3bd47bf5a6095f815ec007be7a8b69c878507068df059e6f",
                 "sha256:968089d4584ad4ad7c171454f0a5c6dac23971e9472521ea3b6d49d610aa6fc0"
             ],
+            "index": "pypi",
             "version": "==0.9.1"
         },
         "rfc3986": {
