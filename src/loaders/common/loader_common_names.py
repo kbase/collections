@@ -128,3 +128,6 @@ KB_BASE_URL_MAP = {'CI': 'https://ci.kbase.us/services/',
                    'NEXT': 'https://next.kbase.us/services/',
                    'APPDEV': 'https://appdev.kbase.us/services/',
                    'PROD': 'https://kbase.us/services/'}
+
+# service_vers
+SERVICE_VERSIONS = ["dev", "beta", "release"]

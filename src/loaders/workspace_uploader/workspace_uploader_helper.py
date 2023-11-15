@@ -21,6 +21,7 @@ class Conf:
             output_dir: str,
             kb_base_url: str = "https://ci.kbase.us/services/",
             token_filepath: str | None = None,
+            au_service_ver: str = "release",
     ) -> None:
         """
         Initialize the configuration class.
@@ -31,6 +32,7 @@ class Conf:
             kb_base_url (str): The base url of the KBase services.
             token_filepath (str): The file path that stores a KBase token appropriate for the KBase environment. 
                                 If not supplied, the token must be provided in the environment variable KB_AUTH_TOKEN.
+            au_service_ver (str): The service verison of AssemblyUtilClient.
         """
         port = loader_helper.find_free_port()
         token = loader_helper.get_token(token_filepath)
@@ -50,7 +52,7 @@ class Conf:
         print("callback_url:", callback_url)
 
         self.ws = Workspace(ws_url, token=token)
-        self.asu = AssemblyUtil(callback_url, token=token)
+        self.asu = AssemblyUtil(callback_url, service_ver=au_service_ver, token=token)
 
         self.output_dir = output_dir
         self.job_data_dir = loader_helper.make_job_data_dir(job_dir)

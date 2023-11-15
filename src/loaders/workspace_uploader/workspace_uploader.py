@@ -1,7 +1,8 @@
 """
 usage: workspace_uploader.py [-h] --workspace_id WORKSPACE_ID [--kbase_collection KBASE_COLLECTION] [--source_ver SOURCE_VER]
                              [--root_dir ROOT_DIR] [--token_filepath TOKEN_FILEPATH] [--env {CI,NEXT,APPDEV,PROD}]
-                             [--upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]] [--batch_size BATCH_SIZE] [--keep_job_dir]
+                             [--upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]] [--batch_size BATCH_SIZE]
+                             [--au_service_ver {dev,beta,release}] [--keep_job_dir]
 
 PROTOTYPE - Upload assembly files to the workspace service (WSS).
 
@@ -31,6 +32,8 @@ optional arguments:
                         Upload only files that match given extensions (default: ['genomic.fna.gz'])
   --batch_size BATCH_SIZE
                         Number of files to upload per batch (default: 1000)
+  --au_service_ver {dev,beta,release}
+                        The service version of AssemblyUtil client (default: release)
   --keep_job_dir        Keep SDK job directory after upload task is completed
 
 e.g.
@@ -136,6 +139,13 @@ def _get_parser():
         type=int,
         default=1000,
         help="Number of files to upload per batch",
+    )
+    optional.add_argument(
+        "--au_service_ver",
+        type=str,
+        choices=loader_common_names.SERVICE_VERSIONS,
+        default="release",
+        help="The service version of AssemblyUtil client",
     )
     optional.add_argument(
         "--keep_job_dir",
@@ -449,6 +459,7 @@ def main():
     token_filepath = args.token_filepath
     upload_file_ext = args.upload_file_ext
     batch_size = args.batch_size
+    au_service_ver = args.au_service_ver
     keep_job_dir = args.keep_job_dir
 
     env = args.env
@@ -477,7 +488,7 @@ def main():
         proc = loader_helper.start_podman_service(uid)
 
         # set up conf for uploader, start callback server, and upload assemblies to workspace
-        conf = Conf(job_dir, output_dir, kb_base_url, token_filepath)
+        conf = Conf(job_dir, output_dir, kb_base_url, token_filepath, au_service_ver)
 
         count, wait_to_upload_assemblies = _fetch_assemblies_to_upload(
             env, 
