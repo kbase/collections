@@ -110,7 +110,7 @@ async def move_match_to_deleted_state(
 
 
 async def _move_matches_to_deletion(deps: PickleableDependencies, subset_age_ms: int):
-    logging.basicConfig(level=logging.INFO)
+    _logger().setLevel(level=logging.INFO)
     _logger().info("Marking matches for deletion")
     cli, storage = await deps.get_storage()
     try:
@@ -144,7 +144,7 @@ async def move_selection_to_deleted_state(
 
 
 async def _move_selections_to_deletion(deps: PickleableDependencies, subset_age_ms: int):
-    logging.basicConfig(level=logging.INFO)
+    _logger().setLevel(level=logging.INFO)
     _logger().info("Marking selections for deletion")
     cli, storage = await deps.get_storage()
     try:
@@ -201,7 +201,7 @@ async def _delete_subset(
     
 
 async def _delete_matches(deps: PickleableDependencies):
-    logging.basicConfig(level=logging.INFO)
+    _logger().setLevel(level=logging.INFO)
     _logger().info("Starting match data deletion process")
     cli, storage = await deps.get_storage()
     try:
@@ -214,7 +214,7 @@ async def _delete_matches(deps: PickleableDependencies):
 
 
 async def _delete_selections(deps: PickleableDependencies):
-    logging.basicConfig(level=logging.INFO)
+    _logger().setLevel(level=logging.INFO)
     _logger().info("Starting selection data deletion process")
     cli, storage = await deps.get_storage()
     try:
