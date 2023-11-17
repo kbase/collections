@@ -38,8 +38,8 @@ optional arguments:
   --skip_retrieve_sample
                         Skip parsing associated sample data for each genome object
   --file_group FILE_GROUP
-                        Assign file group (default: File group permission for created
-                        data files. Default is kbase)
+                        File group permission for created data files. Default is kbase. Set
+                        to None to keep the file group unchanged.
 """
 import argparse
 import json
@@ -250,7 +250,8 @@ def _process_mash_tool(root_dir: str,
         print(f'Running mash paste: {" ".join(command)}')
         run_command(command)
 
-    shutil.chown(str(mash_output_prefix) + '.msh', group=file_group)
+    if file_group:
+        shutil.chown(str(mash_output_prefix) + '.msh', group=file_group)
 
 
 def _process_heatmap_tools(heatmap_tools: set[str],
@@ -277,7 +278,8 @@ def _process_heatmap_tools(heatmap_tools: set[str],
 
         create_import_files(root_dir, env, kbase_collection, load_ver, meta_output, [heatmap_meta_dict], file_group)
         create_import_files(root_dir, env, kbase_collection, load_ver, rows_output, heatmap_rows_list, file_group)
-        create_import_files(root_dir, env, kbase_collection, load_ver, cell_details_output, heatmap_cell_details_list, file_group)
+        create_import_files(root_dir, env, kbase_collection, load_ver, cell_details_output, heatmap_cell_details_list,
+                            file_group)
 
 
 def _process_fatal_error_tools(check_fatal_error_tools: set[str],
@@ -329,7 +331,9 @@ def _process_fatal_error_tools(check_fatal_error_tools: set[str],
     print(f"Creating a merged {loader_common_names.FATAL_ERROR_FILE}: {fatal_error_path}")
     with open(fatal_error_path, "w") as outfile:
         json.dump(fatal_dict, outfile, indent=4)
-    shutil.chown(fatal_error_path, group=file_group)
+
+    if file_group:
+        shutil.chown(fatal_error_path, group=file_group)
 
     return set(fatal_dict.keys())
 
@@ -618,7 +622,7 @@ def main():
         f'--{loader_common_names.DEFAULT_FILE_GROUP_ARG_NAME}',
         type=str,
         default=loader_common_names.DEFAULT_FILE_GROUP,
-        help=f'Assign file group (default: {loader_common_names.DEFAULT_FILE_GROUP_DESCR})'
+        help=loader_common_names.DEFAULT_FILE_GROUP_DESCR
     )
 
     args = parser.parse_args()
@@ -630,6 +634,8 @@ def main():
     load_ver = getattr(args, loader_common_names.LOAD_VER_ARG_NAME)
     root_dir = getattr(args, loader_common_names.ROOT_DIR_ARG_NAME)
     file_group = getattr(args, loader_common_names.DEFAULT_FILE_GROUP_ARG_NAME)
+    file_group = None if file_group == loader_common_names.KEEP_FILE_GROUP else file_group
+
     if not load_ver:
         load_ver = source_ver
     check_genome = args.check_genome

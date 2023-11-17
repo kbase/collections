@@ -35,8 +35,8 @@ optional arguments:
   --input_source {GTDB,genome_attributes}
                         Input file source
   --file_group FILE_GROUP
-                        Assign file group (default: File group permission for created
-                        data files. Default is kbase)
+                        File group permission for created data files. Default is kbase. Set
+                        to None to keep the file group unchanged.
  
 e.g. compute_genome_taxa_count.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_ver 207 --kbase_collection GTDB
      compute_genome_taxa_count.py ENIGMA_2023.01_checkm2_gtdb_tk_computed_genome_attribs.jsonl --load_ver 2023.01 --kbase_collection ENIGMA --input_source genome_attributes
@@ -139,7 +139,7 @@ def main():
         f'--{loader_common_names.DEFAULT_FILE_GROUP_ARG_NAME}',
         type=str,
         default=loader_common_names.DEFAULT_FILE_GROUP,
-        help=f'Assign file group (default: {loader_common_names.DEFAULT_FILE_GROUP_DESCR})'
+        help=loader_common_names.DEFAULT_FILE_GROUP_DESCR
     )
 
     args = parser.parse_args()
@@ -150,6 +150,7 @@ def main():
     env = getattr(args, loader_common_names.ENV_ARG_NAME)
     source = args.input_source
     file_group = getattr(args, loader_common_names.DEFAULT_FILE_GROUP_ARG_NAME)
+    file_group = None if file_group == loader_common_names.KEEP_FILE_GROUP else file_group
 
     print('start parsing input files')
     nodes = _parse_files(load_files, source)

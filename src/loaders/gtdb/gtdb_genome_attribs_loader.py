@@ -33,8 +33,8 @@ optional arguments:
   --root_dir ROOT_DIR   Root directory for the collections project. (default:
                         /global/cfs/cdirs/kbase/collections)
   --file_group FILE_GROUP
-                        Assign file group (default: File group permission for created
-                        data files. Default is kbase)
+                        File group permission for created data files. Default is kbase. Set
+                        to None to keep the file group unchanged.
 
 e.g. gtdb_genome_attribs_loader.py bac120_metadata_r207.tsv ar53_metadata_r207.tsv --load_version r207.kbase.1
      gtdb_genome_attribs_loader.py bac120_metadata_r207.tsv ar53_metadata_r207.tsv --load_version r207.kbase.1 --kbase_collection GTDB
@@ -144,7 +144,7 @@ def main():
         f'--{loader_common_names.DEFAULT_FILE_GROUP_ARG_NAME}',
         type=str,
         default=loader_common_names.DEFAULT_FILE_GROUP,
-        help=f'Assign file group (default: {loader_common_names.DEFAULT_FILE_GROUP_DESCR})'
+        help=loader_common_names.DEFAULT_FILE_GROUP_DESCR
     )
 
     args = parser.parse_args()
@@ -152,6 +152,7 @@ def main():
     load_version = getattr(args, loader_common_names.LOAD_VER_ARG_NAME)
     kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
     file_group = getattr(args, loader_common_names.DEFAULT_FILE_GROUP_ARG_NAME)
+    file_group = None if file_group == loader_common_names.KEEP_FILE_GROUP else file_group
 
     print('start parsing input files')
     df = _parse_from_metadata_file(load_files, SELECTED_FEATURES)
