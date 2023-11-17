@@ -34,6 +34,9 @@ optional arguments:
   --root_dir ROOT_DIR   Root directory for the collections project. (default: /global/cfs/cdirs/kbase/collections)
   --input_source {GTDB,genome_attributes}
                         Input file source
+  --file_group FILE_GROUP
+                        Assign file group (default: File group permission for created
+                        data files. Default is kbase)
  
 e.g. compute_genome_taxa_count.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_ver 207 --kbase_collection GTDB
      compute_genome_taxa_count.py ENIGMA_2023.01_checkm2_gtdb_tk_computed_genome_attribs.jsonl --load_ver 2023.01 --kbase_collection ENIGMA --input_source genome_attributes
@@ -132,6 +135,13 @@ def main():
     optional.add_argument('--input_source', type=str, choices=VALID_SOURCE, default='GTDB',
                           help='Input file source')
 
+    optional.add_argument(
+        f'--{loader_common_names.DEFAULT_FILE_GROUP_ARG_NAME}',
+        type=str,
+        default=loader_common_names.DEFAULT_FILE_GROUP,
+        help=f'Assign file group (default: {loader_common_names.DEFAULT_FILE_GROUP_DESCR})'
+    )
+
     args = parser.parse_args()
     load_files = args.load_files
     root_dir = getattr(args, loader_common_names.ROOT_DIR_ARG_NAME)
@@ -139,6 +149,7 @@ def main():
     kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
     env = getattr(args, loader_common_names.ENV_ARG_NAME)
     source = args.input_source
+    file_group = getattr(args, loader_common_names.DEFAULT_FILE_GROUP_ARG_NAME)
 
     print('start parsing input files')
     nodes = _parse_files(load_files, source)
@@ -148,11 +159,11 @@ def main():
 
     # Create taxa counts jsonl file
     count_jsonl = f'{kbase_collection}_{load_version}_{names.COLL_TAXA_COUNT}.jsonl'
-    create_import_files(root_dir, env, kbase_collection, load_version, count_jsonl, count_docs)
+    create_import_files(root_dir, env, kbase_collection, load_version, count_jsonl, count_docs, file_group)
 
     # Create identical ranks jsonl file
     count_ranks_jsonl = f'{kbase_collection}_{load_version}_{names.COLL_TAXA_COUNT_RANKS}.jsonl'
-    create_import_files(root_dir, env, kbase_collection, load_version, count_ranks_jsonl, rank_doc)
+    create_import_files(root_dir, env, kbase_collection, load_version, count_ranks_jsonl, rank_doc, file_group)
 
 
 if __name__ == "__main__":

@@ -160,7 +160,8 @@ def generate_pmi_biolog_heatmap_data(
         env: str = 'PROD',
         kbase_collection: str = 'PMI',
         root_dir: str = loader_common_names.ROOT_DIR,
-        upa_map_file: Path = None, ):
+        upa_map_file: Path = None,
+        file_group: str = loader_common_names.DEFAULT_FILE_GROUP,):
     """
     Generate JSONL files with the heatmap data for the Biolog data file.
 
@@ -171,6 +172,7 @@ def generate_pmi_biolog_heatmap_data(
     :param kbase_collection: the name of the KBase collection
     :param root_dir: the root directory for the data to be processed
     :param upa_map_file: the path to the JSON file containing the mapping between KBase PROD UPA to other environment UPA
+    :param file_group: the file group permission for created data files
     """
     if env != 'PROD' and upa_map_file is None:
         raise ValueError('upa_map_file must be provided for environment other than PROD.')
@@ -250,6 +252,6 @@ def generate_pmi_biolog_heatmap_data(
     rows_output = f'{kbase_collection}_{load_ver}_{tool}_{HEATMAP_FILE_ROOT}_{COLL_BIOLOG_DATA}.jsonl'
     cell_details_output = f'{kbase_collection}_{load_ver}_{tool}_{HEATMAP_FILE_ROOT}_{COLL_BIOLOG_CELLS}.jsonl'
 
-    create_import_files(root_dir, env, kbase_collection, load_ver, meta_output, [heatmap_meta_dict])
-    create_import_files(root_dir, env, kbase_collection, load_ver, rows_output, heatmap_rows)
-    create_import_files(root_dir, env, kbase_collection, load_ver, cell_details_output, heatmap_cell_details)
+    create_import_files(root_dir, env, kbase_collection, load_ver, meta_output, [heatmap_meta_dict], file_group)
+    create_import_files(root_dir, env, kbase_collection, load_ver, rows_output, heatmap_rows, file_group)
+    create_import_files(root_dir, env, kbase_collection, load_ver, cell_details_output, heatmap_cell_details, file_group)

@@ -2,6 +2,7 @@ import argparse
 import itertools
 import json
 import os
+import shutil
 import socket
 import stat
 import subprocess
@@ -181,7 +182,8 @@ def create_import_files(
         kbase_collection: str,
         load_ver: str,
         file_name: str,
-        docs: list[dict[str, Any]]):
+        docs: list[dict[str, Any]],
+        file_group: str = None, ):
     """
     Create and save the data documents as JSONLines file to the import directory.
     """
@@ -191,6 +193,8 @@ def create_import_files(
     print(f'Creating JSONLines import file: {file_path}')
     with open(file_path, 'w') as f:
         convert_to_json(docs, f)
+
+    shutil.chown(file_path, group=file_group)
 
 
 def parse_genome_id(gtdb_accession):

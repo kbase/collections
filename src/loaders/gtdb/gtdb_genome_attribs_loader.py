@@ -32,6 +32,9 @@ optional arguments:
                         kbase collection identifier name (default: loader_common_names.DEFAULT_KBASE_COLL_NAME)
   --root_dir ROOT_DIR   Root directory for the collections project. (default:
                         /global/cfs/cdirs/kbase/collections)
+  --file_group FILE_GROUP
+                        Assign file group (default: File group permission for created
+                        data files. Default is kbase)
 
 e.g. gtdb_genome_attribs_loader.py bac120_metadata_r207.tsv ar53_metadata_r207.tsv --load_version r207.kbase.1
      gtdb_genome_attribs_loader.py bac120_metadata_r207.tsv ar53_metadata_r207.tsv --load_version r207.kbase.1 --kbase_collection GTDB
@@ -137,11 +140,18 @@ def main():
         default=loader_common_names.ROOT_DIR,
         help=f'{loader_common_names.ROOT_DIR_DESCR} (default: {loader_common_names.ROOT_DIR})'
     )
+    optional.add_argument(
+        f'--{loader_common_names.DEFAULT_FILE_GROUP_ARG_NAME}',
+        type=str,
+        default=loader_common_names.DEFAULT_FILE_GROUP,
+        help=f'Assign file group (default: {loader_common_names.DEFAULT_FILE_GROUP_DESCR})'
+    )
 
     args = parser.parse_args()
-    load_files, load_version, kbase_collection = (args.load_files,
-                                                  getattr(args, loader_common_names.LOAD_VER_ARG_NAME),
-                                                  getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME))
+    load_files = args.load_files
+    load_version = getattr(args, loader_common_names.LOAD_VER_ARG_NAME)
+    kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
+    file_group = getattr(args, loader_common_names.DEFAULT_FILE_GROUP_ARG_NAME)
 
     print('start parsing input files')
     df = _parse_from_metadata_file(load_files, SELECTED_FEATURES)
@@ -154,10 +164,10 @@ def main():
     root_dir = getattr(args, loader_common_names.ROOT_DIR_ARG_NAME)
 
     attri_output = f'{kbase_collection}_{load_version}_{names.COLL_GENOME_ATTRIBS}.jsonl'
-    loader_helper.create_import_files(root_dir, env, kbase_collection, load_version, attri_output, docs)
+    loader_helper.create_import_files(root_dir, env, kbase_collection, load_version, attri_output, docs, file_group)
 
     meta_output = f'{kbase_collection}_{load_version}_{names.COLL_GENOME_ATTRIBS_META}.jsonl'
-    loader_helper.create_import_files(root_dir, env, kbase_collection, load_version, meta_output, [meta_doc])
+    loader_helper.create_import_files(root_dir, env, kbase_collection, load_version, meta_output, [meta_doc], file_group)
 
 
 if __name__ == "__main__":
