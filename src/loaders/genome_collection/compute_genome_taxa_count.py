@@ -36,7 +36,7 @@ optional arguments:
                         Input file source
   --file_group FILE_GROUP
                         File group permission for created data files. Default is kbase. Set
-                        to None to keep the file group unchanged.
+                        to no:group to keep the file group unchanged.
  
 e.g. compute_genome_taxa_count.py bac120_taxonomy_r207.tsv ar53_taxonomy_r207.tsv --load_ver 207 --kbase_collection GTDB
      compute_genome_taxa_count.py ENIGMA_2023.01_checkm2_gtdb_tk_computed_genome_attribs.jsonl --load_ver 2023.01 --kbase_collection ENIGMA --input_source genome_attributes

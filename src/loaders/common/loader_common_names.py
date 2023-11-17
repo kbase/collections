@@ -33,7 +33,7 @@ ENV_ARG_NAME = "env"
 
 DEFAULT_FILE_GROUP_ARG_NAME = "file_group"
 DEFAULT_FILE_GROUP = 'kbase'
-KEEP_FILE_GROUP = 'None'
+KEEP_FILE_GROUP = 'no:group'
 DEFAULT_FILE_GROUP_DESCR = (f"File group permission for created data files. Default is {DEFAULT_FILE_GROUP}."
                             f" Set to {KEEP_FILE_GROUP} to keep the file group unchanged.")
 

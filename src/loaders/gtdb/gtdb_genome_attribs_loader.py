@@ -34,7 +34,7 @@ optional arguments:
                         /global/cfs/cdirs/kbase/collections)
   --file_group FILE_GROUP
                         File group permission for created data files. Default is kbase. Set
-                        to None to keep the file group unchanged.
+                        to no:group to keep the file group unchanged.
 
 e.g. gtdb_genome_attribs_loader.py bac120_metadata_r207.tsv ar53_metadata_r207.tsv --load_version r207.kbase.1
      gtdb_genome_attribs_loader.py bac120_metadata_r207.tsv ar53_metadata_r207.tsv --load_version r207.kbase.1 --kbase_collection GTDB

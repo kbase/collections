@@ -39,7 +39,7 @@ optional arguments:
                         Skip parsing associated sample data for each genome object
   --file_group FILE_GROUP
                         File group permission for created data files. Default is kbase. Set
-                        to None to keep the file group unchanged.
+                        to no:group to keep the file group unchanged.
 """
 import argparse
 import json
