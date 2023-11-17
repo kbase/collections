@@ -1,3 +1,4 @@
+import grp
 import os
 import shutil
 import subprocess
@@ -89,12 +90,14 @@ def test_create_json_default(setup_and_teardown):
     load_version = '100-dev'
     kbcoll = 'test_gtdb'
     env = 'NEXT'
+    file_group = grp.getgrgid(os.getgroups()[0]).gr_name
     command = ['python', script_file,
                os.path.join(caller_file_dir, 'ar53_taxonomy_r207.tsv'),
                '--kbase_collection', kbcoll,
                '--load_ver', load_version,
                '--env', env,
-               '--root_dir', tmp_dir]
+               '--root_dir', tmp_dir,
+               '--file_group', file_group]
 
     _exe_command(command)
 
@@ -115,14 +118,15 @@ def test_create_json_option_input(setup_and_teardown):
     load_version = '300-beta'
     kbase_collections = 'test_gtdb'
     env = 'NEXT'
-
+    file_group = grp.getgrgid(os.getgroups()[0]).gr_name
     command = ['python', script_file,
                os.path.join(caller_file_dir, 'ar53_taxonomy_r207.tsv'),
                os.path.join(caller_file_dir, 'ar53_taxonomy_r207.tsv'),
                '--load_ver', load_version,
                '--root_dir', tmp_dir,
                '--env', env,
-               '--kbase_collection', kbase_collections]
+               '--kbase_collection', kbase_collections,
+               '--file_group', file_group]
 
     _exe_command(command)
 
