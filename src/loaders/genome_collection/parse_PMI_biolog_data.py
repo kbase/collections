@@ -172,7 +172,7 @@ def generate_pmi_biolog_heatmap_data(
     :param kbase_collection: the name of the KBase collection
     :param root_dir: the root directory for the data to be processed
     :param upa_map_file: the path to the JSON file containing the mapping between KBase PROD UPA to other environment UPA
-    :param file_group: the file group permission for created data files
+    :param file_group: the file group permission for created data files. If set to None, keep the file group unchanged.
     """
     if env != 'PROD' and upa_map_file is None:
         raise ValueError('upa_map_file must be provided for environment other than PROD.')
