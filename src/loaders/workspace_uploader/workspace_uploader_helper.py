@@ -22,6 +22,7 @@ class Conf:
             kb_base_url: str = "https://ci.kbase.us/services/",
             token_filepath: str | None = None,
             au_service_ver: str = "release",
+            max_task: int = 20,
     ) -> None:
         """
         Initialize the configuration class.
@@ -33,6 +34,7 @@ class Conf:
             token_filepath (str): The file path that stores a KBase token appropriate for the KBase environment. 
                                 If not supplied, the token must be provided in the environment variable KB_AUTH_TOKEN.
             au_service_ver (str): The service verison of AssemblyUtilClient.
+            max_task (int): The maxmium subtasks for the callback server.
         """
         port = loader_helper.find_free_port()
         token = loader_helper.get_token(token_filepath)
@@ -44,6 +46,7 @@ class Conf:
             kb_base_url,
             token,
             port,
+            max_task,
             ipv4,
         )
 
@@ -57,12 +60,15 @@ class Conf:
         self.output_dir = output_dir
         self.job_data_dir = loader_helper.make_job_data_dir(job_dir)
 
+        self.logging = None
+
     def _setup_callback_server_envs(
             self,
             job_dir: str,
             kb_base_url: str,
             token: str,
             port: int,
+            max_task: int,
             ipv4: str,
     ) -> Tuple[dict[str, Union[int, str]], dict[str, dict[str, str]]]:
         """
@@ -73,6 +79,8 @@ class Conf:
             kb_base_url (str): The base url of the KBase services.
             token (str): The KBase token.
             port (int): The port number for the callback server.
+            max_task (int): The maxmium subtasks for the callback server.
+            ipv4: (str): The ipv4 address for the callback server.
 
         Returns:
             tuple: A tuple of the environment variables and volumes for the callback server.
@@ -86,6 +94,7 @@ class Conf:
         env["KB_BASE_URL"] = kb_base_url
         env["JOB_DIR"] = job_dir
         env["CALLBACK_PORT"] = port
+        env["JR_MAX_TASKS"] = max_task
         env["CALLBACK_IP"] = ipv4  # specify an ipv4 address for the callback server
                                    # otherwise, the callback container will use the an ipv6 address
 
@@ -107,6 +116,7 @@ class Conf:
             kb_base_url: str,
             token: str,
             port: int,
+            max_task: int,
             ipv4: str,
     ) -> None:
         """
@@ -118,9 +128,11 @@ class Conf:
             job_dir (str): The directory for SDK jobs per user.
             kb_base_url (str): The base url of the KBase services.
             token (str): The KBase token.
+            max_task (int): The maxmium subtasks for the callback server.
             port (int): The port number for the callback server.
+            ipv4: (str): The ipv4 address for the callback server.
         """
-        env, vol = self._setup_callback_server_envs(job_dir, kb_base_url, token, port, ipv4)
+        env, vol = self._setup_callback_server_envs(job_dir, kb_base_url, token, port, max_task, ipv4)
         self.container = client.containers.run(
             name=container_name,
             image=CALLBACK_IMAGE_NAME,
@@ -135,5 +147,6 @@ class Conf:
         """
         Stop the callback server.
         """
+        self.logging = self.container.logs()
         self.container.stop()
         self.container.remove()
