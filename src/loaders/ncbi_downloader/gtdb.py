@@ -57,7 +57,7 @@ from src.loaders.ncbi_downloader import ncbi_downloader_helper
 # (i.e. 0.5 - program will use 50% of total processors,
 #       0.1 - program will use 10% of total processors)
 SYSTEM_UTILIZATION = 0.5
-DOWNLOAD_FILE_EXT = ["genomic.fna.gz"]  # download only files that match given extensions
+DOWNLOAD_FILE_EXT = ["genomic.fna.gz", "genomic.gbff.gz"]  # download only files that match given extensions
 KBASE_COLLECTION = "GTDB"  # GTDB is the only collection supported by this script
 GTDB_DOMAIN = "https://data.gtdb.ecogenomic.org/releases/"
 
@@ -242,11 +242,12 @@ def main():
     else:
         print(f"\nSuccessfully downloaded {len(genome_ids)} genome files")
 
-    genome_ids_clean = set(genome_ids) - set(failed_ids)
+    # include a full set of genome_ids for each release version inside collectionssource dir
+    genome_ids_success = list(set(genome_ids_unprocessed) - set(failed_ids))
     loader_helper.create_softlinks_in_collection_source_dir(
         collection_source_dir,
         work_dir,
-        list(genome_ids_clean),
+        genome_ids_success,
         taxonomy_files,
     )
 

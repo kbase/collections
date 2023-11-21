@@ -154,10 +154,10 @@ def main():
     root_dir = getattr(args, loader_common_names.ROOT_DIR_ARG_NAME)
 
     attri_output = f'{kbase_collection}_{load_version}_{names.COLL_GENOME_ATTRIBS}.jsonl'
-    loader_helper.create_import_files(root_dir, env, attri_output, docs)
+    loader_helper.create_import_files(root_dir, env, kbase_collection, load_version, attri_output, docs)
 
     meta_output = f'{kbase_collection}_{load_version}_{names.COLL_GENOME_ATTRIBS_META}.jsonl'
-    loader_helper.create_import_files(root_dir, env, meta_output, [meta_doc])
+    loader_helper.create_import_files(root_dir, env, kbase_collection, load_version, meta_output, [meta_doc])
 
 
 if __name__ == "__main__":

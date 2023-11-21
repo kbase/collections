@@ -53,7 +53,7 @@ class MinHashHomologyMatcherCollectionParameters(BaseModel):
 
 class MinHashHomologyMatcherUserParameters(BaseModel):
     "User parameters for the Minhash homology matcher."
-    maximum_distance: float | None = Field(
+    maximum_distance: float = Field(
         default=_DEFAULT_MAX_DIST,
         example=0.2,
         ge=0,
@@ -203,8 +203,7 @@ class MinhashHomologyMatcher(Matcher):
         """
         # No checks necessary since the calling code checks that the UPAs are accessible
         # and are assemblies and / or genomes, which is all we need
-        max_dist = (user_parameters.get("maximum_distance")
-                    if user_parameters else _DEFAULT_MAX_DIST)
+        max_dist = user_parameters["maximum_distance"]
         return CollectionProcess(
             process=_process_match,
             data_id=internal_match_id,

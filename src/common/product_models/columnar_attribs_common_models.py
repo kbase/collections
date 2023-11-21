@@ -43,8 +43,8 @@ class FilterStrategy(str, Enum):
     """ A string prefix search. """
     FULL_TEXT = "fulltext"
     """ A full text string search. """
-    
-    # TODO FILTERS substring search
+    NGRAM = "ngram"
+    """ A search based on ngram matching. """
 
 
 class AttributesColumnSpec(BaseModel):
@@ -111,7 +111,7 @@ class AttributesColumn(AttributesColumnSpec):
     
     _RANGE_VALIDATORS = {
         ColumnType.INT: (lambda x: isinstance(x, int), "an integer"),
-        ColumnType.FLOAT: (lambda x: isinstance(x, float),"a float"),
+        ColumnType.FLOAT: (lambda x: isinstance(x, float) or isinstance(x, int), "a float"),
         ColumnType.DATE: (lambda x: parser.isoparse(str(x)), "a valid ISO8601 date")
     }
     
@@ -140,4 +140,8 @@ class ColumnarAttributesMeta(BaseModel):
     """
     columns: Annotated[list[AttributesColumn], Field(
         description="The set of columns in the table."
+    )]
+    count: Annotated[int, Field(
+        example=51561,
+        description="The number of rows in the table."
     )]

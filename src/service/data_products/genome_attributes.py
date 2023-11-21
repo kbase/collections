@@ -325,7 +325,7 @@ async def _get_filters(
             # via the API
             raise ValueError("Filtering is not supported with a load version override.")
         raise ValueError(f"No search view name configured for collection {coll_id}, "
-            + "data product {ID}. Cannot perform filtering operation")
+            + f"data product {ID}. Cannot perform filtering operation")
     columns = {c.key: c for c in column_meta.columns}
     if sort_on and sort_on not in columns:
         raise errors.IllegalParameterError(
@@ -366,6 +366,10 @@ def _append_filters(
         if field not in columns:
             raise errors.IllegalParameterError(f"No such filter field: {field}")
         column = columns[field]
+        minlen = analyzers.get_minimum_query_length(column.filter_strategy)
+        if minlen and len(querystring) < minlen:
+            raise errors.IllegalParameterError(
+                f"Filter field '{field}' requires a minimum query length of {minlen}")
         fs.append(
             field,
             column.type,
@@ -404,7 +408,7 @@ async def get_genome_attributes_meta(
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     load_ver_override: common_models.QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
-    ):
+    ) -> col_models.ColumnarAttributesMeta:
     storage = app_state.get_app_state(r).arangostorage
     _, load_ver = await get_load_version(storage, collection_id, ID, load_ver_override, user)
     meta = await _get_genome_attributes_meta_internal(
@@ -424,9 +428,9 @@ async def _get_genome_attributes_meta_internal(
             load_ver,
             bool(load_ver_override)
     )
-    doc[col_models.FIELD_COLUMNS] = [col_models.AttributesColumn.model_construct(**d)
+    doc[col_models.FIELD_COLUMNS] = [col_models.AttributesColumn(**d)
                                      for d in doc[col_models.FIELD_COLUMNS]]
-    return col_models.ColumnarAttributesMeta.model_construct(**remove_collection_keys(doc))
+    return col_models.ColumnarAttributesMeta(**remove_collection_keys(doc))
 
 
 @_ROUTER.get(
@@ -570,6 +574,83 @@ async def get_histogram(
     # may want to add some controls for histogram, like bin count / range?
     hist, bin_edges = np.histogram(data)
     return Histogram(bins=bin_edges, values=hist)
+
+
+class XYScatter(BaseModel):
+    
+    xcolumn: Annotated[str, Field(
+        example="Completeness",
+        description="The name of the x column."
+    )]
+    ycolumn: Annotated[str, Field(
+        example="Contamination",
+        description="The name of the y column."
+    )]
+    data: Annotated[list[dict[str, float]], Field(
+        example=[{"x": 6.0, "y": 3.4}, [{"x": 8.9, "y": 2.2}]],
+        description="The X-Y scatter data."
+    )]
+
+
+@_ROUTER.get(
+    "/scatter",
+    response_model=XYScatter,
+    description=
+"""
+Get X-Y scatter data for the data in two columns of the table.
+
+Authentication is not required unless submitting a match ID or overriding the load
+version; in the latter case service administration permissions are required.
+
+""" + _FILTERING_TEXT
+)
+async def get_xy_scatter(
+    r: Request,
+    xcolumn: Annotated[str, Query(
+        example="Completeness",
+        description="The column containing the data to include as the X axis in the scatter data."
+    )],
+    ycolumn: Annotated[str, Query(
+        example="Contamination",
+        description="The column containing the data to include as the Y axis in the scatter data."
+    )],
+    collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
+    conjunction: common_models.QUERY_VALIDATOR_CONJUNCTION = True,
+    match_id: common_models.QUERY_VALIDATOR_MATCH_ID_NO_MARK = None,
+    # TODO FEATURE support a choice of AND or OR for matches & selections
+    selection_id: common_models.QUERY_VALIDATOR_SELECTION_ID_NO_MARK = None,
+    load_ver_override: common_models.QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
+    user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
+):
+    appstate = app_state.get_app_state(r)
+    lvo = override_load_version(load_ver_override, match_id, selection_id)
+    coll, load_ver = await get_load_version(appstate.arangostorage, collection_id, ID, lvo, user)
+    match_spec = await _get_match_spec(appstate, user, coll, match_id)
+    sel_spec = await _get_selection_spec(appstate, coll, selection_id)
+    filters = await _get_filters(
+        r,
+        names.COLL_GENOME_ATTRIBS,
+        collection_id,
+        load_ver,
+        load_ver_override,
+        view_name=coll.get_data_product(ID).search_view if coll else None,
+        filter_conjunction=conjunction,
+        match_spec=match_spec,
+        selection_spec=sel_spec,
+        # May want to support strings & dates in the future
+        keep={
+            xcolumn: {col_models.ColumnType.FLOAT, col_models.ColumnType.INT},
+            ycolumn: {col_models.ColumnType.FLOAT, col_models.ColumnType.INT}
+        },
+        limit=0,
+    )
+    data = []
+    await query_simple_collection_list(
+        appstate.arangostorage,
+        filters,
+        lambda d: data.append({"x": d[xcolumn], "y": d[ycolumn]}),
+    )
+    return XYScatter(xcolumn=xcolumn, ycolumn=ycolumn, data=data)
 
 
 async def _get_match_spec(

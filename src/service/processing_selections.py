@@ -6,7 +6,7 @@ import hashlib
 import logging
 import uuid
 
-from typing import Callable, Awaitable
+from typing import Callable, Awaitable, Any
 
 from src.service.app_state_data_structures import CollectionsState, PickleableDependencies
 from src.service import data_product_specs
@@ -20,6 +20,10 @@ from src.service.workspace_wrapper import WorkspaceWrapper, SetSpec
 
 
 MAX_SELECTION_IDS = 10000
+
+# The set descriptions go in the workspace metadata, which has a maximum size of 900 for the
+# key and value
+_MAX_DESCRIPTION_LENGTH=800
 
 _UTF_8 = "utf-8"
 
@@ -95,6 +99,7 @@ async def save_selection(
         collection_ver=coll.ver_num,
         data_product=coll.default_select,
         selection_ids=selection_ids,
+        selection_count=len(selection_ids),
         created=now,
         state=models.ProcessState.PROCESSING,
         state_updated=now,
@@ -221,19 +226,48 @@ async def get_exportable_types(appstate: CollectionsState, selection_id: str) ->
     return (await _get_types(appstate, selection_id))[3]
 
 
-async def _get_types(appstate: CollectionsState, selection_id: str
+async def _get_types(appstate: CollectionsState, selection_id: str, verbose: bool = False
 ) -> tuple[models.InternalSelection, models.SavedCollection, str, list[str]]:
     # We don't know the collection ID yet so we can't require a collection. Don't bother
     # with requiring complete either.
-    sel = await get_selection_full(appstate, selection_id)
+    sel = await get_selection_full(appstate, selection_id, verbose=verbose)
     storage = appstate.arangostorage
     # If we do want to check the collection version, we need to pull the active collection
     coll = await storage.get_collection_version_by_num(sel.collection_id, sel.collection_ver)
     # sel.data_product is checked against the collection when creating the selection so it must
     # be present
-    load_ver = {dp.product: dp.version for dp in coll.data_products}[sel.data_product]
+    load_ver = coll.get_data_product(sel.data_product).version
     types = await storage.get_export_types(coll.id, sel.data_product, load_ver)
     return sel, coll, load_ver, types
+
+
+def _make_prov(
+        appstate: CollectionsState,
+        match_: models.MatchVerbose,
+        sel: models.InternalSelection,
+        service_ver: str,
+) -> dict[str, Any]:
+    prov = {
+        "epoch": appstate.get_epoch_ms(), 
+        "service": "collections", 
+        "service_ver": service_ver, 
+        "method": "toset", 
+        "custom": {
+            "collection": sel.collection_id, 
+            "collection_version": sel.collection_ver,
+        }, 
+        "description": "A set saved by the KBase Collections Service from the " +
+             "user's selection"
+    }
+    if match_:
+        prov["method_params"] = [match_.user_parameters, match_.collection_parameters]
+        prov["custom"] |= {
+            "matcher_id": match_.matcher_id,
+            "selection_modified_post_match": set(match_.matches) != set(sel.selection_ids),
+            "note": "method_params are the match user and collection parameters in that order",
+        }
+        prov["description"] += " created from a match with the provided parameters"
+    return prov
 
 
 async def save_set_to_workspace(
@@ -243,7 +277,9 @@ async def save_set_to_workspace(
     workspace_id: int,
     object_name: str,
     ws_type: str,
-    description: str = None
+    service_ver: str = None,
+    description: str = None,
+    match_: models.MatchVerbose = None,
 ) -> tuple[str, str]:
     """
     Save the contents of a selection to a workspace set.
@@ -254,11 +290,18 @@ async def save_set_to_workspace(
     workspace_id - the ID of the workspace where the data will be saved.
     object_name - the name of the object to save.
     ws_type - the type of data to save.
+    service_ver - the version of the service saving the set.
     description - the description to save with the set.
+    match_ - the match from which the selections generated, even if partially.
 
     Returns the set upa and type.
     """
-    sel, coll, _, types = await _get_types(appstate, selection_id)
+    if description and len(description) > _MAX_DESCRIPTION_LENGTH:
+        raise errors.IllegalParameterError(
+            # could be > 800 bytes if there are a lot of non-ascii chars... meh
+            # workspace will catch it
+            f"A set description cannot be longer than {_MAX_DESCRIPTION_LENGTH} characters")
+    sel, coll, _, types = await _get_types(appstate, selection_id, verbose=True)
     # might want to check the collection is active here...?
     if ws_type not in types:
         raise errors.IllegalParameterError(
@@ -274,7 +317,13 @@ async def save_set_to_workspace(
     ww = WorkspaceWrapper(appstate.sdk_client, token=user.token)
     setupas = await ww.save_sets(
         workspace_id,
-        [SetSpec(name=object_name, upas=upas, description=description, upa_type=ws_type)]
+        [SetSpec(
+            name=object_name,
+            upas=upas,
+            description=description,
+            upa_type=ws_type,
+            provenance=_make_prov(appstate, match_, sel, service_ver)
+        )]
     )
     return next(iter(setupas.items()))
 

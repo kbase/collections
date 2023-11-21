@@ -40,12 +40,15 @@ _KB_DEPLOYMENT_CONFIG = "KB_DEPLOYMENT_CONFIG"
 
 SERVICE_DESCRIPTION = "A repository of data collections and and associated analyses"
 
+# httpx is super chatty if the root logger is set to INFO
+logging.basicConfig(level=logging.WARNING)
+logging.getLogger("src").setLevel(logging.INFO)
+
 
 def create_app(noop=False):
     """
     Create the Collections application
     """
-    logging.basicConfig(level=logging.INFO)
     # deliberately not documenting noop, should go away when we have real tests
     if noop:
         # temporary for prototype status. Eventually need full test suite with 

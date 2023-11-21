@@ -328,9 +328,16 @@ class StringFilter(AbstractFilter):
                     f"ANALYZER(STARTS_WITH({identifier}, {prefixvar}, LENGTH({prefixvar})), "
                         + f"\"{self.analyzer}\")"
                 ]
+            case FilterStrategy.NGRAM:
+                # Could make the search fuzzy by reducing the threshold from 1
+                # Maybe add a param for it if this is something we're interested in
+                # Note there's a possible bug in ngram matching that makes it less suitable
+                # for substring matching:
+                # https://github.com/arangodb/arangodb/issues/20118
+                aql_lines = [f"NGRAM_MATCH({identifier}, @{bindvar}, 1, \"{self.analyzer}\")"]
+                var_assigns = None
             case _:
-                # this is impossible to test currently but is here for safety for when we add
-                # substring search
+                # this is impossible to test currently but is here for safety
                 raise ValueError(f"Unexpected filter strategy: {self.strategy}")
         return SearchQueryPart(
             variable_assignments=var_assigns,

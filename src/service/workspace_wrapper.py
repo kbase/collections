@@ -3,8 +3,8 @@ Wrapper for a workspace client that provides a simplified interface for the need
 collections service.
 """
 
+from typing import Any, Iterable, Annotated
 from pydantic import BaseModel, Field
-from typing import Any, Iterable
 from src.service import errors
 from src.service.sdk_async_client import SDKAsyncClient, ServerError
 
@@ -37,6 +37,10 @@ class SetSpec(BaseModel):
     upas: list[str] = Field(description="The UPAs of the objects making up the set")
     upa_type: str = Field(description="The type of the objects in the UPA list")
     description: str | None = Field(description="A description of the set")
+    provenance: Annotated[dict[str, Any], Field(
+        description="The workspace provenance action for the set, if any. "
+            + "Multiple provenance actions are not supported."
+    )] = None 
 
 
 class WorkspaceWrapper:
@@ -201,7 +205,9 @@ class WorkspaceWrapper:
                 "name": s.name,
                 "type": setinfo["type"],
                 "data": wsset,
-                "provenance": [{"description": "Saved by the KBase collections service."}]
+                # might want to do some error checking here or make a provenance data structure...
+                # YAGNI for now
+                "provenance": [s.provenance],
             })
         try:
             res = await self._cli.call(

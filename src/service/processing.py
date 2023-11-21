@@ -62,6 +62,8 @@ def run_async_process(target: Callable, args: list[Any]):
 
 
 def _run_async_process(target: Callable, args: list[Any]):
+    # otherwise no logger handlers exist anywhere in the tree
+    logging.basicConfig(level=logging.WARNING)
     asyncio.run(target(*args))
 
 

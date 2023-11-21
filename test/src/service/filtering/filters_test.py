@@ -177,6 +177,14 @@ def test_stringfilter_to_arangosearch_aql_prefix():
     )
 
 
+def test_stringfilter_to_arangosearch_aql_ngram():
+    sf = StringFilter.from_string(None, "flaviobact", "ngram", FilterStrategy.NGRAM)
+    assert sf.to_arangosearch_aql("d.classification", "first_") == SearchQueryPart(
+        aql_lines=["NGRAM_MATCH(d.classification, @first_input, 1, \"ngram\")"],
+        bind_vars={"first_input": "flaviobact"}
+    )
+
+
 def test_stringfilter_from_string_fail():
     ve = ValueError
     mpe = errors.MissingParameterError
@@ -199,6 +207,7 @@ def _filterset_with_defaults_append_filters(fs: FilterSet):
         ).append("rangefield2", ColumnType.FLOAT, "0.2,"
         ).append("fulltextfield", ColumnType.STRING, "whee", "text_rs", FilterStrategy.FULL_TEXT
         ).append("datefield", ColumnType.DATE, ",2023-09-13T18:51:19+0000]"
+        ).append("ngramfield", ColumnType.STRING, "bitsnbobs", "ngram_stuff", FilterStrategy.NGRAM
         ).append("strident", ColumnType.STRING, "thingy", strategy=FilterStrategy.IDENTITY
     )
     return fs
@@ -229,7 +238,9 @@ FOR doc IN @@view
         AND
         doc.datefield <= @v5_high
         AND
-        doc.strident == @v6_input
+        NGRAM_MATCH(doc.ngramfield, @v6_input, 1, "ngram_stuff")
+        AND
+        doc.strident == @v7_input
     )
     LIMIT @skip, @limit
     RETURN doc
@@ -246,9 +257,10 @@ FOR doc IN @@view
         'v3_low': 0.2,
         "v4_input": "whee",
         "v5_high": "2023-09-13T18:51:19+0000",
-        "v6_input": "thingy",
+        "v6_input": "bitsnbobs",
+        "v7_input": "thingy",
     }
-    assert len(fs) == 6
+    assert len(fs) == 7
 
 
 def test_filterset_aql_w_defaults():
@@ -297,7 +309,9 @@ RETURN COUNT(FOR doc IN @@view
         AND
         doc.datefield <= @v5_high
         AND
-        doc.strident == @v6_input
+        NGRAM_MATCH(doc.ngramfield, @v6_input, 1, "ngram_stuff")
+        AND
+        doc.strident == @v7_input
     )
     RETURN doc
 )
@@ -312,9 +326,10 @@ RETURN COUNT(FOR doc IN @@view
         'v3_low': 0.2,
         "v4_input": "whee",
         "v5_high": "2023-09-13T18:51:19+0000",
-        "v6_input": "thingy",
+        "v6_input": "bitsnbobs",
+        "v7_input": "thingy",
     }
-    assert len(fs) == 6
+    assert len(fs) == 7
 
 
 def test_filterset_aql_w_defaults_count():
