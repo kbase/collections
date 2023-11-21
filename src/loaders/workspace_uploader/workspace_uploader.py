@@ -467,7 +467,7 @@ def main():
     token_filepath = args.token_filepath
     upload_file_ext = args.upload_file_ext
     batch_size = args.batch_size
-    max_task = jr_max_tasks
+    max_task = args.jr_max_tasks
     au_service_ver = args.au_service_ver
     keep_job_dir = args.keep_job_dir
 
@@ -495,6 +495,9 @@ def main():
     conf = None
 
     try:
+        # setup container.conf file for the callback server logs
+        loader_helper.setup_callback_server_logs()
+
         # start podman service
         proc = loader_helper.start_podman_service(uid)
 
@@ -542,6 +545,7 @@ def main():
 
         # print out container logs
         if conf.logging is not None:
+            print("\n****** Logs from the Callback Server ******\n")
             log_string = conf.logging.decode("utf-8")
             for line in log_string.split("\n"):
                 print(line)
