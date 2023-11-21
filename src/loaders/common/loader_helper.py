@@ -280,19 +280,30 @@ def start_podman_service(uid: int):
 
 
 def setup_callback_server_logs():
-    """set up logs config file for the callback server"""
+    """Set up logs config file for the callback server"""
     home = os.path.expanduser("~")
     conf_path = os.path.join(home, ".config/containers/containers.conf")
     config = configparser.ConfigParser()
     config.read(conf_path)
+    params = {
+        "seccomp_profile": "\"unconfined\"",
+        "log_driver": "\"k8s-file\""
+    }
+
+    modify = False
     if not config.has_section("containers"):
         config.add_section("containers")
-    if config.get("containers", "seccomp_profile", fallback=None) != "\"unconfined\"":
-        config.set("containers", "seccomp_profile", "\"unconfined\"")
-    if config.get("containers", "log_driver", fallback=None) != "\"k8s-file\"":
-        config.set("containers", "log_driver", "\"k8s-file\"")
-    with open(conf_path, 'w') as configfile:
-        config.write(configfile)
+
+    for key, val in params.items():
+        if config.get("containers", key, fallback=None) != val:
+            config.set("containers", key, val)
+            if not modify:
+                modify = True
+
+    if modify:
+        with open(conf_path, 'w') as configfile:
+            config.write(configfile)
+        print(f"containers.conf is modified and saved to path: {conf_path}")
 
 
 def is_upa_info_complete(upa_dir: str):
