@@ -91,6 +91,7 @@ class Conf:
 
         # used by the callback server
         env["KB_AUTH_TOKEN"] = token
+        env["KB_ADMIN_AUTH_TOKEN"] = token # pass in admin_token to get catalog params
         env["KB_BASE_URL"] = kb_base_url
         env["JOB_DIR"] = job_dir
         env["CALLBACK_PORT"] = port
