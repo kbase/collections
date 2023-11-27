@@ -379,7 +379,7 @@ def _process_genome_attri_tools(genome_attr_tools: set[str],
     docs, encountered_types = _update_docs_with_upa_info(res_dict, meta_lookup, check_genome)
 
     for doc in docs:
-        doc[names.FLD_KB_SAMPLE_ID] = data_id_sample_id_map.get(doc[names.FLD_KBASE_ID], '')
+        doc[names.FLD_KB_SAMPLE_ID] = data_id_sample_id_map.get(doc[names.FLD_KBASE_ID])
 
     docs, meta_doc = process_columnar_meta(docs, kbase_collection, load_ver)
 
