@@ -378,10 +378,10 @@ def _process_genome_attri_tools(genome_attr_tools: set[str],
     meta_lookup = _create_meta_lookup(root_dir, env, kbase_collection, load_ver, tool)
     docs, encountered_types = _update_docs_with_upa_info(res_dict, meta_lookup, check_genome)
 
-    docs, meta_doc = process_columnar_meta(docs, kbase_collection, load_ver)
-
     for doc in docs:
         doc[names.FLD_KB_SAMPLE_ID] = data_id_sample_id_map.get(doc[names.FLD_KBASE_ID], '')
+
+    docs, meta_doc = process_columnar_meta(docs, kbase_collection, load_ver)
 
     output = f'{kbase_collection}_{load_ver}_{"_".join(genome_attr_tools)}_{names.COLL_GENOME_ATTRIBS}.jsonl'
     create_import_files(root_dir, env, kbase_collection, load_ver, output, docs)
