@@ -15,6 +15,10 @@ columns:
      type: string
      filter_strategy: identity
 
+   - key: kbase_sample_id
+     type: string
+     filter_strategy: identity
+
    - key: Contamination  # checkm2  # GTDB is checkm_contamination
      type: float
    
