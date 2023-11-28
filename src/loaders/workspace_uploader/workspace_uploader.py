@@ -403,8 +403,8 @@ def _upload_assembly_files_in_parallel(
             batch_uploaded_objects_names = set(name_upa_map.keys()) & set(name_assemblyTuple_map.keys())
 
             # update batch_uploaded_tuples and batch_upas
-            batch_upas = tuple([assembly_names_in_ws_dict[name] for name in batch_uploaded_objects_names])
-            batch_uploaded_tuples = [fail_batch_dict[name] for name in batch_uploaded_objects_names]
+            batch_upas = tuple([name_upa_map[name] for name in batch_uploaded_objects_names])
+            batch_uploaded_tuples = [name_assemblyTuple_map[name] for name in batch_uploaded_objects_names]
             uploaded_fail = True
 
         for assembly_tuple, upa in zip(batch_uploaded_tuples, batch_upas):
@@ -503,7 +503,7 @@ def main():
     try:
         # setup container.conf file for the callback server logs
         if click.confirm(f"Set up a containers.conf file at {loader_common_names.CONTAINERS_CONF_PATH} if does not exist already?\n"
-                         f"Params 'seccomp_profile' and 'log_driver' will be added under section 'containers'"):
+                         f"Params 'seccomp_profile' and 'log_driver' will be added under section [containers]"):
             loader_helper.setup_callback_server_logs()
         else:
             print("Permission denied and exiting ...")
@@ -555,7 +555,7 @@ def main():
             conf.stop_callback_server()
 
         # print out container logs
-        if conf.logging is not None:
+        if conf and conf.logging is not None:
             print("\n****** Logs from the Callback Server ******\n")
             log_string = conf.logging.decode("utf-8")
             for line in log_string.split("\n"):
