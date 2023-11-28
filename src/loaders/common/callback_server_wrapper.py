@@ -84,12 +84,13 @@ class Conf:
                     "worker_function cannot be None for the workspace downloader script"
                 )
             self.input_queue = Queue()
-            self.pools = Pool(workers, worker_function, [self])
             self.retrieve_sample = retrieve_sample
             self.ignore_no_sample_error = ignore_no_sample_error
 
             sample_url = os.path.join(kb_base_url, "sampleservice")
             self.ss = SampleService(sample_url, token=token)
+
+            self.pools = Pool(workers, worker_function, [self])
 
     def _setup_callback_server_envs(
         self,
