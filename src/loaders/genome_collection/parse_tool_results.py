@@ -44,6 +44,7 @@ import os
 import shutil
 import sys
 import tempfile
+from collections import defaultdict
 from pathlib import Path
 
 import jsonlines
@@ -528,6 +529,31 @@ def microtrait(root_dir, env, kbase_collection, load_ver, fatal_ids):
     return heatmap_meta, heatmap_rows, heatmap_cell_details
 
 
+def _flat_samples_data(prepared_samples_data: list[dict]) -> list[dict]:
+    # Flatten the sample data to a list of documents with each document containing a single sample
+
+    flatten_samples_data = defaultdict(lambda: {names.FLD_KBASE_IDS: list()})
+
+    for sample_data in prepared_samples_data:
+        kbase_sample_id = sample_data[names.FLD_KB_SAMPLE_ID]
+        kbase_id = sample_data[names.FLD_KBASE_ID]
+
+        if not flatten_samples_data[kbase_sample_id].get(names.FLD_KBASE_IDS):
+            flatten_samples_data[kbase_sample_id].update(sample_data)
+
+        flatten_samples_data[kbase_sample_id][names.FLD_KBASE_IDS].append(kbase_id)
+
+    # Generate new _key and add genome count for each unique entry
+    for entry in flatten_samples_data.values():
+        entry[names.FLD_ARANGO_KEY] = collection_data_id_key(entry[names.FLD_COLLECTION_ID],
+                                                             entry[names.FLD_LOAD_VERSION],
+                                                             entry[names.FLD_KB_SAMPLE_ID])
+        entry[names.FLD_KB_GENOME_COUNT] = len(entry[names.FLD_KBASE_IDS])
+        del entry[names.FLD_KBASE_ID]
+
+    return flatten_samples_data.values()
+
+
 def _retrieve_sample(root_dir, env, kbase_collection, source_ver, load_ver):
     print(f'Parsing sample data for {kbase_collection} collection, load version {load_ver}, '
           f'source version {source_ver}.')
@@ -556,14 +582,15 @@ def _retrieve_sample(root_dir, env, kbase_collection, source_ver, load_ver):
 
         prepared_samples_data.append(doc)
 
+    data_id_sample_id_map = {doc[names.FLD_KBASE_ID]: doc[names.FLD_KB_SAMPLE_ID] for doc in prepared_samples_data}
+
+    flatten_samples_data = _flat_samples_data(prepared_samples_data)
     create_import_files(root_dir,
                         env,
                         kbase_collection,
                         load_ver,
                         f'{kbase_collection}_{load_ver}_{names.COLL_SAMPLES}.jsonl',
-                        prepared_samples_data)
-
-    data_id_sample_id_map = {doc[names.FLD_KBASE_ID]: doc[names.FLD_KB_SAMPLE_ID] for doc in prepared_samples_data}
+                        flatten_samples_data)
 
     return data_id_sample_id_map
 
