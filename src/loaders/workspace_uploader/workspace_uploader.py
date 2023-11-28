@@ -54,6 +54,7 @@ The data will be linked to the collections source directory:
 e.g. /global/cfs/cdirs/kbase/collections/collectionssource/ -> ENV -> kbase_collection -> source_ver -> UPA -> .fna.gz file
 """
 import argparse
+import click
 import os
 import shutil
 import time
@@ -139,7 +140,7 @@ def _get_parser():
     optional.add_argument(
         "--batch_size",
         type=int,
-        default=1000,
+        default=2500,
         help="Number of files to upload per batch",
     )
     optional.add_argument(
@@ -381,30 +382,32 @@ def _upload_assembly_files_in_parallel(
     print(f"Start uploading {assembly_files_len} assembly files\n")
 
     uploaded_count = 0
+    uploaded_fail = False
     for assembly_tuples in _gen(wait_to_upload_assemblies, batch_size):
 
         try:
             batch_upas = _upload_assemblies_to_workspace(conf, workspace_id, assembly_tuples)
+            batch_uploaded_tuples = assembly_tuples
         except Exception as e:
-            failed_objects_names = [assembly_tuple.assembly_name for assembly_tuple in assembly_tuples]
+            name_assemblyTuple_map = {
+                assembly_tuple.assembly_name: assembly_tuple for assembly_tuple in assembly_tuples
+            }
             assembly_objects_in_ws = loader_helper.list_objects(
                 workspace_id,
                 conf,
                 loader_common_names.OBJECTS_NAME_ASSEMBLY,
             )
-            assembly_names_in_ws = [object_info[1] for object_info in assembly_objects_in_ws]
-            objects_names_to_delete_from_ws = set(assembly_names_in_ws) & set(failed_objects_names)
-            if objects_names_to_delete_from_ws:
-                conf.ws.delete_objects(
-                    [
-                        {"wsid": workspace_id, "name": object_name}
-                        for object_name in objects_names_to_delete_from_ws
-                    ]
-                )
-                print(f"workspace {workspace_id} cleanup done ...")
-            return uploaded_count
+            name_upa_map = {
+                object_info[1]: "{6}_{0}_{4}".format(*object_info) for object_info in assembly_objects_in_ws
+            }
+            batch_uploaded_objects_names = set(name_upa_map.keys()) & set(name_assemblyTuple_map.keys())
 
-        for assembly_tuple, upa in zip(assembly_tuples, batch_upas):
+            # update batch_uploaded_tuples and batch_upas
+            batch_upas = tuple([assembly_names_in_ws_dict[name] for name in batch_uploaded_objects_names])
+            batch_uploaded_tuples = [fail_batch_dict[name] for name in batch_uploaded_objects_names]
+            uploaded_fail = True
+
+        for assembly_tuple, upa in zip(batch_uploaded_tuples, batch_upas):
             _post_process(
                 upload_env_key,
                 workspace_id,
@@ -414,12 +417,15 @@ def _upload_assembly_files_in_parallel(
                 conf.output_dir,
                 upa
             )
-        
-        uploaded_count += len(assembly_tuples)
-        if uploaded_count % 1000 == 0:
+
+        uploaded_count += len(batch_uploaded_tuples)
+        if uploaded_count % 100 == 0:
             print(f"Assemblies uploaded: {uploaded_count}/{assembly_files_len}, "
                   f"Percentage: {uploaded_count / assembly_files_len * 100:.2f}%, "
                   f"Time: {datetime.now()}")
+
+        if uploaded_fail:
+            return uploaded_count
 
     return uploaded_count
 
@@ -496,7 +502,12 @@ def main():
 
     try:
         # setup container.conf file for the callback server logs
-        loader_helper.setup_callback_server_logs()
+        if click.confirm(f"Set up a containers.conf file at {loader_common_names.CONTAINERS_CONF_PATH} if does not exist already?\n"
+                         f"Params 'seccomp_profile' and 'log_driver' will be added under section 'containers'"):
+            loader_helper.setup_callback_server_logs()
+        else:
+            print("Permission denied and exiting ...")
+            return
 
         # start podman service
         proc = loader_helper.start_podman_service(uid)

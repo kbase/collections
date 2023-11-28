@@ -29,6 +29,7 @@ from src.common.storage.db_doc_conversions import (
 )
 from src.loaders.common.loader_common_names import (
     COLLECTION_SOURCE_DIR,
+    CONTAINERS_CONF_PATH,
     DOCKER_HOST,
     FATAL_ERROR,
     FATAL_STACKTRACE,
@@ -293,7 +294,7 @@ def start_podman_service(uid: int):
 def setup_callback_server_logs():
     """Set up logs config file for the callback server"""
     home = os.path.expanduser("~")
-    conf_path = os.path.join(home, ".config/containers/containers.conf")
+    conf_path = os.path.join(home, CONTAINERS_CONF_PATH)
     config = configparser.ConfigParser()
     config.read(conf_path)
     params = {

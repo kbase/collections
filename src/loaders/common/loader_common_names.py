@@ -131,3 +131,5 @@ KB_BASE_URL_MAP = {'CI': 'https://ci.kbase.us/services/',
 
 # service_vers
 SERVICE_VERSIONS = ["dev", "beta", "release"]
+# containers.conf path
+CONTAINERS_CONF_PATH = ".config/containers/containers.conf"
