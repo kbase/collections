@@ -60,14 +60,13 @@ import shutil
 import time
 from collections import namedtuple
 from datetime import datetime
-from multiprocessing import cpu_count
 from pathlib import Path
 from typing import Generator
 
 import yaml
 
 from src.loaders.common import loader_common_names, loader_helper
-from src.loaders.workspace_uploader.workspace_uploader_helper import Conf
+from src.loaders.common.callback_server_wrapper import Conf
 
 # setup KB_AUTH_TOKEN as env or provide a token_filepath in --token_filepath
 # export KB_AUTH_TOKEN="your-kb-auth-token"

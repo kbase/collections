@@ -1,5 +1,17 @@
 # Data Pipeline Procedure
 
+## Set working directory to default group
+   * Set working directory and its subdirectories to the default group
+      ```commandline
+      file_group=kbase
+      working_dir=dir_to_set_group
+      find /global/cfs/cdirs/kbase/collections/$working_dir -type d -exec chgrp $file_group {} \;
+      ```
+   * set the "setgid" bit so that anything created or modified in that direcotry will automatically be set to the default group
+      ```commandline
+      find /global/cfs/cdirs/kbase/collections/$working_dir -type d -exec chmod g+s {} \;
+      ```
+
 ## Download Source Data
    * Workspace Downloader
      * Example usage
