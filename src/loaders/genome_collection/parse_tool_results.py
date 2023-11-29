@@ -531,6 +531,17 @@ def microtrait(root_dir, env, kbase_collection, load_ver, fatal_ids):
 
 def _flat_samples_data(prepared_samples_data: list[dict]) -> list[dict]:
     # Flatten the sample data to a list of documents with each document containing a single sample
+    #
+    # Parameters:
+    # The 'prepared_samples_data' variable from the previous step comprises a list of dictionaries formatted
+    # for ArangoDB import, each containing sample data for a single genome marked as 'kbase_id'.
+    # Consequently, some entries in the list may contain identical sample data.
+    #
+    # Return:
+    # This function flattens the sample data into a list of dictionaries. Each dictionary retains identical sample data,
+    # accompanied by a list of all associated genomes marked as 'kbase_ids'.
+    # Additionally, the function introduces a 'genome_count' field and regenerates the '_key' field for each dictionary.
+    # All other fields, such as '_mtchsel', 'coll', 'load_ver', and the sample data fields, remain unchanged from the input.
 
     flatten_samples_data = defaultdict(lambda: {names.FLD_KBASE_IDS: list()})
 
