@@ -55,7 +55,7 @@ from typing import Any
 
 import src.common.storage.collection_and_field_names as names
 from src.loaders.common import loader_common_names, loader_helper
-from src.loaders.workspace_downloader.workspace_downloader_helper import Conf
+from src.loaders.common.callback_server_wrapper import Conf
 
 # setup KB_AUTH_TOKEN as env or provide a token_filepath in --token_filepath
 # export KB_AUTH_TOKEN="your-kb-auth-token"
