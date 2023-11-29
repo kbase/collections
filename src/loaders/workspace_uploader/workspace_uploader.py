@@ -512,7 +512,15 @@ def main():
         proc = loader_helper.start_podman_service(uid)
 
         # set up conf for uploader, start callback server, and upload assemblies to workspace
-        conf = Conf(job_dir, output_dir, kb_base_url, token_filepath, au_service_ver, max_task)
+        conf = Conf(
+            job_dir,
+            output_dir,
+            kb_base_url,
+            token_filepath,
+            au_service_ver,
+            max_task=max_task,
+            workspace_downloader=False,
+        )
 
         count, wait_to_upload_assemblies = _fetch_assemblies_to_upload(
             env, 

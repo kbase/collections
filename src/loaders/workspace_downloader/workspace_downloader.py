@@ -1,6 +1,8 @@
 """
-usage: workspace_downloader.py [-h] --workspace_id WORKSPACE_ID [--kbase_collection KBASE_COLLECTION] [--source_version SOURCE_VERSION] [--root_dir ROOT_DIR]
-                               [--env {CI,NEXT,APPDEV,PROD}] [--workers WORKERS] [--token_filepath TOKEN_FILEPATH] [--keep_job_dir] [--retrieve_sample] [--ignore_no_sample_error]
+usage: workspace_downloader.py [-h] --workspace_id WORKSPACE_ID [--kbase_collection KBASE_COLLECTION] [--source_version SOURCE_VERSION]
+                               [--root_dir ROOT_DIR] [--env {CI,NEXT,APPDEV,PROD}] [--workers WORKERS] [--token_filepath TOKEN_FILEPATH]
+                               [--jr_max_tasks JR_MAX_TASKS] [--au_service_ver {dev,beta,release}] [--keep_job_dir] [--retrieve_sample]
+                               [--ignore_no_sample_error]
 
 PROTOTYPE - Download genome files from the workspace service (WSS).
 
@@ -22,6 +24,10 @@ optional arguments:
   --workers WORKERS     Number of workers for multiprocessing (default: 5)
   --token_filepath TOKEN_FILEPATH
                         A file path that stores KBase token
+  --jr_max_tasks JR_MAX_TASKS
+                        The maxmium subtasks for the callback server (default: 20)
+  --au_service_ver {dev,beta,release}
+                        The service version of AssemblyUtil client (default: release)
   --keep_job_dir        Keep SDK job directory after download task is completed
   --retrieve_sample     Retrieve sample for each genome object
   --ignore_no_sample_error
@@ -374,6 +380,19 @@ def main():
         help="A file path that stores KBase token",
     )
     optional.add_argument(
+        "--jr_max_tasks",
+        type=int,
+        default=20,
+        help="The maxmium subtasks for the callback server",
+    )
+    optional.add_argument(
+        "--au_service_ver",
+        type=str,
+        choices=loader_common_names.SERVICE_VERSIONS,
+        default="release",
+        help="The service version of AssemblyUtil client",
+    )
+    optional.add_argument(
         "--keep_job_dir",
         action="store_true",
         help="Keep SDK job directory after download task is completed",
@@ -398,6 +417,8 @@ def main():
     env = args.env
     workers = args.workers
     token_filepath = args.token_filepath
+    max_task = args.jr_max_tasks
+    au_service_ver = args.au_service_ver
     keep_job_dir = args.keep_job_dir
     retrieve_sample = args.retrieve_sample
     ignore_no_sample_error = args.ignore_no_sample_error
@@ -438,10 +459,12 @@ def main():
         conf = Conf(
             job_dir,
             output_dir,
-            _process_input,
             kb_base_url,
             token_filepath,
+            au_service_ver,
             workers,
+            max_task,
+            _process_input,
             retrieve_sample,
             ignore_no_sample_error,
         )
