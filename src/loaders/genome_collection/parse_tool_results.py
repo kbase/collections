@@ -539,7 +539,7 @@ def _flat_samples_data(prepared_samples_data: list[dict]) -> list[dict]:
     #
     # Return:
     # This function flattens the sample data into a list of dictionaries. Each dictionary retains identical sample data,
-    # accompanied by a list of all associated genomes marked as 'kbase_ids'.
+    # accompanied by a list of all associated genomes marked as 'kbase_ids' (replacing 'kbase_id' field).
     # Additionally, the function introduces a 'genome_count' field and regenerates the '_key' field for each dictionary.
     # All other fields, such as '_mtchsel', 'coll', 'load_ver', and the sample data fields, remain unchanged from the input.
 
