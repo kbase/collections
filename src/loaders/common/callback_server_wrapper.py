@@ -41,7 +41,8 @@ class Conf:
             kb_base_url (str): The base url of the KBase services.
             token_filepath (str): The file path that stores a KBase token appropriate for the KBase environment.
                                 If not supplied, the token must be provided in the environment variable KB_AUTH_TOKEN.
-            au_service_ver (str): The service verison of AssemblyUtilClient.
+            au_service_ver (str): The service verison of AssemblyUtilClient
+                                ('dev', 'beta', 'release', or a git commit).
             workers (int): The number of workers to use for multiprocessing.
             max_task (int): The maxmium subtasks for the callback server.
             worker_function (Callable): The function that will be called by the workers.
