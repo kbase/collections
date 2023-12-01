@@ -29,6 +29,7 @@ from src.common.storage.db_doc_conversions import (
 )
 from src.loaders.common.loader_common_names import (
     COLLECTION_SOURCE_DIR,
+    CONTAINERS_CONF_PARAMS,
     CONTAINERS_CONF_PATH,
     DOCKER_HOST,
     FATAL_ERROR,
@@ -291,31 +292,39 @@ def start_podman_service(uid: int):
     return proc
 
 
-def setup_callback_server_logs():
-    """Set up logs config file for the callback server"""
+def get_containers_config():
+    """Get containers.conf file at home directory."""
     home = os.path.expanduser("~")
     conf_path = os.path.join(home, CONTAINERS_CONF_PATH)
     config = configparser.ConfigParser()
     config.read(conf_path)
-    params = {
-        "seccomp_profile": "\"unconfined\"",
-        "log_driver": "\"k8s-file\""
-    }
+    return config, conf_path
 
-    modify = False
+
+def is_config_modification_required():
+    """check if the config requires modification."""
+    config, _ = get_containers_config()
+    if not config.has_section("containers"):
+        return True
+    for key, val in CONTAINERS_CONF_PARAMS.items():
+        if config.get("containers", key, fallback=None) != val:
+            return True
+    return False
+
+
+def setup_callback_server_logs():
+    """Set up containers.conf file for the callback server logs."""
+    config, conf_path = get_containers_config()
     if not config.has_section("containers"):
         config.add_section("containers")
 
-    for key, val in params.items():
+    for key, val in CONTAINERS_CONF_PARAMS.items():
         if config.get("containers", key, fallback=None) != val:
             config.set("containers", key, val)
-            if not modify:
-                modify = True
 
-    if modify:
-        with open(conf_path, 'w') as configfile:
-            config.write(configfile)
-        print(f"containers.conf is modified and saved to path: {conf_path}")
+    with open(conf_path, 'w') as configfile:
+        config.write(configfile)
+    print(f"containers.conf is modified and saved to path: {conf_path}")
 
 
 def is_upa_info_complete(upa_dir: str):

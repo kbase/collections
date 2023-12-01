@@ -2,7 +2,7 @@
 usage: workspace_uploader.py [-h] --workspace_id WORKSPACE_ID [--kbase_collection KBASE_COLLECTION] [--source_ver SOURCE_VER]
                              [--root_dir ROOT_DIR] [--token_filepath TOKEN_FILEPATH] [--env {CI,NEXT,APPDEV,PROD}]
                              [--upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]] [--batch_size BATCH_SIZE]
-                             [--jr_max_tasks JR_MAX_TASKS] [--au_service_ver {dev,beta,release}] [--keep_job_dir]
+                             [--jr_max_tasks JR_MAX_TASKS] [--au_service_ver AU_SERVICE_VER] [--keep_job_dir]
 
 PROTOTYPE - Upload assembly files to the workspace service (WSS).
 
@@ -34,8 +34,8 @@ optional arguments:
                         Number of files to upload per batch (default: 1000)
   --jr_max_tasks JR_MAX_TASKS
                         The maxmium subtasks for the callback server (default: 20)
-  --au_service_ver {dev,beta,release}
-                        The service version of AssemblyUtil client (default: release)
+  --au_service_ver AU_SERVICE_VER
+                        The service version of AssemblyUtil client('dev', 'beta', 'release', or a git commit) (default: release)
   --keep_job_dir        Keep SDK job directory after upload task is completed
 
 e.g.
@@ -151,9 +151,9 @@ def _get_parser():
     optional.add_argument(
         "--au_service_ver",
         type=str,
-        choices=loader_common_names.SERVICE_VERSIONS,
         default="release",
-        help="The service version of AssemblyUtil client",
+        help="The service version of AssemblyUtil client"
+             "('dev', 'beta', 'release', or a git commit)",
     )
     optional.add_argument(
         "--keep_job_dir",
@@ -500,24 +500,25 @@ def main():
     conf = None
 
     try:
-        # setup container.conf file for the callback server logs
-        if click.confirm(f"Set up a containers.conf file at {loader_common_names.CONTAINERS_CONF_PATH} if does not exist already?\n"
-                         f"Params 'seccomp_profile' and 'log_driver' will be added under section [containers]"):
-            loader_helper.setup_callback_server_logs()
-        else:
-            print("Permission denied and exiting ...")
-            return
+        # setup container.conf file for the callback server logs if needed
+        if loader_helper.is_config_modification_required():
+            if click.confirm(f"Set up a containers.conf file at {loader_common_names.CONTAINERS_CONF_PATH} if does not exist already?\n"
+                             f"Params 'seccomp_profile' and 'log_driver' will be added/updated under section [containers]"):
+                loader_helper.setup_callback_server_logs()
+            else:
+                print("Permission denied and exiting ...")
+                return
 
         # start podman service
         proc = loader_helper.start_podman_service(uid)
 
         # set up conf for uploader, start callback server, and upload assemblies to workspace
         conf = Conf(
-            job_dir,
-            output_dir,
-            kb_base_url,
-            token_filepath,
-            au_service_ver,
+            job_dir=job_dir,
+            output_dir=output_dir,
+            kb_base_url=kb_base_url,
+            token_filepath=token_filepath,
+            au_service_ver=au_service_ver,
             max_task=max_task,
             workspace_downloader=False,
         )
@@ -560,13 +561,6 @@ def main():
         # stop callback server if it is on
         if conf:
             conf.stop_callback_server()
-
-        # print out container logs
-        if conf and conf.logging is not None:
-            print("\n****** Logs from the Callback Server ******\n")
-            log_string = conf.logging.decode("utf-8")
-            for line in log_string.split("\n"):
-                print(line)
 
         # stop podman service if it is on
         if proc:

@@ -1,7 +1,7 @@
 """
 usage: workspace_downloader.py [-h] --workspace_id WORKSPACE_ID [--kbase_collection KBASE_COLLECTION] [--source_version SOURCE_VERSION]
                                [--root_dir ROOT_DIR] [--env {CI,NEXT,APPDEV,PROD}] [--workers WORKERS] [--token_filepath TOKEN_FILEPATH]
-                               [--jr_max_tasks JR_MAX_TASKS] [--au_service_ver {dev,beta,release}] [--keep_job_dir] [--retrieve_sample]
+                               [--jr_max_tasks JR_MAX_TASKS] [--au_service_ver AU_SERVICE_VER] [--keep_job_dir] [--retrieve_sample]
                                [--ignore_no_sample_error]
 
 PROTOTYPE - Download genome files from the workspace service (WSS).
@@ -26,8 +26,8 @@ optional arguments:
                         A file path that stores KBase token
   --jr_max_tasks JR_MAX_TASKS
                         The maxmium subtasks for the callback server (default: 20)
-  --au_service_ver {dev,beta,release}
-                        The service version of AssemblyUtil client (default: release)
+  --au_service_ver AU_SERVICE_VER
+                        The service version of AssemblyUtil client('dev', 'beta', 'release', or a git commit) (default: release)
   --keep_job_dir        Keep SDK job directory after download task is completed
   --retrieve_sample     Retrieve sample for each genome object
   --ignore_no_sample_error
@@ -388,9 +388,9 @@ def main():
     optional.add_argument(
         "--au_service_ver",
         type=str,
-        choices=loader_common_names.SERVICE_VERSIONS,
         default="release",
-        help="The service version of AssemblyUtil client",
+        help="The service version of AssemblyUtil client"
+             "('dev', 'beta', 'release', or a git commit)",
     )
     optional.add_argument(
         "--keep_job_dir",
@@ -457,16 +457,17 @@ def main():
 
         # set up conf and start callback server
         conf = Conf(
-            job_dir,
-            output_dir,
-            kb_base_url,
-            token_filepath,
-            au_service_ver,
-            workers,
-            max_task,
-            _process_input,
-            retrieve_sample,
-            ignore_no_sample_error,
+            job_dir=job_dir,
+            output_dir=output_dir,
+            kb_base_url=kb_base_url,
+            token_filepath=token_filepath,
+            au_service_ver=au_service_ver,
+            workers=workers,
+            max_task=max_task,
+            worker_function=_process_input,
+            retrieve_sample=retrieve_sample,
+            ignore_no_sample_error=ignore_no_sample_error,
+            workspace_downloader=True,
         )
 
         genome_objs = loader_helper.list_objects(

@@ -129,7 +129,10 @@ KB_BASE_URL_MAP = {'CI': 'https://ci.kbase.us/services/',
                    'APPDEV': 'https://appdev.kbase.us/services/',
                    'PROD': 'https://kbase.us/services/'}
 
-# service_vers
-SERVICE_VERSIONS = ["dev", "beta", "release"]
 # containers.conf path
 CONTAINERS_CONF_PATH = ".config/containers/containers.conf"
+# params in containers.conf file
+CONTAINERS_CONF_PARAMS = {
+    "seccomp_profile": "\"unconfined\"",
+    "log_driver": "\"k8s-file\""
+}

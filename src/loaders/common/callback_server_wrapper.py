@@ -49,7 +49,6 @@ class Conf:
             ignore_no_sample_error (bool): Whether to ignore the error when no sample data is found.
             workspace_downloader (bool): Whether to be used for the workspace downloader script.
         """
-        # common instance variables
         ipv4 = loader_helper.get_ip()
         port = loader_helper.find_free_port()
         token = loader_helper.get_token(token_filepath)
@@ -69,13 +68,12 @@ class Conf:
             ipv4,
         )
 
+        # common instance variables
         self.ws = Workspace(ws_url, token=token)
         self.asu = AssemblyUtil(callback_url, service_ver=au_service_ver, token=token)
 
         self.output_dir = output_dir
         self.job_data_dir = loader_helper.make_job_data_dir(job_dir)
-
-        self.logging = None
 
         # unique to downloader
         if workspace_downloader:
@@ -107,7 +105,7 @@ class Conf:
         Args:
             job_dir (str): The directory for SDK jobs per user.
             kb_base_url (str): The base url of the KBase services.
-            token (str): The KBase token.
+            token (str): The KBase token. Also used as a catalog admin token if valid.
             port (int): The port number for the callback server.
             max_task (int): The maxmium subtasks for the callback server.
             ipv4: (str): The ipv4 address for the callback server.
@@ -121,7 +119,7 @@ class Conf:
 
         # used by the callback server
         env["KB_AUTH_TOKEN"] = token
-        env["KB_ADMIN_AUTH_TOKEN"] = token  # pass in admin_token to get catalog params
+        env["KB_ADMIN_AUTH_TOKEN"] = token  # pass in catalog admin token to get catalog params
         env["KB_BASE_URL"] = kb_base_url
         env["JOB_DIR"] = job_dir
         env["CALLBACK_PORT"] = port
@@ -176,10 +174,21 @@ class Conf:
         )
         time.sleep(2)
 
+    def _get_container_logs(self) -> None:
+        """
+        Get logs from the callback server container.
+        """
+        logs = self.container.log()
+        if logs:
+            print("\n****** Logs from the Callback Server ******\n")
+            logs = logs.decode("utf-8")
+            for line in logs.split("\n"):
+                print(line)
+
     def stop_callback_server(self) -> None:
         """
         Stop the callback server.
         """
-        self.logging = self.container.logs()
+        self._get_container_logs()
         self.container.stop()
         self.container.remove()
