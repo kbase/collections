@@ -124,11 +124,11 @@ def _process_object_info(obj_info, genome_upa):
     }
     """
     res_dict = {}
-    res_dict["upa"] = "{6}/{0}/{4}".format(*obj_info)
-    res_dict["name"] = obj_info[1]
-    res_dict["type"] = obj_info[2]
-    res_dict["timestamp"] = obj_info[3]
-    res_dict["genome_upa"] = genome_upa
+    res_dict[loader_common_names.FLD_KB_OBJ_UPA] = "{6}/{0}/{4}".format(*obj_info)
+    res_dict[loader_common_names.FLD_KB_OBJ_NAME] = obj_info[1]
+    res_dict[loader_common_names.FLD_KB_OBJ_TYPE] = obj_info[2]
+    res_dict[loader_common_names.FLD_KB_OBJ_TIMESTAMP] = obj_info[3]
+    res_dict[loader_common_names.FLD_KB_OBJ_GENOME_UPA] = genome_upa
     return res_dict
 
 

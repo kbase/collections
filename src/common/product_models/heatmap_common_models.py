@@ -138,6 +138,10 @@ class HeatMapRow(BaseModel):
         example="GB_GCA_000006155.2",
         description="The unique ID of the subject of a heatmap row. Often a genome, MAG, etc."
     )
+    kbase_display_name: str | None = Field(
+        example="altamaha_2019_sw_WHONDRS-S19S_0010_A_bin_34_mag_assembly",
+        description="The name shown for the subject in a heatmap row, typically an KBase object name."
+    )
     cells: list[Cell] = Field(
         description="The cells in the row of the heatmap in render order."
     )

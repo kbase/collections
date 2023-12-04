@@ -76,6 +76,9 @@ filtering on a selection, and the standard selection field can't be used since t
 returned data are undefined.
 """
 
+FLD_KB_DISPLAY_NAME = "kbase_display_name"
+""" The name of the key that has a KBase display name as its value. """
+
 # Collections
 
 COLL_ANNOTATION = "ArangoDB collection name"

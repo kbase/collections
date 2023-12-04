@@ -136,3 +136,9 @@ CONTAINERS_CONF_PARAMS = {
     "seccomp_profile": "\"unconfined\"",
     "log_driver": "\"k8s-file\""
 }
+# field name for Kbase object metadata
+FLD_KB_OBJ_UPA = "upa"
+FLD_KB_OBJ_NAME = "name"
+FLD_KB_OBJ_TYPE = "type"
+FLD_KB_OBJ_TIMESTAMP = "timestamp"
+FLD_KB_OBJ_GENOME_UPA = "genome_upa"
