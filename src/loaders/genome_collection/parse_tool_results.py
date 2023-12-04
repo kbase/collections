@@ -124,14 +124,8 @@ def _locate_dir(root_dir, env, kbase_collection, load_ver, check_exists=False, t
     return result_dir
 
 
-def _read_metadata_file(meta_lookup: dict,
-                        genome_id: str) -> dict:
+def _read_metadata_file(meta_filename: str) -> dict:
     # Read the metadata file for a given genome id and return the metadata as a dictionary
-
-    try:
-        meta_filename = meta_lookup[genome_id]
-    except KeyError as e:
-        raise ValueError('Unable to find genome ID') from e
 
     meta_info = dict()
     if not pd.isna(meta_filename):
@@ -152,7 +146,12 @@ def _update_docs_with_meta_info(res_dict, meta_lookup, check_genome):
 
     for genome_id in res_dict:
 
-        meta_info = _read_metadata_file(meta_lookup, genome_id)
+        try:
+            meta_filename = meta_lookup[genome_id]
+        except KeyError as e:
+            raise ValueError('Unable to find genome ID') from e
+
+        meta_info = _read_metadata_file(meta_filename)
 
         upa_dict = {}
         if meta_info:
@@ -524,7 +523,11 @@ def microtrait(root_dir, env, kbase_collection, load_ver, fatal_ids):
                         min_value = min(min_value, cell_val)
                         max_value = max(max_value, cell_val)
 
-                    meta_info = _read_metadata_file(meta_lookup, data_id)
+                    try:
+                        meta_filename = meta_lookup[data_id]
+                    except KeyError as e:
+                        raise ValueError('Unable to find genome ID') from e
+                    meta_info = _read_metadata_file(meta_filename)
                     data[names.FLD_KB_DISPLAY_NAME] = meta_info.get(loader_common_names.FLD_KB_OBJ_NAME)
                     heatmap_rows.append(dict(data,
                                              **init_row_doc(kbase_collection, load_ver, data[names.FLD_KBASE_ID])))
