@@ -124,8 +124,9 @@ def _locate_dir(root_dir, env, kbase_collection, load_ver, check_exists=False, t
     return result_dir
 
 
-def _update_docs_with_upa_info(res_dict, meta_lookup, check_genome):
-    # Update original docs with UPA information through a meta hashmap
+def _update_docs_with_meta_info(res_dict, meta_lookup, check_genome):
+    # Update original docs with meta data information such as UPA information through a meta hashmap and
+    # other information such as kbase_display_name, etc.
 
     # Keep a set of the encountered types for the kbcoll_export_types
     encountered_types = set()
@@ -142,16 +143,19 @@ def _update_docs_with_upa_info(res_dict, meta_lookup, check_genome):
                 raise ValueError(f"{meta_filename} has incomplete upa info. Needs to be redownloaded")
             with open(meta_filename, "r") as json_file:
                 upa_info = json.load(json_file)
-            object_type = upa_info["type"].split("-")[0]
-            upa_dict[object_type] = upa_info["upa"]
+
+            res_dict[genome_id].update({names.FLD_KB_DISPLAY_NAME: upa_info.get(loader_common_names.FLD_KB_OBJ_NAME)})
+
+            object_type = upa_info[loader_common_names.FLD_KB_OBJ_TYPE].split("-")[0]
+            upa_dict[object_type] = upa_info[loader_common_names.FLD_KB_OBJ_UPA]
             encountered_types.add(object_type)
 
             # add genome_upa info into _upas dict
-            if upa_info.get("genome_upa"):
-                upa_dict[loader_common_names.OBJECTS_NAME_GENOME] = upa_info["genome_upa"]
+            if upa_info.get(loader_common_names.FLD_KB_OBJ_GENOME_UPA):
+                upa_dict[loader_common_names.OBJECTS_NAME_GENOME] = upa_info[loader_common_names.FLD_KB_OBJ_GENOME_UPA]
                 encountered_types.add(loader_common_names.OBJECTS_NAME_GENOME)
             elif check_genome:
-                raise ValueError(f'There is no genome_upa for assembly {upa_info["upa"]}')
+                raise ValueError(f'There is no genome_upa for assembly {upa_info[loader_common_names.FLD_KB_OBJ_UPA]}')
 
         res_dict[genome_id].update({names.FLD_UPA_MAP: upa_dict})
 
@@ -376,7 +380,7 @@ def _process_genome_attri_tools(genome_attr_tools: set[str],
 
     res_dict = {row[names.FLD_KBASE_ID]: row for row in docs}
     meta_lookup = _create_meta_lookup(root_dir, env, kbase_collection, load_ver, tool)
-    docs, encountered_types = _update_docs_with_upa_info(res_dict, meta_lookup, check_genome)
+    docs, encountered_types = _update_docs_with_meta_info(res_dict, meta_lookup, check_genome)
 
     for doc in docs:
         doc[names.FLD_KB_SAMPLE_ID] = data_id_sample_id_map.get(doc[names.FLD_KBASE_ID])

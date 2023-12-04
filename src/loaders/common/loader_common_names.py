@@ -128,3 +128,10 @@ KB_BASE_URL_MAP = {'CI': 'https://ci.kbase.us/services/',
                    'NEXT': 'https://next.kbase.us/services/',
                    'APPDEV': 'https://appdev.kbase.us/services/',
                    'PROD': 'https://kbase.us/services/'}
+
+# field name for Kbase object metadata
+FLD_KB_OBJ_UPA = "upa"
+FLD_KB_OBJ_NAME = "name"
+FLD_KB_OBJ_TYPE = "type"
+FLD_KB_OBJ_TIMESTAMP = "timestamp"
+FLD_KB_OBJ_GENOME_UPA = "genome_upa"
