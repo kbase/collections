@@ -125,7 +125,7 @@ def _locate_dir(root_dir, env, kbase_collection, load_ver, check_exists=False, t
 
 
 def _read_metadata_file(meta_filename: str) -> dict:
-    # Read the metadata file for a given genome id and return the metadata as a dictionary
+    # Read the metadata file and return the metadata as a dictionary
 
     meta_info = dict()
     if not pd.isna(meta_filename):
