@@ -65,6 +65,8 @@ from typing import Generator
 
 import yaml
 
+from src.clients.AssemblyUtilClient import AssemblyUtil
+from src.clients.workspaceClient import Workspace
 from src.loaders.common import loader_common_names, loader_helper
 from src.loaders.common.callback_server_wrapper import Conf
 
@@ -183,7 +185,7 @@ def _get_source_file(assembly_dir: str, assembly_file: str) -> str:
 
 
 def _upload_assemblies_to_workspace(
-        conf: Conf,
+        asu: AssemblyUtil,
         workspace_id: int,
         assembly_tuples: list[AssemblyTuple],
 ) -> tuple[str, ...]:
@@ -200,7 +202,7 @@ def _upload_assemblies_to_workspace(
     ]
 
     try:
-        assembly_ref = conf.asu.save_assemblies_from_fastas(
+        assembly_ref = asu.save_assemblies_from_fastas(
             {
                 "workspace_id": workspace_id,
                 "inputs": inputs
@@ -356,23 +358,27 @@ def _post_process(
 
 
 def _upload_assembly_files_in_parallel(
-        conf: Conf,
+        asu: AssemblyUtil,
+        ws: Workspace,
         upload_env_key: str,
         workspace_id: int,
         upload_dir: str,
         wait_to_upload_assemblies: dict[str, str],
         batch_size: int,
+        output_dir: str,
 ) -> list[str]:
     """
     Upload assembly files to the target workspace in parallel using multiprocessing.
 
     Parameters:
-        conf: Conf object
+        asu: AssemblyUtil client
+        ws: Workspace client
         upload_env_key: environment variable key in uploaded.yaml file
         workspace_id: target workspace id
         upload_dir: a directory in collectionssource that creates new directories linking to sourcedata
         wait_to_upload_assemblies: a dictionary that maps assembly file name to assembly directory
         batch_size: a number of files to upload per batch
+        output_dir: a directory in sourcedata/workspace to store new assembly entries
 
     Returns:
         number of assembly files have been sucessfully uploaded from wait_to_upload_assemblies
@@ -385,7 +391,7 @@ def _upload_assembly_files_in_parallel(
     for assembly_tuples in _gen(wait_to_upload_assemblies, batch_size):
 
         try:
-            batch_upas = _upload_assemblies_to_workspace(conf, workspace_id, assembly_tuples)
+            batch_upas = _upload_assemblies_to_workspace(asu, workspace_id, assembly_tuples)
             batch_uploaded_tuples = assembly_tuples
         except Exception as e:
             name_assemblyTuple_map = {
@@ -393,9 +399,10 @@ def _upload_assembly_files_in_parallel(
             }
             assembly_objects_in_ws = loader_helper.list_objects(
                 workspace_id,
-                conf,
+                ws,
                 loader_common_names.OBJECTS_NAME_ASSEMBLY,
             )
+            print("assembly_objects_in_ws: ", assembly_objects_in_ws)
             name_upa_map = {
                 object_info[1]: "{6}_{0}_{4}".format(*object_info) for object_info in assembly_objects_in_ws
             }
@@ -413,7 +420,7 @@ def _upload_assembly_files_in_parallel(
                 assembly_tuple.host_assembly_dir,
                 assembly_tuple.assembly_name,
                 upload_dir,
-                conf.output_dir,
+                output_dir,
                 upa
             )
 
@@ -541,14 +548,20 @@ def main():
         data_dir = _prepare_skd_job_dir_to_upload(conf, wait_to_upload_assemblies)
         print(f"{wtus_len} assemblies in {data_dir} are ready to upload to workspace {workspace_id}")
 
+        ws = Workspace(conf.ws_url, token=conf.token)
+        asu = AssemblyUtil(
+            conf.callback_url, service_ver=au_service_ver, token=conf.token
+        )
         start = time.time()
         uploaded_count = _upload_assembly_files_in_parallel(
-            conf,
+            asu,
+            ws,
             env,
             workspace_id,
             upload_dir,
             wait_to_upload_assemblies,
             batch_size,
+            output_dir,
         )
 
         upload_time = (time.time() - start) / 60

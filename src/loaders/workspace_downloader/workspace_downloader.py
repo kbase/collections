@@ -472,13 +472,13 @@ def main():
 
         genome_objs = loader_helper.list_objects(
             workspace_id,
-            conf,
+            conf.ws,
             loader_common_names.OBJECTS_NAME_GENOME,
             include_metadata=True,
         )
         assembly_objs = loader_helper.list_objects(
             workspace_id,
-            conf,
+            conf.ws,
             loader_common_names.OBJECTS_NAME_ASSEMBLY,
         )
         assembly_genome_map, duplicate_map = _assembly_genome_lookup(genome_objs)

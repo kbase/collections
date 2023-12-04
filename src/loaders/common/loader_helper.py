@@ -459,19 +459,19 @@ def create_hardlink_between_files(new_file, target_file):
     os.link(target_file, new_file)
 
 
-def list_objects(wsid, conf, object_type, include_metadata=False, batch_size=10000):
+def list_objects(wsid, ws, object_type, include_metadata=False, batch_size=10000):
     """
     List all objects information given a workspace ID.
     """
     if batch_size > 10000:
         raise ValueError("Maximum value for listing workspace objects is 10000")
 
-    maxObjectID = conf.ws.get_workspace_info({"id": wsid})[4]
+    maxObjectID = ws.get_workspace_info({"id": wsid})[4]
     batch_input = [
         [idx + 1, idx + batch_size] for idx in range(0, maxObjectID, batch_size)
     ]
     objs = [
-        conf.ws.list_objects(
+        ws.list_objects(
             _list_objects_params(wsid, min_id, max_id, object_type, include_metadata)
         )
         for min_id, max_id in batch_input

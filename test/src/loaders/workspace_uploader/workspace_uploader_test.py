@@ -8,6 +8,7 @@ from unittest.mock import Mock, create_autospec
 import pytest
 
 from src.clients.AssemblyUtilClient import AssemblyUtil
+from src.clients.workspaceClient import Workspace
 from src.loaders.common import loader_helper
 from src.loaders.workspace_uploader import workspace_uploader
 
@@ -225,15 +226,14 @@ def test_upload_assembly_to_workspace(setup_and_teardown):
     assembly_name = ASSEMBLY_NAMES[0]
     host_assembly_dir = params.assembly_dirs[0]
 
-    conf = Mock()
-    conf.asu = create_autospec(AssemblyUtil, spec_set=True, instance=True)
-    conf.asu.save_assemblies_from_fastas.return_value = {"results":[{"upa": "12345/58/1"}]}
+    asu = create_autospec(AssemblyUtil, spec_set=True, instance=True)
+    asu.save_assemblies_from_fastas.return_value = {"results":[{"upa": "12345/58/1"}]}
     assembly_tuple = workspace_uploader.AssemblyTuple(
         assembly_name, host_assembly_dir, "/path/to/file/in/AssembilyUtil"
     )
-    upas = workspace_uploader._upload_assemblies_to_workspace(conf, 12345, [assembly_tuple])
+    upas = workspace_uploader._upload_assemblies_to_workspace(asu, 12345, [assembly_tuple])
     assert upas == tuple(["12345_58_1"])
-    conf.asu.save_assemblies_from_fastas.assert_called_once_with(
+    asu.save_assemblies_from_fastas.assert_called_once_with(
         {
             "workspace_id": 12345,
             "inputs": [
@@ -287,10 +287,9 @@ def test_upload_assembly_files_in_parallel(setup_and_teardown):
         for assembly_name, assembly_dir in zip(ASSEMBLY_NAMES, assembly_dirs)
     }
 
-    conf = Mock()
-    conf.output_dir = output_dir
-    conf.asu = create_autospec(AssemblyUtil, spec_set=True, instance=True)
-    conf.asu.save_assemblies_from_fastas.return_value = {
+    ws = create_autospec(Workspace, spec_set=True, instance=True)
+    asu = create_autospec(AssemblyUtil, spec_set=True, instance=True)
+    asu.save_assemblies_from_fastas.return_value = {
         "results":[
             {"upa": "12345/58/1"},
             {"upa": "12345/60/1"}
@@ -298,7 +297,14 @@ def test_upload_assembly_files_in_parallel(setup_and_teardown):
     }
 
     uploaded_count = workspace_uploader._upload_assembly_files_in_parallel(
-        conf, "CI", 12345, upload_dir, wait_to_upload_assemblies, 2
+        asu,
+        ws,
+        "CI",
+        12345,
+        upload_dir,
+        wait_to_upload_assemblies,
+        2,
+        output_dir,
     )
 
     assert uploaded_count == 2
@@ -334,15 +340,22 @@ def test_fail_upload_assembly_files_in_parallel(setup_and_teardown):
         for assembly_name, assembly_dir in zip(ASSEMBLY_NAMES, assembly_dirs)
     }
 
-    conf = Mock()
-    conf.asu = create_autospec(AssemblyUtil, spec_set=True, instance=True)
-    conf.asu.save_assemblies_from_fastas.side_effect = Exception("Illegal character in object name")
+    ws = create_autospec(Workspace, spec_set=True, instance=True)
+    asu = create_autospec(AssemblyUtil, spec_set=True, instance=True)
+    asu.save_assemblies_from_fastas.side_effect = Exception("Illegal character in object name")
 
     loader_helper.list_objects = create_autospec(loader_helper.list_objects)
     loader_helper.list_objects.return_value = []
 
     uploaded_count = workspace_uploader._upload_assembly_files_in_parallel(
-        conf, "CI", 12345, upload_dir, wait_to_upload_assemblies, 2
+        asu,
+        ws,
+        "CI",
+        12345,
+        upload_dir,
+        wait_to_upload_assemblies,
+        2,
+        output_dir,
     )
 
     assert uploaded_count == 0

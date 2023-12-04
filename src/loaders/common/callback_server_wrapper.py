@@ -52,26 +52,28 @@ class Conf:
         """
         ipv4 = loader_helper.get_ip()
         port = loader_helper.find_free_port()
-        token = loader_helper.get_token(token_filepath)
 
-        ws_url = os.path.join(kb_base_url, "ws")
-        callback_url = "http://" + ipv4 + ":" + str(port)
-        print("callback_url:", callback_url)
-
+        # common instance variables
+        self.ws_url = os.path.join(kb_base_url, "ws")
+        self.token = loader_helper.get_token(token_filepath)
         self._start_callback_server(
             docker.from_env(),
             uuid.uuid4().hex,
             job_dir,
             kb_base_url,
-            token,
+            self.token,
             port,
             max_task,
             ipv4,
         )
 
-        # common instance variables
-        self.ws = Workspace(ws_url, token=token)
-        self.asu = AssemblyUtil(callback_url, service_ver=au_service_ver, token=token)
+        self.callback_url = "http://" + ipv4 + ":" + str(port)
+        print("callback_url:", self.callback_url)
+
+        self.ws = Workspace(self.ws_url, token=self.token)
+        self.asu = AssemblyUtil(
+            self.callback_url, service_ver=au_service_ver, token=self.token
+        )
 
         self.output_dir = output_dir
         self.job_data_dir = loader_helper.make_job_data_dir(job_dir)
@@ -87,7 +89,7 @@ class Conf:
             self.ignore_no_sample_error = ignore_no_sample_error
 
             sample_url = os.path.join(kb_base_url, "sampleservice")
-            self.ss = SampleService(sample_url, token=token)
+            self.ss = SampleService(sample_url, token=self.token)
 
             self.pools = Pool(workers, worker_function, [self])
 
@@ -179,7 +181,7 @@ class Conf:
         """
         Get logs from the callback server container.
         """
-        logs = self.container.log()
+        logs = self.container.logs()
         if logs:
             print("\n****** Logs from the Callback Server ******\n")
             logs = logs.decode("utf-8")
