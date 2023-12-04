@@ -127,12 +127,10 @@ def _locate_dir(root_dir, env, kbase_collection, load_ver, check_exists=False, t
 def _read_metadata_file(meta_filename: str) -> dict:
     # Read the metadata file and return the metadata as a dictionary
 
-    meta_info = dict()
-    if not pd.isna(meta_filename):
-        if not is_upa_info_complete(os.path.dirname(meta_filename)):
-            raise ValueError(f"{meta_filename} has incomplete upa info. Needs to be redownloaded")
-        with open(meta_filename, "r") as json_file:
-            meta_info = json.load(json_file)
+    if not is_upa_info_complete(os.path.dirname(meta_filename)):
+        raise ValueError(f"{meta_filename} has incomplete upa info. Needs to be redownloaded")
+    with open(meta_filename, "r") as json_file:
+        meta_info = json.load(json_file)
 
     return meta_info
 
@@ -150,20 +148,18 @@ def _update_docs_with_meta_info(res_dict, meta_lookup, check_genome):
         meta_info = _read_metadata_file(meta_filename)
 
         upa_dict = {}
-        if meta_info:
+        res_dict[genome_id].update({names.FLD_KB_DISPLAY_NAME: meta_info.get(loader_common_names.FLD_KB_OBJ_NAME)})
 
-            res_dict[genome_id].update({names.FLD_KB_DISPLAY_NAME: meta_info.get(loader_common_names.FLD_KB_OBJ_NAME)})
+        object_type = meta_info[loader_common_names.FLD_KB_OBJ_TYPE].split("-")[0]
+        upa_dict[object_type] = meta_info[loader_common_names.FLD_KB_OBJ_UPA]
+        encountered_types.add(object_type)
 
-            object_type = meta_info[loader_common_names.FLD_KB_OBJ_TYPE].split("-")[0]
-            upa_dict[object_type] = meta_info[loader_common_names.FLD_KB_OBJ_UPA]
-            encountered_types.add(object_type)
-
-            # add genome_upa info into _upas dict
-            if meta_info.get(loader_common_names.FLD_KB_OBJ_GENOME_UPA):
-                upa_dict[loader_common_names.OBJECTS_NAME_GENOME] = meta_info[loader_common_names.FLD_KB_OBJ_GENOME_UPA]
-                encountered_types.add(loader_common_names.OBJECTS_NAME_GENOME)
-            elif check_genome:
-                raise ValueError(f'There is no genome_upa for assembly {meta_info[loader_common_names.FLD_KB_OBJ_UPA]}')
+        # add genome_upa info into _upas dict
+        if meta_info.get(loader_common_names.FLD_KB_OBJ_GENOME_UPA):
+            upa_dict[loader_common_names.OBJECTS_NAME_GENOME] = meta_info[loader_common_names.FLD_KB_OBJ_GENOME_UPA]
+            encountered_types.add(loader_common_names.OBJECTS_NAME_GENOME)
+        elif check_genome:
+            raise ValueError(f'There is no genome_upa for assembly {meta_info[loader_common_names.FLD_KB_OBJ_UPA]}')
 
         res_dict[genome_id].update({names.FLD_UPA_MAP: upa_dict})
 
