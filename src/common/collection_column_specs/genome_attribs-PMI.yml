@@ -21,7 +21,7 @@ columns:
 
    - key: kbase_display_name
      type: string
-     filter_strategy: identity
+     filter_strategy: ngram
 
    - key: Contamination  # checkm2  # GTDB is checkm_contamination
      type: float
