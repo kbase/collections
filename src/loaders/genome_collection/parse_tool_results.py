@@ -144,8 +144,7 @@ def _update_docs_with_meta_info(res_dict, meta_lookup, check_genome):
 
     for genome_id in res_dict:
 
-        meta_filename = meta_lookup[genome_id]
-        meta_info = _read_metadata_file(meta_filename)
+        meta_info = _read_metadata_file(meta_lookup[genome_id])
 
         upa_dict = {}
         res_dict[genome_id].update({names.FLD_KB_DISPLAY_NAME: meta_info.get(loader_common_names.FLD_KB_OBJ_NAME)})
@@ -515,8 +514,7 @@ def microtrait(root_dir, env, kbase_collection, load_ver, fatal_ids):
                         min_value = min(min_value, cell_val)
                         max_value = max(max_value, cell_val)
 
-                    meta_filename = meta_lookup[data_id]
-                    meta_info = _read_metadata_file(meta_filename)
+                    meta_info = _read_metadata_file(meta_lookup[data_id])
                     data[names.FLD_KB_DISPLAY_NAME] = meta_info.get(loader_common_names.FLD_KB_OBJ_NAME)
                     heatmap_rows.append(dict(data,
                                              **init_row_doc(kbase_collection, load_ver, data[names.FLD_KBASE_ID])))
