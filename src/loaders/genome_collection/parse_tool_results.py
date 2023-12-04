@@ -124,6 +124,25 @@ def _locate_dir(root_dir, env, kbase_collection, load_ver, check_exists=False, t
     return result_dir
 
 
+def _read_metadata_file(meta_lookup: dict,
+                        genome_id: str) -> dict:
+    # Read the metadata file for a given genome id and return the metadata as a dictionary
+
+    try:
+        meta_filename = meta_lookup[genome_id]
+    except KeyError as e:
+        raise ValueError('Unable to find genome ID') from e
+
+    meta_info = dict()
+    if not pd.isna(meta_filename):
+        if not is_upa_info_complete(os.path.dirname(meta_filename)):
+            raise ValueError(f"{meta_filename} has incomplete upa info. Needs to be redownloaded")
+        with open(meta_filename, "r") as json_file:
+            meta_info = json.load(json_file)
+
+    return meta_info
+
+
 def _update_docs_with_meta_info(res_dict, meta_lookup, check_genome):
     # Update original docs with meta data information such as UPA information through a meta hashmap and
     # other information such as kbase_display_name, etc.
@@ -132,30 +151,24 @@ def _update_docs_with_meta_info(res_dict, meta_lookup, check_genome):
     encountered_types = set()
 
     for genome_id in res_dict:
-        try:
-            meta_filename = meta_lookup[genome_id]
-        except KeyError as e:
-            raise ValueError('Unable to find genome ID') from e
+
+        meta_info = _read_metadata_file(meta_lookup, genome_id)
 
         upa_dict = {}
-        if not pd.isna(meta_filename):
-            if not is_upa_info_complete(os.path.dirname(meta_filename)):
-                raise ValueError(f"{meta_filename} has incomplete upa info. Needs to be redownloaded")
-            with open(meta_filename, "r") as json_file:
-                upa_info = json.load(json_file)
+        if meta_info:
 
-            res_dict[genome_id].update({names.FLD_KB_DISPLAY_NAME: upa_info.get(loader_common_names.FLD_KB_OBJ_NAME)})
+            res_dict[genome_id].update({names.FLD_KB_DISPLAY_NAME: meta_info.get(loader_common_names.FLD_KB_OBJ_NAME)})
 
-            object_type = upa_info[loader_common_names.FLD_KB_OBJ_TYPE].split("-")[0]
-            upa_dict[object_type] = upa_info[loader_common_names.FLD_KB_OBJ_UPA]
+            object_type = meta_info[loader_common_names.FLD_KB_OBJ_TYPE].split("-")[0]
+            upa_dict[object_type] = meta_info[loader_common_names.FLD_KB_OBJ_UPA]
             encountered_types.add(object_type)
 
             # add genome_upa info into _upas dict
-            if upa_info.get(loader_common_names.FLD_KB_OBJ_GENOME_UPA):
-                upa_dict[loader_common_names.OBJECTS_NAME_GENOME] = upa_info[loader_common_names.FLD_KB_OBJ_GENOME_UPA]
+            if meta_info.get(loader_common_names.FLD_KB_OBJ_GENOME_UPA):
+                upa_dict[loader_common_names.OBJECTS_NAME_GENOME] = meta_info[loader_common_names.FLD_KB_OBJ_GENOME_UPA]
                 encountered_types.add(loader_common_names.OBJECTS_NAME_GENOME)
             elif check_genome:
-                raise ValueError(f'There is no genome_upa for assembly {upa_info[loader_common_names.FLD_KB_OBJ_UPA]}')
+                raise ValueError(f'There is no genome_upa for assembly {meta_info[loader_common_names.FLD_KB_OBJ_UPA]}')
 
         res_dict[genome_id].update({names.FLD_UPA_MAP: upa_dict})
 
@@ -484,6 +497,7 @@ def microtrait(root_dir, env, kbase_collection, load_ver, fatal_ids):
 
     heatmap_cell_details, heatmap_rows, reference_meta = list(), list(), None
     min_value, max_value = float('inf'), float('-inf')
+    meta_lookup = _create_meta_lookup(root_dir, env, kbase_collection, load_ver, 'microtrait')
     for batch_dir in batch_dirs:
         data_ids = [item for item in os.listdir(os.path.join(result_dir, batch_dir)) if
                     os.path.isdir(os.path.join(result_dir, batch_dir, item)) and item not in fatal_ids]
@@ -509,7 +523,9 @@ def microtrait(root_dir, env, kbase_collection, load_ver, fatal_ids):
                         cell_val = cell[FIELD_HEATMAP_CELL_VALUE]
                         min_value = min(min_value, cell_val)
                         max_value = max(max_value, cell_val)
-                    data[FIELD_HEATMAP_ROW_CELLS] = cells
+
+                    meta_info = _read_metadata_file(meta_lookup, data_id)
+                    data[names.FLD_KB_DISPLAY_NAME] = meta_info.get(loader_common_names.FLD_KB_OBJ_NAME)
                     heatmap_rows.append(dict(data,
                                              **init_row_doc(kbase_collection, load_ver, data[names.FLD_KBASE_ID])))
 
