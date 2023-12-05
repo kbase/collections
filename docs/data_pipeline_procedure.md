@@ -12,6 +12,45 @@
       find /global/cfs/cdirs/kbase/collections/$working_dir -type d -exec chmod g+s {} \;
       ```
 
+## Setting up Python environment using Pipenv
+   * Verify Python 3.11 installation
+     * To confirm Python 3.11 installation, run:
+       ```commandline
+       python --version
+       ```
+     * If needed, explore various methods to configure Python environments at NERSC using the [NERSC Python documentation](https://docs.nersc.gov/development/languages/python/nersc-python/)
+     * Example Usage with Conda
+       ```commandline
+       module load conda
+       conda create -n py311 python=3.11 pip
+       conda activate py311
+       ```
+   * Install [Pipenv](https://pipenv.pypa.io/en/latest/)
+     ```commandline
+     pip install pipenv
+     ```
+   * Pull Latest Code from GitHub
+     ```commandline
+     cd /global/cfs/cdirs/kbase/collections/collections
+     git pull origin main
+     ```
+   * Set up the Environment with Pipenv
+      ```commandline
+      pipenv install --dev --ignore-pipfile
+      ```
+     or alternatively
+      ```commandline
+      pipenv install --dev
+      ```
+   * Activate Pipenv shell
+      ```commandline
+      pipenv shell
+      ```
+   * Deactivate Pipenv shell
+      ```commandline
+      exit
+      ```
+
 ## Download Source Data
    * Workspace Downloader
      * Example usage
