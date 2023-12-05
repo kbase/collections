@@ -36,11 +36,7 @@
      ```
    * Set up the Environment with Pipenv
       ```commandline
-      pipenv install --dev --ignore-pipfile
-      ```
-     or alternatively
-      ```commandline
-      pipenv install --dev
+      pipenv sync --dev
       ```
    * Activate Pipenv shell
       ```commandline
