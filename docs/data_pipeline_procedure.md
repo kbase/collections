@@ -18,7 +18,8 @@
        ```commandline
        python --version
        ```
-     * If needed, explore various methods to configure Python environments at NERSC using the [NERSC Python documentation](https://docs.nersc.gov/development/languages/python/nersc-python/)
+     * If needed, explore various methods to configure Python environments at NERSC using the
+       [NERSC Python documentation](https://docs.nersc.gov/development/languages/python/nersc-python/)
      * Example Usage with Conda
        ```commandline
        module load conda
