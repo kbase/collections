@@ -12,6 +12,47 @@
       find /global/cfs/cdirs/kbase/collections/$working_dir -type d -exec chmod g+s {} \;
       ```
 
+## Setting up Python environment using Pipenv
+   * You will need python 3.11 as the python on the path.
+     * The NERSC Python module offers a Python environment that comes pre-equipped with several commonly used Python packages.
+       ```commandline
+       module load python
+       ```
+       Alternatively, NERSC also provides a minimal conda installation that you can use to build your own custom conda environment.
+       ```commandline
+       module load conda
+       conda create -n py311 python=3.11 pip
+       conda activate py311
+       ```
+     * To confirm Python 3.11 is working, run:
+       ```commandline
+       python --version
+       ```
+     * If needed, explore various methods to configure Python environments at NERSC using the
+       [NERSC Python documentation](https://docs.nersc.gov/development/languages/python/nersc-python/)
+
+   * Install [Pipenv](https://pipenv.pypa.io/en/latest/)
+     ```commandline
+     pip install pipenv
+     ```
+   * Pull Latest Code from GitHub
+     ```commandline
+     cd /global/cfs/cdirs/kbase/collections/collections
+     git pull origin main
+     ```
+   * Set up the Environment with Pipenv
+      ```commandline
+      pipenv sync --dev
+      ```
+   * Activate Pipenv shell
+      ```commandline
+      pipenv shell
+      ```
+   * Deactivate Pipenv shell
+      ```commandline
+      exit
+      ```
+
 ## Download Source Data
    * Workspace Downloader
      * Example usage
