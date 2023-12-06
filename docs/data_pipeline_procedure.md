@@ -13,19 +13,24 @@
       ```
 
 ## Setting up Python environment using Pipenv
-   * You will need python 3.11 as the python on the path, probably from a virtualenv.
+   * You will need python 3.11 as the python on the path.
+     * The NERSC Python module offers a Python environment that comes pre-equipped with several commonly used Python packages.
+       ```commandline
+       module load python
+       ```
+       Alternatively, NERSC also provides a minimal conda installation that you can use to build your own custom conda environment.
+       ```commandline
+       module load conda
+       conda create -n py311 python=3.11 pip
+       conda activate py311
+       ```
      * To confirm Python 3.11 is working, run:
        ```commandline
        python --version
        ```
      * If needed, explore various methods to configure Python environments at NERSC using the
        [NERSC Python documentation](https://docs.nersc.gov/development/languages/python/nersc-python/)
-     * Example Usage with Conda
-       ```commandline
-       module load conda
-       conda create -n py311 python=3.11 pip
-       conda activate py311
-       ```
+
    * Install [Pipenv](https://pipenv.pypa.io/en/latest/)
      ```commandline
      pip install pipenv
