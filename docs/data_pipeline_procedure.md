@@ -13,7 +13,7 @@
       ```
 
 ## Setting up Python environment using Pipenv
-     * You will need python 3.11 as the python on the path, probably from a virtualenv.
+   * You will need python 3.11 as the python on the path, probably from a virtualenv.
      * To confirm Python 3.11 is working, run:
        ```commandline
        python --version
