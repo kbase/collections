@@ -54,8 +54,13 @@ class Conf:
         port = loader_helper.find_free_port()
 
         # common instance variables
+        # the url of the workspace to contact
         self.ws_url = os.path.join(kb_base_url, "ws")
+
+        # a KBase token appropriate for the KBase environment
         self.token = loader_helper.get_token(token_filepath)
+
+        # setup and run callback server container
         self._start_callback_server(
             docker.from_env(),
             uuid.uuid4().hex,
@@ -67,15 +72,11 @@ class Conf:
             ipv4,
         )
 
+        # the url of the callback service to contact
         self.callback_url = "http://" + ipv4 + ":" + str(port)
         print("callback_url:", self.callback_url)
 
-        self.ws = Workspace(self.ws_url, token=self.token)
-        self.asu = AssemblyUtil(
-            self.callback_url, service_ver=au_service_ver, token=self.token
-        )
-
-        self.output_dir = output_dir
+        # the directory for SDK jobs per user
         self.job_data_dir = loader_helper.make_job_data_dir(job_dir)
 
         # unique to downloader
@@ -84,13 +85,32 @@ class Conf:
                 raise ValueError(
                     "worker_function cannot be None for the workspace downloader script"
                 )
+
+            # queue for the workspace downloader tasks
             self.input_queue = Queue()
+
+            # the directory for a specific workspace id under sourcedata/ws
+            self.output_dir = output_dir
+
+            # whether to retrieve sample for each genome object
             self.retrieve_sample = retrieve_sample
+
+            # whether to ignore the error when no sample data is found
             self.ignore_no_sample_error = ignore_no_sample_error
 
+            # Workspace client
+            self.ws = Workspace(self.ws_url, token=self.token)
+
+            # AssemblyUtil client
+            self.asu = AssemblyUtil(
+                self.callback_url, service_ver=au_service_ver, token=self.token
+            )
+
+            # SampleService client
             sample_url = os.path.join(kb_base_url, "sampleservice")
             self.ss = SampleService(sample_url, token=self.token)
 
+            # a pool of worker processes.
             self.pools = Pool(workers, worker_function, [self])
 
     def _setup_callback_server_envs(

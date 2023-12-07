@@ -6,6 +6,7 @@ import os
 import socket
 import stat
 import subprocess
+import threading
 import time
 import uuid
 from collections import defaultdict
@@ -292,7 +293,7 @@ def start_podman_service(uid: int):
     return proc
 
 
-def get_containers_config():
+def _get_containers_config():
     """Get containers.conf file at home directory."""
     home = os.path.expanduser("~")
     conf_path = os.path.join(home, CONTAINERS_CONF_PATH)
@@ -303,7 +304,7 @@ def get_containers_config():
 
 def is_config_modification_required():
     """check if the config requires modification."""
-    config, _ = get_containers_config()
+    config, _ = _get_containers_config()
     if not config.has_section("containers"):
         return True
     for key, val in CONTAINERS_CONF_PARAMS.items():
@@ -314,17 +315,18 @@ def is_config_modification_required():
 
 def setup_callback_server_logs():
     """Set up containers.conf file for the callback server logs."""
-    config, conf_path = get_containers_config()
-    if not config.has_section("containers"):
-        config.add_section("containers")
+    config, conf_path = _get_containers_config()
+    lock = threading.Lock()
+    with lock:
+        if not config.has_section("containers"):
+            config.add_section("containers")
 
-    for key, val in CONTAINERS_CONF_PARAMS.items():
-        if config.get("containers", key, fallback=None) != val:
+        for key, val in CONTAINERS_CONF_PARAMS.items():
             config.set("containers", key, val)
 
-    with open(conf_path, 'w') as configfile:
-        config.write(configfile)
-    print(f"containers.conf is modified and saved to path: {conf_path}")
+        with open(conf_path, 'w') as configfile:
+            config.write(configfile)
+        print(f"containers.conf is modified and saved to path: {conf_path}")
 
 
 def is_upa_info_complete(upa_dir: str):
@@ -462,6 +464,17 @@ def create_hardlink_between_files(new_file, target_file):
 def list_objects(wsid, ws, object_type, include_metadata=False, batch_size=10000):
     """
     List all objects information given a workspace ID.
+
+    Args:
+        wsid (int): Target workspace addressed by the permanent ID
+        ws (Workspace): Workspace client
+        object_type (str): Type of the objects to be listed
+        include_metadata (boolean): Whether to include the user provided metadata in the returned object_info
+        batch_size (int): Number of objects to process in each batch
+
+    Returns:
+        list: a list of objects on the target workspace
+
     """
     if batch_size > 10000:
         raise ValueError("Maximum value for listing workspace objects is 10000")

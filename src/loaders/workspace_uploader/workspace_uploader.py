@@ -31,7 +31,7 @@ optional arguments:
   --upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]
                         Upload only files that match given extensions (default: ['genomic.fna.gz'])
   --batch_size BATCH_SIZE
-                        Number of files to upload per batch (default: 1000)
+                        Number of files to upload per batch (default: 2500)
   --jr_max_tasks JR_MAX_TASKS
                         The maxmium subtasks for the callback server (default: 20)
   --au_service_ver AU_SERVICE_VER
@@ -443,28 +443,12 @@ def _gen(
     """
     Generator function to yield the assembly files to upload.
     """
-    assembly_files_len = len(wait_to_upload_assemblies)
-    assembly_names = tuple(wait_to_upload_assemblies.keys())
-    host_assembly_dirs = tuple(wait_to_upload_assemblies.values())
-    container_internal_assembly_paths = tuple(
-        [
-            os.path.join(JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER, assembly_name)
-            for assembly_name in assembly_names
-        ]
-    )
-
-    # construct a list of nametuples to ensure consistency
     assemblyTuple_list = [
-        AssemblyTuple(
-            assembly_names[idx],
-            host_assembly_dirs[idx],
-            container_internal_assembly_paths[idx],
-        )
-        for idx in range(assembly_files_len)
+        AssemblyTuple(i[0], i[1], os.path.join(JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER, i[0]))
+        for i in wait_to_upload_assemblies.items()
     ]
-
     # yield AssemblyTuples in batch
-    for idx in range(0, assembly_files_len, batch_size):
+    for idx in range(0, len(wait_to_upload_assemblies), batch_size):
         yield assemblyTuple_list[idx: idx + batch_size]
 
 
@@ -509,8 +493,8 @@ def main():
     try:
         # setup container.conf file for the callback server logs if needed
         if loader_helper.is_config_modification_required():
-            if click.confirm(f"Set up a containers.conf file at {loader_common_names.CONTAINERS_CONF_PATH} if does not exist already?\n"
-                             f"Params 'seccomp_profile' and 'log_driver' will be added/updated under section [containers]"):
+            if click.confirm(f"The config file at {loader_common_names.CONTAINERS_CONF_PATH}\n"
+                             f"needs to be modified to allow for container logging. Do so now?\n"):
                 loader_helper.setup_callback_server_logs()
             else:
                 print("Permission denied and exiting ...")
@@ -522,17 +506,15 @@ def main():
         # set up conf for uploader, start callback server, and upload assemblies to workspace
         conf = Conf(
             job_dir=job_dir,
-            output_dir=output_dir,
             kb_base_url=kb_base_url,
             token_filepath=token_filepath,
-            au_service_ver=au_service_ver,
             max_task=max_task,
             workspace_downloader=False,
         )
 
         count, wait_to_upload_assemblies = _fetch_assemblies_to_upload(
-            env, 
-            workspace_id, 
+            env,
+            workspace_id,
             collection_source_dir,
             upload_file_ext,
         )
