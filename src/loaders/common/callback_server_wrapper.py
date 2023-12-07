@@ -21,7 +21,7 @@ class Conf:
     def __init__(
         self,
         job_dir: str,
-        output_dir: str,
+        output_dir: str | None = None,
         kb_base_url: str = "https://ci.kbase.us/services/",
         token_filepath: str | None = None,
         au_service_ver: str = "release",
