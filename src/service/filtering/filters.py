@@ -374,6 +374,7 @@ class FilterSet:
         skip: int = 0,
         limit: int = 1000,
         keep: list[str] = None,
+        keep_filter_nulls: bool = False,
         doc_var: str = "doc",
     ):
         """
@@ -401,6 +402,7 @@ class FilterSet:
         limit - the maximum number of records to return. 0 indicates no limit, which is usually
             a bad idea.
         keep - the fields to return from the database.
+        keep_filter_nulls - filter out any documents where any of the keep values are null.
         doc_var - the variable to use for the ArangoSearch document.
         """
         self.collection_id = _require_string(collection_id, "collection_id is required")
@@ -423,6 +425,7 @@ class FilterSet:
         self.keep = keep if keep else []
         if any([not bool(x.strip() if x else x) for x in self.keep]):
             raise ValueError("Falsy value in keep")
+        self.keep_filter_nulls = keep_filter_nulls
         self.doc_var = _require_string(doc_var, "doc_var is required")
         self._filters = {}
 
@@ -431,7 +434,7 @@ class FilterSet:
 
     def append(
             self,
-            field: str,
+            field: str,  # currently this is inserted into the aql - use a bind var?
             type_: ColumnType,
             filter_string: str,
             analyzer: str = None,
@@ -440,7 +443,8 @@ class FilterSet:
         f"""
         Add a filter to the filter set.
         
-        field - the ArangoSearch field upon which the filter will operate.
+        field - the ArangoSearch field upon which the filter will operate. It is expected that
+            the client has confirmed this is a valid arangosearch field.
         type_ - the type of the field.
         filter_string - the filter criteria as represented by a string.
         analyzer - the analyzer for the filter. If not provided the {DEFAULT_ANALYZER}
@@ -511,6 +515,10 @@ class FilterSet:
         aql = f"FOR {self.doc_var} IN @@collection\n"
         aql += f"    FILTER {self.doc_var}.{names.FLD_COLLECTION_ID} == @collid\n"
         aql += f"    FILTER {self.doc_var}.{names.FLD_LOAD_VERSION} == @load_ver\n"
+        if self.keep_filter_nulls:
+            for i, k in enumerate(self.keep):
+                aql += f"    FILTER {self.doc_var}.@keep{i} != null\n"
+                bind_vars[f"keep{i}"] = k
         matchsel = f"{self.doc_var}.{names.FLD_MATCHES_SELECTIONS}"
         if self.match_spec.get_subset_filtering_id():
             bind_vars["internal_match_id"] = self.match_spec.get_subset_filtering_id()
@@ -567,6 +575,11 @@ class FilterSet:
         aql += f"        {self.doc_var}.{names.FLD_COLLECTION_ID} == @collid\n"
         aql += f"        AND\n"
         aql += f"        {self.doc_var}.{names.FLD_LOAD_VERSION} == @load_ver\n"
+        if self.keep_filter_nulls:
+            for i, k in enumerate(self.keep):
+                aql += f"        AND\n"
+                aql += f"        {self.doc_var}.@keep{i} != null\n"
+                bind_vars[f"keep{i}"] = k
         if self.match_spec.get_subset_filtering_id():
             bind_vars["internal_match_id"] = self.match_spec.get_subset_filtering_id()
             aql += "        AND\n"
