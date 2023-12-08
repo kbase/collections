@@ -409,6 +409,48 @@ FOR d IN @@view
     assert len(fs) == 2
 
 
+def test_filterset_arangosearch_w_keep_filter():
+    fs = FilterSet(
+        "mycollection",
+        "loadver6",
+        view="my_other_search_view",
+        keep=["field1", "field2"],
+        keep_filter_nulls=True,
+    )
+    fs.append("rangefield", ColumnType.INT, "[-2,6]")
+    aql, bind_vars = fs.to_aql()
+    
+    assert aql == """
+FOR doc IN @@view
+    SEARCH (
+        doc.coll == @collid
+        AND
+        doc.load_ver == @load_ver
+        AND
+        doc.@keep0 != null
+        AND
+        doc.@keep1 != null
+    ) AND (
+        IN_RANGE(doc.rangefield, @v1_low, @v1_high, true, true)
+    )
+    LIMIT @skip, @limit
+    RETURN KEEP(doc, @keep)
+""".strip() + "\n"
+    assert bind_vars == {
+        "@view": "my_other_search_view",
+        "collid": "mycollection",
+        "load_ver": "loadver6",
+        "skip": 0,
+        "limit": 1000,
+        "keep": ["field1", "field2"],
+        "keep0": "field1",
+        "keep1": "field2",
+        'v1_low': -2.0,
+        'v1_high': 6.0,
+    }
+    assert len(fs) == 1
+
+
 def test_filterset_aql_w_all_args():
     fs = FilterSet(
         "mycollection",
@@ -450,6 +492,38 @@ FOR dc IN @@collection
         "keep": ["thing", "thang"],
         "skip": 24,
         "limit": 2,
+    }
+    assert len(fs) == 0
+
+
+def test_filterset_aql_w_keep_filter():
+    fs = FilterSet(
+        "mycollection",
+        "loadver6",
+        collection="my_arango_collection",
+        keep=["thing", "thang"],
+        keep_filter_nulls=True,
+    )
+    aql, bind_vars = fs.to_aql()
+    
+    assert aql == """
+FOR doc IN @@collection
+    FILTER doc.coll == @collid
+    FILTER doc.load_ver == @load_ver
+    FILTER doc.@keep0 != null
+    FILTER doc.@keep1 != null
+    LIMIT @skip, @limit
+    RETURN KEEP(doc, @keep)
+""".strip() + "\n"
+    assert bind_vars == {
+        "@collection": "my_arango_collection",
+        "collid": "mycollection",
+        "load_ver": "loadver6",
+        "keep": ["thing", "thang"],
+        "keep0": "thing",
+        "keep1": "thang",
+        "skip": 0,
+        "limit": 1000,
     }
     assert len(fs) == 0
 
