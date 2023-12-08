@@ -312,6 +312,7 @@ async def _get_filters(
     match_spec: SubsetSpecification = None,
     selection_spec: SubsetSpecification = None,
     keep: dict[str, set[col_models.ColumnType]] = None,
+    keep_filter_nulls: bool = False,
     skip: int = 0,
     limit: int = 1000,
 ) -> FilterSet:
@@ -351,6 +352,7 @@ async def _get_filters(
         match_spec=match_spec,
         selection_spec=selection_spec,
         keep=list(keep.keys()) if keep else None,
+        keep_filter_nulls=keep_filter_nulls,
         skip=skip,
         limit=limit
     )
@@ -523,7 +525,8 @@ class Histogram(BaseModel):
     response_model=Histogram,
     description=
 """
-Get a histogram for the data in one column in the table.
+Get a histogram for the data in one column in the table. Any rows in the table where the value
+is null are not included.
 
 Authentication is not required unless submitting a match ID or overriding the load
 version; in the latter case service administration permissions are required.
@@ -563,6 +566,7 @@ async def get_histogram(
         # get the histogram code to work with dates (truncated ISO8601 in the DB).
         # For strings just need to make a sorted dict and skip the histogram code altogether
         keep={column: {col_models.ColumnType.FLOAT, col_models.ColumnType.INT}},
+        keep_filter_nulls=True,
         limit=0,
     )
     data = []
@@ -597,7 +601,8 @@ class XYScatter(BaseModel):
     response_model=XYScatter,
     description=
 """
-Get X-Y scatter data for the data in two columns of the table.
+Get X-Y scatter data for the data in two columns of the table. Any rows in the table where either
+of the x or y value are null are not included.
 
 Authentication is not required unless submitting a match ID or overriding the load
 version; in the latter case service administration permissions are required.
@@ -642,6 +647,7 @@ async def get_xy_scatter(
             xcolumn: {col_models.ColumnType.FLOAT, col_models.ColumnType.INT},
             ycolumn: {col_models.ColumnType.FLOAT, col_models.ColumnType.INT}
         },
+        keep_filter_nulls=True,
         limit=0,
     )
     data = []
