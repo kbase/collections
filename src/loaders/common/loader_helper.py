@@ -501,6 +501,9 @@ def transform_heatmap_row_cells(data: dict):
     Transform the cells structure in a heatmap row to a new structure.
 
     The new structure is a set of keys and values where the keys are constructed from the old structure.
+    new structured key format: <HEATMAP_COL_PREFIX>_<col_id>_<FIELD_HEATMAP_CELL_ID|FIELD_HEATMAP_CELL_VALUEl>
+
+    e.g.
 
     The old structure:
     "cells": [
