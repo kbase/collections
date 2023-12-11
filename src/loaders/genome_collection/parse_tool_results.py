@@ -515,6 +515,8 @@ def microtrait(root_dir, env, kbase_collection, load_ver, fatal_ids):
                         min_value = min(min_value, cell_val)
                         max_value = max(max_value, cell_val)
 
+                    # transform heatmap row cells structure due to Arango nested search is not supported in the
+                    # Community Edition
                     transform_heatmap_row_cells(data)
 
                     meta_info = _read_metadata_file(meta_lookup[data_id])

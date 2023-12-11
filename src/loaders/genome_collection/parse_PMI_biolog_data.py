@@ -35,7 +35,11 @@ from src.common.storage.collection_and_field_names import (
 from src.common.storage.db_doc_conversions import collection_load_version_key, collection_data_id_key
 from src.common.storage.field_names import FLD_KBASE_ID
 from src.loaders.common import loader_common_names
-from src.loaders.common.loader_helper import init_row_doc, create_import_files
+from src.loaders.common.loader_helper import (
+    init_row_doc,
+    create_import_files,
+    transform_heatmap_row_cells
+)
 from src.loaders.genome_collection.parse_tool_results import HEATMAP_FILE_ROOT
 
 GROWTH_MEDIA_COL_NAME = 'growth_media'
@@ -242,11 +246,14 @@ def generate_pmi_biolog_heatmap_data(
                 FLD_ARANGO_KEY: collection_data_id_key(kbase_collection, load_ver, cell_uuid),
             })
 
+        row_data = {FLD_KBASE_ID: assembly_ref,
+                    FLD_KB_DISPLAY_NAME: assembly_name,
+                    FIELD_HEATMAP_ROW_CELLS: cells,
+                    FIELD_HEATMAP_ROW_META: {'growth_media': row[GROWTH_MEDIA_COL_NAME], }}
+        transform_heatmap_row_cells(row_data)
+
         # append a document for the heatmap rows
-        heatmap_rows.append(dict({FLD_KBASE_ID: assembly_ref,
-                                  FLD_KB_DISPLAY_NAME: assembly_name,
-                                  FIELD_HEATMAP_ROW_CELLS: cells,
-                                  FIELD_HEATMAP_ROW_META: {'growth_media': row[GROWTH_MEDIA_COL_NAME], }},
+        heatmap_rows.append(dict(row_data,
                                  **init_row_doc(kbase_collection, load_ver, assembly_ref)))
 
     heatmap_meta_dict[FIELD_HEATMAP_MIN_VALUE] = min_value
