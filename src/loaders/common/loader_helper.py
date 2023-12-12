@@ -496,7 +496,7 @@ class ExplicitDefaultsHelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
         return super()._get_help_string(action)
 
 
-def transform_heatmap_row_cells(data: dict):
+def transform_heatmap_row_cells(data: dict[str, Any]):
     """
     Transform the cells structure in a heatmap row to a new structure.
 
