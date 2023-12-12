@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Request, Query, Path, Response
 import src.common.storage.collection_and_field_names as names
 from src.common.product_models.common_models import FIELD_MATCH_STATE, FIELD_SELECTION_STATE
 from src.common.product_models import heatmap_common_models as heatmap_models
+from src.loaders.common.loader_helper import revert_transformed_heatmap_row_cells
 from src.service import app_state, kb_auth, models
 from src.service.data_products.common_functions import (
     get_load_version,
@@ -319,6 +320,9 @@ class HeatMapController:
         # removes in place
         doc = remove_arango_keys(remove_collection_keys(doc))
         doc.pop(names.FLD_MATCHES_SELECTIONS, None)
+
+        revert_transformed_heatmap_row_cells(doc)
+
         return doc
 
     async def _query(

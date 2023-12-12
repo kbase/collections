@@ -540,3 +540,57 @@ def transform_heatmap_row_cells(data: dict[str, Any]):
         data[cell_val_key] = cell.get(FIELD_HEATMAP_CELL_VALUE)
 
 
+def revert_transformed_heatmap_row_cells(data):
+    """
+    Revert, in place, the transformation of heatmap row cells.
+    Input key format: <HEATMAP_COL_PREFIX>_<col_id>_<FIELD_HEATMAP_CELL_ID|FIELD_HEATMAP_CELL_VALUEl>
+
+    The structure (input) to be reverted:
+    "col_0_cell_id": "cell_0",
+    "col_0_val": 0.0,
+    "col_1_cell_id": "cell_1",
+    "col_1_val": 1.0
+
+    The resulting structure:
+    "cells": [
+        {
+            "cell_id": "cell_0",
+            "col_id": "0",
+            "val": 0.0
+        },
+        {
+            "cell_id": "cell_1",
+            "col_id": "1",
+            "val": 1.0
+        }
+    ]
+    """
+
+    # Get the keys that need to be reconstructed
+    keys_to_remove = [key for key in data.keys() if key.startswith(HEATMAP_COL_PREFIX) and
+                      (key.endswith(FIELD_HEATMAP_CELL_ID) or key.endswith(FIELD_HEATMAP_CELL_VALUE))]
+
+    cells_dict = {}
+    for key in keys_to_remove:
+        parts = key.split(HEATMAP_COL_SEPARATOR)
+        col_id = parts[1]
+        col_type = HEATMAP_COL_SEPARATOR.join(parts[2:])
+        if not col_id.isdigit():
+            raise ValueError(f"Column ID '{col_id}' is not an integer.")
+
+        if col_type not in [FIELD_HEATMAP_CELL_ID, FIELD_HEATMAP_CELL_VALUE]:
+            raise ValueError(f'Unexpected column type: {col_type}')
+
+        cells_dict.setdefault(col_id, {FIELD_HEATMAP_CELL_ID: None, FIELD_HEATMAP_CELL_VALUE: None})
+        cells_dict[col_id][col_type] = data.get(key)
+
+    cells = [{
+        FIELD_HEATMAP_COL_ID: str(col_id),
+        FIELD_HEATMAP_CELL_ID: cell_data.get(FIELD_HEATMAP_CELL_ID),
+        FIELD_HEATMAP_CELL_VALUE: cell_data.get(FIELD_HEATMAP_CELL_VALUE)
+    } for col_id, cell_data in cells_dict.items()]
+
+    data[FIELD_HEATMAP_ROW_CELLS] = cells
+
+    for key in keys_to_remove:
+        data.pop(key)
