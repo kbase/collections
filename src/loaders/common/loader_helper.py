@@ -22,6 +22,12 @@ from src.common.product_models.columnar_attribs_common_models import (
     AttributesColumn,
     ColumnarAttributesMeta,
 )
+from src.common.product_models.heatmap_common_models import (
+    FIELD_HEATMAP_ROW_CELLS,
+    FIELD_HEATMAP_COL_ID,
+    FIELD_HEATMAP_CELL_ID,
+    FIELD_HEATMAP_CELL_VALUE,
+)
 from src.common.storage.db_doc_conversions import (
     collection_data_id_key,
     collection_load_version_key,
@@ -45,6 +51,9 @@ This module contains helper functions used for loaders (e.g. compute_genome_attr
 """
 
 NONE_STR = ['N/A', 'NA', 'None', 'none', 'null', 'Null', 'NULL', '']
+
+HEATMAP_COL_PREFIX = "col"
+HEATMAP_COL_SEPARATOR = '_'
 
 
 def _convert_to_iso8601(date_string: str) -> str:
@@ -485,3 +494,49 @@ class ExplicitDefaultsHelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
         if action.default is None or action.default is False:
             return action.help
         return super()._get_help_string(action)
+
+
+def transform_heatmap_row_cells(data: dict[str, Any]):
+    """
+    Transform, in place, the cells structure in a heatmap row to a new structure.
+
+    The new structure is a set of keys and values where the keys are constructed from the old structure.
+    new structured key format: <HEATMAP_COL_PREFIX>_<col_id>_<FIELD_HEATMAP_CELL_ID|FIELD_HEATMAP_CELL_VALUEl>
+
+    e.g.
+
+    The old structure:
+    "cells": [
+        {
+            "cell_id": "cell_0",
+            "col_id": "0",
+            "val": 0.0
+        },
+        {
+            "cell_id": "cell_1",
+            "col_id": "1",
+            "val": 1.0
+        }
+    ]
+
+    The new structure:
+    "col_0_cell_id": "cell_0",
+    "col_0_val": 0.0,
+    "col_1_cell_id": "cell_1",
+    "col_1_val": 1.0
+
+    """
+
+    # Iterate over the 'cells' structure and remove them from the data structure while constructing the new structure
+    for cell in data.pop(FIELD_HEATMAP_ROW_CELLS):
+        col_id = cell.get(FIELD_HEATMAP_COL_ID)
+
+        # Construct keys and values for the new structure
+        cell_id_key = f"{HEATMAP_COL_PREFIX}{HEATMAP_COL_SEPARATOR}{col_id}{HEATMAP_COL_SEPARATOR}{FIELD_HEATMAP_CELL_ID}"
+        cell_val_key = f"{HEATMAP_COL_PREFIX}{HEATMAP_COL_SEPARATOR}{col_id}{HEATMAP_COL_SEPARATOR}{FIELD_HEATMAP_CELL_VALUE}"
+
+        # Add the new keys and values to the data structure
+        data[cell_id_key] = cell.get(FIELD_HEATMAP_CELL_ID)
+        data[cell_val_key] = cell.get(FIELD_HEATMAP_CELL_VALUE)
+
+
