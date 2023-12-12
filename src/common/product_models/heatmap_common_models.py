@@ -241,8 +241,8 @@ def transform_heatmap_row_cells(data: dict[str, Any]):
         cell_val_key = f"{HEATMAP_COL_PREFIX}{HEATMAP_COL_SEPARATOR}{col_id}{HEATMAP_COL_SEPARATOR}{FIELD_HEATMAP_CELL_VALUE}"
 
         # Add the new keys and values to the data structure
-        data[cell_id_key] = cell.get(FIELD_HEATMAP_CELL_ID)
-        data[cell_val_key] = cell.get(FIELD_HEATMAP_CELL_VALUE)
+        data[cell_id_key] = cell[FIELD_HEATMAP_CELL_ID]
+        data[cell_val_key] = cell[FIELD_HEATMAP_CELL_VALUE]
 
 
 def revert_transformed_heatmap_row_cells(data: dict[str, Any]):
