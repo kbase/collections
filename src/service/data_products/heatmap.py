@@ -8,9 +8,8 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Request, Query, Path, Response
 
 import src.common.storage.collection_and_field_names as names
-from src.common.product_models.common_models import FIELD_MATCH_STATE, FIELD_SELECTION_STATE
 from src.common.product_models import heatmap_common_models as heatmap_models
-from src.loaders.common.loader_helper import revert_transformed_heatmap_row_cells
+from src.common.product_models.common_models import FIELD_MATCH_STATE, FIELD_SELECTION_STATE
 from src.service import app_state, kb_auth, models
 from src.service.data_products.common_functions import (
     get_load_version,
@@ -45,7 +44,6 @@ from src.service.processing import SubsetSpecification
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
 from src.service.storage_arango import ArangoStorage, remove_arango_keys
 
-
 _OPT_AUTH = KBaseHTTPBearer(optional=True)
 
 
@@ -59,12 +57,12 @@ class HeatMapController:
     """
 
     def __init__(
-        self,
-        heatmap_id: str,
-        api_category: str,
-        meta_collection_name: str,
-        data_collection_name: str,
-        cell_detail_collection_name: str,
+            self,
+            heatmap_id: str,
+            api_category: str,
+            meta_collection_name: str,
+            data_collection_name: str,
+            cell_detail_collection_name: str,
     ):
         """
         Initialize the controller.
@@ -95,7 +93,7 @@ class HeatMapController:
             response_model=heatmap_models.HeatMapMeta,
             summary=f"Get {self._api_category} metadata",
             description=f"Get meta information about the data in the {self._api_category} heatmap, "
-                + "such as column names and descriptions, value ranges, etc."
+                        + "such as column names and descriptions, value ranges, etc."
         )
         router.add_api_route(
             "/",
@@ -104,11 +102,11 @@ class HeatMapController:
             response_model=heatmap_models.HeatMap,
             summary=f"Get {self._api_category} heatmap data",
             description=f"Get data in the {self._api_category} heatmap.\n\n"
-                + "Authentication is not required unless submitting a match ID or "
-                + "overriding the load version; in the latter case service administration "
-                + "permissions are required.\n\n"
-                + "When creating selections from genome attributes, use the "
-                + f"`{names.FLD_KBASE_ID}` field values as input."
+                        + "Authentication is not required unless submitting a match ID or "
+                        + "overriding the load version; in the latter case service administration "
+                        + "permissions are required.\n\n"
+                        + "When creating selections from genome attributes, use the "
+                        + f"`{names.FLD_KBASE_ID}` field values as input."
         )
         router.add_api_route(
             "/cell/{cell_id}",
@@ -125,7 +123,7 @@ class HeatMapController:
             response_model=DataProductMissingIDs,
             summary=f"Get missing IDs for a match or selection",
             description=f"Get the list of IDs that were not found in this {self._api_category} "
-                + "heatmap but were present in the match and / or selection.",
+                        + "heatmap but were present in the match and / or selection.",
         )
         return router
 
@@ -193,11 +191,11 @@ class HeatMapController:
             storage, self._colname_data, SELECTION_ID_PREFIX + internal_selection_id)
 
     async def get_meta_info(
-        self,
-        r: Request,
-        collection_id: Annotated[str, PATH_VALIDATOR_COLLECTION_ID],
-        load_ver_override: QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
-        user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
+            self,
+            r: Request,
+            collection_id: Annotated[str, PATH_VALIDATOR_COLLECTION_ID],
+            load_ver_override: QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
+            user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
     ) -> heatmap_models.HeatMapMeta:
         storage = app_state.get_app_state(r).arangostorage
         _, load_ver = await get_load_version(
@@ -207,15 +205,15 @@ class HeatMapController:
         return heatmap_models.HeatMapMeta(**remove_collection_keys(doc))
 
     async def get_cell(
-        self,
-        r: Request,
-        collection_id: Annotated[str, PATH_VALIDATOR_COLLECTION_ID],
-        cell_id: str = Path(
-            example="4",
-            description="The ID of the cell in the heatmap."
-        ),
-        load_ver_override: QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
-        user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
+            self,
+            r: Request,
+            collection_id: Annotated[str, PATH_VALIDATOR_COLLECTION_ID],
+            cell_id: str = Path(
+                example="4",
+                description="The ID of the cell in the heatmap."
+            ),
+            load_ver_override: QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
+            user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
     ) -> heatmap_models.CellDetail:
         storage = app_state.get_app_state(r).arangostorage
         _, load_ver = await get_load_version(
@@ -226,26 +224,26 @@ class HeatMapController:
         return heatmap_models.CellDetail(**remove_collection_keys(doc))
 
     async def get_heatmap(
-        self,
-        r: Request,
-        collection_id: Annotated[str, PATH_VALIDATOR_COLLECTION_ID],
-        start_after: str = Query(
-            default=None,
-            example="GB_GCA_000006155.2",
-            description=f"The `{names.FLD_KBASE_ID}` to start after when listing data. This "
-                + "parameter can be used to page through the data by providing the ID from "
-                + "the last row in the previous set of data."
-        ),
-        limit: QUERY_VALIDATOR_LIMIT = 1000,
-        count: QUERY_VALIDATOR_COUNT = False,
-        match_id: QUERY_VALIDATOR_MATCH_ID = None,
-        # TODO FEATURE support a choice of AND or OR for matches & selections
-        match_mark: QUERY_VALIDATOR_MATCH_MARK = False,
-        selection_id: QUERY_VALIDATOR_SELECTION_ID = None,
-        selection_mark: QUERY_VALIDATOR_SELECTION_MARK = False,
-        status_only: QUERY_VALIDATOR_STATUS_ONLY = False,
-        load_ver_override: QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
-        user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
+            self,
+            r: Request,
+            collection_id: Annotated[str, PATH_VALIDATOR_COLLECTION_ID],
+            start_after: str = Query(
+                default=None,
+                example="GB_GCA_000006155.2",
+                description=f"The `{names.FLD_KBASE_ID}` to start after when listing data. This "
+                            + "parameter can be used to page through the data by providing the ID from "
+                            + "the last row in the previous set of data."
+            ),
+            limit: QUERY_VALIDATOR_LIMIT = 1000,
+            count: QUERY_VALIDATOR_COUNT = False,
+            match_id: QUERY_VALIDATOR_MATCH_ID = None,
+            # TODO FEATURE support a choice of AND or OR for matches & selections
+            match_mark: QUERY_VALIDATOR_MATCH_MARK = False,
+            selection_id: QUERY_VALIDATOR_SELECTION_ID = None,
+            selection_mark: QUERY_VALIDATOR_SELECTION_MARK = False,
+            status_only: QUERY_VALIDATOR_STATUS_ONLY = False,
+            load_ver_override: QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
+            user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
     ) -> Response:
         # For some reason returning the data as a model slows down the endpoint by ~10x.
         # Serializing manually and returning a plain response is much faster
@@ -280,12 +278,12 @@ class HeatMapController:
             appstate.arangostorage, filters, match_proc=dp_match, selection_proc=dp_sel)
 
     async def get_missing_ids(
-        self,
-        r: Request,
-        collection_id: Annotated[str, PATH_VALIDATOR_COLLECTION_ID],
-        match_id: Annotated[str, Query(description="A match ID.")] = None,
-        selection_id: Annotated[str, Query(description="A selection ID.")] = None,
-        user: kb_auth.KBaseUser = Depends(_OPT_AUTH),
+            self,
+            r: Request,
+            collection_id: Annotated[str, PATH_VALIDATOR_COLLECTION_ID],
+            match_id: Annotated[str, Query(description="A match ID.")] = None,
+            selection_id: Annotated[str, Query(description="A selection ID.")] = None,
+            user: kb_auth.KBaseUser = Depends(_OPT_AUTH),
     ) -> DataProductMissingIDs:
         return await get_missing_ids(
             app_state.get_app_state(r),
@@ -298,13 +296,13 @@ class HeatMapController:
         )
 
     def _response(
-        self,
-        dp_match: models.DataProductProcess = None,
-        dp_sel: models.DataProductProcess = None,
-        count: int = None,
-        data: list[heatmap_models.HeatMapRow] = None,
-        min_value: int = None,
-        max_value: int = None,
+            self,
+            dp_match: models.DataProductProcess = None,
+            dp_sel: models.DataProductProcess = None,
+            count: int = None,
+            data: list[heatmap_models.HeatMapRow] = None,
+            min_value: int = None,
+            max_value: int = None,
     ) -> Response:
         j = {
             FIELD_MATCH_STATE: dp_match.state if dp_match else None,
@@ -315,29 +313,29 @@ class HeatMapController:
             heatmap_models.FIELD_HEATMAP_COUNT: count,
         }
         return Response(content=json.dumps(j), media_type="application/json")
-    
+
     def _remove_doc_keys(self, doc: dict[str, Any]) -> dict[str, Any]:
         # removes in place
         doc = remove_arango_keys(remove_collection_keys(doc))
         doc.pop(names.FLD_MATCHES_SELECTIONS, None)
 
-        revert_transformed_heatmap_row_cells(doc)
+        heatmap_models.revert_transformed_heatmap_row_cells(doc)
 
         return doc
 
     async def _query(
-        self,
-        store: ArangoStorage,
-        filters: FilterSet,
-        match_proc: models.DataProductProcess | None,
-        selection_proc: models.DataProductProcess | None,
+            self,
+            store: ArangoStorage,
+            filters: FilterSet,
+            match_proc: models.DataProductProcess | None,
+            selection_proc: models.DataProductProcess | None,
     ) -> heatmap_models.HeatMap:
         data = []
         await query_simple_collection_list(
             store,
             filters,
             lambda doc: data.append(doc) if filters.count else
-                data.append(self._remove_doc_keys(doc)),
+            data.append(self._remove_doc_keys(doc)),
         )
         if filters.count:
             return self._response(dp_match=match_proc, dp_sel=selection_proc, count=data[0])
