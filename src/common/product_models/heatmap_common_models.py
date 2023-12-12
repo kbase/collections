@@ -290,7 +290,7 @@ def revert_transformed_heatmap_row_cells(data: dict[str, Any]):
         cells_dict[col_id][col_type] = data.get(key)
 
     cells = [{
-        FIELD_HEATMAP_COL_ID: str(col_id),
+        FIELD_HEATMAP_COL_ID: col_id,
         FIELD_HEATMAP_CELL_ID: cell_data[FIELD_HEATMAP_CELL_ID],
         FIELD_HEATMAP_CELL_VALUE: cell_data[FIELD_HEATMAP_CELL_VALUE]
     } for col_id, cell_data in cells_dict.items()]
