@@ -245,7 +245,7 @@ def transform_heatmap_row_cells(data: dict[str, Any]):
         data[cell_val_key] = cell.get(FIELD_HEATMAP_CELL_VALUE)
 
 
-def revert_transformed_heatmap_row_cells(data):
+def revert_transformed_heatmap_row_cells(data: dict[str, Any]):
     """
     Revert, in place, the transformation of heatmap row cells.
     Input key format: <HEATMAP_COL_PREFIX>_<col_id>_<FIELD_HEATMAP_CELL_ID|FIELD_HEATMAP_CELL_VALUEl>
