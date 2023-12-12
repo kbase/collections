@@ -287,7 +287,7 @@ def revert_transformed_heatmap_row_cells(data: dict[str, Any]):
             raise ValueError(f'Unexpected column type: {col_type}')
 
         cells_dict.setdefault(col_id, {})
-        cells_dict[col_id][col_type] = data.get(key)
+        cells_dict[col_id][col_type] = data[key]
 
     cells = [{
         FIELD_HEATMAP_COL_ID: col_id,
