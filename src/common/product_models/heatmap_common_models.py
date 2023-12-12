@@ -234,7 +234,7 @@ def transform_heatmap_row_cells(data: dict[str, Any]):
 
     # Iterate over the 'cells' structure and remove them from the data structure while constructing the new structure
     for cell in data.pop(FIELD_HEATMAP_ROW_CELLS):
-        col_id = cell.get(FIELD_HEATMAP_COL_ID)
+        col_id = cell[FIELD_HEATMAP_COL_ID]
 
         # Construct keys and values for the new structure
         cell_id_key = f"{HEATMAP_COL_PREFIX}{HEATMAP_COL_SEPARATOR}{col_id}{HEATMAP_COL_SEPARATOR}{FIELD_HEATMAP_CELL_ID}"
