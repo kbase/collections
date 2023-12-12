@@ -61,6 +61,7 @@ from src.common.product_models.heatmap_common_models import (
     FIELD_HEATMAP_MAX_VALUE,
     FIELD_HEATMAP_CELL_VALUE,
     FIELD_HEATMAP_COUNT,
+    transform_heatmap_row_cells,
 )
 from src.common.storage.db_doc_conversions import (
     collection_load_version_key,
@@ -78,7 +79,6 @@ from src.loaders.common.loader_helper import (
     merge_docs,
     create_import_dir,
     process_columnar_meta,
-    transform_heatmap_row_cells,
 )
 from src.loaders.compute_tools.tool_common import run_command
 from src.loaders.compute_tools.tool_result_parser import (

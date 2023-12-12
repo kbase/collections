@@ -22,6 +22,7 @@ from src.common.product_models.heatmap_common_models import (
     FIELD_HEATMAP_CATEGORY,
     FIELD_HEATMAP_CATEGORIES,
     FIELD_HEATMAP_COUNT,
+    transform_heatmap_row_cells,
 )
 from src.common.storage.collection_and_field_names import (
     FLD_ARANGO_KEY,
@@ -38,7 +39,6 @@ from src.loaders.common import loader_common_names
 from src.loaders.common.loader_helper import (
     init_row_doc,
     create_import_files,
-    transform_heatmap_row_cells
 )
 from src.loaders.genome_collection.parse_tool_results import HEATMAP_FILE_ROOT
 
