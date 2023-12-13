@@ -61,6 +61,7 @@ from src.common.product_models.heatmap_common_models import (
     FIELD_HEATMAP_MAX_VALUE,
     FIELD_HEATMAP_CELL_VALUE,
     FIELD_HEATMAP_COUNT,
+    transform_heatmap_row_cells,
 )
 from src.common.storage.db_doc_conversions import (
     collection_load_version_key,
@@ -513,6 +514,10 @@ def microtrait(root_dir, env, kbase_collection, load_ver, fatal_ids):
                         cell_val = cell[FIELD_HEATMAP_CELL_VALUE]
                         min_value = min(min_value, cell_val)
                         max_value = max(max_value, cell_val)
+
+                    # transform heatmap row cells structure due to Arango nested search is not supported in the
+                    # Community Edition
+                    transform_heatmap_row_cells(data)
 
                     meta_info = _read_metadata_file(meta_lookup[data_id])
                     data[names.FLD_KB_DISPLAY_NAME] = meta_info.get(loader_common_names.FLD_KB_OBJ_NAME)

@@ -3,12 +3,11 @@ Common pydantic models for heat map data products.
 """
 
 from enum import Enum
-from typing import Annotated
+from typing import Annotated, Any
 
 from pydantic import BaseModel, Field
 
 from src.common.product_models.common_models import SubsetProcessStates
-
 
 # these fields need to match the fields in the models below.
 FIELD_HEATMAP_DATA = "data"
@@ -30,11 +29,13 @@ FIELD_HEATMAP_CATEGORIES = "categories"
 FIELD_HEATMAP_CELL_DETAIL_ENTRY_VALUE = "val"
 FIELD_HEATMAP_CELL_DETAIL_ENTRY_ID = "id"
 
-
 _FLD_CELL_ID = Field(
     example="4",
     description="The unique ID of the cell in the heatmap."
 )
+
+HEATMAP_COL_PREFIX = "col"
+HEATMAP_COL_SEPARATOR = '_'
 
 
 class ColumnType(str, Enum):
@@ -198,3 +199,103 @@ class CellDetail(BaseModel):
     """
     cell_id: str = _FLD_CELL_ID
     values: list[CellDetailEntry]
+
+
+def transform_heatmap_row_cells(data: dict[str, Any]):
+    """
+    Transform, in place, the cells structure in a heatmap row to a new structure.
+
+    The new structure is a set of keys and values where the keys are constructed from the old structure.
+    new structured key format: <HEATMAP_COL_PREFIX>_<col_id>_<FIELD_HEATMAP_CELL_ID|FIELD_HEATMAP_CELL_VALUEl>
+
+    e.g.
+
+    The old structure:
+    "cells": [
+        {
+            "cell_id": "cell_0",
+            "col_id": "0",
+            "val": 0.0
+        },
+        {
+            "cell_id": "cell_1",
+            "col_id": "1",
+            "val": 1.0
+        }
+    ]
+
+    The new structure:
+    "col_0_cell_id": "cell_0",
+    "col_0_val": 0.0,
+    "col_1_cell_id": "cell_1",
+    "col_1_val": 1.0
+
+    """
+
+    # Iterate over the 'cells' structure and remove them from the data structure while constructing the new structure
+    for cell in data.pop(FIELD_HEATMAP_ROW_CELLS):
+        col_id = cell[FIELD_HEATMAP_COL_ID]
+
+        # Construct keys and values for the new structure
+        cell_id_key = f"{HEATMAP_COL_PREFIX}{HEATMAP_COL_SEPARATOR}{col_id}{HEATMAP_COL_SEPARATOR}{FIELD_HEATMAP_CELL_ID}"
+        cell_val_key = f"{HEATMAP_COL_PREFIX}{HEATMAP_COL_SEPARATOR}{col_id}{HEATMAP_COL_SEPARATOR}{FIELD_HEATMAP_CELL_VALUE}"
+
+        # Add the new keys and values to the data structure
+        data[cell_id_key] = cell[FIELD_HEATMAP_CELL_ID]
+        data[cell_val_key] = cell[FIELD_HEATMAP_CELL_VALUE]
+
+
+def revert_transformed_heatmap_row_cells(data: dict[str, Any]):
+    """
+    Revert, in place, the transformation of heatmap row cells.
+    Input key format: <HEATMAP_COL_PREFIX>_<col_id>_<FIELD_HEATMAP_CELL_ID|FIELD_HEATMAP_CELL_VALUEl>
+
+    The structure (input) to be reverted:
+    "col_0_cell_id": "cell_0",
+    "col_0_val": 0.0,
+    "col_1_cell_id": "cell_1",
+    "col_1_val": 1.0
+
+    The resulting structure:
+    "cells": [
+        {
+            "cell_id": "cell_0",
+            "col_id": "0",
+            "val": 0.0
+        },
+        {
+            "cell_id": "cell_1",
+            "col_id": "1",
+            "val": 1.0
+        }
+    ]
+    """
+
+    # Get the keys that need to be reconstructed
+    keys_to_remove = [key for key in data.keys() if key.startswith(HEATMAP_COL_PREFIX) and
+                      (key.endswith(FIELD_HEATMAP_CELL_ID) or key.endswith(FIELD_HEATMAP_CELL_VALUE))]
+
+    cells_dict = {}
+    for key in keys_to_remove:
+        parts = key.split(HEATMAP_COL_SEPARATOR)
+        col_id = parts[1]
+        col_type = HEATMAP_COL_SEPARATOR.join(parts[2:])
+        if not col_id.isdigit():
+            raise ValueError(f"Column ID '{col_id}' is not an integer.")
+
+        if col_type not in [FIELD_HEATMAP_CELL_ID, FIELD_HEATMAP_CELL_VALUE]:
+            raise ValueError(f'Unexpected column type: {col_type}')
+
+        cells_dict.setdefault(col_id, {})
+        cells_dict[col_id][col_type] = data[key]
+
+    cells = [{
+        FIELD_HEATMAP_COL_ID: col_id,
+        FIELD_HEATMAP_CELL_ID: cell_data[FIELD_HEATMAP_CELL_ID],
+        FIELD_HEATMAP_CELL_VALUE: cell_data[FIELD_HEATMAP_CELL_VALUE]
+    } for col_id, cell_data in cells_dict.items()]
+
+    data[FIELD_HEATMAP_ROW_CELLS] = cells
+
+    for key in keys_to_remove:
+        data.pop(key)

@@ -319,6 +319,9 @@ class HeatMapController:
         # removes in place
         doc = remove_arango_keys(remove_collection_keys(doc))
         doc.pop(names.FLD_MATCHES_SELECTIONS, None)
+
+        heatmap_models.revert_transformed_heatmap_row_cells(doc)
+
         return doc
 
     async def _query(
