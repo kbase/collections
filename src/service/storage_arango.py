@@ -267,6 +267,7 @@ class ArangoStorage:
             an analyzer to use for that strategy. The second argument defines whether to
             return None (True) or the name of the default analyzer (False) when the default
             analyzer is to be returned.
+        include_all_fields - whether to set include_all_fields to true for the created search view.
         """
         view_fields = self._view_spec_to_fields(view_spec, analyzer_provider)
         try:
