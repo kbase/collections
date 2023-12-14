@@ -10,7 +10,7 @@ _FIELD_COL = {
 
 def create_generic_spec() -> ColumnarAttributesSpec:
     """
-    Create a generic spec for a collection.
+    Create a generic column spec for a collection.
 
     This spec only includes fields common to most or all collections that require special handling and it is
     expected that all other fields are handled in a generic way.
