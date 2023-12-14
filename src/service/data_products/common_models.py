@@ -29,8 +29,7 @@ class DBCollection(BaseModel):
 
     generic_view_required: bool = False
     """
-    Whether the collection requires a generic ArangoSearch view. If so, the view will be automatically 
-    created by the service manager. `view_required` flag is ignored if this flag is set.
+    Whether the collection requires a generic ArangoSearch view. `view_required` flag is ignored if this flag is set.
     """
 
     indexes: list[list[str]]
