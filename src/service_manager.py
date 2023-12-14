@@ -192,10 +192,15 @@ async def _create_view(
             print(f"done in {time.time() - t0:.2f} seconds.")
             return view_name
         except ViewExistsError:
-            print(f"A view with name {view_name} already exists and does not match the spec.")
-    print("The view name should be configured for data products in KBase Collections ")
-    print("at the same time the load version with the data matching the view specs is ")
-    print("configured.")
+            error_message = f"A view with name {view_name} already exists"
+            if not create_generic_view:
+                error_message += " and does not match the spec."
+            print(error_message)
+
+    if not create_generic_view:
+        print("The view name should be configured for data products in KBase Collections ")
+        print("at the same time the load version with the data matching the view specs is ")
+        print("configured.")
 
 
 async def _update_views(store: ArangoStorage):

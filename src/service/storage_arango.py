@@ -315,6 +315,7 @@ class ArangoStorage:
             an analyzer to use for that strategy. The second argument defines whether to
             return None (True) or the name of the default analyzer (False) when the default
             analyzer is to be returned.
+        include_all_fields - check if returned matching views have the include_all_fields flag set.
             
         Returns the names of any matching views found.
         """
