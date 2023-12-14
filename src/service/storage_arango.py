@@ -254,7 +254,8 @@ class ArangoStorage:
         name: str,
         arango_collection: str,
         view_spec: ColumnarAttributesSpec,
-        analyzer_provider: Callable[[FilterStrategy, bool], str]
+        analyzer_provider: Callable[[FilterStrategy, bool], str],
+        include_all_fields: bool = False
     ):
         """
         Create a search view for a collection.
@@ -270,7 +271,9 @@ class ArangoStorage:
         view_fields = self._view_spec_to_fields(view_spec, analyzer_provider)
         try:
             await self._db.create_arangosearch_view(
-                name, {"links": {arango_collection: {"fields": view_fields}}}
+                name, {"links": {arango_collection: {
+                                                    "fields": view_fields,
+                                                    "includeAllFields": include_all_fields}}}
             )
         except ViewCreateError as e:
             if e.error_code == ARANGO_ERR_NAME_EXISTS:
@@ -300,7 +303,8 @@ class ArangoStorage:
         self,
         arango_collection: str,
         view_spec: ColumnarAttributesSpec,
-        analyzer_provider: Callable[[FilterStrategy, bool], str]
+        analyzer_provider: Callable[[FilterStrategy, bool], str],
+        include_all_fields: bool = False
         ) -> list:
         """
         Given a view spec, find a matching views in a collection if any.
@@ -320,7 +324,8 @@ class ArangoStorage:
         for v in views:
             view = await self._db.view(v["name"])
             if arango_collection in view["links"]:
-                if view["links"][arango_collection]["fields"] == view_fields:
+                if (view["links"][arango_collection]["fields"] == view_fields and
+                        view["links"][arango_collection]["include_all_fields"] == include_all_fields):
                     ret.append(v["name"])
         return ret
     

@@ -3,20 +3,20 @@ Initialize the ArangoDB database with sharded collections.
 """
 
 import argparse
-import aioarango
 import asyncio
-import click
 import time
-
-import src.common.storage.collection_and_field_names as names
-from src.service.config import CollectionsServiceConfig
-from src.service._app_state_build_storage import build_arango_db
-from src.service.storage_arango import ARANGO_ERR_NAME_EXISTS, ArangoStorage, ViewExistsError
 from typing import get_type_hints, Any
-from src.service import data_product_specs
-from src.common.collection_column_specs import load_specs
-from src.service.filtering import analyzers
 
+import click
+
+import aioarango
+import src.common.storage.collection_and_field_names as names
+from src.common.collection_column_specs import load_specs
+from src.service import data_product_specs
+from src.service._app_state_build_storage import build_arango_db
+from src.service.config import CollectionsServiceConfig
+from src.service.filtering import analyzers, generic_view
+from src.service.storage_arango import ARANGO_ERR_NAME_EXISTS, ArangoStorage, ViewExistsError
 
 REPLICATION = 3
 
@@ -41,25 +41,25 @@ _COLL_NAME = "collname"
 def _get_config() -> CollectionsServiceConfig:
     parser = argparse.ArgumentParser(
         description="Manage the KBase collections service, including setting up sharding for "
-            + "new collections and creating ArangoSearch views."
+                    + "new collections and creating ArangoSearch views."
     )
     parser.add_argument(
         '-c', '--config', required=True, type=str,
         help="The path to a filled in collections_config.toml file as would be "
-            + "provided to the service. The ArangoDB connection parameters are read from "
-            + "this file."
+             + "provided to the service. The ArangoDB connection parameters are read from "
+             + "this file."
     )
     parser.add_argument(
         "-s", "--skip-database-creation", action="store_true",
         help="Don't create the database. This is necessary if the credentials in the config "
-            + "file don't have permissions for the _system database; however the target database "
-            + "must already exist."
+             + "file don't have permissions for the _system database; however the target database "
+             + "must already exist."
     )
     args = parser.parse_args()
     with open(args.config, 'rb') as cfgfile:
         cfg = CollectionsServiceConfig(cfgfile)
     return cfg, args.skip_database_creation
-    
+
 
 def _get_required_collections() -> dict[str, dict[str, Any]]:
     colls = {}
@@ -77,8 +77,8 @@ def _print_collection_config(index: int, collection: dict[str, Any]):
     print(f"[{index + 1:03}] Collection name: {collection[_COLL_NAME]}")
     print(f"      Description: {collection[names.COLL_ANNOKEY_DESCRIPTION]}")
     print(f"      Shards suggested: {collection[names.COLL_ANNOKEY_SUGGESTED_SHARDS]} "
-                  + f"To be created: {collection[_CONF_SHARDS]}"
-    )
+          + f"To be created: {collection[_CONF_SHARDS]}"
+          )
 
 
 def _print_collections(collections: dict[str, dict[str, Any]]):
@@ -106,7 +106,7 @@ async def _setup_db(colls: dict[str, dict[str, Any]], db: aioarango.database.Sta
 async def _user_loop_sharding(
         colls: dict[str, dict[str, Any]],
         db: aioarango.database.StandardDatabase
-    ):
+):
     _print_collections(colls)
     while True:
         if click.confirm("Commit this sharding configuration?"):
@@ -137,7 +137,7 @@ async def _user_loop_sharding(
 async def _get_missing_collections(
         required_cols: dict[str, dict[str, Any]],
         db: aioarango.database.StandardDatabase
-    ) -> dict[str, dict[str, Any]]:
+) -> dict[str, dict[str, Any]]:
     print("Checking for missing ArangoDB collections... ", end="")
     colls = await db.collections()
     print("done")
@@ -157,13 +157,23 @@ async def _create_view(
         store: ArangoStorage,
         data_product: str,
         db_collection_name: str,
-    ):
-    view_spec = load_specs.load_spec(data_product)
-    print("Found view specs:")
-    for v in sorted(view_spec.spec_files):
-        print(f"   {v}")
+        create_generic_view: bool = False
+):
+    if create_generic_view:
+        print(f"Creating generic view for data product {data_product}...")
+        view_spec = generic_view.create_generic_spec()
+        #TODO: force creating/replacing existing generic view
+    else:
+        print(f"Loading view spec for data product {data_product}...")
+        view_spec = load_specs.load_spec(data_product)
+        print("Found view specs:")
+        for v in sorted(view_spec.spec_files):
+            print(f"   {v}")
     views = sorted(await store.get_search_views_from_spec(
-        db_collection_name, view_spec, analyzers.get_analyzer))
+        db_collection_name,
+        view_spec,
+        analyzers.get_analyzer,
+        include_all_fields=create_generic_view))
     _print_view_status(data_product, db_collection_name, views)
     if views:
         print("    Setup ok.")
@@ -173,7 +183,11 @@ async def _create_view(
         print("Creating view ... ", end="", flush=True)
         try:
             await store.create_search_view(
-                view_name, db_collection_name, view_spec, analyzers.get_analyzer)
+                view_name,
+                db_collection_name,
+                view_spec,
+                analyzers.get_analyzer,
+                include_all_fields=create_generic_view)
             print(f"done in {time.time() - t0:.2f} seconds.")
             return view_name
         except ViewExistsError:
@@ -188,11 +202,12 @@ async def _update_views(store: ArangoStorage):
     print("Checking ArangoSearch view status")
     for dp in data_product_specs.get_data_products():
         for dbc in dp.db_collections:
-            if dbc.view_required:
+            if dbc.view_required or dbc.generic_view_required:
                 await _create_view(
                     store,
                     dp.data_product,
                     dbc.name,
+                    create_generic_view=dbc.generic_view_required
                 )
 
 

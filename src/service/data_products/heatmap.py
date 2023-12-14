@@ -163,6 +163,7 @@ class HeatMapController:
                 DBCollection(name=self._colname_cells, indexes=[]),  # just use the doc key
                 DBCollection(
                     name=self._colname_data,
+                    generic_view_required=True,
                     indexes=[
                         [
                             names.FLD_COLLECTION_ID,
