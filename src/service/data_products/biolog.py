@@ -13,4 +13,4 @@ _BIOLOG_CONTROLLER = HeatMapController(
     names.COLL_BIOLOG_CELLS,
 )
 
-BIOLOG_SPEC = _BIOLOG_CONTROLLER.get_data_product_spec()
+BIOLOG_SPEC = _BIOLOG_CONTROLLER.get_data_product_spec(require_view=True)

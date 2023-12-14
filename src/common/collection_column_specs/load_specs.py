@@ -8,15 +8,59 @@ The specs are stored in the same directory as this module.
 When a tool is updated to output different or changed fields, it's expected that the spec that
 contains those fields is updated as well.
 """
-import yaml
 from pathlib import Path
+
+import yaml
+
 from src.common.product_models.columnar_attribs_common_models import (
     AttributesColumnSpec,
     ColumnarAttributesSpec,
+    ColumnType,
+)
+from src.common.product_models.heatmap_common_models import (
+    HEATMAP_COL_PREFIX,
+    HEATMAP_COL_SEPARATOR,
+    FIELD_HEATMAP_CELL_VALUE,
 )
 
 SPEC_DIR = Path(__file__).parent.resolve()
 YML_SUFFIX = ".yml"
+
+# column types and their corresponding ranges (inclusive) of column IDs for defined products
+_COL_RANGE = "ranges"
+_FILTER_STRATEGY = "filter_strategy"
+_COLUMN_TYPE_RANGES = {
+    "microtrait": {
+        ColumnType.BOOL.value: {
+            _COL_RANGE: [[49, 160]],
+        },
+        ColumnType.INT.value: {
+            _COL_RANGE: [[1, 48], [161, 189]],
+        }
+    },
+    "biolog": {
+        ColumnType.BOOL.value: {
+            _COL_RANGE: [[0, 191]],
+        }
+    }
+}
+
+
+def _creat_defined_spec(data_product: str) -> list[AttributesColumnSpec]:
+    # create a list of column specs for the pre-defined columns
+
+    cols = [
+        AttributesColumnSpec(
+            key=f"{HEATMAP_COL_PREFIX}{HEATMAP_COL_SEPARATOR}{i}{HEATMAP_COL_SEPARATOR}{FIELD_HEATMAP_CELL_VALUE}",
+            type=col_type,
+            filter_strategy=col_specs.get(_FILTER_STRATEGY, None),
+        )
+        for col_type, col_specs in _COLUMN_TYPE_RANGES[data_product].items()
+        for col_range in col_specs[_COL_RANGE]
+        for i in range(col_range[0], col_range[1] + 1)
+    ]
+
+    return cols
 
 
 def _filename(data_product: str, collection: str) -> str:
@@ -36,7 +80,7 @@ def get_collections_for_data_product(data_product: str):
     Given a data product, get the list of collections that have specs for that data product.
     """
     return {_specfile_to_collection(f) for f in _get_spec_files(data_product)}
-    
+
 
 def load_spec(data_product: str, collection: str = None) -> ColumnarAttributesSpec:
     """
@@ -72,6 +116,10 @@ def load_spec(data_product: str, collection: str = None) -> ColumnarAttributesSp
                     if spec[k] != first[1]:
                         colls = sorted([coll, first[0]])
                         raise ValueError(f"Column spec conflict for data product {data_product}, "
-                                        + f"collections {colls[0]} and {colls[1]} on key {k}")
+                                         + f"collections {colls[0]} and {colls[1]} on key {k}")
         columns.append(AttributesColumnSpec(**first[1]))
+
+    if _COLUMN_TYPE_RANGES.get(data_product):
+        columns.extend(_creat_defined_spec(data_product))
+
     return ColumnarAttributesSpec(columns=columns, spec_files=coll2file.values())

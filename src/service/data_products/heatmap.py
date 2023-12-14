@@ -128,7 +128,7 @@ class HeatMapController:
         )
         return router
 
-    def get_data_product_spec(self) -> DataProductSpec:
+    def get_data_product_spec(self, require_view: bool = False,) -> DataProductSpec:
         router = self._create_router()
         outerself = self
 
@@ -163,6 +163,7 @@ class HeatMapController:
                 DBCollection(name=self._colname_cells, indexes=[]),  # just use the doc key
                 DBCollection(
                     name=self._colname_data,
+                    view_required=require_view,
                     indexes=[
                         [
                             names.FLD_COLLECTION_ID,

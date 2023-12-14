@@ -13,4 +13,4 @@ _MICROTRAIT_CONTROLLER = HeatMapController(
     names.COLL_MICROTRAIT_CELLS,
 )
 
-MICROTRAIT_SPEC = _MICROTRAIT_CONTROLLER.get_data_product_spec()
+MICROTRAIT_SPEC = _MICROTRAIT_CONTROLLER.get_data_product_spec(require_view=True)
