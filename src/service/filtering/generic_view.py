@@ -12,8 +12,8 @@ def create_generic_spec() -> ColumnarAttributesSpec:
     """
     Create a generic spec for a collection.
 
-    Arango search includeAllFields will be set to true. This means that all fields will be indexed
-    by default except for those that are explicitly defined in the _FIELD_COL dict.
+    This spec only includes fields common to most or all collections that require special handling and it is
+    expected that all other fields are handled in a generic way.
     """
 
     columns = [AttributesColumnSpec(key=key, **specs) for key, specs in _FIELD_COL.items()]
