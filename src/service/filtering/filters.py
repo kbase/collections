@@ -153,7 +153,7 @@ class BooleanFilter(AbstractFilter):
         bv_key = f"{var_prefix}bool_value"
         return SearchQueryPart(
             aql_lines=[f"{identifier} == @{bv_key}"],
-            bind_vars={f"{bv_key}": self.bool_value}
+            bind_vars={bv_key: self.bool_value}
         )
 
 
