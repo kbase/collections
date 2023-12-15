@@ -84,7 +84,7 @@ class ColumnarAttributesSpec(BaseModel):
     )]
     spec_files: Annotated[list[Path], Field(
         description="Paths to the spec files from which the specs where loaded."
-    )]
+    )] = list()
 
 
 class AttributesColumn(AttributesColumnSpec):
