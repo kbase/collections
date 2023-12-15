@@ -19,6 +19,9 @@ from src.service.processing import SubsetSpecification
 
 _PARTICLES_IN_UNIVERSE = 10 ** 80
 
+_TRUE_STR = "true"
+_FALSE_STR = "false"
+
 
 class SearchQueryPart(BaseModel):
     variable_assignments: Annotated[dict[str, str] | None, Field(
@@ -75,7 +78,7 @@ class AbstractFilter(ABC):
 
 
 def _to_bool_string(b: bool):
-    return "true" if b else "false"
+    return _TRUE_STR if b else _FALSE_STR
 
 
 def _require_string(s: str, err: str, optional: bool = False):
@@ -90,6 +93,67 @@ def _gt(num: int, min_: int, name: str):
     if num < min_:
         raise errors.IllegalParameterError(f"{name} must be >= {min_}")
     return num
+
+
+class BooleanFilter(AbstractFilter):
+    """
+    A filter representing a boolean value.
+    """
+
+    def __init__(self, bool_value: bool):
+        """Initialize the boolean filter with a boolean value.
+
+        bool_value - the boolean value for the filter.
+        """
+        self.bool_value = bool_value
+
+    def __eq__(self, other: object) -> bool | NotImplementedType:
+        """Check equality with another BooleanFilter."""
+
+        if not isinstance(other, BooleanFilter):
+            return NotImplemented
+        return self.bool_value == other.bool_value
+
+    def __repr__(self) -> str:
+        """Represent the BooleanFilter object as a string."""
+        return f"BooleanFilter({self.bool_value})"
+
+    @classmethod
+    def from_string(
+            cls,
+            type_: ColumnType,  # @UnusedVariable
+            string: str,
+            analyzer: str = None,  # @UnusedVariable
+            strategy: FilterStrategy = None,  # @UnusedVariable
+    ) -> Self:
+        """
+        Create the filter from a string: "true" or "false".
+
+        string - the search string. Must be either "true" or "false".
+
+        The type_, strategy and analyzer arguments are ignored for the boolean filter.
+        """
+        string = _require_string(string, "Missing boolean string information")
+        string = string.strip().lower()
+        if string not in [_TRUE_STR, _FALSE_STR]:
+            raise errors.IllegalParameterError(
+                f"Invalid boolean specification; expected true or false: {string}")
+        return BooleanFilter(string == _TRUE_STR)
+
+    def to_arangosearch_aql(self, identifier: str, var_prefix: str) -> SearchQueryPart:
+        """
+        Convert the filter to lines of ArangoSearch AQL and bind variables.
+
+        identifier - the identifier for where the search is to take place, for example
+            `doc.classification`. This will be inserted verbatim into the search constraint, e.g.
+            `f"{identifer} > 47`
+        var_prefix - a prefix to apply to variable names, including bind variables,
+            to prevent collisions between multiple filters.
+        """
+        return SearchQueryPart(
+            aql_lines=[f"{identifier} == @{var_prefix}value"],
+            bind_vars={f"{var_prefix}value": self.bool_value}
+        )
 
 
 class RangeFilter(AbstractFilter):
