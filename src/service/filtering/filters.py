@@ -150,9 +150,10 @@ class BooleanFilter(AbstractFilter):
         var_prefix - a prefix to apply to variable names, including bind variables,
             to prevent collisions between multiple filters.
         """
+        bv_key = f"{var_prefix}bool_value"
         return SearchQueryPart(
-            aql_lines=[f"{identifier} == @{var_prefix}value"],
-            bind_vars={f"{var_prefix}value": self.bool_value}
+            aql_lines=[f"{identifier} == @{bv_key}"],
+            bind_vars={f"{bv_key}": self.bool_value}
         )
 
 
