@@ -15,7 +15,6 @@ from pydantic import field_validator, BaseModel, Field, HttpUrl, model_validator
 from typing import Any, Self, Annotated
 
 from src.service.arg_checkers import contains_control_characters
-from src.service.filtering import generic_view
 
 # TODO TEST all these regexes and constraints will need a good chunk of testing.
 

@@ -84,7 +84,7 @@ class DataProductSpec(BaseModel):
     def _ensure_only_one_view(cls, v):
         found = False
         for dbc in v:
-            if found and v.view_required:
+            if found and (v.view_required or v.generic_view_required):
                 raise ValueError("More than one db collection requiring a view found")
             found = found or dbc.view_required
         return v
