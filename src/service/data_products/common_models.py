@@ -82,17 +82,15 @@ class DataProductSpec(BaseModel):
     @field_validator("db_collections")
     @classmethod
     def _ensure_only_one_view(cls, v):
-        found = False
-        for dbc in v:
-            if found and v.view_required:
-                raise ValueError("More than one db collection requiring a view found")
-            found = found or dbc.view_required or dbc.generic_view_required
+        view_required_collections = [dbc for dbc in v if dbc.view_required or dbc.generic_view_required]
+        if len(view_required_collections) > 1:
+            raise ValueError("More than one db collection requiring a view found")
         return v
     
     def view_required(self):
         """ Check if a search view is required for this data product. """
         for db in self.db_collections:
-            if db.view_required or db.generic_view_required:
+            if db.view_required:
                 return True
         return False
 
