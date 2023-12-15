@@ -15,6 +15,7 @@ from pydantic import field_validator, BaseModel, Field, HttpUrl, model_validator
 from typing import Any, Self, Annotated
 
 from src.service.arg_checkers import contains_control_characters
+from src.service.filtering import generic_view
 
 # TODO TEST all these regexes and constraints will need a good chunk of testing.
 
@@ -294,6 +295,8 @@ class Collection(BaseModel):
         """ Get a data product by its ID. """
         for dp in self.data_products:
             if dp.product == data_product:
+                if generic_view.is_generic_view_product(data_product):
+                    dp.search_view = generic_view.get_generic_view_name(data_product)
                 return dp
         raise ValueError(f"No such data product: {data_product}")
 

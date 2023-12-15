@@ -7,6 +7,10 @@ _FIELD_COL = {
     }
 }
 
+_GENERIC_VIEW_NAME_SUFFIX = "_generic_view"
+
+_GENERIC_VIEW_PRODUCTS = ['microtrait', 'biolog']
+
 
 def create_generic_spec() -> ColumnarAttributesSpec:
     """
@@ -19,3 +23,17 @@ def create_generic_spec() -> ColumnarAttributesSpec:
     columns = [AttributesColumnSpec(key=key, **specs) for key, specs in _FIELD_COL.items()]
 
     return ColumnarAttributesSpec(columns=columns)
+
+
+def is_generic_view_product(data_product: str) -> bool:
+    """
+    Check if a data product requires a generic view.
+    """
+    return data_product in _GENERIC_VIEW_PRODUCTS
+
+
+def get_generic_view_name(data_product: str) -> str:
+    """
+    Get the name of the generic view for a data product.
+    """
+    return f"{data_product}{_GENERIC_VIEW_NAME_SUFFIX}"

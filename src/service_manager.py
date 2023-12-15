@@ -179,9 +179,12 @@ async def _create_view(
     if views:
         print("    Setup ok.")
     elif click.confirm("No view present for current view specifications. Create now?"):
-        view_name = click.prompt("Please provide a name for the new view")
+        if create_generic_view:
+            view_name = generic_view.get_generic_view_name(data_product)
+        else:
+            view_name = click.prompt("Please provide a name for the new view")
         t0 = time.time()
-        print("Creating view ... ", end="", flush=True)
+        print(f"Creating view {view_name}... ", end="", flush=True)
         try:
             await store.create_search_view(
                 view_name,
