@@ -88,7 +88,7 @@ class DataProductSpec(BaseModel):
         return v
     
     def view_required(self):
-        """ Check if a search view is required for this data product. """
+        """ Check if a non-generic search view is required for this data product. """
         for db in self.db_collections:
             if db.view_required:
                 return True
