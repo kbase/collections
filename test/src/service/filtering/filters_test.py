@@ -148,11 +148,16 @@ def test_boolean_filter_equality(boolean_filter_true, boolean_filter_false):
     assert boolean_filter_true == boolean_filter_true
     assert boolean_filter_false == boolean_filter_false
     assert boolean_filter_true != boolean_filter_false
+    assert boolean_filter_true != RangeFilter(ColumnType.FLOAT, -56.1, 1913.1, True, True)
 
 
 def test_boolean_filter_representation(boolean_filter_true, boolean_filter_false):
+
     assert repr(boolean_filter_true) == "BooleanFilter(True)"
     assert repr(boolean_filter_false) == "BooleanFilter(False)"
+
+    assert eval(repr(boolean_filter_true)) == boolean_filter_true
+    assert eval(repr(boolean_filter_false)) == boolean_filter_false
 
 
 def test_boolean_filter_from_string():
