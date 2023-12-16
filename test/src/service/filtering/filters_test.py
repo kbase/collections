@@ -3,6 +3,7 @@ from pytest import raises
 # TODO TEST add more tests, this is just the basics
 
 import re
+import pytest
 
 from src.common.product_models.columnar_attribs_common_models import (
     ColumnType,
@@ -14,6 +15,7 @@ from src.service.filtering.filters import (
     StringFilter,
     SearchQueryPart,
     FilterSet,
+    BooleanFilter,
 )
 from src.service.processing import SubsetSpecification
 
@@ -130,6 +132,46 @@ def test_rangefilter_from_string_fail():
     for type_, input_, errclass, expected in test_set:
         with raises(errclass, match=f"^{re.escape(expected)}$"):
             RangeFilter.from_string(type_, input_)
+
+
+@pytest.fixture
+def boolean_filter_true():
+    return BooleanFilter(True)
+
+
+@pytest.fixture
+def boolean_filter_false():
+    return BooleanFilter(False)
+
+
+def test_boolean_filter_equality(boolean_filter_true, boolean_filter_false):
+    assert boolean_filter_true == boolean_filter_true
+    assert boolean_filter_false == boolean_filter_false
+    assert boolean_filter_true != boolean_filter_false
+
+
+def test_boolean_filter_representation(boolean_filter_true, boolean_filter_false):
+    assert repr(boolean_filter_true) == "BooleanFilter(True)"
+    assert repr(boolean_filter_false) == "BooleanFilter(False)"
+
+
+def test_boolean_filter_from_string():
+    assert BooleanFilter.from_string(None, "true") == BooleanFilter(True)
+    assert BooleanFilter.from_string(None, "false") == BooleanFilter(False)
+    with raises(errors.IllegalParameterError):
+        BooleanFilter.from_string(None, "invalid")
+
+
+def test_boolean_filter_to_arangosearch_aql(boolean_filter_true, boolean_filter_false):
+    identifier = "test_identifier"
+    var_prefix = "test_prefix"
+    query_part_true = boolean_filter_true.to_arangosearch_aql(identifier, var_prefix)
+    query_part_false = boolean_filter_false.to_arangosearch_aql(identifier, var_prefix)
+
+    assert query_part_true.aql_lines == [f"{identifier} == @{var_prefix}bool_value"]
+    assert query_part_true.bind_vars == {f"{var_prefix}bool_value": True}
+    assert query_part_false.aql_lines == [f"{identifier} == @{var_prefix}bool_value"]
+    assert query_part_false.bind_vars == {f"{var_prefix}bool_value": False}
 
 
 def test_stringfilter_from_string():
