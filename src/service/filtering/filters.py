@@ -421,6 +421,7 @@ class FilterSet:
         ColumnType.INT: RangeFilter,
         ColumnType.FLOAT: RangeFilter,
         ColumnType.STRING: StringFilter,
+        ColumnType.BOOL: BooleanFilter,
     }
     
     def __init__(
