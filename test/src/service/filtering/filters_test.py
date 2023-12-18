@@ -147,9 +147,11 @@ def boolean_filter_false():
 def test_boolean_filter_equality(boolean_filter_true, boolean_filter_false):
     assert boolean_filter_true == boolean_filter_true
     # test that non-identical objects also pass
-    assert boolean_filter_true == BooleanFilter(true)
+    assert boolean_filter_true == BooleanFilter(True)
     
     assert boolean_filter_false == boolean_filter_false
+    assert boolean_filter_false == BooleanFilter(False)
+
     assert boolean_filter_true != boolean_filter_false
     assert boolean_filter_true != RangeFilter(ColumnType.FLOAT, -56.1, 1913.1, True, True)
 
@@ -172,15 +174,14 @@ def test_boolean_filter_from_string():
 
 
 def test_boolean_filter_to_arangosearch_aql(boolean_filter_true, boolean_filter_false):
-    identifier = "test_identifier"
-    var_prefix = "test_prefix"
-    query_part_true = boolean_filter_true.to_arangosearch_aql(identifier, var_prefix)
-    query_part_false = boolean_filter_false.to_arangosearch_aql(identifier, var_prefix)
 
-    assert query_part_true.aql_lines == [f"{identifier} == @{var_prefix}bool_value"]
-    assert query_part_true.bind_vars == {f"{var_prefix}bool_value": True}
-    assert query_part_false.aql_lines == [f"{identifier} == @{var_prefix}bool_value"]
-    assert query_part_false.bind_vars == {f"{var_prefix}bool_value": False}
+    query_part_true = boolean_filter_true.to_arangosearch_aql("identifier_true", "prefix_true")
+    query_part_false = boolean_filter_false.to_arangosearch_aql("identifier_false", "prefix_false")
+
+    assert query_part_true.aql_lines == [f"identifier_true == @prefix_truebool_value"]
+    assert query_part_true.bind_vars == {f"prefix_truebool_value": True}
+    assert query_part_false.aql_lines == [f"identifier_false == @prefix_falsebool_value"]
+    assert query_part_false.bind_vars == {f"prefix_falsebool_value": False}
 
 
 def test_stringfilter_from_string():
