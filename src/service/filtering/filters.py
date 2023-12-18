@@ -146,7 +146,7 @@ class BooleanFilter(AbstractFilter):
 
         identifier - the identifier for where the search is to take place, for example
             `doc.classification`. This will be inserted verbatim into the search constraint, e.g.
-            `f"{identifer} > 47`
+            `f"{identifer} == true`
         var_prefix - a prefix to apply to variable names, including bind variables,
             to prevent collisions between multiple filters.
         """
