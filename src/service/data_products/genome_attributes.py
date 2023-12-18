@@ -38,8 +38,7 @@ from src.service.data_products.data_product_processing import (
     SELECTION_ID_PREFIX,
 )
 from src.service.data_products.table_models import TableAttributes
-from src.service.filtering import analyzers
-from src.service.filtering.filters import FilterSet
+from src.service.filtering.filters import FilterSet, get_filter_map, append_filters
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.processing import SubsetSpecification
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
@@ -283,20 +282,6 @@ def _remove_keys(doc):
 # DPs
 # Not sure about the meta call, may need to abstract that out somehow
 
-_FILTER_PREFIX = "filter_"
-
-
-def _get_filter_map(r: Request) -> dict[str, str]:
-    filter_query = {}
-    for q in r.query_params.keys():
-        if q.startswith(_FILTER_PREFIX):
-            field = q[len(_FILTER_PREFIX):]
-            if len(r.query_params.getlist(q)) > 1:
-                raise errors.IllegalParameterError(
-                    f"More than one filter specification provided for field {field}")
-            filter_query[field] = r.query_params[q]
-    return filter_query
-
 
 async def _get_filters(
     r: Request,
@@ -316,7 +301,7 @@ async def _get_filters(
     skip: int = 0,
     limit: int = 1000,
 ) -> FilterSet:
-    filter_query = _get_filter_map(r)
+    filter_query = get_filter_map(r)
     appstate = app_state.get_app_state(r)
     column_meta = await _get_genome_attributes_meta_internal(
         appstate.arangostorage, coll_id, load_ver, load_ver_override)
@@ -356,30 +341,7 @@ async def _get_filters(
         skip=skip,
         limit=limit
     )
-    return _append_filters(fs, filter_query, columns)
-
-
-def _append_filters(
-    fs: FilterSet,
-    filter_query: dict[str, str],
-    columns: dict[str, col_models.AttributesColumn]
-) -> FilterSet:
-    for field, querystring in filter_query.items():
-        if field not in columns:
-            raise errors.IllegalParameterError(f"No such filter field: {field}")
-        column = columns[field]
-        minlen = analyzers.get_minimum_query_length(column.filter_strategy)
-        if minlen and len(querystring) < minlen:
-            raise errors.IllegalParameterError(
-                f"Filter field '{field}' requires a minimum query length of {minlen}")
-        fs.append(
-            field,
-            column.type,
-            querystring,
-            analyzers.get_analyzer(column.filter_strategy),
-            column.filter_strategy
-        )
-    return fs
+    return append_filters(fs, filter_query, columns)
 
 
 ##########################

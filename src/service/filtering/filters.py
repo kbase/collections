@@ -8,14 +8,18 @@ from types import NotImplementedType
 from typing import Annotated, Any, Self
 
 from dateutil import parser
+from fastapi import Request
 from pydantic import BaseModel, Field
 
-from src.common.product_models.columnar_attribs_common_models import ColumnType, FilterStrategy
 import src.common.storage.collection_and_field_names as names
+from src.common.product_models.columnar_attribs_common_models import (
+    ColumnType,
+    FilterStrategy,
+    AttributesColumn,
+)
 from src.service import errors
-from src.service.filtering.analyzers import DEFAULT_ANALYZER
+from src.service.filtering import analyzers
 from src.service.processing import SubsetSpecification
-
 
 _PARTICLES_IN_UNIVERSE = 10 ** 80
 
@@ -26,29 +30,29 @@ _FALSE_STR = "false"
 class SearchQueryPart(BaseModel):
     variable_assignments: Annotated[dict[str, str] | None, Field(
         description="A mapping of variable name to AQL expression. The variables must be assigned "
-            + "prior to the SEARCH operation. The variable names are expected to be unique "
-            + "across all filters.")
+                    + "prior to the SEARCH operation. The variable names are expected to be unique "
+                    + "across all filters.")
     ] = None
     aql_lines: list[str] = Field(  # TDOO better docs once I figure out integration
         description="One or more lines of ArangoSearch AQL representing the filter")
     bind_vars: dict[str, Any] = Field(
         description="The bind variables for the AQL lines. They are expected to be unique "
-            + "across all filters")
+                    + "across all filters")
 
 
 class AbstractFilter(ABC):
     """
     The abstract base class for all filters.
     """
-    
+
     @classmethod
     @abstractmethod
     def from_string(
-        cls,
-        type_: ColumnType,
-        string: str,
-        analyzer: str = None,
-        strategy: FilterStrategy = None,
+            cls,
+            type_: ColumnType,
+            string: str,
+            analyzer: str = None,
+            strategy: FilterStrategy = None,
     ) -> Self:
         """
         Parse the filter from a filter string. The syntax of the filter string is dependent
@@ -161,14 +165,14 @@ class RangeFilter(AbstractFilter):
     """
     A filter representing a range of numbers or dates.
     """
-    
+
     def __init__(
-        self,
-        type_: ColumnType,
-        low: float | int | str | None = None,
-        high: float | int | str | None = None,
-        low_inclusive: bool = False,
-        high_inclusive: bool = False
+            self,
+            type_: ColumnType,
+            low: float | int | str | None = None,
+            high: float | int | str | None = None,
+            low_inclusive: bool = False,
+            high_inclusive: bool = False
     ):
         """
         Create a range filter for numbers or ISO8601 dates.
@@ -193,8 +197,8 @@ class RangeFilter(AbstractFilter):
         self.low_inclusive = low_inclusive
         self.high_inclusive = high_inclusive
         if self.low is not None and self.high is not None and (
-            self.low > self.high
-            or (self.low == self.high and (not self.low_inclusive or not self.high_inclusive))
+                self.low > self.high
+                or (self.low == self.high and (not self.low_inclusive or not self.high_inclusive))
         ):
             raise errors.IllegalParameterError(
                 f"The filter range {self.to_range_string()} excludes all values")
@@ -228,7 +232,7 @@ class RangeFilter(AbstractFilter):
             if part.endswith(")") or part.endswith("]"):
                 part = part[:-1]
         return part, inclusive
-    
+
     def _parse_val(self, val, name):
         if val is None or val == "":
             return None
@@ -250,22 +254,22 @@ class RangeFilter(AbstractFilter):
             return NotImplemented
         return (self.type, self.low, self.high, self.low_inclusive, self.high_inclusive) == (
             other.type, other.low, other.high, other.low_inclusive, other.high_inclusive)
-        
+
     def __repr__(self):
         l, h = self.low, self.high
         if self.type == ColumnType.DATE:
             l = f'"{l}"'
             h = f'"{h}"'
         return (f"RangeFilter(ColumnType.{self.type.name}, {l}, {h}, "
-            + f"{self.low_inclusive}, {self.high_inclusive})")
+                + f"{self.low_inclusive}, {self.high_inclusive})")
 
     @classmethod
     def from_string(
-        cls,
-        type_: ColumnType,
-        string: str,
-        analyzer: str = None,  # @UnusedVariable
-        strategy: FilterStrategy = None,  # @UnusedVariable
+            cls,
+            type_: ColumnType,
+            string: str,
+            analyzer: str = None,  # @UnusedVariable
+            strategy: FilterStrategy = None,  # @UnusedVariable
     ) -> Self:
         """
         Parse the filter from a filter string like [-1, 20).
@@ -322,14 +326,14 @@ class StringFilter(AbstractFilter):
     A filter representing a string based filter, e.g. an exact match to a token, token prefix,
     etc.
     """
-    
+
     def __init__(self, strategy: FilterStrategy, string: str, analyzer: str = None):
         f"""
         Create the string based filter.
         
         strategy - the filter strategy.
         string - the search string.
-        analyzer - the analyzer for the filter. If not provided, the {DEFAULT_ANALYZER} analyzer
+        analyzer - the analyzer for the filter. If not provided, the {analyzers.DEFAULT_ANALYZER} analyzer
             is used.
         """
         if not strategy:
@@ -337,9 +341,9 @@ class StringFilter(AbstractFilter):
         self.strategy = strategy
         self.string = _require_string(
             string, "Filter string is required and must be non-whitespace only")
-        self.analyzer = (DEFAULT_ANALYZER if not analyzer or not analyzer.strip()
+        self.analyzer = (analyzers.DEFAULT_ANALYZER if not analyzer or not analyzer.strip()
                          else analyzer.strip())
-    
+
     @classmethod
     def from_string(
             cls,
@@ -367,8 +371,8 @@ class StringFilter(AbstractFilter):
 
     def __repr__(self):
         return (f"StringFilter(FilterStrategy.{self.strategy.name}, \"{self.string}\", "
-            + f"\"{self.analyzer}\")")
-    
+                + f"\"{self.analyzer}\")")
+
     def to_arangosearch_aql(self, identifier: str, var_prefix: str) -> SearchQueryPart:
         """
         Convert the filter to lines of ArangoSearch AQL and bind variables.
@@ -384,14 +388,14 @@ class StringFilter(AbstractFilter):
         var_assigns = {prefixvar: f"TOKENS(@{bindvar}, \"{self.analyzer}\")"}
         match self.strategy:
             case FilterStrategy.IDENTITY:
-                aql_lines=[f"{identifier} == @{bindvar}"]
+                aql_lines = [f"{identifier} == @{bindvar}"]
                 var_assigns = None
             case FilterStrategy.FULL_TEXT:
-                aql_lines=[f"ANALYZER({prefixvar} ALL == {identifier}, \"{self.analyzer}\")"]
+                aql_lines = [f"ANALYZER({prefixvar} ALL == {identifier}, \"{self.analyzer}\")"]
             case FilterStrategy.PREFIX:
-                aql_lines=[
+                aql_lines = [
                     f"ANALYZER(STARTS_WITH({identifier}, {prefixvar}, LENGTH({prefixvar})), "
-                        + f"\"{self.analyzer}\")"
+                    + f"\"{self.analyzer}\")"
                 ]
             case FilterStrategy.NGRAM:
                 # Could make the search fuzzy by reducing the threshold from 1
@@ -423,25 +427,25 @@ class FilterSet:
         ColumnType.STRING: StringFilter,
         ColumnType.BOOL: BooleanFilter,
     }
-    
+
     def __init__(
-        self,
-        collection_id: str,
-        load_ver: str,
-        view: str = None,
-        collection: str = None,
-        count: bool = False,
-        start_after: str = None,
-        sort_on: str = None,
-        sort_descending: bool = False,
-        conjunction: bool = True,
-        match_spec: SubsetSpecification = SubsetSpecification(),
-        selection_spec: SubsetSpecification = SubsetSpecification(),
-        skip: int = 0,
-        limit: int = 1000,
-        keep: list[str] = None,
-        keep_filter_nulls: bool = False,
-        doc_var: str = "doc",
+            self,
+            collection_id: str,
+            load_ver: str,
+            view: str = None,
+            collection: str = None,
+            count: bool = False,
+            start_after: str = None,
+            sort_on: str = None,
+            sort_descending: bool = False,
+            conjunction: bool = True,
+            match_spec: SubsetSpecification = SubsetSpecification(),
+            selection_spec: SubsetSpecification = SubsetSpecification(),
+            skip: int = 0,
+            limit: int = 1000,
+            keep: list[str] = None,
+            keep_filter_nulls: bool = False,
+            doc_var: str = "doc",
     ):
         """
         Create the filter set.
@@ -505,7 +509,7 @@ class FilterSet:
             filter_string: str,
             analyzer: str = None,
             strategy: FilterStrategy = None,
-        ) -> Self:
+    ) -> Self:
         f"""
         Add a filter to the filter set.
         
@@ -513,7 +517,7 @@ class FilterSet:
             the client has confirmed this is a valid arangosearch field.
         type_ - the type of the field.
         filter_string - the filter criteria as represented by a string.
-        analyzer - the analyzer for the filter. If not provided the {DEFAULT_ANALYZER}
+        analyzer - the analyzer for the filter. If not provided the {analyzers.DEFAULT_ANALYZER}
             analyzer is used.
         strategy - the filter strategy for columns that possess them.
         
@@ -538,7 +542,7 @@ class FilterSet:
             raise errors.IllegalParameterError(
                 f"Invalid filter for field {field}: {str(e)}") from e
         return self
-        
+
     def _process_filters(self):
         var_lines = []
         aql_lines = []
@@ -568,11 +572,11 @@ class FilterSet:
             return self._to_arangosearch_aql()
         else:
             return self._to_standard_aql()
-        
+
     def _to_standard_aql(self):
         if not self.collection:
             raise ValueError("If no filters are added to the filter set the collection argument "
-                + "is required in the constructor")
+                             + "is required in the constructor")
         bind_vars = {
             "@collection": self.collection,
             "collid": self.collection_id,
@@ -629,7 +633,7 @@ class FilterSet:
     def _to_arangosearch_aql(self):
         if not self.view:
             raise ValueError("If a filter is added to the filter set the view argument is "
-                + "required in the constructor")
+                             + "required in the constructor")
         var_lines, aql_lines, bind_vars = self._process_filters()
         aql = ""
         if var_lines:
@@ -655,7 +659,7 @@ class FilterSet:
             bind_vars["internal_selection_id"] = self.selection_spec.get_subset_filtering_id()
             aql += "        AND\n"
             aql += f"        {self.doc_var}.{names.FLD_MATCHES_SELECTIONS} == "
-            aql +=               f"@internal_selection_id\n"
+            aql += f"@internal_selection_id\n"
         aql += f"    ) AND (\n    "
         aql_parts = ["\n            ".join(al) for al in aql_lines]
         op = "AND" if self.conjunction else "OR"
@@ -675,3 +679,71 @@ class FilterSet:
         if self.count:
             aql += ")\n"
         return aql, bind_vars
+
+
+##########################
+# Filter handling code
+##########################
+
+_FILTER_PREFIX = "filter_"
+
+
+def get_filter_map(r: Request) -> dict[str, str]:
+    """
+    Extracts filter specifications from the request query parameters.
+
+    Returns:
+    A dictionary mapping field names to filter strings.
+
+    """
+    filter_query = {}
+    for q in r.query_params.keys():
+        if q.startswith(_FILTER_PREFIX):
+            field = q[len(_FILTER_PREFIX):]
+            if len(r.query_params.getlist(q)) > 1:
+                raise errors.IllegalParameterError(
+                    f"More than one filter specification provided for field {field}")
+            filter_query[field] = r.query_params[q]
+    return filter_query
+
+
+def append_filters(
+        fs: FilterSet,
+        filter_query: dict[str, str],
+        columns: dict[str, AttributesColumn],
+        trans_field_func: callable = None,
+) -> FilterSet:
+    """
+    Append filters to a FilterSet based on the provided filter query and column definitions.
+
+    fs - The FilterSet to which filters will be appended.
+    filter_query - The filter query parameters containing field names and filter strings.
+    columns - The columns to which the filters apply, represented as a dictionary
+        mapping field names to AttributesColumn objects.
+    trans_field_func - A function to translate or transform the field name in the filter query
+        before applying it to the FilterSet. Default is None.
+
+    """
+    for field, querystring in filter_query.items():
+        if field not in columns:
+            raise errors.IllegalParameterError(f"No such filter field: {field}")
+        column = columns[field]
+        minlen = analyzers.get_minimum_query_length(column.filter_strategy)
+        if minlen and len(querystring) < minlen:
+            raise errors.IllegalParameterError(
+                f"Filter field '{field}' requires a minimum query length of {minlen}")
+
+        field = trans_field_func(field) if trans_field_func else field
+
+        fs.append(
+            field,
+            column.type,
+            querystring,
+            analyzers.get_analyzer(column.filter_strategy),
+            column.filter_strategy
+        )
+    return fs
+
+##########################
+# End filter handling code
+##########################
