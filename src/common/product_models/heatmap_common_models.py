@@ -7,6 +7,7 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, Field
 
+from src.common.product_models.columnar_attribs_common_models import ColumnType as AttribsColumnType
 from src.common.product_models.common_models import SubsetProcessStates
 
 # these fields need to match the fields in the models below.
@@ -50,6 +51,29 @@ class ColumnType(str, Enum):
     """ Similar to an integer, but represents a numeric count. """
     BOOL = "bool"
     """ A boolean. """
+
+
+# Maps a heatmap column type to a genome attributes column type
+_HEATMAP_TO_ATTRIBS_MAPPING = {
+    ColumnType.FLOAT: AttribsColumnType.FLOAT,
+    ColumnType.INT: AttribsColumnType.INT,
+    ColumnType.COUNT: AttribsColumnType.INT,
+    ColumnType.BOOL: AttribsColumnType.BOOL
+}
+
+
+def trans_column_type_heatmap_to_attribs(col_type: ColumnType) -> AttribsColumnType:
+    """
+    Translate a heatmap column type to an attributes column type.
+    This method is suitable for models like filters that exclusively operate on attributes column types
+
+    col_type: the heatmap column type
+    """
+
+    if col_type not in _HEATMAP_TO_ATTRIBS_MAPPING:
+        raise ValueError(f'column type {col_type} is not supported by the heatmap')
+
+    return _HEATMAP_TO_ATTRIBS_MAPPING[col_type]
 
 
 class ColumnInformation(BaseModel):

@@ -29,6 +29,8 @@ class ColumnType(str, Enum):
     """ A string. """
     ENUM = "enum"  # There's no actual need for enums yet AFAIK. Will not implement elsewhere
     """ A finite set of strings. """
+    BOOL = "bool"
+    """ A boolean. """
     
     # TODO FILTERS do we need hidden?
 
