@@ -163,8 +163,9 @@ def test_boolean_filter_representation(boolean_filter_true, boolean_filter_false
 def test_boolean_filter_from_string():
     assert BooleanFilter.from_string(None, "true") == BooleanFilter(True)
     assert BooleanFilter.from_string(None, "false") == BooleanFilter(False)
-    with raises(errors.IllegalParameterError):
+    with raises(errors.IllegalParameterError) as err:
         BooleanFilter.from_string(None, "invalid")
+        assert str(err.value) == "Invalid boolean specification; expected true or false: invalid"
 
 
 def test_boolean_filter_to_arangosearch_aql(boolean_filter_true, boolean_filter_false):

@@ -53,6 +53,15 @@ class ColumnType(str, Enum):
     """ A boolean. """
 
 
+# Maps a heatmap column type to a genome attributes column type
+HEATMAP_TO_ATTRIBS_MAPPING = {
+    ColumnType.FLOAT: AttribsColumnType.FLOAT,
+    ColumnType.INT: AttribsColumnType.INT,
+    ColumnType.COUNT: AttribsColumnType.INT,
+    ColumnType.BOOL: AttribsColumnType.BOOL
+}
+
+
 def trans_column_type_heatmap_to_attribs(col_type: ColumnType) -> AttribsColumnType:
     """
     Translate a heatmap column type to an attributes column type.
@@ -60,17 +69,11 @@ def trans_column_type_heatmap_to_attribs(col_type: ColumnType) -> AttribsColumnT
 
     col_type: the heatmap column type
     """
-    heatmap_to_attribs_mapping = {
-        ColumnType.FLOAT: AttribsColumnType.FLOAT,
-        ColumnType.INT: AttribsColumnType.INT,
-        ColumnType.COUNT: AttribsColumnType.INT,
-        ColumnType.BOOL: AttribsColumnType.BOOL
-    }
 
-    if col_type not in heatmap_to_attribs_mapping:
+    if col_type not in HEATMAP_TO_ATTRIBS_MAPPING:
         raise ValueError(f'column type {col_type} is not supported by the heatmap')
 
-    return heatmap_to_attribs_mapping[col_type]
+    return HEATMAP_TO_ATTRIBS_MAPPING[col_type]
 
 
 class ColumnInformation(BaseModel):
