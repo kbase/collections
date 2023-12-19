@@ -88,7 +88,7 @@ async def get_filters(
         skip: int = 0,
         limit: int = 1000,
         start_after: str = None,
-        trans_field_func: callable = None,
+        trans_field_func: callable[[str], str] = None,
 ) -> FilterSet:
     """
     Constructs a FilterSet and applies filters using the provided filter query and columns.
