@@ -8,18 +8,14 @@ from types import NotImplementedType
 from typing import Annotated, Any, Self
 
 from dateutil import parser
-from fastapi import Request
 from pydantic import BaseModel, Field
 
+from src.common.product_models.columnar_attribs_common_models import ColumnType, FilterStrategy
 import src.common.storage.collection_and_field_names as names
-from src.common.product_models.columnar_attribs_common_models import (
-    ColumnType,
-    FilterStrategy,
-    AttributesColumn,
-)
 from src.service import errors
-from src.service.filtering import analyzers
+from src.service.filtering.analyzers import DEFAULT_ANALYZER
 from src.service.processing import SubsetSpecification
+
 
 _PARTICLES_IN_UNIVERSE = 10 ** 80
 
@@ -333,7 +329,7 @@ class StringFilter(AbstractFilter):
         
         strategy - the filter strategy.
         string - the search string.
-        analyzer - the analyzer for the filter. If not provided, the {analyzers.DEFAULT_ANALYZER} analyzer
+        analyzer - the analyzer for the filter. If not provided, the {DEFAULT_ANALYZER} analyzer
             is used.
         """
         if not strategy:
@@ -341,7 +337,7 @@ class StringFilter(AbstractFilter):
         self.strategy = strategy
         self.string = _require_string(
             string, "Filter string is required and must be non-whitespace only")
-        self.analyzer = (analyzers.DEFAULT_ANALYZER if not analyzer or not analyzer.strip()
+        self.analyzer = (DEFAULT_ANALYZER if not analyzer or not analyzer.strip()
                          else analyzer.strip())
     
     @classmethod
@@ -517,7 +513,7 @@ class FilterSet:
             the client has confirmed this is a valid arangosearch field.
         type_ - the type of the field.
         filter_string - the filter criteria as represented by a string.
-        analyzer - the analyzer for the filter. If not provided the {analyzers.DEFAULT_ANALYZER}
+        analyzer - the analyzer for the filter. If not provided the {DEFAULT_ANALYZER}
             analyzer is used.
         strategy - the filter strategy for columns that possess them.
         
@@ -679,70 +675,3 @@ class FilterSet:
         if self.count:
             aql += ")\n"
         return aql, bind_vars
-
-##########################
-# Filter handling code
-##########################
-
-_FILTER_PREFIX = "filter_"
-
-
-def get_filter_map(r: Request) -> dict[str, str]:
-    """
-    Extracts filter specifications from the request query parameters.
-
-    Returns:
-    A dictionary mapping field names to filter strings.
-
-    """
-    filter_query = {}
-    for q in r.query_params.keys():
-        if q.startswith(_FILTER_PREFIX):
-            field = q[len(_FILTER_PREFIX):]
-            if len(r.query_params.getlist(q)) > 1:
-                raise errors.IllegalParameterError(
-                    f"More than one filter specification provided for field {field}")
-            filter_query[field] = r.query_params[q]
-    return filter_query
-
-
-def append_filters(
-        fs: FilterSet,
-        filter_query: dict[str, str],
-        columns: dict[str, AttributesColumn],
-        trans_field_func: callable = None,
-) -> FilterSet:
-    """
-    Append filters to a FilterSet based on the provided filter query and column definitions.
-
-    fs - The FilterSet to which filters will be appended.
-    filter_query - The filter query parameters containing field names and filter strings.
-    columns - The columns to which the filters apply, represented as a dictionary
-        mapping field names to AttributesColumn objects.
-    trans_field_func - A function to translate or transform the field name in the filter query
-        before applying it to the FilterSet. Default is None.
-
-    """
-    for field, querystring in filter_query.items():
-        if field not in columns:
-            raise errors.IllegalParameterError(f"No such filter field: {field}")
-        column = columns[field]
-        minlen = analyzers.get_minimum_query_length(column.filter_strategy)
-        if minlen and len(querystring) < minlen:
-            raise errors.IllegalParameterError(
-                f"Filter field '{field}' requires a minimum query length of {minlen}")
-
-        field = trans_field_func(field) if trans_field_func else field
-
-        fs.append(
-            field,
-            column.type,
-            querystring,
-            analyzers.get_analyzer(column.filter_strategy),
-            column.filter_strategy
-        )
-    return fs
-
-##########################
-# End filter handling code
-##########################

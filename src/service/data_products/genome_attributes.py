@@ -38,7 +38,7 @@ from src.service.data_products.data_product_processing import (
     SELECTION_ID_PREFIX,
 )
 from src.service.data_products.table_models import TableAttributes
-from src.service.filtering.filters import FilterSet, get_filter_map, append_filters
+from src.service.filtering.filtering_processing import get_filters
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.processing import SubsetSpecification
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
@@ -277,72 +277,12 @@ def _remove_keys(doc):
 ##########################
 # Filter handling code
 ##########################
-
-# might want to move some of this into a shared file at some point, might be reusable for other
-# DPs
-# Not sure about the meta call, may need to abstract that out somehow
-
-
-async def _get_filters(
-    r: Request,
-    arango_coll: str,
-    coll_id: str,
-    load_ver: str,
-    load_ver_override: bool,
-    view_name: str = None,
-    count: bool = False,
-    sort_on: str = None,
-    sort_desc: bool = False,
-    filter_conjunction: bool = True,
-    match_spec: SubsetSpecification = None,
-    selection_spec: SubsetSpecification = None,
-    keep: dict[str, set[col_models.ColumnType]] = None,
-    keep_filter_nulls: bool = False,
-    skip: int = 0,
-    limit: int = 1000,
-) -> FilterSet:
-    filter_query = get_filter_map(r)
+async def _get_genome_attribs_columns(r, coll_id, load_ver, load_ver_override):
     appstate = app_state.get_app_state(r)
+
     column_meta = await _get_genome_attributes_meta_internal(
         appstate.arangostorage, coll_id, load_ver, load_ver_override)
-    if filter_query and not view_name:
-        if load_ver_override:
-            # If we need this feature than the admin needs to supply the view name to use
-            # via the API
-            raise ValueError("Filtering is not supported with a load version override.")
-        raise ValueError(f"No search view name configured for collection {coll_id}, "
-            + f"data product {ID}. Cannot perform filtering operation")
-    columns = {c.key: c for c in column_meta.columns}
-    if sort_on and sort_on not in columns:
-        raise errors.IllegalParameterError(
-            f"No such field for collection {coll_id} load version {load_ver}: {sort_on}")
-    if keep:
-        for col in keep:
-            if col not in columns:
-                raise errors.IllegalParameterError(
-                    f"No such field for collection {coll_id} load version {load_ver}: {col}")
-            if keep[col] and columns[col].type not in keep[col]:
-                raise errors.IllegalParameterError(
-                    f"Column {col} is type '{columns[col].type}', which is not one of the "
-                    + f"acceptable types for this operation: {[t.value for t in keep[col]]}")
-    fs = FilterSet(
-        coll_id,
-        load_ver,
-        collection=arango_coll,
-        view=view_name,
-        count=count,
-        sort_on=sort_on,
-        sort_descending=sort_desc,
-        conjunction=filter_conjunction,
-        match_spec=match_spec,
-        selection_spec=selection_spec,
-        keep=list(keep.keys()) if keep else None,
-        keep_filter_nulls=keep_filter_nulls,
-        skip=skip,
-        limit=limit
-    )
-    return append_filters(fs, filter_query, columns)
-
+    return {c.key: c for c in column_meta.columns}
 
 ##########################
 # End filter handling code
@@ -439,12 +379,14 @@ async def get_genome_attributes(
     coll, load_ver = await get_load_version(appstate.arangostorage, collection_id, ID, lvo, user)
     match_spec = await _get_match_spec(appstate, user, coll, match_id, match_mark)
     sel_spec = await _get_selection_spec(appstate, coll, selection_id, selection_mark)
-    filters = await _get_filters(
+    filters = await get_filters(
         r,
         names.COLL_GENOME_ATTRIBS,
         collection_id,
         load_ver,
         load_ver_override,
+        ID,
+        _get_genome_attribs_columns,
         view_name=coll.get_data_product(ID).search_view if coll else None,
         count=count,
         sort_on=sort_on,
@@ -514,12 +456,14 @@ async def get_histogram(
     coll, load_ver = await get_load_version(appstate.arangostorage, collection_id, ID, lvo, user)
     match_spec = await _get_match_spec(appstate, user, coll, match_id)
     sel_spec = await _get_selection_spec(appstate, coll, selection_id)
-    filters = await _get_filters(
+    filters = await get_filters(
         r,
         names.COLL_GENOME_ATTRIBS,
         collection_id,
         load_ver,
         load_ver_override,
+        ID,
+        _get_genome_attribs_columns,
         view_name=coll.get_data_product(ID).search_view if coll else None,
         filter_conjunction=conjunction,
         match_spec=match_spec,
@@ -594,12 +538,14 @@ async def get_xy_scatter(
     coll, load_ver = await get_load_version(appstate.arangostorage, collection_id, ID, lvo, user)
     match_spec = await _get_match_spec(appstate, user, coll, match_id)
     sel_spec = await _get_selection_spec(appstate, coll, selection_id)
-    filters = await _get_filters(
+    filters = await get_filters(
         r,
         names.COLL_GENOME_ATTRIBS,
         collection_id,
         load_ver,
         load_ver_override,
+        ID,
+        _get_genome_attribs_columns,
         view_name=coll.get_data_product(ID).search_view if coll else None,
         filter_conjunction=conjunction,
         match_spec=match_spec,
