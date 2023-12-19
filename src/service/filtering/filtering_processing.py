@@ -75,7 +75,7 @@ async def get_filters(
         load_ver: str,
         load_ver_override: bool,
         data_product: str,
-        get_columns_func: callable[[Request, str, str, bool], dict[str, col_models.AttributesColumn],
+        get_columns_func: callable[[Request, str, str, bool], dict[str, col_models.AttributesColumn]],
         view_name: str = None,
         count: bool = False,
         sort_on: str = None,
@@ -95,6 +95,28 @@ async def get_filters(
 
     Requires a 'get_columns_func' to generate columns, represented as a dictionary mapping column name/ID to
     columnar_attribs_common_models.AttributesColumn objects.
+
+    r - The request.
+    arango_coll - The name of the Arango collection.
+    coll_id - The collection ID.
+    load_ver - The load version.
+    load_ver_override - Whether or not to override the load version.
+    data_product - The data product id.
+    get_columns_func - A function to generate columns, represented as a dictionary mapping column name/ID to
+        columnar_attribs_common_models.AttributesColumn objects.
+    view_name - The name of the view to use for filtering.
+    count - Whether or not to return the count of matching documents.
+    sort_on - The name of the field to sort on.
+    sort_desc - Whether or not to sort in descending order.
+    filter_conjunction - Whether or not to use a conjunction for filtering.
+    match_spec - A subset specification for matching.
+    selection_spec - A subset specification for selection.
+    keep - A dictionary mapping column names to sets of column types to keep.
+    keep_filter_nulls - Whether or not to keep null values when filtering.
+    skip - The number of documents to skip.
+    limit - The maximum number of documents to return.
+    start_after - The value of the field to start after.
+    trans_field_func - A function to transform the field name to valid column name in the filter query
     """
     filter_query = _get_filter_map(r)
     if filter_query and not view_name:
