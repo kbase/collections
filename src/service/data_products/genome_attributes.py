@@ -277,7 +277,11 @@ def _remove_keys(doc):
 ##########################
 # Filter handling code
 ##########################
-async def _get_genome_attribs_columns(r, coll_id, load_ver, load_ver_override):
+async def _get_genome_attribs_columns(
+        r: Request,
+        coll_id: str,
+        load_ver: str,
+        load_ver_override: bool) -> dict[str, col_models.AttributesColumn]:
     appstate = app_state.get_app_state(r)
 
     column_meta = await _get_genome_attributes_meta_internal(
