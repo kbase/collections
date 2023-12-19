@@ -85,10 +85,10 @@ def test_read_upload_status_yaml_file(setup_and_teardown):
 
     # test empty yaml file in assembly_dir
     data, uploaded = workspace_uploader._read_upload_status_yaml_file(
-        "CI", 12345, assembly_dir, assembly_name
+        "CI", 12345, "214", assembly_dir, assembly_name
     )
 
-    expected_data = {"CI": {12345: dict()}}
+    expected_data = {"CI": {12345: {"214": dict()}}}
 
     assert not uploaded
     assert expected_data == data
@@ -100,20 +100,22 @@ def test_update_upload_status_yaml_file(setup_and_teardown):
     assembly_name = ASSEMBLY_NAMES[0]
 
     workspace_uploader._update_upload_status_yaml_file(
-        "CI", 12345, "12345_58_1", assembly_dir, assembly_name
+        "CI", 12345, "214", "12345_58_1", assembly_dir, assembly_name
     )
     data, uploaded = workspace_uploader._read_upload_status_yaml_file(
-        "CI", 12345, assembly_dir, assembly_name
+        "CI", 12345, "214", assembly_dir, assembly_name
     )
 
-    expected_data = {"CI": {12345: {"file_name": assembly_name, "upa": "12345_58_1"}}}
+    expected_data = {
+        "CI": {12345: {"214": {"file_name": assembly_name, "upa": "12345_58_1"}}}
+    }
 
     assert uploaded
     assert expected_data == data
 
     with pytest.raises(ValueError, match=f"already exists in workspace"):
         workspace_uploader._update_upload_status_yaml_file(
-            "CI", 12345, "12345_58_1", assembly_dir, assembly_name
+            "CI", 12345, "214", "12345_58_1", assembly_dir, assembly_name
         )
 
 
@@ -125,6 +127,7 @@ def test_fetch_assemblies_to_upload(setup_and_teardown):
     count, wait_to_upload_assemblies = workspace_uploader._fetch_assemblies_to_upload(
         "CI",
         12345,
+        "214",
         collection_source_dir,
         workspace_uploader.UPLOAD_FILE_EXT,
     )
@@ -144,7 +147,7 @@ def test_fetch_assemblies_to_upload(setup_and_teardown):
     upas = ["12345_58_1", "12345_58_2"]
     for assembly_name, assembly_dir, upa in zip(ASSEMBLY_NAMES, assembly_dirs, upas):
         workspace_uploader._update_upload_status_yaml_file(
-            "CI", 12345, upa, assembly_dir, assembly_name
+            "CI", 12345, "214", upa, assembly_dir, assembly_name
         )
 
     (
@@ -153,6 +156,7 @@ def test_fetch_assemblies_to_upload(setup_and_teardown):
     ) = workspace_uploader._fetch_assemblies_to_upload(
         "CI",
         12345,
+        "214",
         collection_source_dir,
         workspace_uploader.UPLOAD_FILE_EXT,
     )
@@ -191,21 +195,26 @@ def test_post_process(setup_and_teardown):
     host_assembly_dir = params.assembly_dirs[0]
     assembly_name = ASSEMBLY_NAMES[0]
     src_file = params.target_files[0]
+    assembly_tuple = workspace_uploader.AssemblyTuple(
+        assembly_name, host_assembly_dir, "/path/to/file/in/AssembilyUtil"
+    )
 
     workspace_uploader._post_process(
         "CI",
         88888,
-        host_assembly_dir,
-        assembly_name,
+        "214",
+        assembly_tuple,
         upload_dir,
         output_dir,
         "12345_58_1",
     )
 
     data, uploaded = workspace_uploader._read_upload_status_yaml_file(
-        "CI", 88888, host_assembly_dir, assembly_name
+        "CI", 88888, "214", host_assembly_dir, assembly_name
     )
-    expected_data = {"CI": {88888: {"file_name": assembly_name, "upa": "12345_58_1"}}}
+    expected_data = {
+        "CI": {88888: {"214": {"file_name": assembly_name, "upa": "12345_58_1"}}}
+    }
 
     dest_file = os.path.join(
         os.path.join(output_dir, "12345_58_1"), f"12345_58_1.fna.gz"
@@ -301,6 +310,7 @@ def test_upload_assembly_files_in_parallel(setup_and_teardown):
         ws,
         "CI",
         12345,
+        "214",
         upload_dir,
         wait_to_upload_assemblies,
         2,
@@ -352,6 +362,7 @@ def test_fail_upload_assembly_files_in_parallel(setup_and_teardown):
         ws,
         "CI",
         12345,
+        "214",
         upload_dir,
         wait_to_upload_assemblies,
         2,

@@ -1,5 +1,6 @@
 import argparse
 import configparser
+import fcntl
 import itertools
 import json
 import os
@@ -295,8 +296,7 @@ def start_podman_service(uid: int):
 
 def _get_containers_config():
     """Get containers.conf file at home directory."""
-    home = os.path.expanduser("~")
-    conf_path = os.path.join(home, CONTAINERS_CONF_PATH)
+    conf_path = os.path.expanduser(CONTAINERS_CONF_PATH)
     config = configparser.ConfigParser()
     config.read(conf_path)
     return config, conf_path
@@ -316,17 +316,19 @@ def is_config_modification_required():
 def setup_callback_server_logs():
     """Set up containers.conf file for the callback server logs."""
     config, conf_path = _get_containers_config()
-    lock = threading.Lock()
-    with lock:
+    with open(conf_path, 'w') as writer:
+        fcntl.flock(writer.fileno(), fcntl.LOCK_EX)
+
         if not config.has_section("containers"):
             config.add_section("containers")
 
         for key, val in CONTAINERS_CONF_PARAMS.items():
             config.set("containers", key, val)
 
-        with open(conf_path, 'w') as configfile:
-            config.write(configfile)
+        config.write(writer)
         print(f"containers.conf is modified and saved to path: {conf_path}")
+
+        fcntl.flock(writer.fileno(), fcntl.LOCK_UN)
 
 
 def is_upa_info_complete(upa_dir: str):

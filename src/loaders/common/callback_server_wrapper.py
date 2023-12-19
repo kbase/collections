@@ -16,8 +16,23 @@ from src.loaders.common.loader_common_names import CALLBACK_IMAGE_NAME
 class Conf:
     """
     Configuration class for the workspace downloader and workspace uploader scripts.
-    """
 
+    Instance variables:
+
+    token - a KBase token appropriate for the KBase environment
+            Also use as an admin token if the user has admin permission to catalog params
+    callback_url - the url of the callback service to contact
+    job_data_dir - the directory for SDK jobs per user
+    input_queue - queue for the workspace downloader tasks
+    output_dir - the directory for a specific workspace id under sourcedata/ws
+    retrieve_sample - whether to retrieve sample for each genome object
+    ignore_no_sample_error - whether to ignore the error when no sample data is found
+    ws - workspace client
+    asu - assemblyUtil client
+    ss - sampleService client
+    pools - a pool of worker processes
+
+    """
     def __init__(
         self,
         job_dir: str,
@@ -26,11 +41,11 @@ class Conf:
         token_filepath: str | None = None,
         au_service_ver: str = "release",
         workers: int = 5,
-        max_task: int = 20,
+        max_callback_server_tasks: int = 20,
         worker_function: Callable | None = None,
         retrieve_sample: bool = False,
         ignore_no_sample_error: bool = False,
-        workspace_downloader: bool = True,
+        workspace_downloader: bool = False,
     ) -> None:
         """
         Initialize the configuration class.
@@ -41,10 +56,11 @@ class Conf:
             kb_base_url (str): The base url of the KBase services.
             token_filepath (str): The file path that stores a KBase token appropriate for the KBase environment.
                                 If not supplied, the token must be provided in the environment variable KB_AUTH_TOKEN.
+                                Also use as an admin token if the user has admin permission to catalog params.
             au_service_ver (str): The service verison of AssemblyUtilClient
                                 ('dev', 'beta', 'release', or a git commit).
             workers (int): The number of workers to use for multiprocessing.
-            max_task (int): The maxmium subtasks for the callback server.
+            max_callback_server_tasks (int): The maxmium subtasks for the callback server.
             worker_function (Callable): The function that will be called by the workers.
             retrieve_sample (bool): Whether to retrieve sample for each genome object.
             ignore_no_sample_error (bool): Whether to ignore the error when no sample data is found.
@@ -54,10 +70,7 @@ class Conf:
         port = loader_helper.find_free_port()
 
         # common instance variables
-        # the url of the workspace to contact
-        self.ws_url = os.path.join(kb_base_url, "ws")
 
-        # a KBase token appropriate for the KBase environment
         self.token = loader_helper.get_token(token_filepath)
 
         # setup and run callback server container
@@ -68,15 +81,13 @@ class Conf:
             kb_base_url,
             self.token,
             port,
-            max_task,
+            max_callback_server_tasks,
             ipv4,
         )
 
-        # the url of the callback service to contact
         self.callback_url = "http://" + ipv4 + ":" + str(port)
         print("callback_url:", self.callback_url)
 
-        # the directory for SDK jobs per user
         self.job_data_dir = loader_helper.make_job_data_dir(job_dir)
 
         # unique to downloader
@@ -86,31 +97,22 @@ class Conf:
                     "worker_function cannot be None for the workspace downloader script"
                 )
 
-            # queue for the workspace downloader tasks
             self.input_queue = Queue()
-
-            # the directory for a specific workspace id under sourcedata/ws
             self.output_dir = output_dir
 
-            # whether to retrieve sample for each genome object
             self.retrieve_sample = retrieve_sample
-
-            # whether to ignore the error when no sample data is found
             self.ignore_no_sample_error = ignore_no_sample_error
 
-            # Workspace client
-            self.ws = Workspace(self.ws_url, token=self.token)
+            ws_url = os.path.join(kb_base_url, "ws")
+            self.ws = Workspace(ws_url, token=self.token)
 
-            # AssemblyUtil client
             self.asu = AssemblyUtil(
                 self.callback_url, service_ver=au_service_ver, token=self.token
             )
 
-            # SampleService client
             sample_url = os.path.join(kb_base_url, "sampleservice")
             self.ss = SampleService(sample_url, token=self.token)
 
-            # a pool of worker processes.
             self.pools = Pool(workers, worker_function, [self])
 
     def _setup_callback_server_envs(
@@ -119,7 +121,7 @@ class Conf:
         kb_base_url: str,
         token: str,
         port: int,
-        max_task: int,
+        max_callback_server_tasks: int,
         ipv4: str,
     ) -> Tuple[dict[str, Union[int, str]], dict[str, dict[str, str]]]:
         """
@@ -130,7 +132,7 @@ class Conf:
             kb_base_url (str): The base url of the KBase services.
             token (str): The KBase token. Also used as a catalog admin token if valid.
             port (int): The port number for the callback server.
-            max_task (int): The maxmium subtasks for the callback server.
+            max_callback_server_tasks (int): The maxmium subtasks for the callback server.
             ipv4: (str): The ipv4 address for the callback server.
 
         Returns:
@@ -146,7 +148,7 @@ class Conf:
         env["KB_BASE_URL"] = kb_base_url
         env["JOB_DIR"] = job_dir
         env["CALLBACK_PORT"] = port
-        env["JR_MAX_TASKS"] = max_task
+        env["JR_MAX_TASKS"] = max_callback_server_tasks
         env["CALLBACK_IP"] = ipv4  # specify an ipv4 address for the callback server
                                    # otherwise, the callback container will use the an ipv6 address
 
@@ -168,7 +170,7 @@ class Conf:
         kb_base_url: str,
         token: str,
         port: int,
-        max_task: int,
+        max_callback_server_tasks: int,
         ipv4: str,
     ) -> None:
         """
@@ -180,12 +182,12 @@ class Conf:
             job_dir (str): The directory for SDK jobs per user.
             kb_base_url (str): The base url of the KBase services.
             token (str): The KBase token.
-            max_task (int): The maxmium subtasks for the callback server.
+            max_callback_server_tasks (int): The maxmium subtasks for the callback server.
             port (int): The port number for the callback server.
             ipv4: (str): The ipv4 address for the callback server.
         """
         env, vol = self._setup_callback_server_envs(
-            job_dir, kb_base_url, token, port, max_task, ipv4
+            job_dir, kb_base_url, token, port, max_callback_server_tasks, ipv4
         )
         self.container = client.containers.run(
             name=container_name,

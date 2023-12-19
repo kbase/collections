@@ -130,7 +130,7 @@ KB_BASE_URL_MAP = {'CI': 'https://ci.kbase.us/services/',
                    'PROD': 'https://kbase.us/services/'}
 
 # containers.conf path
-CONTAINERS_CONF_PATH = ".config/containers/containers.conf"
+CONTAINERS_CONF_PATH = "~/.config/containers/containers.conf"
 # params in containers.conf file
 CONTAINERS_CONF_PARAMS = {
     "seccomp_profile": "\"unconfined\"",

@@ -1,7 +1,7 @@
 """
 usage: workspace_downloader.py [-h] --workspace_id WORKSPACE_ID [--kbase_collection KBASE_COLLECTION] [--source_version SOURCE_VERSION]
                                [--root_dir ROOT_DIR] [--env {CI,NEXT,APPDEV,PROD}] [--workers WORKERS] [--token_filepath TOKEN_FILEPATH]
-                               [--jr_max_tasks JR_MAX_TASKS] [--au_service_ver AU_SERVICE_VER] [--keep_job_dir] [--retrieve_sample]
+                               [--cbs_max_tasks CBS_MAX_TASKS] [--au_service_ver AU_SERVICE_VER] [--keep_job_dir] [--retrieve_sample]
                                [--ignore_no_sample_error]
 
 PROTOTYPE - Download genome files from the workspace service (WSS).
@@ -24,7 +24,7 @@ optional arguments:
   --workers WORKERS     Number of workers for multiprocessing (default: 5)
   --token_filepath TOKEN_FILEPATH
                         A file path that stores KBase token
-  --jr_max_tasks JR_MAX_TASKS
+  --cbs_max_tasks CBS_MAX_TASKS
                         The maxmium subtasks for the callback server (default: 20)
   --au_service_ver AU_SERVICE_VER
                         The service version of AssemblyUtil client('dev', 'beta', 'release', or a git commit) (default: release)
@@ -380,7 +380,7 @@ def main():
         help="A file path that stores KBase token",
     )
     optional.add_argument(
-        "--jr_max_tasks",
+        "--cbs_max_tasks",
         type=int,
         default=20,
         help="The maxmium subtasks for the callback server",
@@ -417,7 +417,7 @@ def main():
     env = args.env
     workers = args.workers
     token_filepath = args.token_filepath
-    max_task = args.jr_max_tasks
+    cbs_max_tasks = args.cbs_max_tasks
     au_service_ver = args.au_service_ver
     keep_job_dir = args.keep_job_dir
     retrieve_sample = args.retrieve_sample
@@ -463,7 +463,7 @@ def main():
             token_filepath=token_filepath,
             au_service_ver=au_service_ver,
             workers=workers,
-            max_task=max_task,
+            max_callback_server_tasks=cbs_max_tasks,
             worker_function=_process_input,
             retrieve_sample=retrieve_sample,
             ignore_no_sample_error=ignore_no_sample_error,
