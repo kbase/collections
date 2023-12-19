@@ -75,7 +75,7 @@ async def get_filters(
         load_ver: str,
         load_ver_override: bool,
         data_product: str,
-        get_columns_func: callable,
+        get_columns_func: callable[[Request, str, str, bool], dict[str, col_models.AttributesColumn],
         view_name: str = None,
         count: bool = False,
         sort_on: str = None,
