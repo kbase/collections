@@ -168,15 +168,23 @@ class HeatMapController:
                         [
                             names.FLD_COLLECTION_ID,
                             names.FLD_LOAD_VERSION,
-                            names.FLD_KBASE_ID
+                            names.FLD_KBASE_ID,
+                            # for applying matches and selections
+                        ],
+                        [
+                            names.FLD_COLLECTION_ID,
+                            names.FLD_LOAD_VERSION,
+                            names.FLD_KB_DISPLAY_NAME,
+                            # for sorting on display name, which is currently hardcoded
                         ],
                         [
                             names.FLD_COLLECTION_ID,
                             names.FLD_LOAD_VERSION,
                             # https://www.arangodb.com/docs/stable/indexing-index-basics.html#indexing-array-values
                             names.FLD_MATCHES_SELECTIONS + "[*]",
-                            names.FLD_KBASE_ID
-                            # for finding matches/selections, and opt a default sort on the kbase ID
+                            names.FLD_KB_DISPLAY_NAME
+                            # for finding matches/selections, and opt a default sort on the
+                            # display name
                         ],
                         [names.FLD_MATCHES_SELECTIONS + "[*]"]  # for deletions
                     ]
@@ -231,9 +239,9 @@ class HeatMapController:
         collection_id: Annotated[str, PATH_VALIDATOR_COLLECTION_ID],
         start_after: str = Query(
             default=None,
-            example="GB_GCA_000006155.2",
-            description=f"The `{names.FLD_KBASE_ID}` to start after when listing data. This "
-                + "parameter can be used to page through the data by providing the ID from "
+            example="my_object_name",
+            description=f"The `{names.FLD_KB_DISPLAY_NAME}` to start after when listing data. "
+                + "This parameter can be used to page through the data by providing the ID from "
                 + "the last row in the previous set of data."
         ),
         limit: QUERY_VALIDATOR_LIMIT = 1000,
@@ -271,7 +279,7 @@ class HeatMapController:
                 subset_process=dp_match, mark_only=match_mark, prefix=MATCH_ID_PREFIX),
             selection_spec=SubsetSpecification(
                 subset_process=dp_sel, mark_only=selection_mark, prefix=SELECTION_ID_PREFIX),
-            sort_on=names.FLD_KBASE_ID,
+            sort_on=names.FLD_KB_DISPLAY_NAME,
             sort_descending=False,
             start_after=start_after,
             limit=limit,
