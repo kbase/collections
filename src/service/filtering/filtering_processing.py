@@ -1,3 +1,5 @@
+from typing import Callable
+
 from fastapi import Request
 
 from src.common.product_models import columnar_attribs_common_models as col_models
@@ -75,7 +77,7 @@ async def get_filters(
         load_ver: str,
         load_ver_override: bool,
         data_product: str,
-        get_columns_func: callable[[Request, str, str, bool], dict[str, col_models.AttributesColumn]],
+        get_columns_func: Callable[[Request, str, str, bool], dict[str, col_models.AttributesColumn]],
         view_name: str = None,
         count: bool = False,
         sort_on: str = None,
@@ -88,7 +90,7 @@ async def get_filters(
         skip: int = 0,
         limit: int = 1000,
         start_after: str = None,
-        trans_field_func: callable[[str], str] = None,
+        trans_field_func: Callable[[str], str] = None,
 ) -> FilterSet:
     """
     Constructs a FilterSet and applies filters using the provided filter query and columns.
