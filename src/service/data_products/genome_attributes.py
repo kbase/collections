@@ -274,23 +274,17 @@ def _remove_keys(doc):
     return doc
 
 
-##########################
-# Filter handling code
-##########################
 async def _get_genome_attribs_columns(
-        r: Request,
+        storage: ArangoStorage,
         coll_id: str,
         load_ver: str,
-        load_ver_override: bool) -> dict[str, col_models.AttributesColumn]:
-    appstate = app_state.get_app_state(r)
+        load_ver_override: bool) -> list[col_models.AttributesColumn]:
+
+    # get the columns from the genome attributes metadata
 
     column_meta = await _get_genome_attributes_meta_internal(
-        appstate.arangostorage, coll_id, load_ver, load_ver_override)
-    return {c.key: c for c in column_meta.columns}
-
-##########################
-# End filter handling code
-##########################
+        storage, coll_id, load_ver, load_ver_override)
+    return column_meta.columns
 
 
 _FLD_COL_ID = "colid"
@@ -383,6 +377,7 @@ async def get_genome_attributes(
     coll, load_ver = await get_load_version(appstate.arangostorage, collection_id, ID, lvo, user)
     match_spec = await _get_match_spec(appstate, user, coll, match_id, match_mark)
     sel_spec = await _get_selection_spec(appstate, coll, selection_id, selection_mark)
+    columns = await _get_genome_attribs_columns(appstate.arangostorage, collection_id, load_ver, load_ver_override)
     filters = await get_filters(
         r,
         names.COLL_GENOME_ATTRIBS,
@@ -390,7 +385,7 @@ async def get_genome_attributes(
         load_ver,
         load_ver_override,
         ID,
-        _get_genome_attribs_columns,
+        columns,
         view_name=coll.get_data_product(ID).search_view if coll else None,
         count=count,
         sort_on=sort_on,
@@ -460,6 +455,7 @@ async def get_histogram(
     coll, load_ver = await get_load_version(appstate.arangostorage, collection_id, ID, lvo, user)
     match_spec = await _get_match_spec(appstate, user, coll, match_id)
     sel_spec = await _get_selection_spec(appstate, coll, selection_id)
+    columns = await _get_genome_attribs_columns(appstate.arangostorage, collection_id, load_ver, load_ver_override)
     filters = await get_filters(
         r,
         names.COLL_GENOME_ATTRIBS,
@@ -467,7 +463,7 @@ async def get_histogram(
         load_ver,
         load_ver_override,
         ID,
-        _get_genome_attribs_columns,
+        columns,
         view_name=coll.get_data_product(ID).search_view if coll else None,
         filter_conjunction=conjunction,
         match_spec=match_spec,
@@ -542,6 +538,7 @@ async def get_xy_scatter(
     coll, load_ver = await get_load_version(appstate.arangostorage, collection_id, ID, lvo, user)
     match_spec = await _get_match_spec(appstate, user, coll, match_id)
     sel_spec = await _get_selection_spec(appstate, coll, selection_id)
+    columns = await _get_genome_attribs_columns(appstate.arangostorage, collection_id, load_ver, load_ver_override)
     filters = await get_filters(
         r,
         names.COLL_GENOME_ATTRIBS,
@@ -549,7 +546,7 @@ async def get_xy_scatter(
         load_ver,
         load_ver_override,
         ID,
-        _get_genome_attribs_columns,
+        columns,
         view_name=coll.get_data_product(ID).search_view if coll else None,
         filter_conjunction=conjunction,
         match_spec=match_spec,

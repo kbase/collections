@@ -3,7 +3,7 @@ from typing import Callable
 from fastapi import Request
 
 from src.common.product_models import columnar_attribs_common_models as col_models
-from src.service import errors
+from src.service import errors, app_state
 from src.service.filtering import analyzers
 from src.service.filtering.filters import FilterSet
 from src.service.processing import SubsetSpecification
@@ -77,7 +77,7 @@ async def get_filters(
         load_ver: str,
         load_ver_override: bool,
         data_product: str,
-        get_columns_func: Callable[[Request, str, str, bool], dict[str, col_models.AttributesColumn]],
+        columns: list[col_models.AttributesColumn],
         view_name: str = None,
         count: bool = False,
         sort_on: str = None,
@@ -104,8 +104,7 @@ async def get_filters(
     load_ver - The load version.
     load_ver_override - Whether or not to override the load version.
     data_product - The data product id.
-    get_columns_func - A function to generate columns, represented as a dictionary mapping column name/ID to
-        columnar_attribs_common_models.AttributesColumn objects.
+    columns - list of columnar_attribs_common_models.AttributesColumn objects to be filtered on.
     view_name - The name of the view to use for filtering.
     count - Whether or not to return the count of matching documents.
     sort_on - The name of the field to sort on.
@@ -120,18 +119,22 @@ async def get_filters(
     start_after - The value of the field to start after.
     trans_field_func - A function to transform the field name to valid column name in the filter query
     """
+    appstate = app_state.get_app_state(r)
     filter_query = _get_filter_map(r)
-    if filter_query and not view_name:
+    if filter_query:
         if load_ver_override:
             # If we need this feature than the admin needs to supply the view name to use
             # via the API
             raise ValueError("Filtering is not supported with a load version override.")
-        raise ValueError(f"No search view name configured for collection {coll_id}, "
-                         + f"data product {data_product}. Cannot perform filtering operation")
 
-    # The caller is responsible for ensuring that each column retrieved through 'get_columns_func'
-    # is of type 'columnar_attribs_common_models.AttributesColumn'
-    columns = await get_columns_func(r, coll_id, load_ver, load_ver_override)
+        if view_name:
+            if not await appstate.arangostorage.has_search_view(view_name):
+                raise ValueError(f"View {view_name} does not exist for collection {coll_id}")
+        else:
+            raise ValueError(f"No search view name configured for collection {coll_id}, "
+                             + f"data product {data_product}. Cannot perform filtering operation")
+
+    columns = {c.key: c for c in columns}
 
     if sort_on and sort_on not in columns:
         raise errors.IllegalParameterError(
