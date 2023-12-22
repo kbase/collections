@@ -115,7 +115,8 @@ async def get_filters(
     filter_conjunction - Whether or not to use a conjunction for filtering.
     match_spec - A subset specification for matching.
     selection_spec - A subset specification for selection.
-    keep - A dictionary mapping column names to sets of column types to keep.
+    keep - A dictionary mapping column names to keep in the returned data set to
+        allowable column types for the column names.
     keep_filter_nulls - Whether or not to keep null values when filtering.
     skip - The number of documents to skip.
     limit - The maximum number of documents to return.
