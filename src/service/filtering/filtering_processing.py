@@ -21,8 +21,8 @@ def _get_filter_map(r: Request) -> dict[str, str]:
     """
     filter_query = {}
     for q in r.query_params.keys():
-        if q.startswith(_FILTER_PREFIX):
-            field = q[len(_FILTER_PREFIX):]
+        if q.startswith(FILTER_PREFIX):
+            field = q[len(FILTER_PREFIX):]
             if len(r.query_params.getlist(q)) > 1:
                 raise errors.IllegalParameterError(
                     f"More than one filter specification provided for field {field}")
