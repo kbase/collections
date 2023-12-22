@@ -141,7 +141,7 @@ async def get_filters(
 
         if view_name:
             if not await appstate.arangostorage.has_search_view(view_name):
-                raise ValueError(f"View {view_name} does not exist for collection {coll_id}")
+                raise ValueError(f"View {view_name} does not exist for data product {data_product}")
         else:
             raise ValueError(f"No search view name configured for collection {coll_id}, "
                              + f"data product {data_product}. Cannot perform filtering operation")
