@@ -112,7 +112,7 @@ async def get_filters(
     count - Whether or not to return the count of matching documents.
     sort_on - The name of the field to sort on.
     sort_desc - Whether or not to sort in descending order.
-    filter_conjunction - Whether or not to use a conjunction for filtering.
+    filter_conjunction - use a conjunction rather than disjunction when applying multiple filters.
     match_spec - A subset specification for matching.
     selection_spec - A subset specification for selection.
     keep - A dictionary mapping column names to keep in the returned data set to
