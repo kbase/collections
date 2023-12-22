@@ -118,9 +118,17 @@ async def get_filters(
     keep - A dictionary mapping column names to keep in the returned data set to
         allowable column types for the column names.
     keep_filter_nulls - Whether or not to keep null values when filtering.
-    skip - The number of documents to skip.
-    limit - The maximum number of documents to return.
-    start_after - The value of the field to start after.
+
+    skip - the number of records to skip. Use this parameter wisely, as paging
+        through records via increasing skip incrementally is an O(n^2) operation.
+    limit - the maximum number of records to return. 0 indicates no limit, which is usually
+        a bad idea.
+    start_after - skip any records prior to and including this value in the `sort_on` field,
+        which should contain unique values.
+        It is strongly recommended to set up an index that the query can use to skip to
+        the correct starting record without a table scan. This parameter allows for
+        non-O(n^2) paging of data.
+        start_after is not currently implemented for the case where any filters are appended.
     trans_field_func - A function to transform the field name to valid column name in the filter query
     """
     appstate = app_state.get_app_state(r)
