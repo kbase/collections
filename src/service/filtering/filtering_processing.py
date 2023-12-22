@@ -92,6 +92,7 @@ async def get_filters(
         start_after: str = None,
         trans_field_func: Callable[[str], str] = None,
 ) -> FilterSet:
+    # TODO CODE: 6 required args is getting pretty long. We may want to consider a builder
     """
     Constructs a FilterSet and applies filters using the provided filter query and columns.
 
