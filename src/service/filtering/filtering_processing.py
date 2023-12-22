@@ -95,7 +95,9 @@ async def get_filters(
     # TODO CODE: 6 required args is getting pretty long. We may want to consider a builder
     """
     Constructs a FilterSet and applies filters using the provided filter query and columns.
-
+    Filter fields are extracted from the request query parameters that start with `{FILTER_PREFIX}` and that and
+    the value are supplied to the FilterSet.append() function. Please see the FilterSet documentation for more
+    details, including the filter value formats.
 
     r - The request.
     arango_coll - The name of the Arango collection to filter on.
