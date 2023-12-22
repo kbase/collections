@@ -151,6 +151,7 @@ async def get_filters(
     if sort_on and sort_on not in columns:
         raise errors.IllegalParameterError(
             f"No such field for collection {coll_id} load version {load_ver}: {sort_on}")
+    keep_cols = None
     if keep:
         for col in keep:
             if col not in columns:
@@ -175,7 +176,7 @@ async def get_filters(
         conjunction=filter_conjunction,
         match_spec=match_spec,
         selection_spec=selection_spec,
-        keep=keep_cols if keep else None,
+        keep=keep_cols,
         keep_filter_nulls=keep_filter_nulls,
         skip=skip,
         limit=limit,
