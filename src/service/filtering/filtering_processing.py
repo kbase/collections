@@ -162,7 +162,7 @@ async def get_filters(
                     + f"acceptable types for this operation: {[t.value for t in keep[col]]}")
 
         # Translate the field names to valid column names if necessary.
-        keep = {trans_field_func(key) if trans_field_func else key: value for key, value in keep.items()}
+        keep_cols = [trans_field_func(col) if trans_field_func else col for col in keep.keys()]
 
     fs = FilterSet(
         coll_id,
@@ -175,7 +175,7 @@ async def get_filters(
         conjunction=filter_conjunction,
         match_spec=match_spec,
         selection_spec=selection_spec,
-        keep=list(keep.keys()) if keep else None,
+        keep=keep_cols if keep else None,
         keep_filter_nulls=keep_filter_nulls,
         skip=skip,
         limit=limit,
