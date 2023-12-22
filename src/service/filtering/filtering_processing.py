@@ -9,7 +9,42 @@ from src.service.filtering.filters import FilterSet
 from src.service.processing import SubsetSpecification
 
 FILTER_PREFIX = "filter_"
+FILTER_STRATEGRY_TEXT = """
 
+The filter criteria depends on the type of the column and its filter strategy.
+
+```
+Type    Strategy  Filter criteria
+------  --------  ---------------
+string  fulltext  arbitrary string
+string  prefix    arbitrary string
+date              range (see below)
+int               range (see below)
+float             range (see below)
+boolean           true or false
+```
+
+Full text searches tokenize, stem, and normalize the input and removes stop words.  
+Prefix searches tokenize and lower case the input and match the beginning of words in the
+data being searched.  
+
+Range criteria takes the form of a low and high limit to apply to the data. At least one of the
+two limits must be provided. A comma separated the limits. Square brackets on either side
+of the limits denote the limit is inclusive; parentheses or no character denote that the limit
+is exclusive. For example:
+
+```
+1,          numbers greater than 1
+[1,         numbers greater or equal to 1
+,6)         numbers less than 6
+,6]         numbers less than or equal to six
+1,6         numbers greater than 1 and less than six
+[1,6]       numbers between 1 and 6, inclusive
+```
+
+Note that the OpenAPI UI does not allow entering arbitrary query parameters and therefore is
+not usable for column filtering operations.
+"""
 
 def _get_filter_map(r: Request) -> dict[str, str]:
     """

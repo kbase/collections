@@ -38,7 +38,7 @@ from src.service.data_products.data_product_processing import (
     SELECTION_ID_PREFIX,
 )
 from src.service.data_products.table_models import TableAttributes
-from src.service.filtering.filtering_processing import get_filters
+from src.service.filtering.filtering_processing import get_filters, FILTER_STRATEGRY_TEXT
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.processing import SubsetSpecification
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
@@ -63,40 +63,7 @@ For example:
 ```
 GET <host>/collections/GTBD/data_products/genome_attribs/?filter_Completeness=[80,90]
 ```
-
-The filter criteria depends on the type of the column and its filter strategy.
-
-```
-Type    Strategy  Filter criteria
-------  --------  ---------------
-string  fulltext  arbitrary string
-string  prefix    arbitrary string
-date              range (see below)
-int               range (see below)
-float             range (see below)
-```
-
-Full text searches tokenize, stem, and normalize the input and removes stop words.  
-Prefix searches tokenize and lower case the input and match the beginning of words in the
-data being searched.  
-
-Range criteria takes the form of a low and high limit to apply to the data. At least one of the
-two limits must be provided. A comma separated the limits. Square brackets on either side
-of the limits denote the limit is inclusive; parentheses or no character denote that the limit
-is exclusive. For example:
-
-```
-1,          numbers greater than 1
-[1,         numbers greater or equal to 1
-,6)         numbers less than 6
-,6]         numbers less than or equal to six
-1,6         numbers greater than 1 and less than six
-[1,6]       numbers between 1 and 6, inclusive
-```
-
-Note that the OpenAPI UI does not allow entering arbitrary query parameters and therefore is
-not usable for column filtering operations.
-"""
+""" + FILTER_STRATEGRY_TEXT
 
 
 class GenomeAttribsSpec(common_models.DataProductSpec):
