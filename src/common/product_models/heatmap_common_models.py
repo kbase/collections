@@ -7,7 +7,7 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, Field
 
-from src.common.product_models.columnar_attribs_common_models import ColumnType as AttribsColumnType
+from src.common.product_models import columnar_attribs_common_models as attribs_models
 from src.common.product_models.common_models import SubsetProcessStates
 
 # these fields need to match the fields in the models below.
@@ -55,14 +55,14 @@ class ColumnType(str, Enum):
 
 # Maps a heatmap column type to a genome attributes column type
 _HEATMAP_TO_ATTRIBS_MAPPING = {
-    ColumnType.FLOAT: AttribsColumnType.FLOAT,
-    ColumnType.INT: AttribsColumnType.INT,
-    ColumnType.COUNT: AttribsColumnType.INT,
-    ColumnType.BOOL: AttribsColumnType.BOOL
+    ColumnType.FLOAT: attribs_models.ColumnType.FLOAT,
+    ColumnType.INT: attribs_models.ColumnType.INT,
+    ColumnType.COUNT: attribs_models.ColumnType.INT,
+    ColumnType.BOOL: attribs_models.ColumnType.BOOL
 }
 
 
-def trans_column_type_heatmap_to_attribs(col_type: ColumnType) -> AttribsColumnType:
+def trans_column_type_heatmap_to_attribs(col_type: ColumnType) -> attribs_models.ColumnType:
     """
     Translate a heatmap column type to an attributes column type.
     This method is suitable for models like filters that exclusively operate on attributes column types
@@ -96,6 +96,20 @@ class ColumnInformation(BaseModel):
     type: ColumnType = Field(
         example=ColumnType.COUNT.value,
         description="The type of the column values."
+    )
+
+
+def transfer_col_heatmap_to_attribs(col: ColumnInformation) -> attribs_models.AttributesColumn:
+    """
+    Convert a heatmap column to an attributes column.
+
+    Matching heatmap `col_id` field to the `key` field in the attribs column
+    Matching heatmap `type` field to the `type` field in the attribs column
+    Leaving the remaining fields, i.e. filter_strategy, min/max_value, etc. as None in the resulting attribs column
+    """
+    return attribs_models.AttributesColumn(
+        key=col.col_id,
+        type=trans_column_type_heatmap_to_attribs(col.type),
     )
 
 
@@ -225,6 +239,26 @@ class CellDetail(BaseModel):
     values: list[CellDetailEntry]
 
 
+def form_heatmap_cell_val_key(col_id: str) -> str:
+    """
+    Form a key for a heatmap cell value from a column ID.
+    key format: <HEATMAP_COL_PREFIX>_<col_id>_<FIELD_HEATMAP_CELL_VALUEl>
+
+    col_id: the column ID
+    """
+    return f"{HEATMAP_COL_PREFIX}{HEATMAP_COL_SEPARATOR}{col_id}{HEATMAP_COL_SEPARATOR}{FIELD_HEATMAP_CELL_VALUE}"
+
+
+def form_heatmap_cell_id_key(col_id: str) -> str:
+    """
+    Form a key for a heatmap cell ID from a column ID.
+    key format: <HEATMAP_COL_PREFIX>_<col_id>_<FIELD_HEATMAP_CELL_ID>
+
+    col_id: the column ID
+    """
+    return f"{HEATMAP_COL_PREFIX}{HEATMAP_COL_SEPARATOR}{col_id}{HEATMAP_COL_SEPARATOR}{FIELD_HEATMAP_CELL_ID}"
+
+
 def transform_heatmap_row_cells(data: dict[str, Any]):
     """
     Transform, in place, the cells structure in a heatmap row to a new structure.
@@ -260,13 +294,9 @@ def transform_heatmap_row_cells(data: dict[str, Any]):
     for cell in data.pop(FIELD_HEATMAP_ROW_CELLS):
         col_id = cell[FIELD_HEATMAP_COL_ID]
 
-        # Construct keys and values for the new structure
-        cell_id_key = f"{HEATMAP_COL_PREFIX}{HEATMAP_COL_SEPARATOR}{col_id}{HEATMAP_COL_SEPARATOR}{FIELD_HEATMAP_CELL_ID}"
-        cell_val_key = f"{HEATMAP_COL_PREFIX}{HEATMAP_COL_SEPARATOR}{col_id}{HEATMAP_COL_SEPARATOR}{FIELD_HEATMAP_CELL_VALUE}"
-
         # Add the new keys and values to the data structure
-        data[cell_id_key] = cell[FIELD_HEATMAP_CELL_ID]
-        data[cell_val_key] = cell[FIELD_HEATMAP_CELL_VALUE]
+        data[form_heatmap_cell_id_key(col_id)] = cell[FIELD_HEATMAP_CELL_ID]
+        data[form_heatmap_cell_val_key(col_id)] = cell[FIELD_HEATMAP_CELL_VALUE]
 
 
 def revert_transformed_heatmap_row_cells(data: dict[str, Any]):
