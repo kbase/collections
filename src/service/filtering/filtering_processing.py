@@ -96,8 +96,6 @@ async def get_filters(
     """
     Constructs a FilterSet and applies filters using the provided filter query and columns.
 
-    Requires a 'get_columns_func' to generate columns, represented as a dictionary mapping column name/ID to
-    columnar_attribs_common_models.AttributesColumn objects.
 
     r - The request.
     arango_coll - The name of the Arango collection to filter on.
