@@ -100,13 +100,15 @@ async def get_filters(
     columnar_attribs_common_models.AttributesColumn objects.
 
     r - The request.
-    arango_coll - The name of the Arango collection.
-    coll_id - The collection ID.
-    load_ver - The load version.
-    load_ver_override - Whether or not to override the load version.
-    data_product - The data product id.
-    columns - list of columnar_attribs_common_models.AttributesColumn objects to be filtered on.
-    view_name - The name of the view to use for filtering.
+    arango_coll - The name of the Arango collection to filter on.
+    coll_id - The KBase Collection ID for the Collection that will be filtered.
+    load_ver - The load version of the KBase Collection.
+    load_ver_override - Whether or not the load version was overridden by a collections
+        admin.
+    data_product - The ID of the data product being filtered.
+    columns - the column definitions for the data product and KBase Collection.
+    view_name - The name of the ArangoSearch view to use for filtering, if any.
+        A view must be supplied if any filter query parameters are passed in the request.
     count - Whether or not to return the count of matching documents.
     sort_on - The name of the field to sort on.
     sort_desc - Whether or not to sort in descending order.
