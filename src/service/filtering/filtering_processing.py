@@ -160,6 +160,10 @@ async def get_filters(
                 raise errors.IllegalParameterError(
                     f"Column {col} is type '{columns[col].type}', which is not one of the "
                     + f"acceptable types for this operation: {[t.value for t in keep[col]]}")
+
+        # Translate the field names to valid column names if necessary.
+        keep = {trans_field_func(key) if trans_field_func else key: value for key, value in keep.items()}
+
     fs = FilterSet(
         coll_id,
         load_ver,
