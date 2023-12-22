@@ -8,7 +8,7 @@ from src.service.filtering import analyzers
 from src.service.filtering.filters import FilterSet
 from src.service.processing import SubsetSpecification
 
-_FILTER_PREFIX = "filter_"
+FILTER_PREFIX = "filter_"
 
 
 def _get_filter_map(r: Request) -> dict[str, str]:
