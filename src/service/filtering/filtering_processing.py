@@ -34,7 +34,7 @@ def _append_filters(
         fs: FilterSet,
         filter_query: dict[str, str],
         columns: dict[str, col_models.AttributesColumn],
-        trans_field_func: callable = None,
+        trans_field_func: Callable[[str], str] = None,
 ) -> FilterSet:
     """
     Append filters to a FilterSet based on the provided filter query and column definitions.
