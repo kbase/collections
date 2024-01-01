@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "5914dedbf89b7d1988fac21575ca207d8d2b370b17ab5f29c7fe5e285df49143"
+            "sha256": "b326fa69d907a8b476f8581f95ea5da772e82fda6a36154b9f24740cd9d35144"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -337,6 +337,7 @@
                 "sha256:ca9853ad459e787e2192211578cc907e7594e294c7ccc834310722b41b9ca6de"
             ],
             "index": "pypi",
+            "markers": "python_version >= '3.7'",
             "version": "==8.1.7"
         },
         "docker": {
@@ -1268,11 +1269,12 @@
                 "standard"
             ],
             "hashes": [
-                "sha256:09c8e5a79dc466bdf28dead50093957db184de356fcdc48697bad3bde4c2588e",
-                "sha256:7c84fea70c619d4a710153482c0d230929af7bcf76c7bfa6de151f0a3a80121e"
+                "sha256:6dddbad1d7ee0f5140aba5ec138ddc9612c5109399903828b4874c9937f009c2",
+                "sha256:ce107f5d9bd02b4636001a77a4e74aab5e1e2b146868ebbad565237145af444c"
             ],
             "index": "pypi",
-            "version": "==0.24.0.post1"
+            "markers": "python_version >= '3.8'",
+            "version": "==0.25.0"
         },
         "uvloop": {
             "hashes": [
