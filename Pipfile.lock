@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "5914dedbf89b7d1988fac21575ca207d8d2b370b17ab5f29c7fe5e285df49143"
+            "sha256": "be5b60d56787e4e3f80c7d9a132ba7fe65aa7270276ad2bfccff6fa634fe24fa"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -341,11 +341,12 @@
         },
         "docker": {
             "hashes": [
-                "sha256:aa6d17830045ba5ef0168d5eaa34d37beeb113948c413affe1d5991fc11f9a20",
-                "sha256:aecd2277b8bf8e506e484f6ab7aec39abe0038e29fa4a6d3ba86c3fe01844ed9"
+                "sha256:12ba681f2777a0ad28ffbcc846a69c31b4dfd9752b47eb425a274ee269c5e14b",
+                "sha256:323736fb92cd9418fc5e7133bc953e11a9da04f4483f828b527db553f1e7e5a3"
             ],
             "index": "pypi",
-            "version": "==6.1.3"
+            "markers": "python_version >= '3.8'",
+            "version": "==7.0.0"
         },
         "fastapi": {
             "hashes": [
@@ -1076,6 +1077,7 @@
                 "sha256:942c5a758f98d790eaed1a29cb6eefc7ffb0d1cf7af05c3d2791656dbd6ad1e1"
             ],
             "index": "pypi",
+            "markers": "python_version >= '3.7'",
             "version": "==2.31.0"
         },
         "requests-toolbelt": {
