@@ -38,7 +38,7 @@ from src.service.data_products.data_product_processing import (
     SELECTION_ID_PREFIX,
 )
 from src.service.data_products.table_models import TableAttributes
-from src.service.filtering.filtering_processing import get_filters, FILTER_STRATEGRY_TEXT
+from src.service.filtering.filtering_processing import get_filters, FILTER_STRATEGY_TEXT
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.processing import SubsetSpecification
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
@@ -63,7 +63,7 @@ For example:
 ```
 GET <host>/collections/GTBD/data_products/genome_attribs/?filter_Completeness=[80,90]
 ```
-""" + FILTER_STRATEGRY_TEXT
+""" + FILTER_STRATEGY_TEXT
 
 
 class GenomeAttribsSpec(common_models.DataProductSpec):

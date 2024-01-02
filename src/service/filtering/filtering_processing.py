@@ -9,7 +9,7 @@ from src.service.filtering.filters import FilterSet
 from src.service.processing import SubsetSpecification
 
 FILTER_PREFIX = "filter_"
-FILTER_STRATEGRY_TEXT = """
+FILTER_STRATEGY_TEXT = """
 
 The filter criteria depends on the type of the column and its filter strategy.
 
@@ -18,6 +18,7 @@ Type    Strategy  Filter criteria
 ------  --------  ---------------
 string  fulltext  arbitrary string
 string  prefix    arbitrary string
+string  ngram     arbitrary string
 date              range (see below)
 int               range (see below)
 float             range (see below)

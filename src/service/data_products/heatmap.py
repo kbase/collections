@@ -39,7 +39,7 @@ from src.service.data_products.data_product_processing import (
     get_load_version_and_processes,
     get_missing_ids,
 )
-from src.service.filtering.filtering_processing import get_filters, FILTER_STRATEGRY_TEXT
+from src.service.filtering.filtering_processing import get_filters, FILTER_STRATEGY_TEXT
 from src.service.filtering.filters import FilterSet
 from src.service.filtering.generic_view import get_generic_view_name
 from src.service.http_bearer import KBaseHTTPBearer
@@ -51,9 +51,8 @@ from src.service.storage_arango import ArangoStorage, remove_arango_keys
 _OPT_AUTH = KBaseHTTPBearer(optional=True)
 
 # Default string columns present in heatmap row data but not existing in the HeatMapMeta
-ID_COLS = [names.FLD_KBASE_ID, names.FLD_LOAD_VERSION, names.FLD_COLLECTION_ID,
-           names.FLD_MATCHES_SELECTIONS]
-NGRAM_COLS = [names.FLD_KB_DISPLAY_NAME]
+_ID_COLS = [names.FLD_KBASE_ID]
+_NGRAM_COLS = [names.FLD_KB_DISPLAY_NAME]
 
 
 def _bools_to_ints(list_: list):
@@ -108,7 +107,7 @@ GET <host>/collections/PMI/data_products/{self._id}/?filter_1=[0,2]
 GET <host>/collections/PMI/data_products/{self._id}/?filter_49=true
 ```
 
-For metadata columns such as '{ID_COLS[0]}' and '{NGRAM_COLS[0]}', the filter format shifts to utilizing the 
+For metadata columns such as '{_ID_COLS[0]}' and '{_NGRAM_COLS[0]}', the filter format shifts to utilizing the 
 column name rather than the column ID. 
 ```
 filter_<column name>=<filter criteria>
@@ -117,7 +116,7 @@ For example:
 ```
 GET <host>/collections/PMI/data_products/{self._id}/?filter_kbase_id=69278_1006_1
 ```
-""" + FILTER_STRATEGRY_TEXT
+""" + FILTER_STRATEGY_TEXT
 
     def _create_router(self) -> APIRouter:
         router = APIRouter(tags=[self._api_category], prefix=f"/{self._id}")
@@ -245,6 +244,17 @@ GET <host>/collections/PMI/data_products/{self._id}/?filter_kbase_id=69278_1006_
         storage = app_state.get_app_state(r).arangostorage
         _, load_ver = await get_load_version(
             storage, collection_id, self._id, load_ver_override, user)
+
+        return await self._get_heatmap_meta(storage, collection_id, load_ver, load_ver_override)
+
+    async def _get_heatmap_meta(
+            self,
+            storage: ArangoStorage,
+            collection_id: str,
+            load_ver: str,
+            load_ver_override: bool
+    ) -> heatmap_models.HeatMapMeta:
+
         doc = await get_collection_singleton_from_db(
             storage, self._colname_meta, collection_id, load_ver, bool(load_ver_override))
         return heatmap_models.HeatMapMeta(**remove_collection_keys(doc))
@@ -292,16 +302,14 @@ GET <host>/collections/PMI/data_products/{self._id}/?filter_kbase_id=69278_1006_
         # Retrieve a list of AttributesColumn objects derived from the ColumnInformation objects within HeatMapMeta.
         # Additionally, include columns that exist in the heatmap row data but are not present in HeatMapMeta.
 
-        doc = await get_collection_singleton_from_db(
-            storage, self._colname_meta, coll_id, load_ver, bool(load_ver_override))
-        column_meta = heatmap_models.HeatMapMeta(**remove_collection_keys(doc))
+        column_meta = await self._get_heatmap_meta(storage, coll_id, load_ver, load_ver_override)
 
         columns = [heatmap_models.transfer_col_heatmap_to_attribs(col)
                    for category in column_meta.categories for col in category.columns]
 
         # append columns existing in the heatmap row data but not in the HeatMapMeta
-        self._append_col(columns, ID_COLS, col_models.ColumnType.STRING, col_models.FilterStrategy.IDENTITY)
-        self._append_col(columns, NGRAM_COLS, col_models.ColumnType.STRING, col_models.FilterStrategy.NGRAM)
+        self._append_col(columns, _ID_COLS, col_models.ColumnType.STRING, col_models.FilterStrategy.IDENTITY)
+        self._append_col(columns, _NGRAM_COLS, col_models.ColumnType.STRING, col_models.FilterStrategy.NGRAM)
 
         return columns
 
