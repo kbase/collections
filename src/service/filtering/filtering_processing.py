@@ -28,6 +28,8 @@ boolean           true or false
 Full text searches tokenize, stem, and normalize the input and removes stop words.  
 Prefix searches tokenize and lower case the input and match the beginning of words in the
 data being searched.  
+N-gram searches tokenize documents and compare the attribute value to a target using a set 
+similarity threshold (1.0).
 
 Range criteria takes the form of a low and high limit to apply to the data. At least one of the
 two limits must be provided. A comma separated the limits. Square brackets on either side
