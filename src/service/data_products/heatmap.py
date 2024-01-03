@@ -8,6 +8,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Request, Query, Path, Response
 
 import src.common.storage.collection_and_field_names as names
+from src.common.product_models import columnar_attribs_common_models as col_models
 from src.common.product_models.common_models import FIELD_MATCH_STATE, FIELD_SELECTION_STATE
 from src.common.product_models import heatmap_common_models as heatmap_models
 from src.service import app_state, kb_auth, models
@@ -38,7 +39,9 @@ from src.service.data_products.data_product_processing import (
     get_load_version_and_processes,
     get_missing_ids,
 )
+from src.service.filtering.filtering_processing import get_filters, FILTER_STRATEGY_TEXT
 from src.service.filtering.filters import FilterSet
+from src.service.filtering.generic_view import get_generic_view_name
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.processing import SubsetSpecification
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
@@ -46,6 +49,10 @@ from src.service.storage_arango import ArangoStorage, remove_arango_keys
 
 
 _OPT_AUTH = KBaseHTTPBearer(optional=True)
+
+# Default string columns present in heatmap row data but not existing in the HeatMapMeta
+_ID_COLS = [names.FLD_KBASE_ID]
+_NGRAM_COLS = [names.FLD_KB_DISPLAY_NAME]
 
 
 def _bools_to_ints(list_: list):
@@ -85,6 +92,32 @@ class HeatMapController:
         # This class needs to be pickleable so only create the data product spec on demand
         # and don't make it part of the state
 
+    def _get_filtering_text(self) -> str:
+        return f"""
+
+**FILTERING:**
+
+The returned data can be filtered by column content by adding query parameters of the format
+```
+filter_<column id>=<filter criteria>
+```
+For example:
+```
+GET <host>/collections/PMI/data_products/{self._id}/?filter_1=[0,2]
+GET <host>/collections/PMI/data_products/{self._id}/?filter_49=true
+```
+
+For metadata columns such as '{_ID_COLS[0]}' and '{_NGRAM_COLS[0]}', the filter format shifts to utilizing the 
+column name rather than the column ID. 
+```
+filter_<column name>=<filter criteria>
+```
+For example:
+```
+GET <host>/collections/PMI/data_products/{self._id}/?filter_kbase_id=69278_1006_1
+```
+""" + FILTER_STRATEGY_TEXT
+
     def _create_router(self) -> APIRouter:
         router = APIRouter(tags=[self._api_category], prefix=f"/{self._id}")
         router.add_api_route(
@@ -108,6 +141,7 @@ class HeatMapController:
                 + "permissions are required.\n\n"
                 + "When creating selections from genome attributes, use the "
                 + f"`{names.FLD_KBASE_ID}` field values as input."
+                + self._get_filtering_text()
         )
         router.add_api_route(
             "/cell/{cell_id}",
@@ -210,6 +244,17 @@ class HeatMapController:
         storage = app_state.get_app_state(r).arangostorage
         _, load_ver = await get_load_version(
             storage, collection_id, self._id, load_ver_override, user)
+
+        return await self._get_heatmap_meta(storage, collection_id, load_ver, load_ver_override)
+
+    async def _get_heatmap_meta(
+            self,
+            storage: ArangoStorage,
+            collection_id: str,
+            load_ver: str,
+            load_ver_override: bool
+    ) -> heatmap_models.HeatMapMeta:
+
         doc = await get_collection_singleton_from_db(
             storage, self._colname_meta, collection_id, load_ver, bool(load_ver_override))
         return heatmap_models.HeatMapMeta(**remove_collection_keys(doc))
@@ -232,6 +277,47 @@ class HeatMapController:
             storage, self._colname_cells, collection_id, load_ver, cell_id, "cell detail", True,
         )
         return heatmap_models.CellDetail(**remove_collection_keys(doc))
+
+    def _append_col(
+            self,
+            columns: list[col_models.AttributesColumn],
+            col_list: list[str],
+            column_type: col_models.ColumnType,
+            filter_strategy: col_models.FilterStrategy) -> None:
+        # create AttributesColumn objects from a list of column names and add them, in place, to the given columns list
+        for col_name in col_list:
+            columns.append(col_models.AttributesColumn(
+                key=col_name,
+                type=column_type,
+                filter_strategy=filter_strategy,
+            ))
+
+    async def _get_heatmap_columns(
+            self,
+            storage: ArangoStorage,
+            coll_id: str,
+            load_ver: str,
+            load_ver_override: bool
+    ) -> list[col_models.AttributesColumn]:
+        # Retrieve a list of AttributesColumn objects derived from the ColumnInformation objects within HeatMapMeta.
+        # Additionally, include columns that exist in the heatmap row data but are not present in HeatMapMeta.
+
+        column_meta = await self._get_heatmap_meta(storage, coll_id, load_ver, load_ver_override)
+
+        columns = [heatmap_models.transfer_col_heatmap_to_attribs(col)
+                   for category in column_meta.categories for col in category.columns]
+
+        # append columns existing in the heatmap row data but not in the HeatMapMeta
+        self._append_col(columns, _ID_COLS, col_models.ColumnType.STRING, col_models.FilterStrategy.IDENTITY)
+        self._append_col(columns, _NGRAM_COLS, col_models.ColumnType.STRING, col_models.FilterStrategy.NGRAM)
+
+        return columns
+
+    def _trans_field_func(self, field_name: str) -> str:
+        # Transforms the field name into a valid column name extracted from the filter query.
+        # For instance, converts a query field name '1' into a valid column name 'col_1_val'.
+
+        return heatmap_models.form_heatmap_cell_val_key(field_name) if field_name.isdigit() else field_name
 
     async def get_heatmap(
         self,
@@ -270,19 +356,26 @@ class HeatMapController:
         )
         if status_only:
             return self._response(dp_match=dp_match, dp_sel=dp_sel)
-        filters = FilterSet(
-            collection_id,
-            load_ver,
-            collection=self._colname_data,
+        columns = await self._get_heatmap_columns(appstate.arangostorage, collection_id, load_ver, load_ver_override)
+        filters = await get_filters(
+            r,
+            arango_coll=self._colname_data,
+            coll_id=collection_id,
+            load_ver=load_ver,
+            load_ver_override=load_ver_override,
+            data_product=self._id,
+            columns=columns,
+            view_name=get_generic_view_name(self._id),
             count=count,
+            sort_on=names.FLD_KB_DISPLAY_NAME,
+            sort_desc=False,
             match_spec=SubsetSpecification(
                 subset_process=dp_match, mark_only=match_mark, prefix=MATCH_ID_PREFIX),
             selection_spec=SubsetSpecification(
                 subset_process=dp_sel, mark_only=selection_mark, prefix=SELECTION_ID_PREFIX),
-            sort_on=names.FLD_KB_DISPLAY_NAME,
-            sort_descending=False,
             start_after=start_after,
             limit=limit,
+            trans_field_func=self._trans_field_func
         )
         return await self._query(
             appstate.arangostorage, filters, match_proc=dp_match, selection_proc=dp_sel)
@@ -339,7 +432,7 @@ class HeatMapController:
         filters: FilterSet,
         match_proc: models.DataProductProcess | None,
         selection_proc: models.DataProductProcess | None,
-    ) -> heatmap_models.HeatMap:
+    ) -> Response:
         data = []
         await query_simple_collection_list(
             store,
