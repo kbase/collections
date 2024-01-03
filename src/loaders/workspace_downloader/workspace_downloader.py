@@ -198,6 +198,7 @@ def _download_sample_data(
 
     node_data = _retrieve_node_data(sample_ret['node_tree'])
     node_data[names.FLD_KB_SAMPLE_ID] = sample_ret['id']
+    node_data[names.FLD_KB_DISPLAY_NAME] = sample_ret['name']
 
     # save sample data and parsed key-value node data to file
     upa_dir, sample_file_prefix = Path(metafile).parent, sample_upa.replace("/", "_")
