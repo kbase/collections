@@ -106,7 +106,29 @@ def _assembly_genome_lookup(genome_objs):
     return hashmap, duplicate
 
 
-def _process_object_info(obj_info, genome_upa):
+def _get_genome_obj_meta(
+        genome_info: list[Any],
+) -> dict[str, Any]:
+    # retrieves workspace genome object metadata and convert it to a dict with parsed values
+
+    kb_genome_meta = genome_info[-1]
+    if type(kb_genome_meta) is not dict:
+        raise ValueError(f"Expected genome metadata to be a dict, got {type(kb_genome_meta)}: {kb_genome_meta}")
+
+    parsed_genome_meta = {
+        loader_common_names.GENOME_WS_META_NAME_MAP[kb_meta_name][0]:
+            loader_common_names.GENOME_WS_META_NAME_MAP[kb_meta_name][1](kb_genome_meta.get(kb_meta_name))
+            if kb_genome_meta.get(kb_meta_name) else None
+        for kb_meta_name in loader_common_names.GENOME_WS_META_NAME_MAP
+    }
+
+    return parsed_genome_meta
+
+
+def _process_object_info(
+        obj_info: list[Any],
+        genome_info: list[Any]
+) -> dict[str, Any]:
     """
     "upa", "name", "type", and "timestamp info will be extracted from object info and save as a dict."
     {
@@ -117,12 +139,12 @@ def _process_object_info(obj_info, genome_upa):
         "genome_upa": "68981/507/1"
     }
     """
-    res_dict = {}
-    res_dict[loader_common_names.FLD_KB_OBJ_UPA] = "{6}/{0}/{4}".format(*obj_info)
-    res_dict[loader_common_names.FLD_KB_OBJ_NAME] = obj_info[1]
-    res_dict[loader_common_names.FLD_KB_OBJ_TYPE] = obj_info[2]
-    res_dict[loader_common_names.FLD_KB_OBJ_TIMESTAMP] = obj_info[3]
-    res_dict[loader_common_names.FLD_KB_OBJ_GENOME_UPA] = genome_upa
+    res_dict = {loader_common_names.FLD_KB_OBJ_UPA: "{6}/{0}/{4}".format(*obj_info),
+                loader_common_names.FLD_KB_OBJ_NAME: obj_info[1], loader_common_names.FLD_KB_OBJ_TYPE: obj_info[2],
+                loader_common_names.FLD_KB_OBJ_TIMESTAMP: obj_info[3],
+                loader_common_names.FLD_KB_OBJ_GENOME_UPA: "{6}/{0}/{4}".format(*genome_info)}
+    res_dict.update(_get_genome_obj_meta(genome_info))
+
     return res_dict
 
 
@@ -135,10 +157,12 @@ def _process_input(conf: Conf):
         if not task:
             print("Stopping")
             break
-        upa, obj_info, genome_upa = task
+        obj_info, genome_info = task
 
-        upa_dir = os.path.join(conf.output_dir, upa)
-        metafile = os.path.join(upa_dir, f"{upa}.meta")
+        upa_format = "{6}_{0}_{4}".format(*obj_info)
+
+        upa_dir = os.path.join(conf.output_dir, upa_format)
+        metafile = os.path.join(upa_dir, f"{upa_format}.meta")
         if not os.path.isdir(upa_dir) or not loader_helper.is_upa_info_complete(upa_dir):
 
             # remove legacy upa_dir to avoid FileExistsError in hard link
@@ -149,26 +173,28 @@ def _process_input(conf: Conf):
             # get_assembly_as_fasta writes the file to /kb/module/workdir/tmp/<filename> inside the container.
             # workdir is shared between the container and the external file system
             # Any file path get_assembly_as_fasta returns will be relative to inside the container, and so is not useful for this script
-            cfn = os.path.join(conf.job_data_dir, upa)
+            cfn = os.path.join(conf.job_data_dir, upa_format)
             # upa file is downloaded to cfn
-            conf.asu.get_assembly_as_fasta({"ref": upa.replace("_", "/"), "filename": upa})
+            conf.asu.get_assembly_as_fasta({"ref": upa_format.replace("_", "/"), "filename": upa_format})
 
             # each upa in output_dir as a separate directory
             os.makedirs(upa_dir, exist_ok=True)
 
-            dst = os.path.join(upa_dir, f"{upa}.fa")
+            dst = os.path.join(upa_dir, f"{upa_format}.fa")
             # Hard link .fa file from job_dir to output_dir in WS
             os.link(cfn, dst)
 
             # save meta file with relevant object_info
-            _dump_json_to_file(metafile, _process_object_info(obj_info, genome_upa))
+            _dump_json_to_file(metafile, _process_object_info(obj_info, genome_info))
 
-            print("Completed %s" % (upa))
+            print("Completed %s" % (upa_format))
         else:
-            print(f"Skip downloading {upa} as it already exists")
+            print(f"Skip downloading {upa_format} as it already exists")
 
         if conf.retrieve_sample:
-            _download_sample_data(conf, [upa.replace("_", "/"), genome_upa], metafile)
+            _download_sample_data(conf,
+                                  ["{6}/{0}/{4}".format(*obj_info), "{6}/{0}/{4}".format(*genome_info)],
+                                  metafile)
 
 
 def _download_sample_data(
@@ -453,6 +479,11 @@ def main():
             loader_common_names.OBJECTS_NAME_GENOME,
             include_metadata=True,
         )
+        genome_upa_info_map = {
+            "{6}/{0}/{4}".format(*genome_info): genome_info
+            for genome_info in genome_objs
+        }
+
         assembly_objs = loader_helper.list_objects(
             workspace_id,
             conf,
@@ -477,7 +508,7 @@ def main():
             upa = "{6}_{0}_{4}".format(*obj_info)
             upas.append(upa)
             genome_upa = assembly_genome_map[upa.replace("_", "/")]
-            conf.input_queue.put([upa, obj_info, genome_upa])
+            conf.input_queue.put([obj_info, genome_upa_info_map[genome_upa]])
 
         for i in range(workers + 1):
             conf.input_queue.put(None)
