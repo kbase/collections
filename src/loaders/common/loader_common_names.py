@@ -140,9 +140,9 @@ FLD_KB_OBJ_GENOME_UPA = "genome_upa"
 # the displayed name is prefixed with "kbase" to avoid name collision with tool generated attributes
 KB_GENOME_ATTRI_PREFIX = "kbase"
 GENOME_WS_META_NAME_MAP = {
-    "Size": [f"{KB_GENOME_ATTRI_PREFIX}_genome_size", int],
-    "GC content": [f"{KB_GENOME_ATTRI_PREFIX}_gc_content", float],
-    "Number contigs": [f"{KB_GENOME_ATTRI_PREFIX}_num_contigs", int],
-    "Number of CDS": [f"{KB_GENOME_ATTRI_PREFIX}_num_cds", int],
-    "Number of Protein Encoding Genes": [f"{KB_GENOME_ATTRI_PREFIX}_num_protein_encoding_genes", int]
+    "Size": (f"{KB_GENOME_ATTRI_PREFIX}_genome_size", int),
+    "GC content": (f"{KB_GENOME_ATTRI_PREFIX}_gc_content", float),
+    "Number contigs": (f"{KB_GENOME_ATTRI_PREFIX}_num_contigs", int),
+    "Number of CDS": (f"{KB_GENOME_ATTRI_PREFIX}_num_cds", int),
+    "Number of Protein Encoding Genes": (f"{KB_GENOME_ATTRI_PREFIX}_num_protein_encoding_genes", int)
 }
