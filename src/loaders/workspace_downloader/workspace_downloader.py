@@ -190,6 +190,14 @@ def _process_input(conf: Conf):
             # save meta file with relevant object_info
             _dump_json_to_file(metafile, _process_object_info(obj_info, genome_info))
 
+            # save WS object metadata to file
+            _dump_json_to_file(
+                Path(upa_dir) / f"{upa_format}.{loader_common_names.KB_OBJ_META_SUFFIX}",
+                obj_info)
+            _dump_json_to_file(
+                Path(upa_dir) / f"{'{6}_{0}_{4}'.format(*genome_info)}.{loader_common_names.KB_OBJ_META_SUFFIX}",
+                genome_info)
+
             print("Completed %s" % (upa_format))
         else:
             print(f"Skip downloading {upa_format} as it already exists")
@@ -245,7 +253,7 @@ def _download_sample_data(
     _dump_json_to_file(metafile, meta)
 
 
-def _dump_json_to_file(json_file_path: str, json_data: dict[str, Any]) -> None:
+def _dump_json_to_file(json_file_path: str | Path, json_data: dict[str, Any] | list[Any]) -> None:
     # dump json data to file
     with open(json_file_path, "w", encoding="utf8") as json_file:
         json.dump(json_data, json_file, indent=2)

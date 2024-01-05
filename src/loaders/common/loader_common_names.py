@@ -146,3 +146,6 @@ GENOME_WS_META_NAME_MAP = {
     "Number of CDS": (f"{KB_GENOME_ATTRI_PREFIX}_num_cds", int),
     "Number of Protein Encoding Genes": (f"{KB_GENOME_ATTRI_PREFIX}_num_protein_encoding_genes", int)
 }
+# the suffix for the metadata file name for KBase object
+# the metadata file name is the same as the object formatted upa with the suffix appended, e.g., 69037_10_1.kb_meta
+KB_OBJ_META_SUFFIX = "kb_meta"
