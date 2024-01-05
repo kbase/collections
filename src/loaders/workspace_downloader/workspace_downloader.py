@@ -471,6 +471,7 @@ def main():
             workspace_id,
             conf,
             loader_common_names.OBJECTS_NAME_ASSEMBLY,
+            include_metadata=True,
         )
         assembly_genome_map, duplicate_map = _assembly_genome_lookup(genome_objs)
         if duplicate_map:
