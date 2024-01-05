@@ -142,7 +142,8 @@ def _process_object_info(
     }
     """
     res_dict = {loader_common_names.FLD_KB_OBJ_UPA: "{6}/{0}/{4}".format(*obj_info),
-                loader_common_names.FLD_KB_OBJ_NAME: obj_info[1], loader_common_names.FLD_KB_OBJ_TYPE: obj_info[2],
+                loader_common_names.FLD_KB_OBJ_NAME: obj_info[1],
+                loader_common_names.FLD_KB_OBJ_TYPE: obj_info[2],
                 loader_common_names.FLD_KB_OBJ_TIMESTAMP: obj_info[3],
                 loader_common_names.FLD_KB_OBJ_GENOME_UPA: "{6}/{0}/{4}".format(*genome_info)}
     res_dict.update(_get_genome_obj_meta(genome_info))
