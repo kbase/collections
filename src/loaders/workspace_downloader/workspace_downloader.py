@@ -106,27 +106,6 @@ def _assembly_genome_lookup(genome_objs):
     return hashmap, duplicate
 
 
-def _get_genome_obj_meta(
-        genome_info: list[Any],
-) -> dict[str, Any]:
-    # retrieves workspace genome object metadata and convert it to a dict with parsed values
-
-    kb_genome_meta = genome_info[-1]
-    if type(kb_genome_meta) is not dict:
-        raise ValueError(f"Expected genome metadata to be a dict, got {type(kb_genome_meta)}: {kb_genome_meta}")
-
-    parsed_genome_meta = {
-        # The tuple in the map is 
-        # (<kbase name for the metadata attribute>, <type conversion fn, e.g. int or float>)
-        loader_common_names.GENOME_WS_META_NAME_MAP[kb_meta_name][0]:
-            loader_common_names.GENOME_WS_META_NAME_MAP[kb_meta_name][1](kb_genome_meta.get(kb_meta_name))
-            if kb_genome_meta.get(kb_meta_name) else None
-        for kb_meta_name in loader_common_names.GENOME_WS_META_NAME_MAP
-    }
-
-    return parsed_genome_meta
-
-
 def _process_object_info(
         obj_info: list[Any],
         genome_info: list[Any]
@@ -145,8 +124,9 @@ def _process_object_info(
                 loader_common_names.FLD_KB_OBJ_NAME: obj_info[1],
                 loader_common_names.FLD_KB_OBJ_TYPE: obj_info[2],
                 loader_common_names.FLD_KB_OBJ_TIMESTAMP: obj_info[3],
-                loader_common_names.FLD_KB_OBJ_GENOME_UPA: "{6}/{0}/{4}".format(*genome_info)}
-    res_dict.update(_get_genome_obj_meta(genome_info))
+                loader_common_names.FLD_KB_OBJ_GENOME_UPA: "{6}/{0}/{4}".format(*genome_info),
+                loader_common_names.ASSEMBLY_OBJ_INFO_KEY: obj_info,
+                loader_common_names.GENOME_METADATA_FILE: genome_info}
 
     return res_dict
 
@@ -189,14 +169,6 @@ def _process_input(conf: Conf):
 
             # save meta file with relevant object_info
             _dump_json_to_file(metafile, _process_object_info(obj_info, genome_info))
-
-            # save WS object metadata to file
-            _dump_json_to_file(
-                Path(upa_dir) / f"{upa_format}.{loader_common_names.KB_OBJ_META_SUFFIX}",
-                obj_info)
-            _dump_json_to_file(
-                Path(upa_dir) / f"{'{6}_{0}_{4}'.format(*genome_info)}.{loader_common_names.KB_OBJ_META_SUFFIX}",
-                genome_info)
 
             print("Completed %s" % (upa_format))
         else:
