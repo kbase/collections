@@ -116,6 +116,8 @@ def _get_genome_obj_meta(
         raise ValueError(f"Expected genome metadata to be a dict, got {type(kb_genome_meta)}: {kb_genome_meta}")
 
     parsed_genome_meta = {
+        # The tuple in the map is 
+        # (<kbase name for the metadata attribute>, <type conversion fn, e.g. int or float>)
         loader_common_names.GENOME_WS_META_NAME_MAP[kb_meta_name][0]:
             loader_common_names.GENOME_WS_META_NAME_MAP[kb_meta_name][1](kb_genome_meta.get(kb_meta_name))
             if kb_genome_meta.get(kb_meta_name) else None
