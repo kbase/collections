@@ -23,6 +23,21 @@ columns:
      type: string
      filter_strategy: ngram
 
+   - key: kbase_genome_size
+     type: int
+
+   - key: kbase_gc_content
+     type: float
+
+   - key: kbase_num_contigs
+     type: int
+
+   - key: kbase_num_cds
+     type: int
+
+   - key: kbase_num_protein_encoding_genes
+     type: int
+
    - key: Contamination  # checkm2  # GTDB is checkm_contamination
      type: float
    

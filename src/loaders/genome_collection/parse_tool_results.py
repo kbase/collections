@@ -45,6 +45,7 @@ import shutil
 import sys
 import tempfile
 from pathlib import Path
+from typing import Any
 
 import jsonlines
 import pandas as pd
@@ -136,6 +137,27 @@ def _read_metadata_file(meta_filename: str) -> dict:
     return meta_info
 
 
+def _get_genome_obj_meta(
+        genome_info: list[Any],
+) -> dict[str, Any]:
+    # retrieves workspace genome object metadata and convert it to a dict with parsed values
+
+    kb_genome_meta = genome_info[-1]
+    if type(kb_genome_meta) is not dict:
+        raise ValueError(f"Expected genome metadata to be a dict, got {type(kb_genome_meta)}: {kb_genome_meta}")
+
+    parsed_genome_meta = {
+        # The tuple in the map is
+        # (<kbase name for the metadata attribute>, <type conversion fn, e.g. int or float>)
+        loader_common_names.GENOME_WS_META_NAME_MAP[kb_meta_name][0]:
+            loader_common_names.GENOME_WS_META_NAME_MAP[kb_meta_name][1](kb_genome_meta.get(kb_meta_name))
+            if kb_genome_meta.get(kb_meta_name) else None
+        for kb_meta_name in loader_common_names.GENOME_WS_META_NAME_MAP
+    }
+
+    return parsed_genome_meta
+
+
 def _update_docs_with_meta_info(res_dict, meta_lookup, check_genome):
     # Update original docs with meta data information such as UPA information through a meta hashmap and
     # other information such as kbase_display_name, etc.
@@ -162,6 +184,9 @@ def _update_docs_with_meta_info(res_dict, meta_lookup, check_genome):
             raise ValueError(f'There is no genome_upa for assembly {meta_info[loader_common_names.FLD_KB_OBJ_UPA]}')
 
         res_dict[genome_id].update({names.FLD_UPA_MAP: upa_dict})
+
+        # add Genome WS object metadata info
+        res_dict[genome_id].update(_get_genome_obj_meta(meta_info.get(loader_common_names.GENOME_OBJ_INFO_KEY, [{}])))
 
     docs = list(res_dict.values())
     return docs, encountered_types
