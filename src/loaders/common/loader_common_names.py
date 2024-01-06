@@ -74,7 +74,7 @@ DEFAULT_ENV = 'NONE'  # default environment for non-kbase collections (e.g. GTDB
 # JSON keys in the download metadata file in a download directory
 SOURCE_METADATA_FILE_KEYS = ["upa", "name", "type", "timestamp"]
 # callback server docker image name
-CALLBACK_IMAGE_NAME = "kbase/callback:test"  #TODO switch to kbase/callback:latest
+CALLBACK_IMAGE_NAME = "kbase/callback:test"  # TODO switch to kbase/callback:latest
 
 # a list of IDs provided to the computation script
 DATA_ID_COLUMN_HEADER = "genome_id"  # TODO DATA_ID change to data ID for generality
@@ -135,3 +135,17 @@ FLD_KB_OBJ_NAME = "name"
 FLD_KB_OBJ_TYPE = "type"
 FLD_KB_OBJ_TIMESTAMP = "timestamp"
 FLD_KB_OBJ_GENOME_UPA = "genome_upa"
+
+# map from workspace Genome object metadata name to the name displayed in the genome attributes table and its type
+# the displayed name is prefixed with "kbase" to avoid name collision with tool generated attributes
+KB_GENOME_ATTRI_PREFIX = "kbase"
+GENOME_WS_META_NAME_MAP = {
+    "Size": (f"{KB_GENOME_ATTRI_PREFIX}_genome_size", int),
+    "GC content": (f"{KB_GENOME_ATTRI_PREFIX}_gc_content", float),
+    "Number contigs": (f"{KB_GENOME_ATTRI_PREFIX}_num_contigs", int),
+    "Number of CDS": (f"{KB_GENOME_ATTRI_PREFIX}_num_cds", int),
+    "Number of Protein Encoding Genes": (f"{KB_GENOME_ATTRI_PREFIX}_num_protein_encoding_genes", int)
+}
+# identifier for the WS object info in the metadata file retrieved from the workspace downloader
+ASSEMBLY_OBJ_INFO_KEY = "assembly_object_info"
+GENOME_OBJ_INFO_KEY = "genome_object_info"
