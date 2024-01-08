@@ -142,7 +142,10 @@ def _get_genome_obj_meta(
 ) -> dict[str, Any]:
     # retrieves workspace genome object metadata and convert it to a dict with parsed values
 
-    kb_genome_meta = genome_info[-1]
+    if not genome_info:
+        raise ValueError(f"Retrieved empty genome info for {'{6}/{0}/{4}'.format(*genome_info)}")
+
+    kb_genome_meta = genome_info[10]
     if type(kb_genome_meta) is not dict:
         raise ValueError(f"Expected genome metadata to be a dict, got {type(kb_genome_meta)}: {kb_genome_meta}")
 
@@ -186,7 +189,7 @@ def _update_docs_with_meta_info(res_dict, meta_lookup, check_genome):
         res_dict[genome_id].update({names.FLD_UPA_MAP: upa_dict})
 
         # add Genome WS object metadata info
-        res_dict[genome_id].update(_get_genome_obj_meta(meta_info.get(loader_common_names.GENOME_OBJ_INFO_KEY, [{}])))
+        res_dict[genome_id].update(_get_genome_obj_meta(meta_info.get(loader_common_names.GENOME_OBJ_INFO_KEY)))
 
     docs = list(res_dict.values())
     return docs, encountered_types
