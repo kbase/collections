@@ -3,6 +3,7 @@ Matches assemblies and genomes to collections based on the GTDB lineage string.
 """
 
 import logging
+import re
 
 from pydantic import ConfigDict, BaseModel, Field
 from typing import Any
@@ -78,6 +79,23 @@ async def _process_match(
             await arangoclient.close()
 
 
+def _fuzzy_version_match(
+        version1: str,
+        version2: str,
+) -> bool:
+    # Compare GTDB versions by extracting and comparing their main (whole numbers) version while
+    # disregarding non-numeric characters.
+    # e.g. (r207.0, 207.0), (214.0, 214.1) and (r214.0, 214.1) should match
+
+    version1_main = re.search(r'\d+', version1)
+    version2_main = re.search(r'\d+', version2)
+
+    if version1_main and version2_main:
+        return version1_main.group() == version2_main.group()
+    else:
+        return False
+
+
 class GTDBLineageMatcher(Matcher):
 
     def generate_match_process(
@@ -123,9 +141,8 @@ class GTDBLineageMatcher(Matcher):
                     + f"{_GTDB_LINEAGE_VERSION_METADATA_KEY}"
                 )
             coll_lin_ver = collection_parameters[_COLLECTION_PARAMS_GTDB_VERSION_KEY]
-            # May want to do some heuristics here to more fuzzily match, e.g. r207.0 and 207.0
-            # should match.
-            if lin_ver != coll_lin_ver:
+
+            if not _fuzzy_version_match(lin_ver, coll_lin_ver):
                 raise errors.LineageVersionError(
                     f"Object {upa} lineage version is {lin_ver}, while the collection's version "
                     + f"is {coll_lin_ver}"
