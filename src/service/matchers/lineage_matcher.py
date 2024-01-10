@@ -28,7 +28,7 @@ _COLLECTION_PARAMS_GTDB_VERSIONS_KEY = "gtdb_versions"
 class GTDBLineageMatcherCollectionParameters(BaseModel):
     "Parameters for the GTDB lineage matcher."
     gtdb_versions: list[str] = Field(
-        example=["214.0", "214.0"],
+        example=["214.0", "214.1"],
         description="The allowed GTDB versions of the collection in which the matcher is installed. " +
             "Input data to the matcher must match one of the allowed versions of GTDB or the match will " +
             "abort.",
