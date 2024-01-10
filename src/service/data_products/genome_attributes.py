@@ -578,6 +578,13 @@ async def perform_gtdb_lineage_match(
     truncated - whether the lineages have been truncated, and therefore do not represent the full
         lineage.
     """
+    if not lineages:
+        # return no matches
+        await storage.update_match_state(
+            internal_match_id, models.ProcessState.COMPLETE, now_epoch_millis(), []
+        )
+        return
+
     match = await storage.get_match_by_internal_id(internal_match_id)
     # use version number to avoid race conditions with activating collections
     coll = await storage.get_collection_version_by_num(match.collection_id, match.collection_ver)
@@ -653,12 +660,6 @@ async def _mark_gtdb_matches_STARTS_WITH_strategy(
     # later
     # could also probably DRY up this and the above method
     # retries?
-    if not lineages:
-        # return no matches
-        await storage.update_match_state(
-            internal_match_id, models.ProcessState.COMPLETE, now_epoch_millis(), []
-        )
-        return
 
     mtch = names.FLD_MATCHES_SELECTIONS
     lin = names.FLD_GENOME_ATTRIBS_GTDB_LINEAGE
