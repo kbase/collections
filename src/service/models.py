@@ -87,7 +87,7 @@ V is the version. The version may not be omitted. Reference paths
 )
 FIELD_USER_PARAMETERS_EXAMPLE = {"gtdb_rank": "species"}
 FIELD_USER_PARAMETERS_DESCRIPTION = "The user parameters for the match."
-FIELD_MATCHER_PARAMETERS_EXAMPLE = {'gtdb_version': '207.0'}
+FIELD_MATCHER_PARAMETERS_EXAMPLE = {'gtdb_versions': ['214.0', '214.1']}
 FIELD_MATCHER_PARAMETERS_DESCRIPTION = ("Any collection (as opposed to user provided) parameters "
     + "for the matcher. What these are will depend on the matcher in question")
 FIELD_SELECTION_EXAMPLE = ["GB_GCA_000006155.2", "GB_GCA_000007385.1"]
