@@ -4,9 +4,9 @@ Matches assemblies and genomes to collections based on the GTDB lineage string.
 
 import logging
 import re
-from typing import Any, Self, Set
+from typing import Any, Self
 
-from pydantic import ConfigDict, BaseModel, Field, model_validator, constr
+from pydantic import ConfigDict, BaseModel, Field, model_validator, conlist
 
 from src.common.constants import GTDB_UNCLASSIFIED_PREFIX
 from src.common.gtdb_lineage import GTDBRank, GTDBLineage, GTDBLineageError
@@ -27,13 +27,21 @@ _COLLECTION_PARAMS_GTDB_VERSIONS_KEY = "gtdb_versions"
 
 class GTDBLineageMatcherCollectionParameters(BaseModel):
     "Parameters for the GTDB lineage matcher."
-    gtdb_versions: Set[constr(pattern=r"^\d{2,4}\.\d{1,2}$")] = Field(
-        example={"214.0", "214.1"},
+    gtdb_versions: conlist(str, min_length=1) = Field(
+        example=["214.0", "214.1"],
         description="The allowed GTDB versions of the collection in which the matcher is installed. " +
             "Input data to the matcher must match one of the allowed versions of GTDB or the match will " +
             "abort.",
     )
     model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def _check_gtdb_versions(self) -> Self:
+        pattern = r"^\d{2,4}\.\d{1,2}$"  # giving a little room for expansion
+        for version in self.gtdb_versions:
+            if not re.match(pattern, version):
+                raise ValueError(f"Invalid version format: {version}")
+        return self
 
 
 class GTDBLineageMatcherUserParameters(BaseModel):
