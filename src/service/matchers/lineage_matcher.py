@@ -3,10 +3,9 @@ Matches assemblies and genomes to collections based on the GTDB lineage string.
 """
 
 import logging
-import re
-from typing import Any, Self
+from typing import Any
 
-from pydantic import ConfigDict, BaseModel, Field, model_validator, conlist, constr
+from pydantic import ConfigDict, BaseModel, Field, conlist, constr
 
 from src.common.constants import GTDB_UNCLASSIFIED_PREFIX
 from src.common.gtdb_lineage import GTDBRank, GTDBLineage, GTDBLineageError
