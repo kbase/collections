@@ -3,12 +3,12 @@ Common pydantic models for heat map data products.
 """
 
 from enum import Enum
-from typing import Annotated
+from typing import Annotated, Any
 
 from pydantic import BaseModel, Field
 
+from src.common.product_models import columnar_attribs_common_models as attribs_models
 from src.common.product_models.common_models import SubsetProcessStates
-
 
 # these fields need to match the fields in the models below.
 FIELD_HEATMAP_DATA = "data"
@@ -30,11 +30,13 @@ FIELD_HEATMAP_CATEGORIES = "categories"
 FIELD_HEATMAP_CELL_DETAIL_ENTRY_VALUE = "val"
 FIELD_HEATMAP_CELL_DETAIL_ENTRY_ID = "id"
 
-
 _FLD_CELL_ID = Field(
     example="4",
     description="The unique ID of the cell in the heatmap."
 )
+
+HEATMAP_COL_PREFIX = "col"
+HEATMAP_COL_SEPARATOR = '_'
 
 
 class ColumnType(str, Enum):
@@ -49,6 +51,29 @@ class ColumnType(str, Enum):
     """ Similar to an integer, but represents a numeric count. """
     BOOL = "bool"
     """ A boolean. """
+
+
+# Maps a heatmap column type to a genome attributes column type
+_HEATMAP_TO_ATTRIBS_MAPPING = {
+    ColumnType.FLOAT: attribs_models.ColumnType.FLOAT,
+    ColumnType.INT: attribs_models.ColumnType.INT,
+    ColumnType.COUNT: attribs_models.ColumnType.INT,
+    ColumnType.BOOL: attribs_models.ColumnType.BOOL
+}
+
+
+def trans_column_type_heatmap_to_attribs(col_type: ColumnType) -> attribs_models.ColumnType:
+    """
+    Translate a heatmap column type to an attributes column type.
+    This method is suitable for models like filters that exclusively operate on attributes column types
+
+    col_type: the heatmap column type
+    """
+
+    if col_type not in _HEATMAP_TO_ATTRIBS_MAPPING:
+        raise ValueError(f'column type {col_type} is not supported by the heatmap')
+
+    return _HEATMAP_TO_ATTRIBS_MAPPING[col_type]
 
 
 class ColumnInformation(BaseModel):
@@ -71,6 +96,20 @@ class ColumnInformation(BaseModel):
     type: ColumnType = Field(
         example=ColumnType.COUNT.value,
         description="The type of the column values."
+    )
+
+
+def transfer_col_heatmap_to_attribs(col: ColumnInformation) -> attribs_models.AttributesColumn:
+    """
+    Convert a heatmap column to an attributes column.
+
+    Matching heatmap `col_id` field to the `key` field in the attribs column
+    Matching heatmap `type` field to the `type` field in the attribs column
+    Leaving the remaining fields, i.e. filter_strategy, min/max_value, etc. as None in the resulting attribs column
+    """
+    return attribs_models.AttributesColumn(
+        key=col.col_id,
+        type=trans_column_type_heatmap_to_attribs(col.type),
     )
 
 
@@ -138,6 +177,10 @@ class HeatMapRow(BaseModel):
         example="GB_GCA_000006155.2",
         description="The unique ID of the subject of a heatmap row. Often a genome, MAG, etc."
     )
+    kbase_display_name: str | None = Field(
+        example="altamaha_2019_sw_WHONDRS-S19S_0010_A_bin_34_mag_assembly",
+        description="The name shown for the subject in a heatmap row, typically an KBase object name."
+    )
     cells: list[Cell] = Field(
         description="The cells in the row of the heatmap in render order."
     )
@@ -194,3 +237,119 @@ class CellDetail(BaseModel):
     """
     cell_id: str = _FLD_CELL_ID
     values: list[CellDetailEntry]
+
+
+def form_heatmap_cell_val_key(col_id: str) -> str:
+    """
+    Form a key for a heatmap cell value from a column ID.
+    key format: <HEATMAP_COL_PREFIX>_<col_id>_<FIELD_HEATMAP_CELL_VALUEl>
+
+    col_id: the column ID
+    """
+    return f"{HEATMAP_COL_PREFIX}{HEATMAP_COL_SEPARATOR}{col_id}{HEATMAP_COL_SEPARATOR}{FIELD_HEATMAP_CELL_VALUE}"
+
+
+def form_heatmap_cell_id_key(col_id: str) -> str:
+    """
+    Form a key for a heatmap cell ID from a column ID.
+    key format: <HEATMAP_COL_PREFIX>_<col_id>_<FIELD_HEATMAP_CELL_ID>
+
+    col_id: the column ID
+    """
+    return f"{HEATMAP_COL_PREFIX}{HEATMAP_COL_SEPARATOR}{col_id}{HEATMAP_COL_SEPARATOR}{FIELD_HEATMAP_CELL_ID}"
+
+
+def transform_heatmap_row_cells(data: dict[str, Any]):
+    """
+    Transform, in place, the cells structure in a heatmap row to a new structure.
+
+    The new structure is a set of keys and values where the keys are constructed from the old structure.
+    new structured key format: <HEATMAP_COL_PREFIX>_<col_id>_<FIELD_HEATMAP_CELL_ID|FIELD_HEATMAP_CELL_VALUEl>
+
+    e.g.
+
+    The old structure:
+    "cells": [
+        {
+            "cell_id": "cell_0",
+            "col_id": "0",
+            "val": 0.0
+        },
+        {
+            "cell_id": "cell_1",
+            "col_id": "1",
+            "val": 1.0
+        }
+    ]
+
+    The new structure:
+    "col_0_cell_id": "cell_0",
+    "col_0_val": 0.0,
+    "col_1_cell_id": "cell_1",
+    "col_1_val": 1.0
+
+    """
+
+    # Iterate over the 'cells' structure and remove them from the data structure while constructing the new structure
+    for cell in data.pop(FIELD_HEATMAP_ROW_CELLS):
+        col_id = cell[FIELD_HEATMAP_COL_ID]
+
+        # Add the new keys and values to the data structure
+        data[form_heatmap_cell_id_key(col_id)] = cell[FIELD_HEATMAP_CELL_ID]
+        data[form_heatmap_cell_val_key(col_id)] = cell[FIELD_HEATMAP_CELL_VALUE]
+
+
+def revert_transformed_heatmap_row_cells(data: dict[str, Any]):
+    """
+    Revert, in place, the transformation of heatmap row cells.
+    Input key format: <HEATMAP_COL_PREFIX>_<col_id>_<FIELD_HEATMAP_CELL_ID|FIELD_HEATMAP_CELL_VALUEl>
+
+    The structure (input) to be reverted:
+    "col_0_cell_id": "cell_0",
+    "col_0_val": 0.0,
+    "col_1_cell_id": "cell_1",
+    "col_1_val": 1.0
+
+    The resulting structure:
+    "cells": [
+        {
+            "cell_id": "cell_0",
+            "col_id": "0",
+            "val": 0.0
+        },
+        {
+            "cell_id": "cell_1",
+            "col_id": "1",
+            "val": 1.0
+        }
+    ]
+    """
+
+    # Get the keys that need to be reconstructed
+    keys_to_remove = [key for key in data.keys() if key.startswith(HEATMAP_COL_PREFIX) and
+                      (key.endswith(FIELD_HEATMAP_CELL_ID) or key.endswith(FIELD_HEATMAP_CELL_VALUE))]
+
+    cells_dict = {}
+    for key in keys_to_remove:
+        parts = key.split(HEATMAP_COL_SEPARATOR)
+        col_id = parts[1]
+        col_type = HEATMAP_COL_SEPARATOR.join(parts[2:])
+        if not col_id.isdigit():
+            raise ValueError(f"Column ID '{col_id}' is not an integer.")
+
+        if col_type not in [FIELD_HEATMAP_CELL_ID, FIELD_HEATMAP_CELL_VALUE]:
+            raise ValueError(f'Unexpected column type: {col_type}')
+
+        cells_dict.setdefault(col_id, {})
+        cells_dict[col_id][col_type] = data[key]
+
+    cells = [{
+        FIELD_HEATMAP_COL_ID: col_id,
+        FIELD_HEATMAP_CELL_ID: cell_data[FIELD_HEATMAP_CELL_ID],
+        FIELD_HEATMAP_CELL_VALUE: cell_data[FIELD_HEATMAP_CELL_VALUE]
+    } for col_id, cell_data in cells_dict.items()]
+
+    data[FIELD_HEATMAP_ROW_CELLS] = cells
+
+    for key in keys_to_remove:
+        data.pop(key)

@@ -19,6 +19,9 @@ from src.service.processing import SubsetSpecification
 
 _PARTICLES_IN_UNIVERSE = 10 ** 80
 
+_TRUE_STR = "true"
+_FALSE_STR = "false"
+
 
 class SearchQueryPart(BaseModel):
     variable_assignments: Annotated[dict[str, str] | None, Field(
@@ -75,7 +78,7 @@ class AbstractFilter(ABC):
 
 
 def _to_bool_string(b: bool):
-    return "true" if b else "false"
+    return _TRUE_STR if b else _FALSE_STR
 
 
 def _require_string(s: str, err: str, optional: bool = False):
@@ -90,6 +93,68 @@ def _gt(num: int, min_: int, name: str):
     if num < min_:
         raise errors.IllegalParameterError(f"{name} must be >= {min_}")
     return num
+
+
+class BooleanFilter(AbstractFilter):
+    """
+    A filter representing a boolean value.
+    """
+
+    def __init__(self, bool_value: bool):
+        """Initialize the boolean filter with a boolean value.
+
+        bool_value - the boolean value for the filter.
+        """
+        self.bool_value = bool_value
+
+    def __eq__(self, other: object) -> bool | NotImplementedType:
+        """Check equality with another BooleanFilter."""
+
+        if not isinstance(other, BooleanFilter):
+            return NotImplemented
+        return self.bool_value == other.bool_value
+
+    def __repr__(self) -> str:
+        """Represent the BooleanFilter object as a string."""
+        return f"BooleanFilter({self.bool_value})"
+
+    @classmethod
+    def from_string(
+            cls,
+            type_: ColumnType,  # @UnusedVariable
+            string: str,
+            analyzer: str = None,  # @UnusedVariable
+            strategy: FilterStrategy = None,  # @UnusedVariable
+    ) -> Self:
+        """
+        Create the filter from a string: "true" or "false".
+
+        string - the search string. Must be either "true" or "false".
+
+        The type_, strategy and analyzer arguments are ignored for the boolean filter.
+        """
+        string = _require_string(string, "Missing boolean string information")
+        string = string.strip().lower()
+        if string not in [_TRUE_STR, _FALSE_STR]:
+            raise errors.IllegalParameterError(
+                f"Invalid boolean specification; expected true or false: {string}")
+        return BooleanFilter(string == _TRUE_STR)
+
+    def to_arangosearch_aql(self, identifier: str, var_prefix: str) -> SearchQueryPart:
+        """
+        Convert the filter to lines of ArangoSearch AQL and bind variables.
+
+        identifier - the identifier for where the search is to take place, for example
+            `doc.classification`. This will be inserted verbatim into the search constraint, e.g.
+            `f"{identifer} == true`
+        var_prefix - a prefix to apply to variable names, including bind variables,
+            to prevent collisions between multiple filters.
+        """
+        bv_key = f"{var_prefix}bool_value"
+        return SearchQueryPart(
+            aql_lines=[f"{identifier} == @{bv_key}"],
+            bind_vars={bv_key: self.bool_value}
+        )
 
 
 class RangeFilter(AbstractFilter):
@@ -356,6 +421,7 @@ class FilterSet:
         ColumnType.INT: RangeFilter,
         ColumnType.FLOAT: RangeFilter,
         ColumnType.STRING: StringFilter,
+        ColumnType.BOOL: BooleanFilter,
     }
     
     def __init__(
@@ -374,6 +440,7 @@ class FilterSet:
         skip: int = 0,
         limit: int = 1000,
         keep: list[str] = None,
+        keep_filter_nulls: bool = False,
         doc_var: str = "doc",
     ):
         """
@@ -401,6 +468,7 @@ class FilterSet:
         limit - the maximum number of records to return. 0 indicates no limit, which is usually
             a bad idea.
         keep - the fields to return from the database.
+        keep_filter_nulls - filter out any documents where any of the keep values are null.
         doc_var - the variable to use for the ArangoSearch document.
         """
         self.collection_id = _require_string(collection_id, "collection_id is required")
@@ -423,6 +491,7 @@ class FilterSet:
         self.keep = keep if keep else []
         if any([not bool(x.strip() if x else x) for x in self.keep]):
             raise ValueError("Falsy value in keep")
+        self.keep_filter_nulls = keep_filter_nulls
         self.doc_var = _require_string(doc_var, "doc_var is required")
         self._filters = {}
 
@@ -431,7 +500,7 @@ class FilterSet:
 
     def append(
             self,
-            field: str,
+            field: str,  # currently this is inserted into the aql - use a bind var?
             type_: ColumnType,
             filter_string: str,
             analyzer: str = None,
@@ -440,7 +509,8 @@ class FilterSet:
         f"""
         Add a filter to the filter set.
         
-        field - the ArangoSearch field upon which the filter will operate.
+        field - the ArangoSearch field upon which the filter will operate. It is expected that
+            the client has confirmed this is a valid arangosearch field.
         type_ - the type of the field.
         filter_string - the filter criteria as represented by a string.
         analyzer - the analyzer for the filter. If not provided the {DEFAULT_ANALYZER}
@@ -511,6 +581,10 @@ class FilterSet:
         aql = f"FOR {self.doc_var} IN @@collection\n"
         aql += f"    FILTER {self.doc_var}.{names.FLD_COLLECTION_ID} == @collid\n"
         aql += f"    FILTER {self.doc_var}.{names.FLD_LOAD_VERSION} == @load_ver\n"
+        if self.keep_filter_nulls:
+            for i, k in enumerate(self.keep):
+                aql += f"    FILTER {self.doc_var}.@keep{i} != null\n"
+                bind_vars[f"keep{i}"] = k
         matchsel = f"{self.doc_var}.{names.FLD_MATCHES_SELECTIONS}"
         if self.match_spec.get_subset_filtering_id():
             bind_vars["internal_match_id"] = self.match_spec.get_subset_filtering_id()
@@ -567,6 +641,11 @@ class FilterSet:
         aql += f"        {self.doc_var}.{names.FLD_COLLECTION_ID} == @collid\n"
         aql += f"        AND\n"
         aql += f"        {self.doc_var}.{names.FLD_LOAD_VERSION} == @load_ver\n"
+        if self.keep_filter_nulls:
+            for i, k in enumerate(self.keep):
+                aql += f"        AND\n"
+                aql += f"        {self.doc_var}.@keep{i} != null\n"
+                bind_vars[f"keep{i}"] = k
         if self.match_spec.get_subset_filtering_id():
             bind_vars["internal_match_id"] = self.match_spec.get_subset_filtering_id()
             aql += "        AND\n"

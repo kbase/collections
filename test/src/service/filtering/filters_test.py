@@ -3,6 +3,7 @@ from pytest import raises
 # TODO TEST add more tests, this is just the basics
 
 import re
+import pytest
 
 from src.common.product_models.columnar_attribs_common_models import (
     ColumnType,
@@ -14,6 +15,7 @@ from src.service.filtering.filters import (
     StringFilter,
     SearchQueryPart,
     FilterSet,
+    BooleanFilter,
 )
 from src.service.processing import SubsetSpecification
 
@@ -130,6 +132,56 @@ def test_rangefilter_from_string_fail():
     for type_, input_, errclass, expected in test_set:
         with raises(errclass, match=f"^{re.escape(expected)}$"):
             RangeFilter.from_string(type_, input_)
+
+
+@pytest.fixture
+def boolean_filter_true():
+    return BooleanFilter(True)
+
+
+@pytest.fixture
+def boolean_filter_false():
+    return BooleanFilter(False)
+
+
+def test_boolean_filter_equality(boolean_filter_true, boolean_filter_false):
+    assert boolean_filter_true == boolean_filter_true
+    # test that non-identical objects also pass
+    assert boolean_filter_true == BooleanFilter(True)
+    
+    assert boolean_filter_false == boolean_filter_false
+    assert boolean_filter_false == BooleanFilter(False)
+
+    assert boolean_filter_true != boolean_filter_false
+    assert boolean_filter_true != RangeFilter(ColumnType.FLOAT, -56.1, 1913.1, True, True)
+
+
+def test_boolean_filter_representation(boolean_filter_true, boolean_filter_false):
+
+    assert repr(boolean_filter_true) == "BooleanFilter(True)"
+    assert repr(boolean_filter_false) == "BooleanFilter(False)"
+
+    assert eval(repr(boolean_filter_true)) == boolean_filter_true
+    assert eval(repr(boolean_filter_false)) == boolean_filter_false
+
+
+def test_boolean_filter_from_string():
+    assert BooleanFilter.from_string(None, "true") == BooleanFilter(True)
+    assert BooleanFilter.from_string(None, "false") == BooleanFilter(False)
+    with raises(errors.IllegalParameterError) as err:
+        BooleanFilter.from_string(None, "invalid")
+        assert str(err.value) == "Invalid boolean specification; expected true or false: invalid"
+
+
+def test_boolean_filter_to_arangosearch_aql(boolean_filter_true, boolean_filter_false):
+
+    query_part_true = boolean_filter_true.to_arangosearch_aql("identifier_true", "prefix_true")
+    query_part_false = boolean_filter_false.to_arangosearch_aql("identifier_false", "prefix_false")
+
+    assert query_part_true.aql_lines == [f"identifier_true == @prefix_truebool_value"]
+    assert query_part_true.bind_vars == {f"prefix_truebool_value": True}
+    assert query_part_false.aql_lines == [f"identifier_false == @prefix_falsebool_value"]
+    assert query_part_false.bind_vars == {f"prefix_falsebool_value": False}
 
 
 def test_stringfilter_from_string():
@@ -409,6 +461,48 @@ FOR d IN @@view
     assert len(fs) == 2
 
 
+def test_filterset_arangosearch_w_keep_filter():
+    fs = FilterSet(
+        "mycollection",
+        "loadver6",
+        view="my_other_search_view",
+        keep=["field1", "field2"],
+        keep_filter_nulls=True,
+    )
+    fs.append("rangefield", ColumnType.INT, "[-2,6]")
+    aql, bind_vars = fs.to_aql()
+    
+    assert aql == """
+FOR doc IN @@view
+    SEARCH (
+        doc.coll == @collid
+        AND
+        doc.load_ver == @load_ver
+        AND
+        doc.@keep0 != null
+        AND
+        doc.@keep1 != null
+    ) AND (
+        IN_RANGE(doc.rangefield, @v1_low, @v1_high, true, true)
+    )
+    LIMIT @skip, @limit
+    RETURN KEEP(doc, @keep)
+""".strip() + "\n"
+    assert bind_vars == {
+        "@view": "my_other_search_view",
+        "collid": "mycollection",
+        "load_ver": "loadver6",
+        "skip": 0,
+        "limit": 1000,
+        "keep": ["field1", "field2"],
+        "keep0": "field1",
+        "keep1": "field2",
+        'v1_low': -2.0,
+        'v1_high': 6.0,
+    }
+    assert len(fs) == 1
+
+
 def test_filterset_aql_w_all_args():
     fs = FilterSet(
         "mycollection",
@@ -450,6 +544,38 @@ FOR dc IN @@collection
         "keep": ["thing", "thang"],
         "skip": 24,
         "limit": 2,
+    }
+    assert len(fs) == 0
+
+
+def test_filterset_aql_w_keep_filter():
+    fs = FilterSet(
+        "mycollection",
+        "loadver6",
+        collection="my_arango_collection",
+        keep=["thing", "thang"],
+        keep_filter_nulls=True,
+    )
+    aql, bind_vars = fs.to_aql()
+    
+    assert aql == """
+FOR doc IN @@collection
+    FILTER doc.coll == @collid
+    FILTER doc.load_ver == @load_ver
+    FILTER doc.@keep0 != null
+    FILTER doc.@keep1 != null
+    LIMIT @skip, @limit
+    RETURN KEEP(doc, @keep)
+""".strip() + "\n"
+    assert bind_vars == {
+        "@collection": "my_arango_collection",
+        "collid": "mycollection",
+        "load_ver": "loadver6",
+        "keep": ["thing", "thang"],
+        "keep0": "thing",
+        "keep1": "thang",
+        "skip": 0,
+        "limit": 1000,
     }
     assert len(fs) == 0
 

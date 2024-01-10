@@ -22,11 +22,13 @@ from src.common.product_models.heatmap_common_models import (
     FIELD_HEATMAP_CATEGORY,
     FIELD_HEATMAP_CATEGORIES,
     FIELD_HEATMAP_COUNT,
+    transform_heatmap_row_cells,
 )
 from src.common.storage.collection_and_field_names import (
     FLD_ARANGO_KEY,
     FLD_COLLECTION_ID,
     FLD_LOAD_VERSION,
+    FLD_KB_DISPLAY_NAME,
     COLL_BIOLOG_META,
     COLL_BIOLOG_DATA,
     COLL_BIOLOG_CELLS,
@@ -34,12 +36,18 @@ from src.common.storage.collection_and_field_names import (
 from src.common.storage.db_doc_conversions import collection_load_version_key, collection_data_id_key
 from src.common.storage.field_names import FLD_KBASE_ID
 from src.loaders.common import loader_common_names
-from src.loaders.common.loader_helper import init_row_doc, create_import_files
+from src.loaders.common.loader_helper import (
+    init_row_doc,
+    create_import_files,
+)
 from src.loaders.genome_collection.parse_tool_results import HEATMAP_FILE_ROOT
 
 GROWTH_MEDIA_COL_NAME = 'growth_media'
 STRAIN_DESIGNATION_COL_NAME = 'strain designation'
 DEFAULT_MEDIA = 'MOPS minimal media'
+ASSEMBLY_REF_COL_NAME = 'Assembly ref'
+ASSEMBLY_NAME_COL_NAME = 'assembly name'
+STRAIN_ID_COL_NAME = 'Strain ID'
 
 
 def _read_excel_as_df(excel_file: Path, sheet_name=0) -> pd.DataFrame:
@@ -131,17 +139,20 @@ def _read_biolog_meta(biolog_meta_file: Path) -> pd.DataFrame:
     return meta_df
 
 
-def _retrieve_kbase_assembly_id(meta_df, strain_id) -> str:
-    # Retrieve the KBase Assembly Ref for the given strain ID from the metadata file (dataframe).
+def _retrieve_kbase_assembly(meta_df, strain_id) -> (str, str):
+    # Retrieve the KBase Assembly Ref and Name for the given strain ID from the metadata file (dataframe).
 
-    matching_row = meta_df[(meta_df['Strain ID'] == strain_id) & meta_df['Assembly ref'].notna()]
+    matching_row = meta_df[(meta_df[STRAIN_ID_COL_NAME] == strain_id)
+                           & meta_df[ASSEMBLY_REF_COL_NAME].notna()
+                           & meta_df[ASSEMBLY_NAME_COL_NAME].notna()]
 
     if matching_row.empty:
-        raise ValueError(f"No matching Strain ID with a non-NaN Assembly ref found for {strain_id}.")
+        raise ValueError(f"No matching Strain ID with a non-NaN Assembly ref/name found for {strain_id}.")
     else:
-        assembly_ref = matching_row['Assembly ref'].values[0]
+        assembly_ref = matching_row[ASSEMBLY_REF_COL_NAME].values[0]
+        assembly_name = matching_row[ASSEMBLY_NAME_COL_NAME].values[0]
 
-        return assembly_ref
+        return assembly_ref, assembly_name
 
 
 def _read_upa_mapping(upa_map_file: Path) -> dict:
@@ -205,7 +216,7 @@ def generate_pmi_biolog_heatmap_data(
     min_value, max_value = float('inf'), float('-inf')
     for strain_id, row in data_df.iterrows():
         try:
-            prod_assembly_ref = _retrieve_kbase_assembly_id(meta_df, strain_id)
+            prod_assembly_ref, assembly_name = _retrieve_kbase_assembly(meta_df, strain_id)
         except ValueError as e:
             # TODO: this is a temporary solution to handle the missing KBase genome ID for some strains.
             # Two strains 'PDO1076' and 'PTD-1' are missing the KBase assembly ID in the metadata file.
@@ -235,10 +246,14 @@ def generate_pmi_biolog_heatmap_data(
                 FLD_ARANGO_KEY: collection_data_id_key(kbase_collection, load_ver, cell_uuid),
             })
 
+        row_data = {FLD_KBASE_ID: assembly_ref,
+                    FLD_KB_DISPLAY_NAME: assembly_name,
+                    FIELD_HEATMAP_ROW_CELLS: cells,
+                    FIELD_HEATMAP_ROW_META: {'growth_media': row[GROWTH_MEDIA_COL_NAME], }}
+        transform_heatmap_row_cells(row_data)
+
         # append a document for the heatmap rows
-        heatmap_rows.append(dict({FLD_KBASE_ID: assembly_ref,
-                                  FIELD_HEATMAP_ROW_CELLS: cells,
-                                  FIELD_HEATMAP_ROW_META: {'growth_media': row[GROWTH_MEDIA_COL_NAME], }},
+        heatmap_rows.append(dict(row_data,
                                  **init_row_doc(kbase_collection, load_ver, assembly_ref)))
 
     heatmap_meta_dict[FIELD_HEATMAP_MIN_VALUE] = min_value

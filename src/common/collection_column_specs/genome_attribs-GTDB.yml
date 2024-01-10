@@ -15,6 +15,10 @@ columns:
      type: string
      filter_strategy: identity
 
+   - key: kbase_display_name
+     type: string
+     filter_strategy: ngram
+
    - key: accession
      type: string
      filter_strategy: identity  # this seems like a good candidate for substring

@@ -10,7 +10,7 @@ import pytest
 
 from src.clients.AssemblyUtilClient import AssemblyUtil
 from src.loaders.common import loader_helper
-from src.loaders.workspace_downloader.workspace_downloader_helper import Conf
+from src.loaders.common.callback_server_wrapper import Conf
 from src.loaders.workspace_uploader import workspace_uploader
 
 ASSEMBLY_DIR_NAMES = ["GCF_000979855.1", "GCF_000979175.1"]

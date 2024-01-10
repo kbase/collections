@@ -15,7 +15,7 @@ from src.service.storage_arango import ARANGO_ERR_NAME_EXISTS, ArangoStorage, Vi
 from typing import get_type_hints, Any
 from src.service import data_product_specs
 from src.common.collection_column_specs import load_specs
-from src.service.filtering import analyzers
+from src.service.filtering import analyzers, generic_view
 
 
 REPLICATION = 3
@@ -157,30 +157,53 @@ async def _create_view(
         store: ArangoStorage,
         data_product: str,
         db_collection_name: str,
+        create_generic_view: bool = False
     ):
-    view_spec = load_specs.load_spec(data_product)
-    print("Found view specs:")
-    for v in sorted(view_spec.spec_files):
-        print(f"   {v}")
+    if create_generic_view:
+        print(f"Creating generic view for data product {data_product}...")
+        view_spec = generic_view.create_generic_spec()
+        # TODO: force creating/replacing existing generic view
+    else:
+        print(f"Loading view spec for data product {data_product}...")
+        view_spec = load_specs.load_spec(data_product)
+        print("Found view specs:")
+        for v in sorted(view_spec.spec_files):
+            print(f"   {v}")
+
     views = sorted(await store.get_search_views_from_spec(
-        db_collection_name, view_spec, analyzers.get_analyzer))
+        db_collection_name,
+        view_spec,
+        analyzers.get_analyzer,
+        include_all_fields=create_generic_view))
     _print_view_status(data_product, db_collection_name, views)
     if views:
         print("    Setup ok.")
     elif click.confirm("No view present for current view specifications. Create now?"):
-        view_name = click.prompt("Please provide a name for the new view")
+        if create_generic_view:
+            view_name = generic_view.get_generic_view_name(data_product)
+        else:
+            view_name = click.prompt("Please provide a name for the new view")
         t0 = time.time()
-        print("Creating view ... ", end="", flush=True)
+        print(f"Creating view {view_name}... ", end="", flush=True)
         try:
             await store.create_search_view(
-                view_name, db_collection_name, view_spec, analyzers.get_analyzer)
+                view_name,
+                db_collection_name,
+                view_spec,
+                analyzers.get_analyzer,
+                include_all_fields=create_generic_view)
             print(f"done in {time.time() - t0:.2f} seconds.")
             return view_name
         except ViewExistsError:
-            print(f"A view with name {view_name} already exists and does not match the spec.")
-    print("The view name should be configured for data products in KBase Collections ")
-    print("at the same time the load version with the data matching the view specs is ")
-    print("configured.")
+            error_message = f"A view with name {view_name} already exists"
+            if not create_generic_view:
+                error_message += " and does not match the spec."
+            print(error_message)
+
+    if not create_generic_view:
+        print("The view name should be configured for data products in KBase Collections ")
+        print("at the same time the load version with the data matching the view specs is ")
+        print("configured.")
 
 
 async def _update_views(store: ArangoStorage):
@@ -188,11 +211,12 @@ async def _update_views(store: ArangoStorage):
     print("Checking ArangoSearch view status")
     for dp in data_product_specs.get_data_products():
         for dbc in dp.db_collections:
-            if dbc.view_required:
+            if dbc.view_required or dbc.generic_view_required:
                 await _create_view(
                     store,
                     dp.data_product,
                     dbc.name,
+                    create_generic_view=dbc.generic_view_required
                 )
 
 
