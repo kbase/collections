@@ -653,6 +653,13 @@ async def _mark_gtdb_matches_STARTS_WITH_strategy(
     # later
     # could also probably DRY up this and the above method
     # retries?
+    if not lineages:
+        # return no matches
+        await storage.update_match_state(
+            internal_match_id, models.ProcessState.COMPLETE, now_epoch_millis(), []
+        )
+        return
+
     mtch = names.FLD_MATCHES_SELECTIONS
     lin = names.FLD_GENOME_ATTRIBS_GTDB_LINEAGE
     aql = f"""
