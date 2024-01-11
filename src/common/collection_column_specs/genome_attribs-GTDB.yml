@@ -14,163 +14,257 @@ columns:
    - key: kbase_id
      type: string
      filter_strategy: identity
+     display_name: KBase ID
+     category: Identifiers
 
    - key: kbase_display_name
      type: string
      filter_strategy: ngram
+     display_name: KBase Name
+     category: Identifiers
 
    - key: accession
      type: string
      filter_strategy: identity  # this seems like a good candidate for substring
+     display_name: Accession
+     category: Identifiers
 
    - key: checkm_completeness
      type: float
+     display_name: CheckM Completeness
+     category: Quality
 
    - key: checkm_contamination
      type: float
+     display_name: CheckM Contamination
+     category: Quality
 
    - key: checkm_marker_count
      type: int
+     display_name: Number of CheckM Markers
+     category: Other
 
    - key: checkm_marker_lineage  # GTDB node, might need better tokenizing or substring search
      type: string
      filter_strategy: fulltext
+     display_name: CheckM Marker Lineage
+     category: Other
 
    - key: checkm_marker_set_count
      type: int
+     display_name: Number of CheckM Marker Sets
+     category: Other
 
    - key: contig_count
      type: int
+     display_name: Number of Contigs
+     category: Other
 
    - key: gc_count
      type: int
+     display_name: GC Count
+     category: Other
 
    - key: gc_percentage
      type: float
+     display_name: GC Content
+     category: Statistics
 
    - key: genome_size
      type: int
+     display_name: Genome Size
+     category: Statistics
 
    - key: classification  # GTDB classification, might need better tokenizing
      type: string
      filter_strategy: ngram
+     display_name: Classification
+     category: Taxonomy
 
    - key: longest_contig
      type: int
+     display_name: Longest Contig
+     category: Other
 
    - key: longest_scaffold
      type: int
+     display_name: Longest Scaffold
+     category: Other
 
    - key: mean_contig_length
      type: float
+     display_name: Mean Contig Length
+     category: Other
 
    - key: mean_scaffold_length
      type: float
+     display_name: Mean Scaffold Length
+     category: Other
 
    - key: mimag_high_quality  # is this a boolean? do we need a bool type & convert?
      type: string
      filter_strategy: identity
+     display_name: Mimag High Quality
+     category: Quality
 
    - key: mimag_low_quality  # is this a boolean? do we need a bool type & convert?
      type: string
      filter_strategy: identity
+     display_name: Mimag Low Quality
+     category: Quality
 
    - key: mimag_medium_quality  # is this a boolean? do we need a bool type & convert?
      type: string
      filter_strategy: identity
+     display_name: Mimag Medium Quality
+     category: Quality
 
    - key: n50_contigs
      type: int
+     display_name: N50 Contigs
+     category: Other
 
    - key: n50_scaffolds
      type: int
+     display_name: N50 Scaffolds
+     category: Other
 
    - key: ncbi_assembly_level
      type: string
      filter_strategy: fulltext
+     display_name: NCBI Assembly Level
+     category: Source
 
    - key: ncbi_assembly_name
      type: string
      filter_strategy: identity  # this seems like a good candidate for substring
+     display_name: NCBI Assembly Name
+     category: Other
 
    - key: ncbi_bioproject
      type: string
      filter_strategy: identity  # this seems like a good candidate for substring
+     display_name: NCBI BioProject
+     category: Source
 
    - key: ncbi_biosample
      type: string
      filter_strategy: identity  # this seems like a good candidate for substring
+     display_name: NCBI BioSample
+     category: Source
 
    - key: ncbi_country
      type: string
      filter_strategy: fulltext
+     display_name: NCBI Country
+     category: Other
 
    - key: ncbi_date  # should put all dates into ISO8601 format, but not add significance
      type: date
+     display_name: NCBI Date
+     category: Source
 
    - key: ncbi_genbank_assembly_accession
      type: string
      filter_strategy: identity  # this seems like a good candidate for substring
+     display_name: NCBI GenBank Assembly Accession
+     category: Other
 
    - key: ncbi_genome_category
      type: string
      filter_strategy: fulltext
+     display_name: NCBI Genome Category
+     category: Other
 
    - key: ncbi_isolate
      type: string
      filter_strategy: fulltext
+     display_name: NCBI Isolate
+     category: Other
 
    - key: ncbi_isolation_source
      type: string
      filter_strategy: fulltext
+     display_name: NCBI Isolation Source
+     category: Other
 
    - key: ncbi_lat_lon  # might want to do specialized processing here
      type: string
      filter_strategy: fulltext
+     display_name: NCBI Latitude/Longitude
+     category: Other
 
    - key: ncbi_organism_name
      type: string
      filter_strategy: fulltext
+     display_name: NCBI Organism Name
+     category: Taxonomy
 
    - key: ncbi_seq_rel_date  # should put all dates into ISO8601 format, but not add significance
      type: date
+     display_name: NCBI Sequence Release Date
+     category: Other
 
    - key: ncbi_species_taxid
      type: int
+     display_name: NCBI Species Taxon ID
+     category: Other
 
    - key: ncbi_strain_identifiers
      type: string
      filter_strategy: fulltext
+     display_name: NCBI Strain Identifiers
+     category: Other
 
    - key: ncbi_submitter
      type: string
      filter_strategy: fulltext
+     display_name: NCBI Submitter
+     category: Other
 
    - key: ncbi_taxid
      type: int
+     display_name: NCBI Taxon ID
+     category: Other
 
    - key: ncbi_taxonomy_unfiltered  # might need better tokenizing
      type: string
      filter_strategy: fulltext
+     display_name: NCBI Taxonomy (Unfiltered)
+     category: Other
 
    - key: protein_count
      type: int
+     display_name: Number of Protein Encoding Genes
+     category: Statistics
 
    - key: scaffold_count
      type: int
+     display_name: Number of Scaffolds
+     category: Other
 
    - key: ssu_count
      type: int
+     display_name: SSU Count
+     category: Other
 
    - key: ssu_length  # this looks like an int that's a string in the DB. Should we coerce?
      type: string
      filter_strategy: fulltext
+     display_name: SSU Length
+     category: Other
 
    - key: trna_aa_count
      type: int
+     display_name: tRNA AA Count
+     category: Other
 
    - key: trna_count
      type: int
+     display_name: Number of tRNA Genes
+     category: Statistics
 
    - key: trna_selenocysteine_count
      type: int
+     display_name: tRNA Selenocysteine Count
+     category: Other
