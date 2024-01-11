@@ -269,8 +269,7 @@ async def get_genome_attributes_meta(
     _, load_ver = await get_load_version(storage, collection_id, ID, load_ver_override, user)
     meta = await _get_genome_attributes_meta_internal(
         storage, collection_id, load_ver, load_ver_override)
-    meta.columns = [c for c in meta.columns
-                    if c.key not in COLLECTION_KEYS | {names.FLD_MATCHES_SELECTIONS}]
+    meta.columns = [c for c in meta.columns if not c.non_visible]
     return meta
 
 
