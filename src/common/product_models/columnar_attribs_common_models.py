@@ -35,6 +35,19 @@ class ColumnType(str, Enum):
     # TODO FILTERS do we need hidden?
 
 
+class ColumnCategory(str, Enum):
+    """
+    The category of a column.
+    """
+
+    IDENTIFIERS = "Identifiers"
+    QUALITY = "Quality"
+    TAXONOMY = "Taxonomy"
+    STATISTICS = "Statistics"
+    SOURCE = "Source"
+    OTHER = "Other"
+
+
 class FilterStrategy(str, Enum):
     """
     The strategy for filtering a column if the column type allows for more than one strategy.
@@ -51,7 +64,7 @@ class FilterStrategy(str, Enum):
 
 class AttributesColumnSpec(BaseModel):
     """
-    A specification for a a column in an attributes table.
+    A specification for a column in an attributes table.
     """
     key: str = Field(
         example="checkm_completeness",
@@ -65,6 +78,18 @@ class AttributesColumnSpec(BaseModel):
         example=FilterStrategy.PREFIX.value,
         description="The filter strategy for the column if any. Not all column types need "
             + "a filter strategy."
+    )] = None
+    display_name: Annotated[str | None, Field(
+        example="Completeness",
+        description="The display name of the column."
+    )] = None
+    category: Annotated[ColumnCategory | None, Field(
+        example=ColumnCategory.QUALITY.value,
+        description="The category of the column."
+    )] = None
+    description: Annotated[str | None, Field(
+        example="The completeness of the genome as determined by CheckM.",
+        description="The description of the column."
     )] = None
     
     @model_validator(mode="after")

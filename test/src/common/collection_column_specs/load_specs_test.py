@@ -4,6 +4,7 @@ from src.common.product_models.columnar_attribs_common_models import (
     FilterStrategy,
     ColumnarAttributesSpec,
     ColumnType,
+    ColumnCategory,
 )
 from pathlib import Path
 from pytest import raises
@@ -50,6 +51,11 @@ def test_all_specs_load_merge():
     
     ident = FilterStrategy.IDENTITY
     ngram = FilterStrategy.NGRAM
+
+    ident_cat = ColumnCategory.IDENTIFIERS
+    tax_cat = ColumnCategory.TAXONOMY
+    qual_cat = ColumnCategory.QUALITY
+    other_cat = ColumnCategory.OTHER
     
     spec = load_specs.load_spec("genome_attribs")
     assert {f.name for f in spec.spec_files} == {
@@ -58,14 +64,15 @@ def test_all_specs_load_merge():
     # just check a few fields
     key2spec = {c.key: c for c in spec.columns}
     assert key2spec["kbase_id"] == AttributesColumnSpec(
-        key="kbase_id", type=st, filter_strategy=ident)
+        key="kbase_id", type=st, filter_strategy=ident, display_name="KBase ID", category=ident_cat,)
     assert key2spec["classification"] == AttributesColumnSpec(
-            key="classification", type=st, filter_strategy=ngram)
-    assert key2spec["Contamination"] == AttributesColumnSpec(key="Contamination", type=ft)
+        key="classification", type=st, filter_strategy=ngram, display_name="Classification", category=tax_cat,)
+    assert key2spec["Contamination"] == AttributesColumnSpec(
+        key="Contamination", type=ft, display_name="CheckM Contamination", category=qual_cat,)
     assert key2spec["checkm_contamination"] == AttributesColumnSpec(
-            key="checkm_contamination", type=ft)
+        key="checkm_contamination", type=ft, display_name="CheckM Contamination", category=qual_cat,)
     assert key2spec["translation_table"] == AttributesColumnSpec(
-        key="translation_table", type=it)
+        key="translation_table", type=it, display_name="Translation Table", category=other_cat,)
     assert key2spec["_mtchsel"] == AttributesColumnSpec(
         key="_mtchsel", type=st, filter_strategy=ident)
 
@@ -77,6 +84,11 @@ def test_load_single_spec_from_toolchain():
     
     ident = FilterStrategy.IDENTITY
     ngram = FilterStrategy.NGRAM
+
+    ident_cat = ColumnCategory.IDENTIFIERS
+    tax_cat = ColumnCategory.TAXONOMY
+    qual_cat = ColumnCategory.QUALITY
+    other_cat = ColumnCategory.OTHER
     
     for col in ["GROW", "PMI", "ENIGMA"]:
         spec = load_specs.load_spec("genome_attribs", col)
@@ -85,12 +97,13 @@ def test_load_single_spec_from_toolchain():
         # just check a few fields
         key2spec = {c.key: c for c in spec.columns}
         assert key2spec["kbase_id"] == AttributesColumnSpec(
-            key="kbase_id", type=st, filter_strategy=ident)
-        assert key2spec["Contamination"] == AttributesColumnSpec(key="Contamination", type=ft)
+            key="kbase_id", type=st, filter_strategy=ident, display_name="KBase ID", category=ident_cat, )
+        assert key2spec["Contamination"] == AttributesColumnSpec(
+            key="Contamination", type=ft, display_name="CheckM Contamination", category=qual_cat,)
         assert key2spec["classification"] == AttributesColumnSpec(
-            key="classification", type=st, filter_strategy=ngram)
+            key="classification", type=st, filter_strategy=ngram, display_name="Classification", category=tax_cat, )
         assert key2spec["translation_table"] == AttributesColumnSpec(
-            key="translation_table", type=it)
+            key="translation_table", type=it, display_name="Translation Table", category=other_cat, )
 
 
 def test_no_specs():
