@@ -78,7 +78,8 @@ class AttributesColumnSpec(BaseModel):
     )] = None
     category: Annotated[str | None, Field(
         example="Quality",
-        description="The category of the column."
+        description="The category of the column. "
+            + "Required unless the column is non-visible."
     )] = None
     description: Annotated[str | None, Field(
         example="The completeness of the genome as determined by CheckM.",
