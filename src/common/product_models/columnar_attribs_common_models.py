@@ -66,6 +66,10 @@ class AttributesColumnSpec(BaseModel):
         description="The filter strategy for the column if any. Not all column types need "
             + "a filter strategy."
     )] = None
+    non_visible: Annotated[bool, Field(
+        example=False,
+        description="Whether the column is visible to the user."
+    )] = False
     display_name: Annotated[str | None, Field(
         example="Completeness",
         description="The display name of the column."
@@ -86,6 +90,13 @@ class AttributesColumnSpec(BaseModel):
                 raise ValueError("String types require a filter strategy")
         elif self.filter_strategy:
             raise ValueError("Only string types may have a filter strategy")
+        return self
+
+    @model_validator(mode="after")
+    def _check_visible_col(self) -> Self:
+        if not self.non_visible:
+            if not self.display_name or not self.category:
+                raise ValueError(f"Column {self.key} may not be non-visible and not have a display name or category")
         return self
 
 
