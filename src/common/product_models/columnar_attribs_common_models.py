@@ -35,19 +35,6 @@ class ColumnType(str, Enum):
     # TODO FILTERS do we need hidden?
 
 
-class ColumnCategory(str, Enum):
-    """
-    The category of a column.
-    """
-
-    IDENTIFIERS = "Identifiers"
-    QUALITY = "Quality"
-    TAXONOMY = "Taxonomy"
-    STATISTICS = "Statistics"
-    SOURCE = "Source"
-    OTHER = "Other"
-
-
 class FilterStrategy(str, Enum):
     """
     The strategy for filtering a column if the column type allows for more than one strategy.
@@ -83,8 +70,8 @@ class AttributesColumnSpec(BaseModel):
         example="Completeness",
         description="The display name of the column."
     )] = None
-    category: Annotated[ColumnCategory | None, Field(
-        example=ColumnCategory.QUALITY.value,
+    category: Annotated[str | None, Field(
+        example="Quality",
         description="The category of the column."
     )] = None
     description: Annotated[str | None, Field(
