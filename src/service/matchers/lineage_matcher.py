@@ -130,6 +130,7 @@ class GTDBLineageMatcher(Matcher):
                 )
             if lin:
                 lineages.add(str(lin))
+
         return CollectionProcess(
             process=_process_match,
             data_id=internal_match_id,
