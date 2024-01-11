@@ -2,19 +2,24 @@ columns:
    - key: coll
      type: string
      filter_strategy: identity
+     non_visible: true
 
    - key: load_ver
      type: string
      filter_strategy: identity
+     non_visible: true
 
    - key: foo
      type: string
      filter_strategy: identity
+     non_visible: true
 
    - key: baz
      type: float
+     non_visible: true
 
    - key: bar
      type: string
      filter_strategy: prefix
+     non_visible: true
 
