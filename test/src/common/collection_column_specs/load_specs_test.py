@@ -37,9 +37,9 @@ def test_all_specs_load_singular():
         assert spec.spec_files[0].name == f"{data_product}-{collection}.yml"
         key2spec = {c.key: c for c in spec.columns}
         assert key2spec["coll"] == AttributesColumnSpec(
-            key="coll", type=st, filter_strategy=ident)
+            key="coll", type=st, filter_strategy=ident, non_visible=True)
         assert key2spec["load_ver"] == AttributesColumnSpec(
-            key="load_ver", type=st, filter_strategy=ident)
+            key="load_ver", type=st, filter_strategy=ident, non_visible=True)
         
 
 
@@ -50,7 +50,7 @@ def test_all_specs_load_merge():
     
     ident = FilterStrategy.IDENTITY
     ngram = FilterStrategy.NGRAM
-    
+
     spec = load_specs.load_spec("genome_attribs")
     assert {f.name for f in spec.spec_files} == {
         f"genome_attribs-{col}.yml" for col in ["ENIGMA", "PMI", "GTDB", "GROW"]
@@ -58,16 +58,17 @@ def test_all_specs_load_merge():
     # just check a few fields
     key2spec = {c.key: c for c in spec.columns}
     assert key2spec["kbase_id"] == AttributesColumnSpec(
-        key="kbase_id", type=st, filter_strategy=ident)
+        key="kbase_id", type=st, filter_strategy=ident, display_name="KBase ID", category="Identifiers",)
     assert key2spec["classification"] == AttributesColumnSpec(
-            key="classification", type=st, filter_strategy=ngram)
-    assert key2spec["Contamination"] == AttributesColumnSpec(key="Contamination", type=ft)
+        key="classification", type=st, filter_strategy=ngram, display_name="Classification", category="Taxonomy",)
+    assert key2spec["Contamination"] == AttributesColumnSpec(
+        key="Contamination", type=ft, display_name="CheckM Contamination", category="Quality",)
     assert key2spec["checkm_contamination"] == AttributesColumnSpec(
-            key="checkm_contamination", type=ft)
+        key="checkm_contamination", type=ft, display_name="CheckM Contamination", category="Quality",)
     assert key2spec["translation_table"] == AttributesColumnSpec(
-        key="translation_table", type=it)
+        key="translation_table", type=it, display_name="Translation Table", category="Other",)
     assert key2spec["_mtchsel"] == AttributesColumnSpec(
-        key="_mtchsel", type=st, filter_strategy=ident)
+        key="_mtchsel", type=st, filter_strategy=ident, non_visible=True)
 
 
 def test_load_single_spec_from_toolchain():
@@ -85,12 +86,13 @@ def test_load_single_spec_from_toolchain():
         # just check a few fields
         key2spec = {c.key: c for c in spec.columns}
         assert key2spec["kbase_id"] == AttributesColumnSpec(
-            key="kbase_id", type=st, filter_strategy=ident)
-        assert key2spec["Contamination"] == AttributesColumnSpec(key="Contamination", type=ft)
+            key="kbase_id", type=st, filter_strategy=ident, display_name="KBase ID", category="Identifiers", )
+        assert key2spec["Contamination"] == AttributesColumnSpec(
+            key="Contamination", type=ft, display_name="CheckM Contamination", category="Quality",)
         assert key2spec["classification"] == AttributesColumnSpec(
-            key="classification", type=st, filter_strategy=ngram)
+            key="classification", type=st, filter_strategy=ngram, display_name="Classification", category="Taxonomy", )
         assert key2spec["translation_table"] == AttributesColumnSpec(
-            key="translation_table", type=it)
+            key="translation_table", type=it, display_name="Translation Table", category="Other", )
 
 
 def test_no_specs():

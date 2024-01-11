@@ -110,6 +110,7 @@ def transfer_col_heatmap_to_attribs(col: ColumnInformation) -> attribs_models.At
     return attribs_models.AttributesColumn(
         key=col.col_id,
         type=trans_column_type_heatmap_to_attribs(col.type),
+        non_visible=True,
     )
 
 
