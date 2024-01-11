@@ -68,7 +68,8 @@ class AttributesColumnSpec(BaseModel):
     )] = None
     non_visible: Annotated[bool, Field(
         example=False,
-        description="Whether the column is visible to the user."
+        description="Whether the column is visible to the user. "
+             + "If True, the display name and category fields are not required"
     )] = False
     display_name: Annotated[str | None, Field(
         example="Completeness",
