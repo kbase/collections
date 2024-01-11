@@ -305,13 +305,16 @@ async def mark_data_by_kbase_id(
     load_ver: str,
     kbase_ids: list[str],
     subset_internal_id: str,
+    multiple_ids: bool = False,
+    return_field: str = names.FLD_KBASE_ID
 ) -> list[str]:
     f"""
-    Mark data entries in a data product. Uses the special {names.FLD_KBASE_ID} field to find
-    data entries to mark.
+    Mark data entries in a data product. Uses the special {names.FLD_KBASE_ID} or
+    {names.FLD_KBASE_IDS} fields to find data entries to mark.
 
     It is strongly recommended to have a compound index on the fields
-    `{names.FLD_COLLECTION_ID}, {names.FLD_LOAD_VERSION}, {names.FLD_KBASE_ID}`.
+    `{names.FLD_COLLECTION_ID}, {names.FLD_LOAD_VERSION}, {names.FLD_KBASE_ID} /
+    {names.FLD_KBASE_IDS}`.
 
     The subset internal ID is added to the `{names.FLD_MATCHES_SELECTIONS}` field.
 
@@ -324,34 +327,50 @@ async def mark_data_by_kbase_id(
     kbase_ids - the ids to mark in the data set.
     subset_internal_id - the ID with with to mark the data entries in the data set, including
         any prefixes that might be necessary.
+    multiple_ids - queries against the {names.FLD_KBASE_IDS} field and expects to find a list
+        of ids in that field if True.
+    return_field - the field for which values will be returned for missing data. Detault
+        {names.FLD_KBASE_ID}.
     """
     # This should be batched up, most likely. Stupid implementation for now, batch up later
     # https://stackoverflow.com/a/57877288/643675 to start and wait for multiple async routines
     selfld = names.FLD_MATCHES_SELECTIONS
+    bind_vars = {
+        "@coll": collection,
+        "coll_id": collection_id,
+        "load_ver": load_ver,
+        "internal_id": subset_internal_id,
+        "retfield": return_field,
+    }
     aql = f"""
         FOR d IN @@coll
             FILTER d.{names.FLD_COLLECTION_ID} == @coll_id
-            FILTER d.{names.FLD_LOAD_VERSION} == @load_ver
-            FILTER d.{names.FLD_KBASE_ID} IN @kbase_ids
+            FILTER d.{names.FLD_LOAD_VERSION} == @load_ver"""
+    if not multiple_ids:
+        aql += f"""
+            FILTER d.{names.FLD_KBASE_ID} IN @kbase_ids"""
+        bind_vars["kbase_ids"] = kbase_ids
+    else:
+        lines = []
+        for i, kbid in enumerate(kbase_ids):  # ANY IN doesn't use indexes, so it's this mess
+            lines.append(f"@kbase_id{i} IN d.{names.FLD_KBASE_IDS}")
+            bind_vars[f"kbase_id{i}"] = kbid
+        aql += f"""
+            FILTER
+                """ + "\n                ||\n            ".join(lines)
+    aql += f"""
             UPDATE d WITH {{
                 {selfld}: APPEND(d.{selfld}, [@internal_id], true)
             }} IN @@coll
             OPTIONS {{exclusive: true}}
             LET updated = NEW
-            RETURN KEEP(updated, "{names.FLD_KBASE_ID}")
+            RETURN KEEP(updated, @retfield)
         """
-    bind_vars = {
-        "@coll": collection,
-        "coll_id": collection_id,
-        "load_ver": load_ver,
-        "kbase_ids": kbase_ids,
-        "internal_id": subset_internal_id,
-    }
     matched = set()
     cur = await storage.execute_aql(aql, bind_vars=bind_vars)
     try:
         async for d in cur:
-            matched.add(d[names.FLD_KBASE_ID])
+            matched.add(d[return_field])
     finally:
         await cur.close(ignore_missing=True)
     return sorted(set(kbase_ids) - matched)

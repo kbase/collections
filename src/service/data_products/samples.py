@@ -78,7 +78,7 @@ SAMPLES_SPEC = SamplesSpec(
                 [
                     names.FLD_COLLECTION_ID,
                     names.FLD_LOAD_VERSION,
-                    names.FLD_KBASE_ID,
+                    names.FLD_KB_SAMPLE_ID,
                     # Since this is the default sort option (see below), we specify an index
                     # for fast sorts since every time the user hits the UI for the first time
                     # or without specifying a sort order it'll sort on this field
@@ -86,8 +86,8 @@ SAMPLES_SPEC = SamplesSpec(
                 [
                     names.FLD_COLLECTION_ID,
                     names.FLD_LOAD_VERSION,
-                    names.FLD_KB_SAMPLE_ID,
-                    # Find samples
+                    names.FLD_KBASE_IDS,
+                    # Find kbase IDs for matching / selection marking
                 ],
                 [
                     names.FLD_COLLECTION_ID,
@@ -101,8 +101,8 @@ SAMPLES_SPEC = SamplesSpec(
                     names.FLD_LOAD_VERSION,
                     # https://www.arangodb.com/docs/stable/indexing-index-basics.html#indexing-array-values
                     names.FLD_MATCHES_SELECTIONS + "[*]",
-                    names.FLD_KBASE_ID,
-                    # for finding matches/selections, and opt a default sort on the kbase ID
+                    names.FLD_KB_SAMPLE_ID,
+                    # for finding matches/selections, and opt a default sort on the kbase sample ID
                 ],
                 [names.FLD_MATCHES_SELECTIONS + "[*]"]  # for deletion
             ]
@@ -117,6 +117,7 @@ def _remove_keys(doc):
     doc = remove_collection_keys(remove_arango_keys(doc))
     doc.pop(names.FLD_MATCHES_SELECTIONS, None)
     doc.pop(names.FLD_SAMPLE_GEO, None)
+    doc.pop(names.FLD_KBASE_IDS, None)
     return doc
 
 
@@ -164,18 +165,19 @@ class Samples(BaseModel):
 @_ROUTER.get(
     "/",
     response_model=SamplesTable,
-    description="Get the corresponding sample attributes for each data unit in the collection, "
-        + "which may differ from collection to collection. Note that data units may share "
-        + "samples - if so the sample information is duplicated in the table for each data unit."
-        + "\n\n "
+    description="Get the sample attributes for the data units in the collection, "
+        + "which may differ from collection to collection.\n\n"
         + "Authentication is not required unless submitting a match ID or overriding the load "
         + "version; in the latter case service administration permissions are required.\n\n"
-        + "When creating selections from samples, use the "
-        + f"`{names.FLD_KBASE_ID}` field values as input.")
+    # TODO SAMPLES - how should we support creating a selection from samples?
+)
 async def get_samples(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
-    sort_on: common_models.QUERY_VALIDATOR_SORT_ON = names.FLD_KBASE_ID,
+    sort_on: Annotated[str, Query(
+        example=names.FLD_KB_SAMPLE_ID,
+        description="The field to sort on."
+    )] = names.FLD_KB_SAMPLE_ID,
     sort_desc: common_models.QUERY_VALIDATOR_SORT_DIRECTION = False,
     skip: common_models.QUERY_VALIDATOR_SKIP = 0,
     limit: common_models.QUERY_VALIDATOR_LIMIT = 1000,
@@ -203,6 +205,8 @@ async def get_samples(
         load_ver_override=load_ver_override,
         match_id=match_id,
         selection_id=selection_id,
+        multiple_ids=True,
+        return_field=names.FLD_KB_SAMPLE_ID,
     )
     if status_only:
         return _response(dp_match=dp_match, dp_sel=dp_sel)
@@ -293,6 +297,7 @@ async def get_sample_locations(
     # might need to return a bare Response if the pydantic checking gets too expensive
     # might need some sort of pagination
     appstate = app_state.get_app_state(r)
+    # TODO SAMPLES need to redo this to work with flat samples
     load_ver, dp_match, dp_sel = await get_load_version_and_processes(
         appstate,
         user,
@@ -353,6 +358,7 @@ async def _query_location(
         aql += f"""
             FILTER @internal_selection_id IN d.{names.FLD_MATCHES_SELECTIONS}
         """
+    # TODO SAMPLES need to redo this 
     if include_sample_ids:
         aql += f"""
             COLLECT lat = d.{names.FLD_SAMPLE_LATITUDE}, lon = d.{names.FLD_SAMPLE_LONGITUDE}
@@ -424,17 +430,11 @@ async def get_samples_by_id(
         "sampleids": list(sample_ids)
     }
     aql = f"""
-        FOR id IN @sampleids
-            LET doc = (
-                FOR d IN @@coll
-                    FILTER d.{names.FLD_COLLECTION_ID} == @coll_id
-                    FILTER d.{names.FLD_LOAD_VERSION} == @load_ver
-                    FILTER d.{names.FLD_KB_SAMPLE_ID} == id
-                    LIMIT 1
-                    RETURN d
-            )
-            FILTER doc[0] != null
-            RETURN doc[0]
+        FOR d IN @@coll
+            FILTER d.{names.FLD_COLLECTION_ID} == @coll_id
+            FILTER d.{names.FLD_LOAD_VERSION} == @load_ver
+            FILTER d.{names.FLD_KB_SAMPLE_ID} IN @sampleids
+            RETURN d
     """
     res = []
     found_ids = set()
@@ -442,17 +442,17 @@ async def get_samples_by_id(
     try:
         async for d in cur:
             d = _remove_keys(d)
-            d.pop(names.FLD_KBASE_ID)
             res.append(d)
             found_ids.add(d[names.FLD_KB_SAMPLE_ID])
     finally:
         await cur.close(ignore_missing=True)
-    if sample_ids - found_ids:
+    missing_ids = sample_ids - found_ids
+    if missing_ids:
         err = f"Some provided sample IDs were not found in {collection_id} load version {load_ver}"
-        if len(sample_ids) <= 10:
-            err += f": {sorted(sample_ids)}"
+        if len(missing_ids) <= 10:
+            err += f": {sorted(missing_ids)}"
         else:
-            err += f"; showing 10: {list(sorted(sample_ids))[:10]}"
+            err += f"; showing 10: {list(sorted(missing_ids))[:10]}"
         raise errors.NoDataFoundError(err)
     return Samples(samples=res)
 
@@ -471,6 +471,7 @@ async def get_missing_ids(
     selection_id: Annotated[str, Query(description="A selection ID.")] = None,
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH),
 ) -> common_models.DataProductMissingIDs:
+    # TODO SAMPLES this needs to be updated to handle samples correctly
     return await _get_missing_ids(
         app_state.get_app_state(r),
         names.COLL_SAMPLES,
