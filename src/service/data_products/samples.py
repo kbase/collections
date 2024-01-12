@@ -470,7 +470,6 @@ async def get_missing_ids(
     selection_id: Annotated[str, Query(description="A selection ID.")] = None,
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH),
 ) -> common_models.DataProductMissingIDs:
-    # TODO SAMPLES this needs to be updated to handle samples correctly
     return await _get_missing_ids(
         app_state.get_app_state(r),
         names.COLL_SAMPLES,
@@ -479,4 +478,5 @@ async def get_missing_ids(
         match_id=match_id,
         selection_id=selection_id,
         user=user,
+        multiple_ids=True,
     )

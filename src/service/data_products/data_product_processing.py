@@ -128,6 +128,7 @@ async def get_missing_ids(
     match_id: str | None = None,
     selection_id: str | None = None,
     user: kb_auth.KBaseUser | None = None,
+    multiple_ids: bool = False,
 ) -> DataProductMissingIDs:
     """
     Get missing IDs from a match or selection. If the match and or selection is not complete
@@ -147,6 +148,8 @@ async def get_missing_ids(
         applied to the data product / collection_id combination, a new process will be started
         to to so.
     user - the user requesting the information. Required if a match ID is supplied.
+    multiple_ids - if True, the {names.FLD_KBASE_IDS} will be the query target and a list
+        of ids expected as the contents of that field.
     """
     if not match_id and not selection_id:
         raise errors.IllegalParameterError(
@@ -159,6 +162,7 @@ async def get_missing_ids(
         data_product,
         match_id=match_id,
         selection_id=selection_id,
+        multiple_ids=multiple_ids,
     )
     return DataProductMissingIDs(
         match_state=dp_match.state if dp_match else None,
