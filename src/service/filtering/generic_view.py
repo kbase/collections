@@ -4,6 +4,7 @@ _FIELD_COL = {
     "kbase_display_name": {
         "type": "string",
         "filter_strategy": "ngram",
+        "non_visible": True,
     }
 }
 
