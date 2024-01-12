@@ -206,7 +206,6 @@ async def get_samples(
         match_id=match_id,
         selection_id=selection_id,
         multiple_ids=True,
-        return_field=names.FLD_KB_SAMPLE_ID,
     )
     if status_only:
         return _response(dp_match=dp_match, dp_sel=dp_sel)

@@ -43,7 +43,6 @@ async def get_load_version_and_processes( # pretty huge method sig here
     match_id: str | None = None,
     selection_id: str | None = None,
     multiple_ids: bool = False,
-    return_field: str = names.FLD_KBASE_ID,
 ) -> tuple[str, models.DataProductProcess, models.DataProductProcess]:
     f"""
     Get the appropriate load version to use when querying data along with match and / or selection
@@ -73,8 +72,6 @@ async def get_load_version_and_processes( # pretty huge method sig here
         to to so. Otherwise, the process state will be returned in the 3rd item in the tuple.
     multiple_ids - if True, the {names.FLD_KBASE_IDS} will be the query target and a list
         of ids expected as the contents of that field.
-    return_field - the field for which values will be returned for missing data. Detault
-        {names.FLD_KBASE_ID}.
     """
     # This method is getting pretty stupidly complex. Not quite sure how to deal with it
     # right now.
@@ -89,12 +86,12 @@ async def get_load_version_and_processes( # pretty huge method sig here
     if match_id:
         dp_match = await processing_matches.get_or_create_data_product_match_process(
             appstate, coll, user, match_id, data_product,
-            partial(_process_subset, collection, multiple_ids, return_field)
+            partial(_process_subset, collection, multiple_ids)
         )
     if selection_id:
         dp_sel = await processing_selections.get_or_create_data_product_selection_process(
             appstate, coll, selection_id, data_product,
-            partial(_process_subset, collection, multiple_ids, return_field)
+            partial(_process_subset, collection, multiple_ids)
         )
     return load_ver, dp_match, dp_sel
 
@@ -102,7 +99,6 @@ async def get_load_version_and_processes( # pretty huge method sig here
 async def _process_subset(
     collection: str,
     multiple_ids: bool,
-    return_field: str,
     deps: PickleableDependencies,
     storage: ArangoStorage,
     match_or_sel: models.InternalMatch | models.InternalSelection,
@@ -118,7 +114,6 @@ async def _process_subset(
         match_or_sel.matches if dpid.is_match() else match_or_sel.selection_ids,
         (MATCH_ID_PREFIX if dpid.is_match() else SELECTION_ID_PREFIX) + dpid.internal_id,
         multiple_ids=multiple_ids,
-        return_field=return_field,
     )
     await storage.update_data_product_process_state(
         dpid, models.ProcessState.COMPLETE, deps.get_epoch_ms(), missing_ids=missed
