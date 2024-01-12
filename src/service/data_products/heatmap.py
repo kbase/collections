@@ -290,6 +290,7 @@ GET <host>/collections/PMI/data_products/{self._id}/?filter_kbase_id=69278_1006_
                 key=col_name,
                 type=column_type,
                 filter_strategy=filter_strategy,
+                non_visible=True
             ))
 
     async def _get_heatmap_columns(

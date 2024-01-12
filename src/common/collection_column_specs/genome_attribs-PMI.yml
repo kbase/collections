@@ -2,97 +2,172 @@ columns:
    - key: coll
      type: string
      filter_strategy: identity
+     non_visible: true
 
    - key: load_ver
      type: string
      filter_strategy: identity
+     non_visible: true
 
    - key: _mtchsel
      type: string
      filter_strategy: identity
+     non_visible: true
 
    - key: kbase_id
      type: string
      filter_strategy: identity
+     display_name: KBase ID
+     category: Identifiers
+     description:
 
    - key: kbase_sample_id
      type: string
      filter_strategy: identity
+     display_name: KBase Sample ID
+     category: Identifiers
+     description:
 
    - key: kbase_display_name
      type: string
      filter_strategy: ngram
+     display_name: KBase Name
+     category: Identifiers
+     description:
 
    - key: kbase_genome_size
      type: int
+     display_name: Genome Size (KBase)
+     category: Statistics
+     description:
 
    - key: kbase_gc_content
      type: float
+     display_name: GC Content (KBase)
+     category: Statistics
+     description:
 
    - key: kbase_num_contigs
      type: int
+     display_name: Number of Contigs (KBase)
+     category: Statistics
+     description:
 
    - key: kbase_num_cds
      type: int
+     display_name: Number of CDS (KBase)
+     category: Statistics
+     description:
 
    - key: kbase_num_protein_encoding_genes
      type: int
+     display_name: Number of Protein Encoding Genes (KBase)
+     category: Statistics
+     description:
 
    - key: Contamination  # checkm2  # GTDB is checkm_contamination
      type: float
+     display_name: CheckM Contamination
+     category: Quality
+     description:
    
    - key: Completeness  # checkm2  # GTDB is checkm_completeness
      type: float
+     display_name: CheckM Completeness
+     category: Quality
+     description:
    
    - key: user_genome  # id provided to GTDB_tk
      type: string
      filter_strategy: identity
+     display_name: User Genome
+     category: Other
+     description:
    
    - key: classification  # GTDB classification, might need better tokenizing
      type: string
      filter_strategy: ngram
+     display_name: Classification
+     category: Taxonomy
+     description:
    
    - key: fastani_reference  # e.g. the genbank accession
      type: string
      filter_strategy: identity  # this seems like a good candidate for substring
+     display_name: FastANI Reference
+     category: Other
+     description:
 
    - key: fastani_reference_radius
      type: float
+     display_name: FastANI Reference Radius
+     category: Other
+     description:
 
    - key: fastani_taxonomy  # might need better tokenizing
      type: string
      filter_strategy: fulltext
+     display_name: FastANI Taxonomy
+     category: Other
+     description:
 
    - key: fastani_ani
      type: float
+     display_name: FastANI ANI
+     category: Other
+     description:
 
    - key: fastani_af
      type: float
+     display_name: FastANI AF
+     category: Other
+     description:
 
    - key: closest_placement_reference  # genbank accession
      type: string
      filter_strategy: identity  # this seems like a good candidate for substring
+     display_name: Closest Placement Reference
+     category: Other
+     description:
 
    - key: closest_placement_radius
      type: float
+     display_name: Closest Placement Radius
+     category: Other
+     description:
 
    - key: closest_placement_ani
      type: float
+     display_name: Closest Placement ANI
+     category: Other
+     description:
 
    - key: closest_placement_af
      type: float
+     display_name: Closest Placement AF
+     category: Other
+     description:
 
    - key: pplacer_taxonomy  # might need better tokenizing
      type: string
      filter_strategy: fulltext
+     display_name: pplacer Taxonomy
+     category: Other
+     description:
 
    - key: classification_method
      type: string
      filter_strategy: fulltext
+     display_name: Classification Method
+     category: Taxonomy
+     description:
 
    - key: note
      type: string
      filter_strategy: fulltext
+     display_name: Note
+     category: Other
+     description:
 
    # this field probably needs special processing as it's a list of accessions with
    # an array of associated numbers. It might even be best not to include it in search for
@@ -100,17 +175,32 @@ columns:
    - key: other_related_references(genome_id,species_name,radius,ANI,AF)
      type: string
      filter_strategy: fulltext
+     display_name: Other Related References
+     category: Other
+     description:
 
    - key: msa_percent
      type: float
+     display_name: MSA Percent
+     category: Other
+     description:
 
    - key: translation_table
      type: int
+     display_name: Translation Table
+     category: Other
+     description:
 
    - key: red_value  # not sure what this is
      type: string
      filter_strategy: fulltext
+     display_name: Red Value
+     category: Other
+     description:
 
    - key: warnings
      type: string
      filter_strategy: fulltext
+     display_name: Warnings
+     category: Other
+     description:
