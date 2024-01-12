@@ -86,7 +86,8 @@ SAMPLES_SPEC = SamplesSpec(
                 [
                     names.FLD_COLLECTION_ID,
                     names.FLD_LOAD_VERSION,
-                    names.FLD_KBASE_IDS,
+                    # https://www.arangodb.com/docs/stable/indexing-index-basics.html#indexing-array-values
+                    names.FLD_KBASE_IDS + "[*]",
                     # Find kbase IDs for matching / selection marking
                 ],
                 [
@@ -99,7 +100,6 @@ SAMPLES_SPEC = SamplesSpec(
                 [
                     names.FLD_COLLECTION_ID,
                     names.FLD_LOAD_VERSION,
-                    # https://www.arangodb.com/docs/stable/indexing-index-basics.html#indexing-array-values
                     names.FLD_MATCHES_SELECTIONS + "[*]",
                     names.FLD_KB_DISPLAY_NAME,
                     # for finding matches/selections, and opt a default sort on the kbase sample ID
