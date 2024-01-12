@@ -296,7 +296,6 @@ async def get_sample_locations(
     # might need to return a bare Response if the pydantic checking gets too expensive
     # might need some sort of pagination
     appstate = app_state.get_app_state(r)
-    # TODO SAMPLES need to redo this to work with flat samples
     load_ver, dp_match, dp_sel = await get_load_version_and_processes(
         appstate,
         user,
@@ -306,6 +305,7 @@ async def get_sample_locations(
         load_ver_override=load_ver_override,
         match_id=match_id,
         selection_id=selection_id,
+        multiple_ids=True,
     )
     if status_only:
         return _location_response(dp_match=dp_match, dp_sel=dp_sel)
@@ -332,7 +332,7 @@ async def _query_location(
     dp_match: models.DataProductProcess = None,
     dp_sel: models.DataProductProcess = None,
     include_sample_ids = False,
-):
+) -> SampleLocation:
     internal_match_id = _get_subset_id(dp_match, MATCH_ID_PREFIX)
     internal_selection_id = _get_subset_id(dp_sel, SELECTION_ID_PREFIX)
     bind_vars = {
@@ -357,11 +357,11 @@ async def _query_location(
         aql += f"""
             FILTER @internal_selection_id IN d.{names.FLD_MATCHES_SELECTIONS}
         """
-    # TODO SAMPLES need to redo this 
     if include_sample_ids:
         aql += f"""
             COLLECT lat = d.{names.FLD_SAMPLE_LATITUDE}, lon = d.{names.FLD_SAMPLE_LONGITUDE}
-                AGGREGATE sampleids = UNIQUE(d.{names.FLD_KB_SAMPLE_ID}), count = COUNT(d)
+                AGGREGATE sampleids = UNIQUE(d.{names.FLD_KB_SAMPLE_ID}),
+                          count = SUM(d.{names.FLD_KB_GENOME_COUNT})
             RETURN {{
                 "lat": lat,
                 "lon": lon,
@@ -372,7 +372,7 @@ async def _query_location(
     else:
         aql += f"""
             COLLECT lat = d.{names.FLD_SAMPLE_LATITUDE}, lon = d.{names.FLD_SAMPLE_LONGITUDE}
-                WITH COUNT INTO count
+                AGGREGATE count = SUM(d.{names.FLD_KB_GENOME_COUNT})
             RETURN {{
                 "lat": lat,
                 "lon": lon,
