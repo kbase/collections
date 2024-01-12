@@ -78,7 +78,7 @@ SAMPLES_SPEC = SamplesSpec(
                 [
                     names.FLD_COLLECTION_ID,
                     names.FLD_LOAD_VERSION,
-                    names.FLD_KB_SAMPLE_ID,
+                    names.FLD_KB_DISPLAY_NAME,
                     # Since this is the default sort option (see below), we specify an index
                     # for fast sorts since every time the user hits the UI for the first time
                     # or without specifying a sort order it'll sort on this field
@@ -101,7 +101,7 @@ SAMPLES_SPEC = SamplesSpec(
                     names.FLD_LOAD_VERSION,
                     # https://www.arangodb.com/docs/stable/indexing-index-basics.html#indexing-array-values
                     names.FLD_MATCHES_SELECTIONS + "[*]",
-                    names.FLD_KB_SAMPLE_ID,
+                    names.FLD_KB_DISPLAY_NAME,
                     # for finding matches/selections, and opt a default sort on the kbase sample ID
                 ],
                 [names.FLD_MATCHES_SELECTIONS + "[*]"]  # for deletion
@@ -175,9 +175,9 @@ async def get_samples(
     r: Request,
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     sort_on: Annotated[str, Query(
-        example=names.FLD_KB_SAMPLE_ID,
+        example=names.FLD_KB_DISPLAY_NAME,
         description="The field to sort on."
-    )] = names.FLD_KB_SAMPLE_ID,
+    )] = names.FLD_KB_DISPLAY_NAME,
     sort_desc: common_models.QUERY_VALIDATOR_SORT_DIRECTION = False,
     skip: common_models.QUERY_VALIDATOR_SKIP = 0,
     limit: common_models.QUERY_VALIDATOR_LIMIT = 1000,
