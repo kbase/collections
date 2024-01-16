@@ -240,6 +240,10 @@ class Collection(BaseModel):
             }
         )
     ] = None
+    metadata: Annotated[dict[str, str | int | float] | None, Field(
+        example={"release_date": "04-28-2023"},
+        description="Optional metadata for the collection. The contents of this field are arbitrary."
+    )] = None
 
     @field_validator("name", "ver_src", mode="before")
     @classmethod
