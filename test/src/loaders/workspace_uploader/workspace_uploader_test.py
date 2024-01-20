@@ -64,7 +64,7 @@ def test_get_yaml_file_path(setup_and_teardown):
     assembly_dir = params.assembly_dirs[0]
     yaml_path = workspace_uploader._get_yaml_file_path(assembly_dir)
 
-    expected_yaml_path = os.path.join(assembly_dir, workspace_uploader.UPLOADED_YAML)
+    expected_yaml_path = os.path.join(assembly_dir, workspace_uploader._UPLOADED_YAML)
     assert expected_yaml_path == yaml_path
     assert os.path.exists(yaml_path)
 
@@ -129,7 +129,7 @@ def test_fetch_assemblies_to_upload(setup_and_teardown):
         12345,
         "214",
         collection_source_dir,
-        workspace_uploader.UPLOAD_FILE_EXT,
+        workspace_uploader._UPLOAD_FILE_EXT,
     )
 
     expected_count = len(ASSEMBLY_NAMES)
@@ -158,7 +158,7 @@ def test_fetch_assemblies_to_upload(setup_and_teardown):
         12345,
         "214",
         collection_source_dir,
-        workspace_uploader.UPLOAD_FILE_EXT,
+        workspace_uploader._UPLOAD_FILE_EXT,
     )
 
     assert expected_count == new_count
