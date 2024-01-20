@@ -87,9 +87,9 @@ def test_read_upload_status_yaml_file(setup_and_teardown):
     data, uploaded = workspace_uploader._read_upload_status_yaml_file(
         "CI", 12345, "214", assembly_dir, assembly_name
     )
-
-    expected_data = {"CI": {12345: {"214": dict()}}}
-
+    expected_data = {
+        "CI": {12345: {"file_name": assembly_name, "loads": {}}}
+    }
     assert not uploaded
     assert expected_data == data
 
@@ -107,7 +107,7 @@ def test_update_upload_status_yaml_file(setup_and_teardown):
     )
 
     expected_data = {
-        "CI": {12345: {"214": {"file_name": assembly_name, "upa": "12345_58_1"}}}
+        "CI": {12345: {"file_name": assembly_name, "loads": {"214": {"upa": "12345_58_1"}}}}
     }
 
     assert uploaded
@@ -195,7 +195,7 @@ def test_post_process(setup_and_teardown):
     host_assembly_dir = params.assembly_dirs[0]
     assembly_name = ASSEMBLY_NAMES[0]
     src_file = params.target_files[0]
-    assembly_tuple = workspace_uploader.AssemblyTuple(
+    assembly_tuple = workspace_uploader._AssemblyTuple(
         assembly_name, host_assembly_dir, "/path/to/file/in/AssembilyUtil"
     )
 
@@ -213,7 +213,7 @@ def test_post_process(setup_and_teardown):
         "CI", 88888, "214", host_assembly_dir, assembly_name
     )
     expected_data = {
-        "CI": {88888: {"214": {"file_name": assembly_name, "upa": "12345_58_1"}}}
+        "CI": {88888: {"file_name": assembly_name, "loads": {"214": {"upa": "12345_58_1"}}}}
     }
 
     dest_file = os.path.join(
@@ -237,10 +237,12 @@ def test_upload_assembly_to_workspace(setup_and_teardown):
 
     asu = create_autospec(AssemblyUtil, spec_set=True, instance=True)
     asu.save_assemblies_from_fastas.return_value = {"results":[{"upa": "12345/58/1"}]}
-    assembly_tuple = workspace_uploader.AssemblyTuple(
+    assembly_tuple = workspace_uploader._AssemblyTuple(
         assembly_name, host_assembly_dir, "/path/to/file/in/AssembilyUtil"
     )
-    upas = workspace_uploader._upload_assemblies_to_workspace(asu, 12345, [assembly_tuple])
+    upas = workspace_uploader._upload_assemblies_to_workspace(
+        asu, 12345, "214", [assembly_tuple]
+    )
     assert upas == tuple(["12345_58_1"])
     asu.save_assemblies_from_fastas.assert_called_once_with(
         {
@@ -248,7 +250,8 @@ def test_upload_assembly_to_workspace(setup_and_teardown):
             "inputs": [
                 {
                     "file": assembly_tuple.container_internal_assembly_path,
-                    "assembly_name": assembly_tuple.assembly_name
+                    "assembly_name": assembly_tuple.assembly_name,
+                    "object_metadata": {"load_id": "214"},
                 }
             ]
         }
@@ -265,14 +268,14 @@ def test_generator(setup_and_teardown):
     assemblyTuple_list = list(workspace_uploader._gen(wait_to_upload_assemblies, 1))
     expected_assemblyTuple_list = [
         [
-            workspace_uploader.AssemblyTuple(
+            workspace_uploader._AssemblyTuple(
                 "GCF_000979855.1_gtlEnvA5udCFS_genomic.fna.gz",
                 assembly_dirs[0],
                 "/kb/module/work/tmp/GCF_000979855.1_gtlEnvA5udCFS_genomic.fna.gz",
             )
         ],
         [
-            workspace_uploader.AssemblyTuple(
+            workspace_uploader._AssemblyTuple(
                 "GCF_000979175.1_gtlEnvA5udCFS_genomic.fna.gz",
                 assembly_dirs[1],
                 "/kb/module/work/tmp/GCF_000979175.1_gtlEnvA5udCFS_genomic.fna.gz",
@@ -370,3 +373,78 @@ def test_fail_upload_assembly_files_in_parallel(setup_and_teardown):
     )
 
     assert uploaded_count == 0
+
+
+def test_query_workspace_with_load_id_mass(setup_and_teardown):
+    ws = create_autospec(Workspace, spec_set=True, instance=True)
+    with pytest.raises(
+        Exception, match="The effective max batch size must be <= 10000"
+    ):
+        workspace_uploader._query_workspace_with_load_id_mass(
+            ws,
+            12345,
+            "214",
+            [str(num) for num in range(100001)],
+            10001,
+        )
+
+    # happy test
+    ws.get_object_info3.return_value = {
+        'infos': [
+                    [
+                        1086,
+                        'GCF_000980105.1_gtlEnvA5udCFS_genomic.fna.gz',
+                        'KBaseGenomeAnnotations.Assembly-6.3',
+                        '2024-01-18T23:12:44+0000',
+                        18,
+                        'sijiex',
+                        69046,
+                        'sijiex:narrative_1688077625427',
+                        'aaa726d2b976e27e729ac288812e81f6',
+                        71823,
+                        {
+                            'GC content': '0.41571',
+                            'Size': '4079204',
+                            'N Contigs': '260',
+                            'MD5': '8aa6b1244e18c4f93bb3307902bd3a4d',
+                            "load_id": "998"
+                        }
+                    ],
+                    [
+                        1068,
+                        'GCF_000979375.1_gtlEnvA5udCFS_genomic.fna.gz',
+                        'KBaseGenomeAnnotations.Assembly-6.3',
+                        '2024-01-18T23:12:35+0000',
+                        18,
+                        'sijiex',
+                        69046,
+                        'sijiex:narrative_1688077625427',
+                        '866033827fd54569c953e8b3dd58d0aa',
+                        38242,
+                        {
+                            'GC content': '0.41526',
+                            'Size': '4092300',
+                            'N Contigs': '136',
+                            'MD5': '1e007bad0811a6d6e09a882d3bf802ab',
+                            "load_id": "998"
+                        }
+                    ],
+                    None],
+        'paths': [['69046/1086/18'], ['69046/1068/18'], None]
+    }
+
+    obj_names, obj_upas = workspace_uploader._query_workspace_with_load_id_mass(
+        ws,
+        69046,
+        "998",
+        [
+            "GCF_000980105.1_gtlEnvA5udCFS_genomic.fna.gz",
+            "GCF_000979375.1_gtlEnvA5udCFS_genomic.fna.gz",
+            "aloha",
+        ]
+    )
+    assert obj_names == [
+        "GCF_000980105.1_gtlEnvA5udCFS_genomic.fna.gz",
+        "GCF_000979375.1_gtlEnvA5udCFS_genomic.fna.gz",
+    ]
+    assert obj_upas == ["69046_1086_18", "69046_1068_18"]
