@@ -325,6 +325,11 @@ FLD_SAMPLE_GEO = '_geo_spatial'
 FLD_KB_SAMPLE_ID = "kbase_sample_id"
 """ Key name for KBase sample id """
 
+FLD_KBASE_IDS = "kbase_ids"
+""" Key name for KBase data ids - list of associated KBase data ids """
+
+FLD_KB_GENOME_COUNT = "genome_count"
+""" Key name for genome count associated with a sample """
 
 ### biolog
 

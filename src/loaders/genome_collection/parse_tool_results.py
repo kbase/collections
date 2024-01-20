@@ -44,7 +44,9 @@ import os
 import shutil
 import sys
 import tempfile
+from collections import defaultdict
 from pathlib import Path
+from typing import Any
 
 import jsonlines
 import pandas as pd
@@ -61,6 +63,7 @@ from src.common.product_models.heatmap_common_models import (
     FIELD_HEATMAP_MAX_VALUE,
     FIELD_HEATMAP_CELL_VALUE,
     FIELD_HEATMAP_COUNT,
+    transform_heatmap_row_cells,
 )
 from src.common.storage.db_doc_conversions import (
     collection_load_version_key,
@@ -135,6 +138,30 @@ def _read_metadata_file(meta_filename: str) -> dict:
     return meta_info
 
 
+def _get_genome_obj_meta(
+        genome_info: list[Any],
+) -> dict[str, Any]:
+    # retrieves workspace genome object metadata and convert it to a dict with parsed values
+
+    if not genome_info:
+        raise ValueError(f"Retrieved empty genome info for {'{6}/{0}/{4}'.format(*genome_info)}")
+
+    kb_genome_meta = genome_info[10]
+    if type(kb_genome_meta) is not dict:
+        raise ValueError(f"Expected genome metadata to be a dict, got {type(kb_genome_meta)}: {kb_genome_meta}")
+
+    parsed_genome_meta = {
+        # The tuple in the map is
+        # (<kbase name for the metadata attribute>, <type conversion fn, e.g. int or float>)
+        loader_common_names.GENOME_WS_META_NAME_MAP[kb_meta_name][0]:
+            loader_common_names.GENOME_WS_META_NAME_MAP[kb_meta_name][1](kb_genome_meta.get(kb_meta_name))
+            if kb_genome_meta.get(kb_meta_name) else None
+        for kb_meta_name in loader_common_names.GENOME_WS_META_NAME_MAP
+    }
+
+    return parsed_genome_meta
+
+
 def _update_docs_with_meta_info(res_dict, meta_lookup, check_genome):
     # Update original docs with meta data information such as UPA information through a meta hashmap and
     # other information such as kbase_display_name, etc.
@@ -161,6 +188,9 @@ def _update_docs_with_meta_info(res_dict, meta_lookup, check_genome):
             raise ValueError(f'There is no genome_upa for assembly {meta_info[loader_common_names.FLD_KB_OBJ_UPA]}')
 
         res_dict[genome_id].update({names.FLD_UPA_MAP: upa_dict})
+
+        # add Genome WS object metadata info
+        res_dict[genome_id].update(_get_genome_obj_meta(meta_info.get(loader_common_names.GENOME_OBJ_INFO_KEY)))
 
     docs = list(res_dict.values())
     return docs, encountered_types
@@ -514,6 +544,10 @@ def microtrait(root_dir, env, kbase_collection, load_ver, fatal_ids):
                         min_value = min(min_value, cell_val)
                         max_value = max(max_value, cell_val)
 
+                    # transform heatmap row cells structure due to Arango nested search is not supported in the
+                    # Community Edition
+                    transform_heatmap_row_cells(data)
+
                     meta_info = _read_metadata_file(meta_lookup[data_id])
                     data[names.FLD_KB_DISPLAY_NAME] = meta_info.get(loader_common_names.FLD_KB_OBJ_NAME)
                     heatmap_rows.append(dict(data,
@@ -538,6 +572,42 @@ def microtrait(root_dir, env, kbase_collection, load_ver, fatal_ids):
     return heatmap_meta, heatmap_rows, heatmap_cell_details
 
 
+def _flat_samples_data(prepared_samples_data: list[dict]) -> list[dict]:
+    # Flatten the sample data to a list of documents with each document containing a single sample
+    #
+    # Parameters:
+    # The 'prepared_samples_data' variable from the previous step comprises a list of dictionaries formatted
+    # for ArangoDB import, each containing sample data for a single genome marked as 'kbase_id'.
+    # Consequently, some entries in the list may contain identical sample data.
+    #
+    # Return:
+    # This function flattens the sample data into a list of dictionaries. Each dictionary retains identical sample data,
+    # accompanied by a list of all associated genomes marked as 'kbase_ids' (replacing 'kbase_id' field).
+    # Additionally, the function introduces a 'genome_count' field and regenerates the '_key' field for each dictionary.
+    # All other fields, such as '_mtchsel', 'coll', 'load_ver', and the sample data fields, remain unchanged from the input.
+
+    flatten_samples_data = defaultdict(lambda: {names.FLD_KBASE_IDS: list()})
+
+    for sample_data in prepared_samples_data:
+        kbase_sample_id = sample_data[names.FLD_KB_SAMPLE_ID]
+        kbase_id = sample_data[names.FLD_KBASE_ID]
+
+        if not flatten_samples_data[kbase_sample_id].get(names.FLD_KBASE_IDS):
+            flatten_samples_data[kbase_sample_id].update(sample_data)
+
+        flatten_samples_data[kbase_sample_id][names.FLD_KBASE_IDS].append(kbase_id)
+
+    # Generate new _key and add genome count for each unique entry
+    for entry in flatten_samples_data.values():
+        entry[names.FLD_ARANGO_KEY] = collection_data_id_key(entry[names.FLD_COLLECTION_ID],
+                                                             entry[names.FLD_LOAD_VERSION],
+                                                             entry[names.FLD_KB_SAMPLE_ID])
+        entry[names.FLD_KB_GENOME_COUNT] = len(entry[names.FLD_KBASE_IDS])
+        del entry[names.FLD_KBASE_ID]
+
+    return flatten_samples_data.values()
+
+
 def _retrieve_sample(root_dir, env, kbase_collection, source_ver, load_ver):
     print(f'Parsing sample data for {kbase_collection} collection, load version {load_ver}, '
           f'source version {source_ver}.')
@@ -556,6 +626,7 @@ def _retrieve_sample(root_dir, env, kbase_collection, source_ver, load_ver):
             raise ValueError(
                 f'Expected to find one prepared sample file in {data_dir} but found {prepared_sample_files}.')
 
+        # generated by workspace_downloader.py - _download_sample_data
         prepared_sample_file = os.path.join(data_dir, prepared_sample_files[0])
 
         with open(prepared_sample_file, 'r') as file:
@@ -566,14 +637,15 @@ def _retrieve_sample(root_dir, env, kbase_collection, source_ver, load_ver):
 
         prepared_samples_data.append(doc)
 
+    data_id_sample_id_map = {doc[names.FLD_KBASE_ID]: doc[names.FLD_KB_SAMPLE_ID] for doc in prepared_samples_data}
+
+    flatten_samples_data = _flat_samples_data(prepared_samples_data)
     create_import_files(root_dir,
                         env,
                         kbase_collection,
                         load_ver,
                         f'{kbase_collection}_{load_ver}_{names.COLL_SAMPLES}.jsonl',
-                        prepared_samples_data)
-
-    data_id_sample_id_map = {doc[names.FLD_KBASE_ID]: doc[names.FLD_KB_SAMPLE_ID] for doc in prepared_samples_data}
+                        flatten_samples_data)
 
     return data_id_sample_id_map
 
