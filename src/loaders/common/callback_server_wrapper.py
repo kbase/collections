@@ -20,7 +20,6 @@ class Conf:
     Instance variables:
 
     token - a KBase token appropriate for the KBase environment
-            Also use as an admin token if the user has admin permission to catalog params
     callback_url - the url of the callback service to contact
     job_data_dir - the directory for SDK jobs per user
     input_queue - queue for the workspace downloader tasks
@@ -46,6 +45,7 @@ class Conf:
         retrieve_sample: bool = False,
         ignore_no_sample_error: bool = False,
         workspace_downloader: bool = False,
+        catalog_admin: bool = False,
     ) -> None:
         """
         Initialize the configuration class.
@@ -56,7 +56,7 @@ class Conf:
             kb_base_url (str): The base url of the KBase services.
             token_filepath (str): The file path that stores a KBase token appropriate for the KBase environment.
                                 If not supplied, the token must be provided in the environment variable KB_AUTH_TOKEN.
-                                Also use as an admin token if the user has admin permission to catalog params.
+                                The KB_ADMIN_AUTH_TOKEN environment variable will get set by this token if the user runs as catalog admin.
             au_service_ver (str): The service verison of AssemblyUtilClient
                                 ('dev', 'beta', 'release', or a git commit).
             workers (int): The number of workers to use for multiprocessing.
@@ -65,6 +65,7 @@ class Conf:
             retrieve_sample (bool): Whether to retrieve sample for each genome object.
             ignore_no_sample_error (bool): Whether to ignore the error when no sample data is found.
             workspace_downloader (bool): Whether to be used for the workspace downloader script.
+            catalog_admin (bool): Whether to run the callback server as catalog admin.
         """
         ipv4 = loader_helper.get_ip()
         port = loader_helper.find_free_port()
@@ -83,6 +84,7 @@ class Conf:
             port,
             max_callback_server_tasks,
             ipv4,
+            catalog_admin,
         )
 
         self.callback_url = "http://" + ipv4 + ":" + str(port)
@@ -123,6 +125,7 @@ class Conf:
         port: int,
         max_callback_server_tasks: int,
         ipv4: str,
+        catalog_admin: bool,
     ) -> Tuple[dict[str, Union[int, str]], dict[str, dict[str, str]]]:
         """
         Setup the environment variables and volumes for the callback server.
@@ -130,10 +133,11 @@ class Conf:
         Args:
             job_dir (str): The directory for SDK jobs per user.
             kb_base_url (str): The base url of the KBase services.
-            token (str): The KBase token. Also used as a catalog admin token if valid.
+            token (str): The KBase token.
             port (int): The port number for the callback server.
             max_callback_server_tasks (int): The maxmium subtasks for the callback server.
-            ipv4: (str): The ipv4 address for the callback server.
+            ipv4 (str): The ipv4 address for the callback server.
+            catalog_admin (bool): Whether to run the callback server as catalog admin.
 
         Returns:
             tuple: A tuple of the environment variables and volumes for the callback server.
@@ -144,13 +148,16 @@ class Conf:
 
         # used by the callback server
         env["KB_AUTH_TOKEN"] = token
-        env["KB_ADMIN_AUTH_TOKEN"] = token  # pass in catalog admin token to get catalog params
         env["KB_BASE_URL"] = kb_base_url
         env["JOB_DIR"] = job_dir
         env["CALLBACK_PORT"] = port
         env["JR_MAX_TASKS"] = max_callback_server_tasks
         env["CALLBACK_IP"] = ipv4  # specify an ipv4 address for the callback server
                                    # otherwise, the callback container will use the an ipv6 address
+
+        # set admin token to get catalog secure params
+        if catalog_admin:
+            env["KB_ADMIN_AUTH_TOKEN"] = token
 
         # setup volumes required for docker container
         docker_host = os.environ["DOCKER_HOST"]
@@ -172,6 +179,7 @@ class Conf:
         port: int,
         max_callback_server_tasks: int,
         ipv4: str,
+        catalog_admin: bool,
     ) -> None:
         """
         Start the callback server.
@@ -184,10 +192,17 @@ class Conf:
             token (str): The KBase token.
             max_callback_server_tasks (int): The maxmium subtasks for the callback server.
             port (int): The port number for the callback server.
-            ipv4: (str): The ipv4 address for the callback server.
+            ipv4 (str): The ipv4 address for the callback server.
+            catalog_admin (bool): Whether to run the callback server as catalog admin.
         """
         env, vol = self._setup_callback_server_envs(
-            job_dir, kb_base_url, token, port, max_callback_server_tasks, ipv4
+            job_dir,
+            kb_base_url,
+            token,
+            port,
+            max_callback_server_tasks,
+            ipv4,
+            catalog_admin,
         )
         self.container = client.containers.run(
             name=container_name,

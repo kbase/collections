@@ -2,7 +2,7 @@
 usage: workspace_uploader.py [-h] --workspace_id WORKSPACE_ID [--kbase_collection KBASE_COLLECTION] [--source_ver SOURCE_VER]
                              [--root_dir ROOT_DIR] [--load_id LOAD_ID] [--token_filepath TOKEN_FILEPATH] [--env {CI,NEXT,APPDEV,PROD}]
                              [--upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]] [--batch_size BATCH_SIZE]
-                             [--cbs_max_tasks CBS_MAX_TASKS] [--au_service_ver AU_SERVICE_VER] [--keep_job_dir]
+                             [--cbs_max_tasks CBS_MAX_TASKS] [--au_service_ver AU_SERVICE_VER] [--keep_job_dir] [--as_catalog_admin]
 
 PROTOTYPE - Upload assembly files to the workspace service (WSS).
 
@@ -26,8 +26,9 @@ optional arguments:
   --load_id LOAD_ID     The load id of the objects being uploaded to a workspace
                         If not provided, a random load_id will be generated
   --token_filepath TOKEN_FILEPATH
-                        A file path that stores a KBase token appropriate for the KBase environment
-                        If not provided, the token must be provided in the `KB_AUTH_TOKEN` environment variable
+                        A file path that stores a KBase token appropriate for the KBase environment. If not provided, the token must be
+                        provided in the `KB_AUTH_TOKEN` environment variable. The `KB_ADMIN_AUTH_TOKEN` environment variable will get set by
+                        this token if running as catalog admin.
   --env {CI,NEXT,APPDEV,PROD}
                         KBase environment (default: PROD)
   --upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]
@@ -39,6 +40,9 @@ optional arguments:
   --au_service_ver AU_SERVICE_VER
                         The service version of AssemblyUtil client('dev', 'beta', 'release', or a git commit) (default: release)
   --keep_job_dir        Keep SDK job directory after upload task is completed
+  --as_catalog_admin    Run the callback server with catalog admin privileges. If provided, the `KB_ADMIN_AUTH_TOKEN` environment variable
+                        will get set for the catalog token. Non-catalog admins can still run the uploader with the default catalog secure
+                        params.
 
 e.g.
 PYTHONPATH=. python src/loaders/workspace_uploader/workspace_uploader.py --workspace_id 69046 --kbase_collection GTDB --source_ver 207 --env CI --keep_job_dir
@@ -137,7 +141,7 @@ def _get_parser():
         type=str,
         help="A file path that stores a KBase token appropriate for the KBase environment. "
         "If not provided, the token must be provided in the `KB_AUTH_TOKEN` environment variable. "
-        "Also use as an admin token if the user has admin permission to catalog params.",
+        "The `KB_ADMIN_AUTH_TOKEN` environment variable will get set by this token if running as catalog admin. ",
     )
     optional.add_argument(
         "--env",
@@ -176,6 +180,13 @@ def _get_parser():
         "--keep_job_dir",
         action="store_true",
         help="Keep SDK job directory after upload task is completed",
+    )
+    optional.add_argument(
+        "--as_catalog_admin",
+        action="store_true",
+        help="Run the callback server with catalog admin privileges. "
+        "If provided, the `KB_ADMIN_AUTH_TOKEN` environment variable will get set for the catalog token. "
+        "Non-catalog admins can still run the uploader with the default catalog secure params. ",
     )
     return parser
 
@@ -590,6 +601,7 @@ def main():
     cbs_max_tasks = args.cbs_max_tasks
     au_service_ver = args.au_service_ver
     keep_job_dir = args.keep_job_dir
+    catalog_admin = args.as_catalog_admin
     load_id = args.load_id
     if not load_id:
         print("load_id is not provided. Generating a load_id ...")
@@ -656,6 +668,7 @@ def main():
             kb_base_url=kb_base_url,
             token_filepath=token_filepath,
             max_callback_server_tasks=cbs_max_tasks,
+            catalog_admin=catalog_admin,
         )
 
         count, wait_to_upload_assemblies = _fetch_assemblies_to_upload(
