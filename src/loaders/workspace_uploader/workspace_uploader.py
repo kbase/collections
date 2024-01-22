@@ -57,6 +57,7 @@ e.g. /global/cfs/cdirs/kbase/collections/collectionssource/ -> ENV -> kbase_coll
 """
 import argparse
 import click
+import fcntl
 import os
 import shutil
 import time
@@ -363,8 +364,9 @@ def _query_workspace_with_load_id(
     assembly_names: list[str],
 ) -> tuple[list[str], list[str]]:
     if len(assembly_names) > _WS_MAX_BATCH_SIZE:
-        raise ValueError("The effective max batch size must be <= 10000")
-
+        raise ValueError(
+            f"The effective max batch size must be <= {_WS_MAX_BATCH_SIZE}"
+        )
     refs = [{"wsid": workspace_id, "name": name} for name in assembly_names]
     res = ws.get_object_info3(
         {"objects": refs, "ignoreErrors": 1, "includeMetadata": 1}
@@ -624,16 +626,26 @@ def main():
 
     try:
         # setup container.conf file for the callback server logs if needed
-        if loader_helper.is_config_modification_required():
-            if click.confirm(
-                f"The config file at {loader_common_names.CONTAINERS_CONF_PATH}\n"
-                f"needs to be modified to allow for container logging.\n"
-                f"Params 'seccomp_profile' and 'log_driver' will be added/updated under section [containers]. Do so now?\n"
-            ):
-                loader_helper.setup_callback_server_logs()
-            else:
-                print("Permission denied and exiting ...")
-                return
+        setup_permission = True
+        conf_path = os.path.expanduser(loader_common_names.CONTAINERS_CONF_PATH)
+        with open(conf_path, "w") as writer:
+            fcntl.flock(writer.fileno(), fcntl.LOCK_EX)
+            if loader_helper.is_config_modification_required(conf_path):
+                if click.confirm(
+                    f"The config file at {loader_common_names.CONTAINERS_CONF_PATH}\n"
+                    f"needs to be modified to allow for container logging.\n"
+                    f"Params 'seccomp_profile' and 'log_driver' will be added/updated under section [containers]. Do so now?\n"
+                ):
+                    config = loader_helper.setup_callback_server_logs(conf_path)
+                    config.write(writer)
+                    print(f"containers.conf is modified and saved to path: {conf_path}")
+                else:
+                    setup_permission = False
+            fcntl.flock(writer.fileno(), fcntl.LOCK_UN)
+
+        if not setup_permission:
+            print("Permission denied and exiting ...")
+            return
 
         # start podman service
         proc = loader_helper.start_podman_service(uid)

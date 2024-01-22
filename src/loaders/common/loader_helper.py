@@ -1,13 +1,11 @@
 import argparse
 import configparser
-import fcntl
 import itertools
 import json
 import os
 import socket
 import stat
 import subprocess
-import threading
 import time
 import uuid
 from collections import defaultdict
@@ -32,7 +30,6 @@ from src.common.storage.db_doc_conversions import (
 from src.loaders.common.loader_common_names import (
     COLLECTION_SOURCE_DIR,
     CONTAINERS_CONF_PARAMS,
-    CONTAINERS_CONF_PATH,
     DOCKER_HOST,
     FATAL_ERROR,
     FATAL_STACKTRACE,
@@ -294,17 +291,16 @@ def start_podman_service(uid: int):
     return proc
 
 
-def _get_containers_config():
+def _get_containers_config(conf_path: str):
     """Get containers.conf file at home directory."""
-    conf_path = os.path.expanduser(CONTAINERS_CONF_PATH)
     config = configparser.ConfigParser()
     config.read(conf_path)
-    return config, conf_path
+    return config
 
 
-def is_config_modification_required():
+def is_config_modification_required(conf_path: str):
     """check if the config requires modification."""
-    config, _ = _get_containers_config()
+    config = _get_containers_config(conf_path)
     if not config.has_section("containers"):
         return True
     for key, val in CONTAINERS_CONF_PARAMS.items():
@@ -313,22 +309,17 @@ def is_config_modification_required():
     return False
 
 
-def setup_callback_server_logs():
+def setup_callback_server_logs(conf_path: str):
     """Set up containers.conf file for the callback server logs."""
-    config, conf_path = _get_containers_config()
-    with open(conf_path, 'w') as writer:
-        fcntl.flock(writer.fileno(), fcntl.LOCK_EX)
+    config = _get_containers_config(conf_path)
 
-        if not config.has_section("containers"):
-            config.add_section("containers")
+    if not config.has_section("containers"):
+        config.add_section("containers")
 
-        for key, val in CONTAINERS_CONF_PARAMS.items():
-            config.set("containers", key, val)
+    for key, val in CONTAINERS_CONF_PARAMS.items():
+        config.set("containers", key, val)
 
-        config.write(writer)
-        print(f"containers.conf is modified and saved to path: {conf_path}")
-
-        fcntl.flock(writer.fileno(), fcntl.LOCK_UN)
+    return config
 
 
 def is_upa_info_complete(upa_dir: str):
