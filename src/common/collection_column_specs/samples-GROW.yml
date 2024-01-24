@@ -102,7 +102,7 @@ columns:
     description: Method by which a sample was collected
   - key: sesar:collection_method_description
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Collection method description
     category: Description
     description: Additional information about the collection method
@@ -120,7 +120,7 @@ columns:
     description: Time when the sample was collected.
   - key: sesar:collector_chief_scientist
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Collector/Chief Scientist
     category: Collection
     description: Name of the person who collected the sample. In case of larger field
@@ -164,7 +164,7 @@ columns:
       stored.
   - key: sesar:archive_contact_current
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Current Archive Contact
     category: Curation
     description: Address and/or email of the person who should be contacted for information
@@ -395,7 +395,7 @@ columns:
     description: Type of physical feature that your sample was collected from
   - key: purpose
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Purpose
     category: Description
     description: Purpose of sample
