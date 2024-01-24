@@ -17,14 +17,15 @@ columns:
   - key: kbase_ids
     type: string
     filter_strategy: identity
-    display_name: KBase ID
+    non_visible: true
+    display_name: Related KBase IDs
     category: Identifiers
     description:
 
   - key: genome_count
     type: int
     display_name: Genome Count
-    category: Identifiers
+    category: Statistics
     description:
 
   - key: kbase_sample_id
@@ -41,565 +42,557 @@ columns:
     category: Identifiers
     description:
 
-   # sample attributes from sample service enigma template
-   # https://github.com/kbase/sample_service_validator_config/blob/master/templates/enigma_template.yml
+  # sample attributes from sample service enigma template and core vocabulary
+  # parsed using parse_sample_spec in parse_sample_spec.py
   - key: enigma:aodc
     type: float
     display_name: AODC (cells/g)
-    category: measurement
+    category: Measurement
     description: units in cells per gram
   - key: enigma:aquifer
     type: string
     filter_strategy: identity
     display_name: Aquifer
-    category: well
+    category: Well
     description: Aquifer
   - key: enigma:area_name
     type: string
     filter_strategy: identity
     display_name: Area Name
-    category: description
+    category: Description
     description: Area Name
   - key: enigma:average_water_level
     type: float
     display_name: Average Water Level (ft AMSL)
-    category: well
+    category: Well
     description: units in ft above mean sea level (ft AMSL)
   - key: enigma:boncat_activity
     type: int
     display_name: BONCAT Activity (cell/g)
-    category: measurement
+    category: Measurement
     description: units in cells per gram
   - key: enigma:biomass_carbon
     type: float
     display_name: Biomass Carbon (mg/g)
-    category: measurement
+    category: Measurement
     description: units in milligrams per gram
   - key: enigma:boring
     type: float
     display_name: Boring (ft BGS)
-    category: well
-    description: boring depth in ft below groud surface (ft BGS)
+    category: Well
+    description: boring depth in ft below ground surface (ft BGS)
   - key: enigma:boring_diameter
     type: int
     display_name: Boring Diameter (in)
-    category: well
+    category: Well
     description: boring diameter in inches
   - key: enigma:boring_refusal
     type: string
     filter_strategy: identity
     display_name: Boring Refusal
-    category: well
+    category: Well
     description: Boring Refusal (Y/N)
   - key: enigma:collection_time
     type: string
     filter_strategy: identity
     display_name: Collection Time
-    category: collection
+    category: Collection
     description: Collection Time
   - key: enigma:condition
     type: string
     filter_strategy: identity
     display_name: Condition
-    category: well
+    category: Well
     description: Condition
   - key: enigma:conductivity
     type: float
     display_name: Conductivity (mS/cm)
-    category: measurement
+    category: Measurement
     description: conductivity in millisiemens per centimeter
   - key: enigma:dapi_cell_count
     type: int
     display_name: DAPI Cell Count (cells/g)
-    category: measurement
+    category: Measurement
     description: DAPI cell count in cells per gram
   - key: enigma:dna_picogreen_total
     type: float
     display_name: DNA Picogreen Total (ng)
-    category: measurement
+    category: Measurement
     description: units in nanograms
   - key: enigma:date
     type: date
     display_name: Date
-    category: collection
+    category: Collection
     description: Date (YYYY-MM-DD)
   - key: depth_bgs
     type: int
     display_name: Depth (cm bgs)
-    category: geolocation
+    category: Geolocation
     description: depth in meters below ground surface (m BGS)
   - key: description
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Description
-    category: description
+    category: Description
     description: Sample Description
   - key: enigma:drive_casing_end_depth
     type: int
     display_name: Drive Casing End Depth (ft BGS)
-    category: well
+    category: Well
     description: drive casing end depth in ft below ground surface (ft BGS)
   - key: enigma:drive_casing_id
     type: float
     display_name: Drive Casing ID (in)
-    category: well
+    category: Well
     description: drive casing inner diameter in inches
   - key: enigma:drive_casing_od
     type: float
     display_name: Drive Casing OD (in)
-    category: well
+    category: Well
     description: drive casing outer diameter in inches
   - key: enigma:drive_casing_start_depth
     type: int
     display_name: Drive Casing Start Depth (ft BGS)
-    category: well
+    category: Well
     description: units in ft below ground surface (ft BGS)
   - key: enigma:drive_casing_type
     type: string
     filter_strategy: identity
     display_name: Drive Casing Type
-    category: well
+    category: Well
     description: Drive Casing Type
   - key: env_package
     type: string
     filter_strategy: identity
     display_name: Environmental Package
-    category: description
+    category: Description
     description: Environmental Package (MIxS vocabulary)
   - key: enigma:experiment_name
     type: string
     filter_strategy: identity
     display_name: Experiment Name
-    category: description
+    category: Description
     description: Experiment Name
   - key: enigma:filter
-    type: string
-    filter_strategy: identity
+    type: int
     display_name: Filter (micron)
-    category: description
+    category: Description
     description: Filter pore size in microns
   - key: enigma:fraction
     type: string
     filter_strategy: identity
     display_name: Fraction
-    category: measurement
+    category: Measurement
     description: Fraction
   - key: enigma:fractures_cavities_waterbreaks
     type: string
     filter_strategy: identity
     display_name: Fractures/Cavities/WaterBreaks
-    category: well
+    category: Well
     description: Fractures/Cavities/WaterBreaks
   - key: enigma:functional_area
     type: string
     filter_strategy: identity
     display_name: Functional Area
-    category: measurement
+    category: Measurement
     description: Functional Area
   - key: enigma:geological_zone
     type: string
     filter_strategy: identity
     display_name: Geological Zone
-    category: geolocation
+    category: Geolocation
     description: Geological Zone
   - key: enigma:ground_elevation
     type: float
     display_name: Ground Elevation (ft AMSL)
-    category: well
+    category: Well
     description: ground elevation in ft above mean sea level (ft AMSL)
   - key: enigma:installation_method
     type: string
     filter_strategy: identity
     display_name: Installation Method
-    category: well
+    category: Well
     description: Method of installation
   - key: latitude
     type: float
     display_name: Latitude
-    category: geolocation
+    category: Geolocation
     description: Latitude of the location where the sample was collected in WGS 84 coordinate
       system.
   - key: enigma:leucine_activity
     type: float
     display_name: Leucine Activity (ngC/day cell}
-    category: measurement
+    category: Measurement
     description: units in ngC/day cell
   - key: longitude
-    type: string
-    filter_strategy: identity
+    type: float
     display_name: Longitude
-    category: geolocation
+    category: Geolocation
     description: Longitude of the location where the sample was collected in WGS 84
-      cooridinate system.
+      coordinate system.
   - key: enigma:lower_seal_end_depth
     type: float
     display_name: Lower Seal End Depth (ft BGS)
-    category: well
+    category: Well
     description: Lower seal end depth in ft below ground surface (ft BGS)
   - key: enigma:lower_seal_start_depth
     type: float
     display_name: Lower Seal Start Depth (ft BGS)
-    category: well
+    category: Well
     description: Lower seal start depth in ft below ground surface (ft BGS)
   - key: enigma:lower_seal_type
     type: string
     filter_strategy: identity
     display_name: Lower Seal Type (ft BGS)
-    category: well
+    category: Well
     description: Lower Seal Type (BENT; BENT-PEL)
   - key: material
     type: string
     filter_strategy: identity
     display_name: Material
-    category: description
+    category: Description
     description: Material from ENVO (child of ENVO:00010483)
   - key: enigma:maturation_time
     type: string
     filter_strategy: identity
     display_name: Maturation Time
-    category: measurement
+    category: Measurement
     description: Maturation Time
   - key: enigma:max_water_level
     type: float
     display_name: Max Water Level (ft AMSL)
-    category: well
+    category: Well
     description: Maximum water level in ft above mean sea level (ft AMSL)
   - key: enigma:method
     type: string
     filter_strategy: identity
     display_name: Method
-    category: measurement
-    description: Method
+    category: Measurement
+    description: Method used for measurement
   - key: enigma:min_water_level
     type: float
     display_name: Min Water Level (ft AMSL)
-    category: well
+    category: Well
     description: Minimum water level in ft above mean sea level (ft AMSL)
   - key: enigma:moisture
     type: float
     display_name: Moisture (%)
-    category: measurement
+    category: Measurement
     description: Temperature (Celsius)
   - key: enigma:open
     type: string
     filter_strategy: identity
     display_name: Open
-    category: well
+    category: Well
     description: Open (yes/no)
   - key: enigma:open_casing_depth
     type: int
     display_name: Open Casing Depth (ft BGS)
-    category: well
+    category: Well
     description: Open casing depth in ft below ground surface (ft BGS)
   - key: enigma:open_casing_id
     type: float
     display_name: Open Casing ID (in)
-    category: well
+    category: Well
     description: open casing inner diameter in inches (in)
   - key: enigma:open_casing_od
     type: float
     display_name: Open Casing OD (in)
-    category: well
+    category: Well
     description: open casing outer diameter in inches (in)
   - key: enigma:open_casing_type
     type: string
     filter_strategy: identity
     display_name: Open Casing Type
-    category: well
+    category: Well
     description: Open Casing Type (SF25; STL)
   - key: enigma:open_hole_depth
     type: int
     display_name: Open Hole Depth (ft BGS)
-    category: well
+    category: Well
     description: Open hole depth in ft below ground surface (ft BGS)
   - key: enigma:open_hole_diameter
     type: int
     display_name: Open Hole Diameter (in)
-    category: well
+    category: Well
     description: Open hole diameter in inches
   - key: enigma:open_interval_diameter
     type: int
     display_name: Open Interval Diameter (in)
-    category: well
+    category: Well
     description: Open interval diameter in inches
   - key: enigma:open_interval_end_depth
     type: int
     display_name: Open Interval End Depth (ft BGS)
-    category: well
+    category: Well
     description: Open interval end depth in ft below ground surface (ft BGS)
   - key: enigma:open_interval_start_depth
     type: int
     display_name: Open Interval Start Depth (ft BGS)
-    category: well
+    category: Well
     description: Open interval start depth in ft below ground surface (ft BGS)
   - key: enigma:organic_carbon
     type: float
     display_name: Organic Carbon (mg/g dry weight)
-    category: measurement
+    category: Measurement
     description: Organic carbon in milligrams per gram dry weight
   - key: enigma:origination_or_plug_abandon
-    type: string
-    filter_strategy: identity
+    type: date
     display_name: Origination or Plug/Abandon
-    category: well
+    category: Well
     description: Origination or Plug/Abandon (Date)
   - key: other_names
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Other Name
-    category: description
+    category: Description
     description: Other name(s) used for the sample.
   - key: enigma:packing_depth_end
     type: float
     display_name: Packing Depth End (ft BGS)
-    category: well
-    description: Packind depth end in ft below ground surface (ft BGS)
+    category: Well
+    description: Packing depth end in ft below ground surface (ft BGS)
   - key: enigma:packing_depth_start
     type: float
     display_name: Packing Depth Start (ft BGS)
-    category: well
-    description: Packind depth start in ft below ground surface (ft BGS)
+    category: Well
+    description: Packing depth start in ft below ground surface (ft BGS)
   - key: enigma:packing_type
     type: string
     filter_strategy: identity
     display_name: Packing Type
-    category: well
+    category: Well
     description: Packing Type (e.g. SAND; SAND-2)
   - key: enigma:pore_water_extraction
     type: int
     display_name: Pore Water Extraction (microliters)
-    category: measurement
+    category: Measurement
     description: Pore water extraction in microliters
   - key: enigma:recovery_factor
     type: float
     display_name: Recovery Factor
-    category: measurement
+    category: Measurement
     description: Recovery Factor
   - key: enigma:redox_potential
     type: float
     display_name: Redox Potential
-    category: measurement
+    category: Measurement
     description: Redox Potential
   - key: enigma:replicate
     type: string
     filter_strategy: identity
     display_name: Replicate
-    category: measurement
+    category: Measurement
     description: Replicate
   - key: enigma:rock_formation
     type: string
     filter_strategy: identity
     display_name: Rock Formation
-    category: well
+    category: Well
     description: Rock Formation
   - key: name
     type: string
     filter_strategy: identity
     display_name: SampleID
-    category: description
+    category: Description
     description: Sample ID/Name
   - key: enigma:screen_bottom_elevation
     type: float
     display_name: Screen Bottom Elevation (ft AMSL)
-    category: well
+    category: Well
     description: Screen bottom elevation in ft above mean sea level (ft AMSL)
   - key: enigma:screen_end_depth
     type: float
     display_name: Screen End Depth (ft BGS)
-    category: well
+    category: Well
     description: Screen end depth in ft below ground surface (ft BGS)
   - key: enigma:screen_start_depth
     type: float
     display_name: Screen Start Depth (ft BGS)
-    category: well
+    category: Well
     description: Screen start depth in ft below ground surface (ft BGS)
   - key: enigma:screen_top_elevation
     type: string
     filter_strategy: identity
     display_name: Screen Top Elevation (ft AMSL)
-    category: well
+    category: Well
     description: Screen top elevation in ft above mean sea level (ft AMSL)
   - key: enigma:screen_type
     type: string
     filter_strategy: identity
     display_name: Screen Type
-    category: well
+    category: Well
     description: Screen Type
   - key: enigma:screened
     type: string
     filter_strategy: identity
     display_name: Screened
-    category: well
+    category: Well
     description: Screened (yes/no)
   - key: enigma:screened_interval
     type: float
     display_name: Screened Interval (ft)
-    category: well
+    category: Well
     description: Screened interval in ft
   - key: temperature
     type: float
     display_name: Temperature (Celsius)
-    category: measurement
+    category: Measurement
     description: Temperature (Celsius)
   - key: enigma:time_zone
     type: string
     filter_strategy: identity
     display_name: Time Zone
-    category: collection
+    category: Collection
     description: Time Zone (relative to UTC)
   - key: enigma:top_of_casing_elevation
     type: float
     display_name: Top of Casing Elevation (ft AMSL)
-    category: well
+    category: Well
     description: Top of casing elevation in ft above mean sea level (ft AMSL)
   - key: enigma:top_of_casing_stickup
     type: float
     display_name: Top of Casing Stickup (ft)
-    category: well
+    category: Well
     description: Top of casing stickup in ft
   - key: enigma:top_of_fresh_bedrock
     type: float
     display_name: TopofFreshBedrock (ft BGS)
-    category: well
+    category: Well
     description: Top of fresh bedrock in ft below ground surface (ft BGS)
   - key: enigma:top_of_weathered_bedrock
     type: int
     display_name: TopofWeatheredBedrock (ft BGS)
-    category: well
+    category: Well
     description: Top of weathered bedrock in ft below ground surface (ft BGS)
   - key: enigma:total_carbon
     type: float
     display_name: Total Carbon (mg/g dry weight)
-    category: measurement
+    category: Measurement
     description: Total carbon in milligrams per gram dry weight
   - key: enigma:total_nitrogen
     type: float
     display_name: Total Nitrogen (mg/g dry weight)
-    category: measurement
+    category: Measurement
     description: Total nitrogen in milligrams per gram dry weight
   - key: enigma:treatment
     type: string
     filter_strategy: identity
     display_name: Treatment
-    category: measurement
+    category: Measurement
     description: Treatment
   - key: enigma:well_type
     type: string
     filter_strategy: identity
     display_name: Type of Well
-    category: well
-    description: Type of Welll (SP; MP)
+    category: Well
+    description: Type of Well (SP; MP)
   - key: enigma:upper_seal_end_depth
     type: int
     display_name: Upper Seal End Depth (ft BGS)
-    category: well
+    category: Well
     description: Upper seal end depth in ft below ground surface (ft BGS)
   - key: enigma:upper_seal_start_depth
     type: int
     display_name: Upper Seal Start Depth (ft BGS)
-    category: well
+    category: Well
     description: Upper seal start depth in ft below ground surface (ft BGS)
   - key: enigma:upper_seal_type
     type: string
     filter_strategy: identity
     display_name: Upper Seal Type
-    category: well
+    category: Well
     description: Upper Seal Type
   - key: enigma:well_casing_depth
     type: float
     display_name: Well Casing Depth (ft BGS)
-    category: well
+    category: Well
     description: Well casing depth in ft below ground surface (ft BGS)
   - key: enigma:well_casing_id
     type: float
     display_name: Well Casing ID (in)
-    category: well
+    category: Well
     description: Well casing inner diameter. units in inches
   - key: enigma:well_casing_od
     type: float
     display_name: Well Casing OD (in)
-    category: well
+    category: Well
     description: Well casing outer diameter. units in inches
   - key: enigma:well_casing_type
     type: string
     filter_strategy: identity
     display_name: Well Casing Type
-    category: well
+    category: Well
     description: Well Casing Type
   - key: enigma:well_name
     type: string
     filter_strategy: identity
     display_name: Well Name
-    category: description
+    category: Description
     description: Well Name (ID)
   - key: enigma:well_status
     type: string
     filter_strategy: identity
     display_name: Well Status
-    category: well
+    category: Well
     description: Status of Well
   - key: ph
     type: int
     display_name: pH
-    category: measurement
+    category: Measurement
     description: pH of sample
-
-   # sample attributes from sample service core vocabularies
-   # removed the attributes that are already in the enigma template
-   # https://github.com/kbase/sample_service_validator_config/blob/master/vocabularies/core.yml
   - key: biome
     type: string
     filter_strategy: identity
     display_name: Biome
-    category: description
+    category: Description
     description: Biome from ENVO (child of ENVO:00000428)
   - key: city_township
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: City/Township
-    category: description
+    category: Description
     description: City or Township where the sample was collected
   - key: collection_time
-    type: string
-    filter_strategy: identity
+    type: date
     display_name: Collection date
-    category: description
+    category: Description
     description: Date amd time when the sample was collected in ISO 8601 format
   - key: comment
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Comment
-    category: description
+    category: Description
     description: Free form Comment
   - key: continent
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Continent
-    category: description
+    category: Description
     description: Continent
   - key: country
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Country
-    category: description
+    category: Description
     description: Country
   - key: county
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: County
-    category: description
+    category: Description
     description: County
   - key: elevation
     type: float
     display_name: Elevation
-    category: description
+    category: Description
     description: Elevation at which a sample was collected. Use negative values for
       depth below sea level. Minimum elevation if a range is provided for the elevation/depth
       below sea level.
   - key: elevation_end
     type: float
     display_name: Elevation End
-    category: description
+    category: Description
     description: End elevation at which a sample was collected. Use negative values
       for depth below sea level. Minimum elevation if a range is provided for the elevation/depth
       below sea level.
@@ -607,75 +600,87 @@ columns:
     type: string
     filter_strategy: identity
     display_name: Feature
-    category: description
+    category: Description
     description: Feature from ENVO (child of ENVO:01000813)
+  - key: latitude_end
+    type: float
+    display_name: Latitude End
+    category: Description
+    description: End latitude of the location where the sample was collected in WGS
+      84 coordinate system. Needs to be entered in decimal degrees. Negative values
+      for 'South' latitudes.
   - key: locality
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Locality
-    category: description
+    category: Description
     description: Name of the specific place where your sample was collected. This could
       be the name of a mine, a volcanic field, a vent field, or similar
   - key: locality_description
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Locality description
-    category: description
+    category: Description
     description: Additional information about the specific place where your sample was
       collected
   - key: location_description
     type: string
     filter_strategy: identity
     display_name: Location description
-    category: description
+    category: Description
     description: Free text description of the location
+  - key: longitude_end
+    type: float
+    display_name: Longitude End
+    category: Description
+    description: End longitude of the location where the sample was collected in WGS
+      84 coordinate system. Needs to be entered in decimal degrees. Negative values
+      for 'West' longitudes.
   - key: modification_date
-    type: string
-    filter_strategy: identity
+    type: date
     display_name: Modification Date
-    category: description
+    category: Description
     description: Modification date
   - key: purpose
     type: string
     filter_strategy: identity
     display_name: Purpose
-    category: description
+    category: Description
     description: Purpose of the Sample
   - key: sample_template
     type: string
     filter_strategy: identity
     display_name: Template
-    category: description
+    category: Description
     description: Template Format
   - key: size
     type: float
     display_name: Size
-    category: description
+    category: Description
     description: Size in meters cubed
   - key: state_province
     type: string
     filter_strategy: identity
     display_name: State/Province
-    category: description
+    category: Description
     description: State or Province
   - key: study_doi
     type: string
     filter_strategy: identity
     display_name: Study DOI
-    category: description
+    category: Description
     description: Study DOI
   - key: study_principal_investigator
     type: string
     filter_strategy: identity
     display_name: Study Principal Investigator
-    category: description
+    category: Description
     description: Study Principal Investigator
   - key: url
     type: string
     filter_strategy: identity
     display_name: URL
-    category: description
+    category: Description
     description: URL for Sample
-
 
 

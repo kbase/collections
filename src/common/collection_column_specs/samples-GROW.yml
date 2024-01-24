@@ -17,7 +17,8 @@ columns:
   - key: kbase_ids
     type: string
     filter_strategy: identity
-    display_name: KBase ID
+    non_visible: true
+    display_name: Related KBase IDs
     category: Identifiers
     description:
 
@@ -41,168 +42,166 @@ columns:
     category: Identifiers
     description:
 
-   # sample attributes from sample service sesar template
-   # https://github.com/kbase/sample_service_validator_config/blob/master/templates/sesar_template.yml
+  # sample attributes from sample service sesar template and core vocabulary
+  # parsed using parse_sample_spec in parse_sample_spec.py
   - key: sesar:age_max
     type: float
     display_name: Age (max)
-    category: description
+    category: Description
     description: Numerical value for the maximum age of a sample
   - key: sesar:age_min
     type: float
     display_name: Age (min)
-    category: description
+    category: Description
     description: Numerical value for the minimum age of a sample
   - key: age unit (e.g. million years (ma))
     type: string
     filter_strategy: identity
     display_name: Age unit (e.g. million years (Ma))
-    category: description
+    category: Description
     description: Unit for the age provided
   - key: city_township
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: City/Township
-    category: geolocation
+    category: Geolocation
     description: City or Township where the sample was collected
   - key: sesar:classification
     type: string
     filter_strategy: identity
     display_name: Classification
-    category: description
+    category: Description
     description: Taxonomy (formal classification) Formal categorization of sample.
   - key: classification comment
     type: string
     filter_strategy: identity
     display_name: Classification Comment
-    category: description
+    category: Description
     description: Additional comment on the classification
   - key: sesar:collection_date
     type: date
     display_name: Collection date
-    category: collection
+    category: Collection
     description: Date when the sample was collected.
   - key: sesar:collection_date_end
     type: date
     display_name: Collection date (end)
-    category: collection
+    category: Collection
     description: Date when the sample collection was finished (if a date range is provided).
   - key: sesar:collection_date_precision
     type: string
     filter_strategy: identity
     display_name: Collection date precision
-    category: collection
+    category: Collection
     description: Precision to display the collection date and time.
   - key: sesar:collection_method
     type: string
     filter_strategy: identity
     display_name: Collection method
-    category: description
+    category: Description
     description: Method by which a sample was collected
   - key: sesar:collection_method_description
     type: string
     filter_strategy: identity
     display_name: Collection method description
-    category: description
+    category: Description
     description: Additional information about the collection method
   - key: sesar:collection_time
     type: string
     filter_strategy: identity
     display_name: Collection time
-    category: collection
+    category: Collection
     description: Time when the sample was collected.
   - key: sesar:collection_time_end
     type: string
     filter_strategy: identity
     display_name: Collection time (end)
-    category: collection
+    category: Collection
     description: Time when the sample was collected.
   - key: sesar:collector_chief_scientist
     type: string
     filter_strategy: identity
     display_name: Collector/Chief Scientist
-    category: collection
+    category: Collection
     description: Name of the person who collected the sample. In case of larger field
       programs, name of chief scientist responsible for sample collection.
   - key: sesar:collector_chief_scientist_address
     type: string
     filter_strategy: identity
     display_name: Collector/Chief Scientist Address
-    category: collection
+    category: Collection
     description: Institution, address, & email of the collector or chief scientist.
   - key: comment
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Comment
-    category: description
-    description: Free form Comment
+    category: Description
+    description: ''
   - key: country
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Country
-    category: geolocation
+    category: Geolocation
     description: Country where the sample was collected
   - key: county
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: County
-    category: geolocation
+    category: Geolocation
     description: County where the sample was collected
   - key: sesar:registrant_current
     type: string
     filter_strategy: identity
     display_name: Cur Registrant Name
-    category: curation
+    category: Curation
     description: Current registrant in SESAR
   - key: sesar:archive_current
     type: string
     filter_strategy: identity
     display_name: Current Archive
-    category: curation
+    category: Curation
     description: Name of institution, museum, or repository where the sample is currently
       stored.
   - key: sesar:archive_contact_current
     type: string
     filter_strategy: identity
     display_name: Current Archive Contact
-    category: curation
+    category: Curation
     description: Address and/or email of the person who should be contacted for information
       about or access to the sample.
   - key: sesar:depth_in_core_max
     type: float
     display_name: Depth in Core (max)
-    category: relation_to_parent
+    category: Relation_to_parent
     description: Maximum depth at which a sample was collected from its parent core
   - key: sesar:depth_in_core_min
     type: float
     display_name: Depth in Core (min)
-    category: relation_to_parent
+    category: Relation_to_parent
     description: Minimum depth at which a sample was collected from its parent core
   - key: sesar:depth_scale
     type: string
     filter_strategy: identity
     display_name: Depth scale
-    category: relation_to_parent
+    category: Relation_to_parent
     description: Unit in which the depth is provided
   - key: sesar:easting
     type: int
     display_name: 'Easting (m) (Coordinate system: UTM NAD83)'
-    category: geolocation
+    category: Geolocation
     description: Geographic Cartesian coordinate of where the sample was collected,
       in meters, as in UTM. "305294"
   - key: sesar:elevation_end
-    type: string
-    filter_strategy: identity
+    type: float
     display_name: Elevation end
-    category: geolocation
+    category: Geolocation
     description: Elevation at which a sample was collected. Use negative values for
       depth below sea level. Maximum elevation if a range is provided for the elevation/depth
       below sea level.
   - key: sesar:elevation_start
-    type: string
-    filter_strategy: identity
+    type: float
     display_name: Elevation start
-    category: geolocation
+    category: Geolocation
     description: Elevation at which a sample was collected. Use negative values for
       depth below sea level. Minimum elevation if a range is provided for the elevation/depth
       below sea level.
@@ -210,304 +209,298 @@ columns:
     type: string
     filter_strategy: identity
     display_name: Elevation unit
-    category: geolocation
+    category: Geolocation
     description: Unit in which elevation start and/or end are provided in.
   - key: sesar:field_name
     type: string
     filter_strategy: identity
     display_name: Field name (informal classification)
-    category: description
+    category: Description
     description: Taxonomy (field name) Informal classification of sample.
   - key: sesar:field_program_cruise
     type: string
     filter_strategy: identity
     display_name: Field program/Cruise
-    category: collection
+    category: Collection
     description: Name or identifier of the field program (cruise or expedition), during
       which the sample was collected
   - key: sesar:geological_age
     type: string
     filter_strategy: identity
     display_name: Geological age
-    category: description
+    category: Description
     description: Age of a sample as described by the stratigraphic era, period, state,
       etc.
   - key: geological unit
     type: string
     filter_strategy: identity
     display_name: Geological unit
-    category: description
+    category: Description
     description: A body of rock established as a distinct entity in the classification
       of the Earth's rocks, e.g. Supergroup, Group, Formation, or Flow
   - key: sesar:igsn
     type: string
     filter_strategy: identity
     display_name: IGSN
-    category: description
-    description: Leave blank if you want SESAR to assign the IGSN.
+    category: Description
+    description: International Geo Sample Number
   - key: sesar:is_archived
     type: string
     filter_strategy: identity
     display_name: Is Archived
-    category: curation
+    category: Curation
     description: Archive Status
   - key: latitude
     type: float
-    display_name: 'Latitude (Coordinate system: WGS 84)'
-    category: geolocation
-    description: Latitude of the location where the sample was collected. ('Start latitude'
-      for linear sampling features such as dredges.) Needs to be entered in decimal
-      degrees. Negative values for South latitudes.
+    display_name: Latitude
+    category: Geolocation
+    description: Latitude of the location where the sample was collected in WGS 84 coordinate
+      system.
   - key: latitude_end
     type: float
-    display_name: 'Latitude (end) (Coordinate system: WGS 84)'
-    category: geolocation
-    description: End latitude of the location where the sample was collected.
+    display_name: Latitude End
+    category: Geolocation
+    description: End latitude of the location where the sample was collected in WGS
+      84 coordinate system. Needs to be entered in decimal degrees. Negative values
+      for 'South' latitudes.
   - key: sesar:launch_id
-    type: string
-    filter_strategy: identity
+    type: int
     display_name: Launch ID
-    category: collection
+    category: Collection
     description: Further identifying information about the launch
   - key: sesar:launch_platform_name
     type: string
     filter_strategy: identity
     display_name: Launch platform name
-    category: collection
+    category: Collection
     description: The name of the launch used to collect the sample.
   - key: sesar:launch_type
     type: string
     filter_strategy: identity
     display_name: Launch type
-    category: collection
+    category: Collection
     description: The type of launch used to collect the sample.
   - key: locality
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Locality
-    category: geolocation
+    category: Geolocation
     description: Name of the specific place where your sample was collected. This could
       be the name of a mine, a volcanic field, a vent field, or similar
   - key: locality_description
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Locality description
-    category: geolocation
+    category: Geolocation
     description: Additional information about the specific place where your sample was
       collected
   - key: location_description
     type: string
     filter_strategy: identity
     display_name: Location description
-    category: geolocation
+    category: Geolocation
     description: Free text description of the location
   - key: longitude
-    type: string
-    filter_strategy: identity
-    display_name: 'Longitude (Coordinate system: WGS 84)'
-    category: geolocation
-    description: Longitude of the location where the sample was collected. ('Start longitude'
-      for linear sampling features such as dredges.) Needs to be entered in decimal
-      degrees. Negative values for 'West' longitudes.
+    type: float
+    display_name: Longitude
+    category: Geolocation
+    description: Longitude of the location where the sample was collected in WGS 84
+      coordinate system.
   - key: longitude_end
-    type: string
-    filter_strategy: identity
-    display_name: 'Longitude (end) (Coordinate system: WGS 84)'
-    category: geolocation
-    description: End longitude of the location where the sample was collected.
+    type: float
+    display_name: Longitude End
+    category: Geolocation
+    description: End longitude of the location where the sample was collected in WGS
+      84 coordinate system. Needs to be entered in decimal degrees. Negative values
+      for 'West' longitudes.
   - key: sesar:material
     type: string
     filter_strategy: identity
     display_name: Material
-    category: description
+    category: Description
     description: Material that the sample consists of. Mandatory.
   - key: sesar:physiographic_feature_name
     type: string
     filter_strategy: identity
     display_name: Name of physiographic feature
-    category: geolocation
+    category: Geolocation
     description: Name of the physiographic feature that you entered
   - key: sesar:navigation_type
     type: string
     filter_strategy: identity
     display_name: Navigation Type
-    category: geolocation
+    category: Geolocation
     description: Navigation type
   - key: sesar:northing
     type: int
     display_name: 'Northing (m) (Coordinate system: UTM NAD83)'
-    category: geolocation
+    category: Geolocation
     description: Geographic Cartesian coordinate of where the sample was collected,
       in meters, as in UTM. "4111279"
   - key: sesar:registrant_org
     type: string
     filter_strategy: identity
     display_name: Org Registrant Name
-    category: curation
+    category: Curation
     description: Organizational registrant in SESAR
   - key: sesar:archive_original
     type: string
     filter_strategy: identity
     display_name: Original Archive
-    category: curation
+    category: Curation
     description: Name of institution, museum, or repository where the sample was originally
       stored.
   - key: sesar:archive_contact_original
     type: string
     filter_strategy: identity
     display_name: Original Archive Contact
-    category: curation
+    category: Curation
     description: Address and/or email of the person who should be contacted for information
       about the sample's original archive.
   - key: other_names
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Other name(s)
-    category: description
+    category: Description
     description: Other name(s) used for the sample.
   - key: sesar:parent_igsn
     type: string
     filter_strategy: identity
     display_name: Parent IGSN
-    category: description
-    description: Leave blank if a parent IGSN does not exist.
+    category: Description
+    description: Parent IGSN
   - key: sesar:platform_description
     type: string
     filter_strategy: identity
     display_name: Platform Description
-    category: collection
+    category: Collection
     description: Description of platform for the cruise.
   - key: sesar:platform_name
     type: string
     filter_strategy: identity
     display_name: Platform name
-    category: collection
+    category: Collection
     description: Name of platform for the cruise.
   - key: sesar:platform_type
     type: string
     filter_strategy: identity
     display_name: Platform type
-    category: collection
+    category: Collection
     description: Type of platform for the cruise.
   - key: sesar:physiographic_feature_primary
     type: string
     filter_strategy: identity
     display_name: Primary Physiographic feature
-    category: geolocation
+    category: Geolocation
     description: Type of physical feature that your sample was collected from
   - key: purpose
     type: string
     filter_strategy: identity
     display_name: Purpose
-    category: description
+    category: Description
     description: Purpose of sample
   - key: sesar:release_date
     type: date
     display_name: Release Date
-    category: description
+    category: Description
     description: Date when sample metadata is publicly accessible and searchable. If
       null, defaults to date of registration (recommended).
   - key: description
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Sample Description
-    category: description
+    category: Description
     description: Free text to describe features of a sample such as its components,
       texture, color, shape, etc.
   - key: name
     type: string
     filter_strategy: identity
     display_name: Sample Name
-    category: description
+    category: Description
     description: Collector's sample name. Mandatory.
   - key: sample type
     type: string
     filter_strategy: identity
     display_name: Sample Type
-    category: description
+    category: Description
     description: Sample Type
   - key: sesar:size
     type: string
     filter_strategy: identity
     display_name: Size
-    category: description
+    category: Description
     description: Size of the registered object, such as the dimension of a specimen,
       the length of a core, or the weight of a dredge
   - key: size unit
     type: string
     filter_strategy: identity
     display_name: Size unit
-    category: description
+    category: Description
     description: Unit for the numerical value provided for 'size'.
   - key: state_province
     type: string
     filter_strategy: identity
     display_name: State/Province
-    category: geolocation
+    category: Geolocation
     description: State or Province where the sample was collected
   - key: sesar:sub-object_type
     type: string
     filter_strategy: identity
     display_name: Sub-object type
-    category: description
+    category: Description
     description: More descriptive Object Type. This applies only to samples with Object
       Type set to Individual Sample.
   - key: url
     type: string
     filter_strategy: identity
     display_name: URL
-    category: description
+    category: Description
     description: URL for Sample
   - key: sesar:vertical_datum
     type: string
     filter_strategy: identity
     display_name: Vertical Datum
-    category: geolocation
+    category: Geolocation
     description: Vertical datum used to calculate the elevation
   - key: sesar:zone
     type: string
     filter_strategy: identity
     display_name: Zone (e.g., 11R)
-    category: geolocation
+    category: Geolocation
     description: Zone for the geographic Cartesian coordinate "11R"
-
-   # sample attributes from sample service core vocabularies
-   # removed the attributes that are already in the sesar template
-   # https://github.com/kbase/sample_service_validator_config/blob/master/vocabularies/core.yml
   - key: biome
     type: string
     filter_strategy: identity
     display_name: Biome
-    category: description
+    category: Description
     description: Biome from ENVO (child of ENVO:00000428)
   - key: collection_time
-    type: string
-    filter_strategy: identity
+    type: date
     display_name: Collection date
-    category: description
+    category: Description
     description: Date amd time when the sample was collected in ISO 8601 format
   - key: continent
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Continent
-    category: description
+    category: Description
     description: Continent
   - key: depth_bgs
     type: int
     display_name: Depth
-    category: description
+    category: Description
     description: depth in meters below ground surface (m BGS)
   - key: elevation
     type: float
     display_name: Elevation
-    category: description
+    category: Description
     description: Elevation at which a sample was collected. Use negative values for
       depth below sea level. Minimum elevation if a range is provided for the elevation/depth
       below sea level.
   - key: elevation_end
     type: float
     display_name: Elevation End
-    category: description
+    category: Description
     description: End elevation at which a sample was collected. Use negative values
       for depth below sea level. Minimum elevation if a range is provided for the elevation/depth
       below sea level.
@@ -515,50 +508,56 @@ columns:
     type: string
     filter_strategy: identity
     display_name: Environmental Package
-    category: description
+    category: Description
     description: Environmental Package (MIxS vocabulary)
   - key: feature
     type: string
     filter_strategy: identity
     display_name: Feature
-    category: description
+    category: Description
     description: Feature from ENVO (child of ENVO:01000813)
-  - key: modification_date
+  - key: material
     type: string
     filter_strategy: identity
+    display_name: Material
+    category: Description
+    description: Material from ENVO (child of ENVO:00010483)
+  - key: modification_date
+    type: date
     display_name: Modification Date
-    category: description
+    category: Description
     description: Modification date
   - key: ph
     type: float
     display_name: pH
-    category: description
+    category: Description
     description: pH of sample
   - key: sample_template
     type: string
     filter_strategy: identity
     display_name: Template
-    category: description
+    category: Description
     description: Template Format
   - key: size
     type: float
     display_name: Size
-    category: description
+    category: Description
     description: Size in meters cubed
   - key: study_doi
     type: string
     filter_strategy: identity
     display_name: Study DOI
-    category: description
+    category: Description
     description: Study DOI
   - key: study_principal_investigator
     type: string
     filter_strategy: identity
     display_name: Study Principal Investigator
-    category: description
+    category: Description
     description: Study Principal Investigator
   - key: temperature
     type: float
     display_name: Temperature
-    category: description
+    category: Description
     description: Temperature (Celsius)
+
