@@ -25,7 +25,7 @@ columns:
   - key: genome_count
     type: int
     display_name: Genome Count
-    category: Identifiers
+    category: Statistics
     description:
 
   - key: kbase_sample_id
