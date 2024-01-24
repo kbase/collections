@@ -18,7 +18,11 @@ from datetime import datetime
 import yaml
 
 _NGRAM_KEY = ['description', 'other_names', 'comment', 'continent', 'country', 'county',
-              'locality', 'locality_description', 'city_township']
+              'locality', 'locality_description', 'city_township',
+              'purpose',
+              'sesar:collection_method_description',
+              'sesar:archive_contact_current',
+              'sesar:collector_chief_scientist']
 _DATE_KEY = ['modification_date']  # example from sample service cannot be parsed by datetime.strptime
 # description from sample service needs to be corrected
 _CUSTOM_DESCRIPTION = {'sesar:igsn': 'International Geo Sample Number',
@@ -63,6 +67,7 @@ def _is_date_string(example_value, key):
 
 
 def _string_type(example_value, key):
+
     if isinstance(example_value, str):
         # handle a situation like '2; 10'
         # https://github.com/kbase/sample_service_validator_config/blob/master/templates/enigma_template.yml#L309C5-L309C19
