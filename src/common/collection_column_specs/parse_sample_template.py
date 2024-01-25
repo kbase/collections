@@ -62,7 +62,7 @@ def _is_date_string(example_value, key):
 
 def _string_type(example_value, key):
     if isinstance(example_value, str):
-        # handle a situation like '2; 10'
+        # handle a situation like '2; 10' - IOW use the 1st of multiple examples
         # https://github.com/kbase/sample_service_validator_config/blob/master/templates/enigma_template.yml#L309C5-L309C19
         example_value = example_value.split(';')[0].strip()
         if _is_date_string(example_value, key):
