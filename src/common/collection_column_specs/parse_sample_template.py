@@ -11,6 +11,8 @@ https://github.com/kbase/sample_service_validator_config/blob/master/vocabularie
 PLEASE NOTE:
 users should manually examine the output yaml file and make sure the output is correct
 then manually copy the output to src/common/collection_column_specs/samples-[collection].yml
+In other words, the output of this script is to save the user's time when constructing the sample column
+specifications and is not expected to be completely accurate.
 
 """
 from datetime import datetime
