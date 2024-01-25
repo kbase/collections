@@ -9,8 +9,10 @@ The core yaml file can be downloaded from
 https://github.com/kbase/sample_service_validator_config/blob/master/vocabularies/core.yml
 
 PLEASE NOTE:
-users should manually exam the output yaml file and make sure the output is correct
+users should manually examine the output yaml file and make sure the output is correct
 then manually copy the output to src/common/collection_column_specs/samples-[collection].yml
+In other words, the output of this script is to save the user's time when constructing the sample column
+specifications and is not expected to be completely accurate.
 
 """
 import argparse
@@ -71,7 +73,7 @@ def _is_date_string(example_value, key):
 
 def _string_type(example_value, key):
     if isinstance(example_value, str):
-        # handle a situation like '2; 10'
+        # handle a situation like '2; 10' - IOW use the 1st of multiple examples
         # https://github.com/kbase/sample_service_validator_config/blob/master/templates/enigma_template.yml#L309C5-L309C19
         example_value = example_value.split(';')[0].strip()
         if _is_date_string(example_value, key):
