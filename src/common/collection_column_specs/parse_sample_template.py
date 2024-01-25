@@ -42,7 +42,6 @@ _NGRAM_KEY = ['other_names',
               'enigma:experiment_name',
               'enigma:well_name']
 
-_DATE_KEY = ['modification_date']  # example from sample service cannot be parsed by datetime.strptime
 # description from sample service needs to be corrected
 _CUSTOM_DESCRIPTION = {'sesar:igsn': 'International Geo Sample Number.',
                        'enigma:date': 'Sample collection date',
@@ -58,9 +57,6 @@ _CUSTOM_DISPLAY_NAME = {'longitude': 'Longitude',
 
 
 def _is_date_string(example_value, key):
-    if key in _DATE_KEY:
-        return True
-
     # https://github.com/kbase/collections/blob/main/src/loaders/common/loader_helper.py#L52
     formats_to_try = ["%Y/%m/%d", "%Y-%m-%d", "%m/%d/%y", "%Y-%m-%dT%H:%M:%S%z"]
     for date_format in formats_to_try:
