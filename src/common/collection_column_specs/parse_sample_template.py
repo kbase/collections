@@ -9,7 +9,7 @@ The core yaml file can be downloaded from
 https://github.com/kbase/sample_service_validator_config/blob/master/vocabularies/core.yml
 
 PLEASE NOTE:
-users should manually exam the output yaml file and make sure the output is correct
+users should manually examine the output yaml file and make sure the output is correct
 then manually copy the output to src/common/collection_column_specs/samples-[collection].yml
 
 """
