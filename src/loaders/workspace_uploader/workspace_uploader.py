@@ -23,12 +23,12 @@ required named arguments:
 
 optional arguments:
   --root_dir ROOT_DIR   Root directory for the collections project. (default: /global/cfs/cdirs/kbase/collections)
-  --load_id LOAD_ID     The load id of the objects being uploaded to a workspace
-                        If not provided, a random load_id will be generated
+  --load_id LOAD_ID     The load id of the objects being uploaded to a workspace. If not provided, a random load_id will be generated. For a
+                        particular load, any restarts / resumes of the load should use the same load ID to prevent reuploading the same data.
+                        A new load ID will make new versions of all the objects from the prior upload.
   --token_filepath TOKEN_FILEPATH
-                        A file path that stores a KBase token appropriate for the KBase environment. If not provided, the token must be
-                        provided in the `KB_AUTH_TOKEN` environment variable. The `KB_ADMIN_AUTH_TOKEN` environment variable will get set by
-                        this token if running as catalog admin.
+                        A file path that stores a KBase token appropriate for the KBase environment.
+                        If not provided, the token must be provided in the `KB_AUTH_TOKEN` environment variable.
   --env {CI,NEXT,APPDEV,PROD}
                         KBase environment (default: PROD)
   --upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]
@@ -40,9 +40,9 @@ optional arguments:
   --au_service_ver AU_SERVICE_VER
                         The service version of AssemblyUtil client('dev', 'beta', 'release', or a git commit) (default: release)
   --keep_job_dir        Keep SDK job directory after upload task is completed
-  --as_catalog_admin    Run the callback server with catalog admin privileges. If provided, the `KB_ADMIN_AUTH_TOKEN` environment variable
-                        will get set for the catalog token. Non-catalog admins can still run the uploader with the default catalog secure
-                        params.
+  --as_catalog_admin    True means the provided user token has catalog admin privileges and will be used to retrieve secure SDK app
+                        parameters from the catalog. If false, the default, SDK apps run as part of this application will not have access to
+                        catalog secure parameters.
 
 e.g.
 PYTHONPATH=. python src/loaders/workspace_uploader/workspace_uploader.py --workspace_id 69046 --kbase_collection GTDB --source_ver 207 --env CI --keep_job_dir
@@ -61,7 +61,6 @@ e.g. /global/cfs/cdirs/kbase/collections/collectionssource/ -> ENV -> kbase_coll
 """
 import argparse
 import click
-import fcntl
 import os
 import shutil
 import time
@@ -134,14 +133,15 @@ def _get_parser():
         "--load_id",
         type=str,
         help="The load id of the objects being uploaded to a workspace. "
-        "If not provided, a random load_id will be generated.",
+        "If not provided, a random load_id will be generated. "
+        "For a particular load, any restarts / resumes of the load should use the same load ID to prevent reuploading the same data. "
+        "A new load ID will make new versions of all the objects from the prior upload.",
     )
     optional.add_argument(
         "--token_filepath",
         type=str,
         help="A file path that stores a KBase token appropriate for the KBase environment. "
-        "If not provided, the token must be provided in the `KB_AUTH_TOKEN` environment variable. "
-        "The `KB_ADMIN_AUTH_TOKEN` environment variable will get set by this token if running as catalog admin. ",
+        "If not provided, the token must be provided in the `KB_AUTH_TOKEN` environment variable.",
     )
     optional.add_argument(
         "--env",
@@ -184,9 +184,9 @@ def _get_parser():
     optional.add_argument(
         "--as_catalog_admin",
         action="store_true",
-        help="Run the callback server with catalog admin privileges. "
-        "If provided, the `KB_ADMIN_AUTH_TOKEN` environment variable will get set for the catalog token. "
-        "Non-catalog admins can still run the uploader with the default catalog secure params. ",
+        help="True means the provided user token has catalog admin privileges and will "
+        "be used to retrieve secure SDK app parameters from the catalog. If false, the default, "
+        "SDK apps run as part of this application will not have access to catalog secure parameters.",
     )
     return parser
 
@@ -289,8 +289,7 @@ def _update_upload_status_yaml_file(
     workspace_id: int,
     load_id: str,
     upa: str,
-    assembly_dir: str,
-    assembly_name: str,
+    assembly_tuple: _AssemblyTuple,
 ) -> None:
     """
     Update the uploaded.yaml file in target genome_dir with newly uploaded assembly names and upa info.
@@ -299,18 +298,18 @@ def _update_upload_status_yaml_file(
         upload_env_key,
         workspace_id,
         load_id,
-        assembly_dir,
-        assembly_name,
+        assembly_tuple.host_assembly_dir,
+        assembly_tuple.assembly_name,
     )
 
     if uploaded:
         raise ValueError(
-            f"Assembly {assembly_name} already exists in workspace {workspace_id}"
+            f"Assembly {assembly_tuple.assembly_name} already exists in workspace {workspace_id}"
         )
 
     data[upload_env_key][workspace_id]["loads"][load_id] = {"upa": upa}
 
-    file_path = _get_yaml_file_path(assembly_dir)
+    file_path = _get_yaml_file_path(assembly_tuple.host_assembly_dir)
     with open(file_path, "w") as file:
         yaml.dump(data, file)
 
@@ -459,8 +458,7 @@ def _post_process(
         workspace_id,
         load_id,
         upa,
-        assembly_tuple.host_assembly_dir,
-        assembly_tuple.assembly_name,
+        assembly_tuple,
     )
 
     # Creates a softlink from new_dir to the contents of upa_dir.
@@ -535,7 +533,8 @@ def _upload_assembly_files_in_parallel(
             except Exception as e:
                 print(
                     f"WARNING: There are inconsistencies between "
-                    f"the workspace and the yaml files as the result of {e}"
+                    f"the workspace and the yaml files as the result of {e}\n"
+                    f"Run the script again to attempt resolution."
                 )
 
         # post process on sucessful uploads
@@ -638,26 +637,17 @@ def main():
 
     try:
         # setup container.conf file for the callback server logs if needed
-        setup_permission = True
         conf_path = os.path.expanduser(loader_common_names.CONTAINERS_CONF_PATH)
-        with open(conf_path, "w") as writer:
-            fcntl.flock(writer.fileno(), fcntl.LOCK_EX)
-            if loader_helper.is_config_modification_required(conf_path):
-                if click.confirm(
-                    f"The config file at {loader_common_names.CONTAINERS_CONF_PATH}\n"
-                    f"needs to be modified to allow for container logging.\n"
-                    f"Params 'seccomp_profile' and 'log_driver' will be added/updated under section [containers]. Do so now?\n"
-                ):
-                    config = loader_helper.setup_callback_server_logs(conf_path)
-                    config.write(writer)
-                    print(f"containers.conf is modified and saved to path: {conf_path}")
-                else:
-                    setup_permission = False
-            fcntl.flock(writer.fileno(), fcntl.LOCK_UN)
-
-        if not setup_permission:
-            print("Permission denied and exiting ...")
-            return
+        if loader_helper.is_config_modification_required(conf_path):
+            if click.confirm(
+                f"The config file at {loader_common_names.CONTAINERS_CONF_PATH}\n"
+                f"needs to be modified to allow for container logging.\n"
+                f"Params 'seccomp_profile' and 'log_driver' will be added/updated under section [containers]. Do so now?\n"
+            ):
+                loader_helper.setup_callback_server_logs(conf_path)
+            else:
+                print("Permission denied and exiting ...")
+                return
 
         # start podman service
         proc = loader_helper.start_podman_service(uid)
@@ -688,33 +678,26 @@ def main():
         )
         # fix inconsistencies between the workspace and the local yaml files
         if uploaded_obj_names:
-            print(uploaded_obj_names)
-            if click.confirm(
-                f"\nThese objects had been successfully uploaded to\n"
-                f"workspace {workspace_id} per the load_id {load_id} in their metadata,\n"
-                f"but missing from the local uploaded.yaml files. Start failure recovery now?\n"
-            ):
-                wait_to_update_assemblies = {
-                    assembly_name: wait_to_upload_assemblies[assembly_name]
-                    for assembly_name in uploaded_obj_names
-                }
-                uploaded_tuples = _dict2tuple_list(wait_to_update_assemblies)
-                for assembly_tuple, upa in zip(uploaded_tuples, uploaded_obj_upas):
-                    _post_process(
-                        env,
-                        workspace_id,
-                        load_id,
-                        assembly_tuple,
-                        upload_dir,
-                        output_dir,
-                        upa,
-                    )
-                # remove assemblies that are already uploaded
-                for assembly_name in uploaded_obj_names:
-                    wait_to_upload_assemblies.pop(assembly_name)
-            else:
-                print("Failure recovery permission denied and exiting ...")
-                return
+            print("Start failure recovery process ...")
+            wait_to_update_assemblies = {
+                assembly_name: wait_to_upload_assemblies[assembly_name]
+                for assembly_name in uploaded_obj_names
+            }
+            uploaded_tuples = _dict2tuple_list(wait_to_update_assemblies)
+            for assembly_tuple, upa in zip(uploaded_tuples, uploaded_obj_upas):
+                _post_process(
+                    env,
+                    workspace_id,
+                    load_id,
+                    assembly_tuple,
+                    upload_dir,
+                    output_dir,
+                    upa,
+                )
+            # remove assemblies that are already uploaded
+            for assembly_name in uploaded_obj_names:
+                wait_to_upload_assemblies.pop(assembly_name)
+            print("Recovery process completed ...")
 
         if not wait_to_upload_assemblies:
             print(

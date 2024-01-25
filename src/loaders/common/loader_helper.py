@@ -1,5 +1,6 @@
 import argparse
 import configparser
+import fcntl
 import itertools
 import json
 import os
@@ -311,15 +312,21 @@ def is_config_modification_required(conf_path: str):
 
 def setup_callback_server_logs(conf_path: str):
     """Set up containers.conf file for the callback server logs."""
-    config = _get_containers_config(conf_path)
+    with open(conf_path, "w") as writer:
 
-    if not config.has_section("containers"):
-        config.add_section("containers")
+        fcntl.flock(writer.fileno(), fcntl.LOCK_EX)
+        config = _get_containers_config(conf_path)
 
-    for key, val in CONTAINERS_CONF_PARAMS.items():
-        config.set("containers", key, val)
+        if not config.has_section("containers"):
+            config.add_section("containers")
 
-    return config
+        for key, val in CONTAINERS_CONF_PARAMS.items():
+            config.set("containers", key, val)
+
+        config.write(writer)
+        print(f"containers.conf is modified and saved to path: {conf_path}")
+
+        fcntl.flock(writer.fileno(), fcntl.LOCK_UN)
 
 
 def is_upa_info_complete(upa_dir: str):

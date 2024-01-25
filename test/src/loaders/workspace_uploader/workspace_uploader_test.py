@@ -98,9 +98,12 @@ def test_update_upload_status_yaml_file(setup_and_teardown):
     params = setup_and_teardown
     assembly_dir = params.assembly_dirs[0]
     assembly_name = ASSEMBLY_NAMES[0]
+    assembly_tuple = workspace_uploader._AssemblyTuple(
+        assembly_name, assembly_dir, "/path/to/file/in/AssembilyUtil"
+    )
 
     workspace_uploader._update_upload_status_yaml_file(
-        "CI", 12345, "214", "12345_58_1", assembly_dir, assembly_name
+        "CI", 12345, "214", "12345_58_1", assembly_tuple
     )
     data, uploaded = workspace_uploader._read_upload_status_yaml_file(
         "CI", 12345, "214", assembly_dir, assembly_name
@@ -115,7 +118,7 @@ def test_update_upload_status_yaml_file(setup_and_teardown):
 
     with pytest.raises(ValueError, match=f"already exists in workspace"):
         workspace_uploader._update_upload_status_yaml_file(
-            "CI", 12345, "214", "12345_58_1", assembly_dir, assembly_name
+            "CI", 12345, "214", "12345_58_1", assembly_tuple
         )
 
 
@@ -146,8 +149,11 @@ def test_fetch_assemblies_to_upload(setup_and_teardown):
     # Both assemnly files will be skipped in the next fetch_assemblies_to_upload call
     upas = ["12345_58_1", "12345_58_2"]
     for assembly_name, assembly_dir, upa in zip(ASSEMBLY_NAMES, assembly_dirs, upas):
+        assembly_tuple = workspace_uploader._AssemblyTuple(
+            assembly_name, assembly_dir, "/path/to/file/in/AssembilyUtil"
+        )
         workspace_uploader._update_upload_status_yaml_file(
-            "CI", 12345, "214", upa, assembly_dir, assembly_name
+            "CI", 12345, "214", upa, assembly_tuple
         )
 
     (

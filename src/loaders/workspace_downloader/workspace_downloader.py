@@ -23,7 +23,8 @@ optional arguments:
                         KBase environment, defaulting to PROD (default: PROD)
   --workers WORKERS     Number of workers for multiprocessing (default: 5)
   --token_filepath TOKEN_FILEPATH
-                        A file path that stores KBase token
+                        A file path that stores a KBase token appropriate for the KBase environment
+                        If not provided, the token must be provided in the `KB_AUTH_TOKEN` environment variable
   --cbs_max_tasks CBS_MAX_TASKS
                         The maxmium subtasks for the callback server (default: 20)
   --au_service_ver AU_SERVICE_VER
@@ -387,7 +388,8 @@ def main():
     optional.add_argument(
         "--token_filepath",
         type=str,
-        help="A file path that stores KBase token",
+        help="A file path that stores a KBase token appropriate for the KBase environment. "
+        "If not provided, the token must be provided in the `KB_AUTH_TOKEN` environment variable. "
     )
     optional.add_argument(
         "--cbs_max_tasks",
