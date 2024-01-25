@@ -42,7 +42,7 @@ columns:
     category: Identifiers
     description:
 
-  # sample attributes from sample service sesar template and core vocabulary
+  # sample attributes currently accessible in the GROW collection
   # parsed using parse_sample_spec in parse_sample_spec.py
   - key: sesar:collection_date
     type: date

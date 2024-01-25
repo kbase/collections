@@ -42,7 +42,7 @@ columns:
     category: Identifiers
     description:
 
-  # sample attributes from sample service enigma template and core vocabulary
+  # sample attributes currently accessible in the ENIGMA collection
   # parsed using parse_sample_spec in parse_sample_spec.py
   - key: enigma:collection_time
     type: string
