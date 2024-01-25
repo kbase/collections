@@ -17,38 +17,32 @@ from datetime import datetime
 
 import yaml
 
-_NGRAM_KEY = ['description', 'other_names', 'comment', 'continent', 'country', 'county',
-              'locality', 'locality_description', 'city_township',
+# currently available samples fields in the collection service
+_CURRENT_SAMPLES = ['enigma:collection_time', 'enigma:experiment_name', 'enigma:well_name', 'env_package', 'material',
+                    'enigma:date', 'enigma:time_zone', 'latitude', 'longitude', 'sample_template',
+                    'sesar:igsn', 'sesar:material', 'sesar:field_name', 'other_names', 'sesar:collection_method',
+                    'sesar:collection_method_description', 'purpose', 'sesar:physiographic_feature_primary',
+                    'sesar:physiographic_feature_name', 'country', 'sesar:field_program_cruise',
+                    'sesar:collector_chief_scientist', 'sesar:collection_date', 'sesar:archive_contact_current']
+
+
+_NGRAM_KEY = ['other_names',
               'purpose',
               'sesar:collection_method_description',
               'sesar:archive_contact_current',
               'sesar:collector_chief_scientist']
+
 _DATE_KEY = ['modification_date']  # example from sample service cannot be parsed by datetime.strptime
 # description from sample service needs to be corrected
 _CUSTOM_DESCRIPTION = {'sesar:igsn': 'International Geo Sample Number',
-                       'sesar:parent_igsn': 'Parent IGSN',
-                       'enigma:method': 'Method used for measurement',
-                       'enigma:well_type': 'Type of Well (SP; MP)',
-                       'enigma:boring': 'boring depth in ft below ground surface (ft BGS)',
-                       'enigma:packing_depth_end': 'Packing depth end in ft below ground surface (ft BGS)',
-                       'enigma:packing_depth_start': 'Packing depth start in ft below ground surface (ft BGS)',
                        'longitude': 'Longitude of the location where the sample was collected in WGS 84 coordinate '
                                     'system.',
                        'latitude': 'Latitude of the location where the sample was collected in WGS 84 coordinate '
                                    'system.',
-                       'longitude_end': 'End longitude of the location where the sample was collected in WGS '
-                                        '84 coordinate system. Needs to be entered in decimal degrees. Negative values '
-                                        "for 'West' longitudes.",
-                       'latitude_end': 'End latitude of the location where the sample was collected in WGS '
-                                       '84 coordinate system. Needs to be entered in decimal degrees. Negative values '
-                                       "for 'South' latitudes."
                        }
-
 # shared sample attributes with distinct display names across sample services (sesar and enigma).
 _CUSTOM_DISPLAY_NAME = {'longitude': 'Longitude',
                         'latitude': 'Latitude',
-                        'longitude_end': 'Longitude End',
-                        'latitude_end': 'Latitude End',
                         }
 
 
@@ -67,7 +61,6 @@ def _is_date_string(example_value, key):
 
 
 def _string_type(example_value, key):
-
     if isinstance(example_value, str):
         # handle a situation like '2; 10'
         # https://github.com/kbase/sample_service_validator_config/blob/master/templates/enigma_template.yml#L309C5-L309C19
@@ -153,5 +146,6 @@ def parse_sample_spec(input_yaml, core_yaml, output_yaml):
     filtered_core_samples = [entry for entry in core_samples if entry['key'] not in template_keys]
 
     output_data = template_samples + filtered_core_samples
+    output_data = [entry for entry in output_data if entry['key'] in _CURRENT_SAMPLES]
     with open(output_yaml, 'w') as file:
         yaml.dump(output_data, file, default_flow_style=False, sort_keys=False)
