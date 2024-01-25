@@ -13,6 +13,7 @@ users should manually exam the output yaml file and make sure the output is corr
 then manually copy the output to src/common/collection_column_specs/samples-[collection].yml
 
 """
+import argparse
 from datetime import datetime
 
 import yaml
@@ -25,16 +26,24 @@ _CURRENT_SAMPLES = ['enigma:collection_time', 'enigma:experiment_name', 'enigma:
                     'sesar:physiographic_feature_name', 'country', 'sesar:field_program_cruise',
                     'sesar:collector_chief_scientist', 'sesar:collection_date', 'sesar:archive_contact_current']
 
-
 _NGRAM_KEY = ['other_names',
               'purpose',
+              'country',
               'sesar:collection_method_description',
               'sesar:archive_contact_current',
-              'sesar:collector_chief_scientist']
+              'sesar:collector_chief_scientist',
+              'sesar:collection_method',
+              'sesar:field_program_cruise',
+              'sesar:material',
+              'sesar:physiographic_feature_name',
+              'sesar:physiographic_feature_primary',
+              'enigma:experiment_name',
+              'enigma:well_name']
 
 _DATE_KEY = ['modification_date']  # example from sample service cannot be parsed by datetime.strptime
 # description from sample service needs to be corrected
-_CUSTOM_DESCRIPTION = {'sesar:igsn': 'International Geo Sample Number',
+_CUSTOM_DESCRIPTION = {'sesar:igsn': 'International Geo Sample Number.',
+                       'enigma:date': 'Sample collection date',
                        'longitude': 'Longitude of the location where the sample was collected in WGS 84 coordinate '
                                     'system.',
                        'latitude': 'Latitude of the location where the sample was collected in WGS 84 coordinate '
@@ -149,3 +158,13 @@ def parse_sample_spec(input_yaml, core_yaml, output_yaml):
     output_data = [entry for entry in output_data if entry['key'] in _CURRENT_SAMPLES]
     with open(output_yaml, 'w') as file:
         yaml.dump(output_data, file, default_flow_style=False, sort_keys=False)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Parse sample template YAML file and core YAML file')
+    parser.add_argument('--input_yaml', help='sample template YAML file', required=True)
+    parser.add_argument('--core_yaml', help='core YAML file', required=True)
+    parser.add_argument('--output_yaml', help='output YAML file', required=True)
+    args = parser.parse_args()
+
+    parse_sample_spec(args.input_yaml, args.core_yaml, args.output_yaml)

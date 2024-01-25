@@ -51,7 +51,7 @@ columns:
     description: Date when the sample was collected.
   - key: sesar:collection_method
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Collection method
     category: Description
     description: Method by which a sample was collected
@@ -70,7 +70,7 @@ columns:
       programs, name of chief scientist responsible for sample collection.
   - key: country
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Country
     category: Geolocation
     description: Country where the sample was collected
@@ -89,7 +89,7 @@ columns:
     description: Taxonomy (field name) Informal classification of sample.
   - key: sesar:field_program_cruise
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Field program/Cruise
     category: Collection
     description: Name or identifier of the field program (cruise or expedition), during
@@ -99,7 +99,7 @@ columns:
     filter_strategy: identity
     display_name: IGSN
     category: Description
-    description: International Geo Sample Number
+    description: International Geo Sample Number.
   - key: latitude
     type: float
     display_name: Latitude
@@ -114,25 +114,25 @@ columns:
       coordinate system.
   - key: sesar:material
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Material
     category: Description
     description: Material that the sample consists of. Mandatory.
   - key: sesar:physiographic_feature_name
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Name of physiographic feature
     category: Geolocation
     description: Name of the physiographic feature that you entered
   - key: other_names
     type: string
     filter_strategy: ngram
-    display_name: Other name(s)
+    display_name: Other Names
     category: Description
     description: Other name(s) used for the sample.
   - key: sesar:physiographic_feature_primary
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Primary Physiographic feature
     category: Geolocation
     description: Type of physical feature that your sample was collected from
@@ -160,5 +160,6 @@ columns:
     display_name: Template
     category: Description
     description: Template Format
+
 
 

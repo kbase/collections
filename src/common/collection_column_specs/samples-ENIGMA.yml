@@ -54,7 +54,7 @@ columns:
     type: date
     display_name: Date
     category: Collection
-    description: Date (YYYY-MM-DD)
+    description: Sample collection date
   - key: env_package
     type: string
     filter_strategy: identity
@@ -63,7 +63,7 @@ columns:
     description: Environmental Package (MIxS vocabulary)
   - key: enigma:experiment_name
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Experiment Name
     category: Description
     description: Experiment Name
@@ -88,7 +88,7 @@ columns:
   - key: other_names
     type: string
     filter_strategy: ngram
-    display_name: Other Name
+    display_name: Other Names
     category: Description
     description: Other name(s) used for the sample.
   - key: enigma:time_zone
@@ -99,13 +99,13 @@ columns:
     description: Time Zone (relative to UTC)
   - key: enigma:well_name
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Well Name
     category: Description
     description: Well Name (ID)
   - key: country
     type: string
-    filter_strategy: identity
+    filter_strategy: ngram
     display_name: Country
     category: Description
     description: Country
@@ -121,6 +121,7 @@ columns:
     display_name: Template
     category: Description
     description: Template Format
+
 
 
 
