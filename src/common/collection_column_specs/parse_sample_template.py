@@ -1,7 +1,18 @@
 """
-`parse_sample_spec` is a function designed to process a sample template YAML file and a core YAML file obtained from
-the Sample Service. It transforms the sample template entries into a column specifications format, making them
-suitable for use by the Collection Service.
+usage: parse_sample_template.py [-h] --input_yaml INPUT_YAML --core_yaml CORE_YAML
+                                --output_yaml OUTPUT_YAML
+
+Parse the YAML structure of a sample template file and the core YAML file to generate
+a YAML file containing specifications for sample collection columns
+
+options:
+  -h, --help            show this help message and exit
+  --input_yaml INPUT_YAML
+                        sample template YAML file
+  --core_yaml CORE_YAML
+                        core sample YAML file
+  --output_yaml OUTPUT_YAML
+                        output YAML file
 
 The sample template file can be downloaded from
 https://github.com/kbase/sample_service_validator_config/tree/master/templates
@@ -163,7 +174,9 @@ def parse_sample_spec(input_yaml, core_yaml, output_yaml):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Parse sample template YAML file and core YAML file')
+    parser = argparse.ArgumentParser(description='Parse the YAML structure of a sample template file and the core '
+                                                 'YAML file to generate a YAML file containing specifications for '
+                                                 'sample collection columns')
     parser.add_argument('--input_yaml', help='sample template YAML file', required=True)
     parser.add_argument('--core_yaml', help='core sample YAML file', required=True)
     parser.add_argument('--output_yaml', help='output YAML file', required=True)
