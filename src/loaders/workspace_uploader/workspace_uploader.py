@@ -4,7 +4,10 @@ usage: workspace_uploader.py [-h] --workspace_id WORKSPACE_ID [--kbase_collectio
                              [--upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]] [--batch_size BATCH_SIZE]
                              [--cbs_max_tasks CBS_MAX_TASKS] [--au_service_ver AU_SERVICE_VER] [--keep_job_dir] [--as_catalog_admin]
 
-PROTOTYPE - Upload assembly files to the workspace service (WSS).
+PROTOTYPE - Upload assembly files to the workspace service (WSS). Note that the uploader determines whether a genome is already uploaded in
+one of two ways. First it consults the *.yaml files in each genomes directory; if that file shows the genome has been uploaded it skips it
+regardless of the current state of the workspace. Second, it checks that the most recent version of the genome object in the workspace, if it
+exists, was part of the current load ID (see the load ID parameter description below). If so, the genome is skipped.
 
 options:
   -h, --help            show this help message and exit
@@ -93,7 +96,13 @@ _AssemblyTuple = namedtuple(
 
 def _get_parser():
     parser = argparse.ArgumentParser(
-        description="PROTOTYPE - Upload assembly files to the workspace service (WSS).",
+        description="PROTOTYPE - Upload assembly files to the workspace service (WSS).\n\n"
+        "Note that the uploader determines whether a genome is already uploaded in one of two ways. "
+        "First it consults the *.yaml files in each genomes directory; if that file shows the genome "
+        "has been uploaded it skips it regardless of the current state of the workspace. "
+        "Second, it checks that the most recent version of the genome object in the workspace, "
+        "if it exists, was part of the current load ID (see the load ID parameter description below). "
+        "If so, the genome is skipped.",
         formatter_class=loader_helper.ExplicitDefaultsHelpFormatter,
     )
 
