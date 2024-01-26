@@ -418,7 +418,7 @@ def _process_genome_attri_tools(genome_attr_tools: set[str],
     for doc in docs:
         doc[names.FLD_KB_SAMPLE_ID] = data_id_sample_id_map.get(doc[names.FLD_KBASE_ID])
 
-    docs, meta_doc = process_columnar_meta(docs, kbase_collection, load_ver)
+    docs, meta_doc = process_columnar_meta(docs, kbase_collection, load_ver, names.GENOME_ATTRIBS_PRODUCT_ID)
 
     output = f'{kbase_collection}_{load_ver}_{"_".join(genome_attr_tools)}_{names.COLL_GENOME_ATTRIBS}.jsonl'
     create_import_files(root_dir, env, kbase_collection, load_ver, output, docs)
@@ -640,12 +640,27 @@ def _retrieve_sample(root_dir, env, kbase_collection, source_ver, load_ver):
     data_id_sample_id_map = {doc[names.FLD_KBASE_ID]: doc[names.FLD_KB_SAMPLE_ID] for doc in prepared_samples_data}
 
     flatten_samples_data = _flat_samples_data(prepared_samples_data)
+    flatten_samples_data, meta_doc = process_columnar_meta(
+        flatten_samples_data,
+        kbase_collection,
+        load_ver,
+        names.SAMPLES_PRODUCT_ID,
+        ignore_missing=True,
+    )
+
     create_import_files(root_dir,
                         env,
                         kbase_collection,
                         load_ver,
                         f'{kbase_collection}_{load_ver}_{names.COLL_SAMPLES}.jsonl',
                         flatten_samples_data)
+
+    create_import_files(root_dir,
+                        env,
+                        kbase_collection,
+                        load_ver,
+                        f'{kbase_collection}_{load_ver}_{names.COLL_SAMPLES_META}.jsonl',
+                        [meta_doc])
 
     return data_id_sample_id_map
 

@@ -150,7 +150,8 @@ def main():
 
     docs, meta_doc = loader_helper.process_columnar_meta(docs,
                                                          kbase_collection,
-                                                         load_version)
+                                                         load_version,
+                                                         names.GENOME_ATTRIBS_PRODUCT_ID)
     env = loader_common_names.DEFAULT_ENV
     root_dir = getattr(args, loader_common_names.ROOT_DIR_ARG_NAME)
 
