@@ -44,7 +44,6 @@ _NGRAM_KEY = ['other_names',
 
 # description from sample service needs to be corrected
 _CUSTOM_DESCRIPTION = {'sesar:igsn': 'International Geo Sample Number.',
-                       'enigma:date': 'Sample collection date',
                        'longitude': 'Longitude of the location where the sample was collected in WGS 84 coordinate '
                                     'system.',
                        'latitude': 'Latitude of the location where the sample was collected in WGS 84 coordinate '

@@ -54,7 +54,7 @@ columns:
     type: date
     display_name: Date
     category: Collection
-    description: Sample collection date
+    description: Date (YYYY-MM-DD)
   - key: env_package
     type: string
     filter_strategy: identity
@@ -121,6 +121,8 @@ columns:
     display_name: Template
     category: Description
     description: Template Format
+
+
 
 
 
