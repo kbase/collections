@@ -14,6 +14,11 @@ then manually copy the output to src/common/collection_column_specs/samples-[col
 In other words, the output of this script is to save the user's time when constructing the sample column
 specifications and is not expected to be completely accurate.
 
+TODO:
+metadata_validation.yml file might be another source of information for constructing the column specifications.
+We should consider using this file instead of combine the sample template and core yaml files if we are parsing more samples.
+https://github.com/kbase/sample_service_validator_config/blob/master/metadata_validation.yml
+
 """
 import argparse
 from datetime import datetime
