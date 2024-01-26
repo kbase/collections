@@ -1,0 +1,124 @@
+columns:
+  - key: coll
+    type: string
+    filter_strategy: identity
+    non_visible: true
+
+  - key: load_ver
+    type: string
+    filter_strategy: identity
+    non_visible: true
+
+  - key: _mtchsel
+    type: string
+    filter_strategy: identity
+    non_visible: true
+
+  - key: kbase_ids
+    type: string
+    filter_strategy: identity
+    non_visible: true
+    display_name: Related KBase IDs
+    category: Identifiers
+    description:
+
+  - key: genome_count
+    type: int
+    display_name: Genome Count
+    category: Statistics
+    description:
+
+  - key: kbase_sample_id
+    type: string
+    filter_strategy: identity
+    display_name: KBase Sample ID
+    category: Identifiers
+    description:
+
+  - key: kbase_display_name
+    type: string
+    filter_strategy: ngram
+    display_name: KBase Name
+    category: Identifiers
+    description:
+
+  # sample attributes currently accessible in the ENIGMA collection
+  # parsed using parse_sample_spec in parse_sample_spec.py
+  - key: enigma:collection_time
+    type: string
+    filter_strategy: identity
+    display_name: Collection Time
+    category: Collection
+    description: Collection Time
+  - key: enigma:date
+    type: date
+    display_name: Date
+    category: Collection
+    description: Date (YYYY-MM-DD)
+  - key: env_package
+    type: string
+    filter_strategy: identity
+    display_name: Environmental Package
+    category: Description
+    description: Environmental Package (MIxS vocabulary)
+  - key: enigma:experiment_name
+    type: string
+    filter_strategy: ngram
+    display_name: Experiment Name
+    category: Description
+    description: Experiment Name
+  - key: latitude
+    type: float
+    display_name: Latitude
+    category: Geolocation
+    description: Latitude of the location where the sample was collected in WGS 84 coordinate
+      system.
+  - key: longitude
+    type: float
+    display_name: Longitude
+    category: Geolocation
+    description: Longitude of the location where the sample was collected in WGS 84
+      coordinate system.
+  - key: material
+    type: string
+    filter_strategy: identity
+    display_name: Material
+    category: Description
+    description: Material from ENVO (child of ENVO:00010483)
+  - key: other_names
+    type: string
+    filter_strategy: ngram
+    display_name: Other Names
+    category: Description
+    description: Other name(s) used for the sample.
+  - key: enigma:time_zone
+    type: string
+    filter_strategy: identity
+    display_name: Time Zone
+    category: Collection
+    description: Time Zone (relative to UTC)
+  - key: enigma:well_name
+    type: string
+    filter_strategy: ngram
+    display_name: Well Name
+    category: Description
+    description: Well Name (ID)
+  - key: country
+    type: string
+    filter_strategy: ngram
+    display_name: Country
+    category: Description
+    description: Country
+  - key: purpose
+    type: string
+    filter_strategy: ngram
+    display_name: Purpose
+    category: Description
+    description: Purpose of the Sample
+  - key: sample_template
+    type: string
+    filter_strategy: identity
+    display_name: Template
+    category: Description
+    description: Template Format
+
