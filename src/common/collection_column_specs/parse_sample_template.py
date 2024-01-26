@@ -1,9 +1,20 @@
 """
-usage: parse_sample_template.py [-h] --input_yaml INPUT_YAML --core_yaml CORE_YAML
-                                --output_yaml OUTPUT_YAML
+usage: parse_sample_template.py [-h] --input_yaml INPUT_YAML --core_yaml CORE_YAML --output_yaml OUTPUT_YAML
 
-Parse the YAML structure of a sample template file and the core YAML file to generate
-a YAML file containing specifications for sample collection columns
+    Parse the YAML structure of a sample template file and the core YAML file to generate a YAML file containing
+    specifications for sample collection columns.
+
+    The sample template file can be downloaded from
+    https://github.com/kbase/sample_service_validator_config/tree/master/templates
+    The core yaml file can be downloaded from
+    https://github.com/kbase/sample_service_validator_config/blob/master/vocabularies/core.yml
+
+    PLEASE NOTE:
+    users should manually examine the output yaml file and make sure the output is correct
+    then manually copy the output to src/common/collection_column_specs/samples-[collection].yml
+    In other words, the output of this script is to save the user's time when constructing the sample column
+    specifications and is not expected to be completely accurate.
+
 
 options:
   -h, --help            show this help message and exit
@@ -13,17 +24,6 @@ options:
                         core sample YAML file
   --output_yaml OUTPUT_YAML
                         output YAML file
-
-The sample template file can be downloaded from
-https://github.com/kbase/sample_service_validator_config/tree/master/templates
-The core yaml file can be downloaded from
-https://github.com/kbase/sample_service_validator_config/blob/master/vocabularies/core.yml
-
-PLEASE NOTE:
-users should manually examine the output yaml file and make sure the output is correct
-then manually copy the output to src/common/collection_column_specs/samples-[collection].yml
-In other words, the output of this script is to save the user's time when constructing the sample column
-specifications and is not expected to be completely accurate.
 
 TODO:
 metadata_validation.yml file might be another source of information for constructing the column specifications.
@@ -174,9 +174,23 @@ def parse_sample_spec(input_yaml, core_yaml, output_yaml):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Parse the YAML structure of a sample template file and the core '
-                                                 'YAML file to generate a YAML file containing specifications for '
-                                                 'sample collection columns')
+
+    desc = """
+    Parse the YAML structure of a sample template file and the core YAML file to generate a YAML file containing 
+    specifications for sample collection columns.
+    
+    The sample template file can be downloaded from
+    https://github.com/kbase/sample_service_validator_config/tree/master/templates
+    The core yaml file can be downloaded from
+    https://github.com/kbase/sample_service_validator_config/blob/master/vocabularies/core.yml
+    
+    PLEASE NOTE:
+    users should manually examine the output yaml file and make sure the output is correct
+    then manually copy the output to src/common/collection_column_specs/samples-[collection].yml
+    In other words, the output of this script is to save the user's time when constructing the sample column
+    specifications and is not expected to be completely accurate.
+    """
+    parser = argparse.ArgumentParser(description=desc, formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('--input_yaml', help='sample template YAML file', required=True)
     parser.add_argument('--core_yaml', help='core sample YAML file', required=True)
     parser.add_argument('--output_yaml', help='output YAML file', required=True)
