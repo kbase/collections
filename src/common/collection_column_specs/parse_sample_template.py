@@ -165,7 +165,7 @@ def parse_sample_spec(input_yaml, core_yaml, output_yaml):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Parse sample template YAML file and core YAML file')
     parser.add_argument('--input_yaml', help='sample template YAML file', required=True)
-    parser.add_argument('--core_yaml', help='core YAML file', required=True)
+    parser.add_argument('--core_yaml', help='core sample YAML file', required=True)
     parser.add_argument('--output_yaml', help='output YAML file', required=True)
     args = parser.parse_args()
 
