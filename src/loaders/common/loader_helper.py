@@ -76,6 +76,10 @@ def _convert_values_to_type(
     # Convert the values of a column to the specified type
     values = []
     for doc in docs:
+        if key not in doc:
+            if ignore_missing:
+                continue
+            raise ValueError(f'Unable to find key: {key} in {doc}')
         try:
             value = doc[key]
             value = None if value in NONE_STR else value
@@ -95,10 +99,6 @@ def _convert_values_to_type(
                 raise ValueError(f'casting not implemented for {col_type}')
 
             values.append(doc[key])
-        except KeyError as e:
-            if ignore_missing:
-                continue
-            raise ValueError(f'Unable to find key: {key} in {doc}') from e
         except ValueError as e:
             raise ValueError(f'Unable to convert value: {key} from {doc} to type: {col_type}') from e
 
@@ -127,8 +127,6 @@ def process_columnar_meta(
     for col_spec in spec.columns:
         key, col_type = col_spec.key, col_spec.type
         values = _convert_values_to_type(docs, key, col_type, ignore_missing=ignore_missing)
-        if not values:
-            continue
         min_value, max_value, enum_values = None, None, None
         if col_type in [ColumnType.INT, ColumnType.FLOAT, ColumnType.DATE]:
             if values:
