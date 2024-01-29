@@ -4,6 +4,7 @@ Functions common to all data products
 from typing import Any, Callable, NamedTuple
 
 import src.common.storage.collection_and_field_names as names
+from src.common.product_models import columnar_attribs_common_models as col_models
 from src.common.storage.db_doc_conversions import (
     collection_load_version_key,
     collection_data_id_key,
@@ -107,6 +108,35 @@ async def get_collection_singleton_from_db(
         f"No data loaded for {collection_id} collection load version {load_ver}",
         no_data_error,
     )
+
+
+async def get_columnar_attribs_meta(
+        storage: ArangoStorage,
+        collection: str,
+        collection_id: str,
+        load_ver: str,
+        load_ver_override: bool
+) -> col_models.ColumnarAttributesMeta:
+    """
+    Get the columnar attributes meta document for a collection. The document is expected to be
+    a singleton per collection load version.
+
+    storage - the storage system.
+    collection - the arango collection containing the document.
+    collection_id - the KBase collection containing the document.
+    load_ver - the load version of the collection.
+    load_ver_override - whether to override the load version.
+    """
+    doc = await get_collection_singleton_from_db(
+            storage,
+            collection,
+            collection_id,
+            load_ver,
+            bool(load_ver_override)
+    )
+    doc[col_models.FIELD_COLUMNS] = [col_models.AttributesColumn(**d)
+                                     for d in doc[col_models.FIELD_COLUMNS]]
+    return col_models.ColumnarAttributesMeta(**remove_collection_keys(doc))
 
 
 async def get_doc_from_collection_by_unique_id(

@@ -2,25 +2,25 @@
 The genome_attribs data product, which provides genome attributes for a collection.
 """
 
-from collections import defaultdict
 import logging
+from collections import defaultdict
 from typing import Any, Callable, Annotated
 
+import numpy as np
 from fastapi import APIRouter, Request, Depends, Query
 from pydantic import BaseModel
 from pydantic import Field
 
-import numpy as np
-
 import src.common.storage.collection_and_field_names as names
 from src.common.product_models import columnar_attribs_common_models as col_models
 from src.service import app_state
-from src.service.app_state_data_structures import CollectionsState, PickleableDependencies
 from src.service import errors
 from src.service import kb_auth
-from src.service import processing_matches
 from src.service import models
+from src.service import processing_matches
 from src.service import processing_selections
+from src.service.app_state_data_structures import CollectionsState, PickleableDependencies
+from src.service.data_products import common_models
 from src.service.data_products.common_functions import (
     get_load_version,
     remove_collection_keys,
@@ -29,9 +29,8 @@ from src.service.data_products.common_functions import (
     override_load_version,
     query_table,
     query_simple_collection_list,
-    get_collection_singleton_from_db,
+    get_columnar_attribs_meta,
 )
-from src.service.data_products import common_models
 from src.service.data_products.data_product_processing import (
     MATCH_ID_PREFIX,
     SELECTION_ID_PREFIX,
@@ -266,25 +265,10 @@ async def get_genome_attributes_meta(
     ) -> col_models.ColumnarAttributesMeta:
     storage = app_state.get_app_state(r).arangostorage
     _, load_ver = await get_load_version(storage, collection_id, ID, load_ver_override, user)
-    meta = await _get_genome_attributes_meta_internal(
-        storage, collection_id, load_ver, load_ver_override)
+    meta = await get_columnar_attribs_meta(
+        storage, names.COLL_GENOME_ATTRIBS_META, collection_id, load_ver, load_ver_override)
     meta.columns = [c for c in meta.columns if not c.non_visible]
     return meta
-
-
-async def _get_genome_attributes_meta_internal(
-    storage: ArangoStorage, collection_id: str, load_ver: str, load_ver_override: bool
-) -> col_models.ColumnarAttributesMeta:
-    doc = await get_collection_singleton_from_db(
-            storage,
-            names.COLL_GENOME_ATTRIBS_META,
-            collection_id,
-            load_ver,
-            bool(load_ver_override)
-    )
-    doc[col_models.FIELD_COLUMNS] = [col_models.AttributesColumn(**d)
-                                     for d in doc[col_models.FIELD_COLUMNS]]
-    return col_models.ColumnarAttributesMeta(**remove_collection_keys(doc))
 
 
 @_ROUTER.get(
@@ -336,8 +320,12 @@ async def get_genome_attributes(
         load_ver,
         load_ver_override,
         ID,
-        (await _get_genome_attributes_meta_internal(
-            appstate.arangostorage, collection_id, load_ver, load_ver_override)).columns,
+        (await get_columnar_attribs_meta(
+            appstate.arangostorage,
+            names.COLL_GENOME_ATTRIBS_META,
+            collection_id,
+            load_ver,
+            load_ver_override)).columns,
         view_name=coll.get_data_product(ID).search_view if coll else None,
         count=count,
         sort_on=sort_on,
@@ -415,8 +403,12 @@ async def get_histogram(
         load_ver,
         load_ver_override,
         ID,
-        (await _get_genome_attributes_meta_internal(
-            appstate.arangostorage, collection_id, load_ver, load_ver_override)).columns,
+        (await get_columnar_attribs_meta(
+            appstate.arangostorage,
+            names.COLL_GENOME_ATTRIBS_META,
+            collection_id,
+            load_ver,
+            load_ver_override)).columns,
         view_name=coll.get_data_product(ID).search_view if coll else None,
         filter_conjunction=conjunction,
         match_spec=match_spec,
@@ -498,8 +490,12 @@ async def get_xy_scatter(
         load_ver,
         load_ver_override,
         ID,
-        (await _get_genome_attributes_meta_internal(
-            appstate.arangostorage, collection_id, load_ver, load_ver_override)).columns,
+        (await get_columnar_attribs_meta(
+            appstate.arangostorage,
+            names.COLL_GENOME_ATTRIBS_META,
+            collection_id,
+            load_ver,
+            load_ver_override)).columns,
         view_name=coll.get_data_product(ID).search_view if coll else None,
         filter_conjunction=conjunction,
         match_spec=match_spec,
