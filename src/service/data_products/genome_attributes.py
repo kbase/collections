@@ -266,7 +266,7 @@ async def get_genome_attributes_meta(
     storage = app_state.get_app_state(r).arangostorage
     _, load_ver = await get_load_version(storage, collection_id, ID, load_ver_override, user)
     meta = await get_columnar_attribs_meta(
-        storage, names.COLL_GENOME_ATTRIBS_META, collection_id, load_ver, load_ver_override)
+        storage, names.COLL_GENOME_ATTRIBS_META, collection_id, load_ver, bool(load_ver_override))
     meta.columns = [c for c in meta.columns if not c.non_visible]
     return meta
 
