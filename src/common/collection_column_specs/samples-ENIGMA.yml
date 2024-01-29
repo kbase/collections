@@ -107,14 +107,14 @@ columns:
     type: string
     filter_strategy: ngram
     display_name: Country
-    category: Description
-    description: Country
+    category: Geolocation
+    description: Country where the sample was collected
   - key: purpose
     type: string
     filter_strategy: ngram
     display_name: Purpose
     category: Description
-    description: Purpose of the Sample
+    description: Purpose of sample
   - key: sample_template
     type: string
     filter_strategy: identity

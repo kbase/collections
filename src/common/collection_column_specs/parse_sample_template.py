@@ -15,6 +15,11 @@ usage: parse_sample_template.py [-h] --input_yaml INPUT_YAML --core_yaml CORE_YA
     In other words, the output of this script is to save the user's time when constructing the sample column
     specifications and is not expected to be completely accurate.
 
+    Observed discrepancies in the contextual information for certain sample fields,
+    such as description, display name, etc., between the two sample templates under the same field name.
+    These inconsistencies should be addressed either through manual correction or by transitioning to the unified
+    metadata_validation.yml file.
+
 
 options:
   -h, --help            show this help message and exit
@@ -189,6 +194,11 @@ if __name__ == "__main__":
     then manually copy the output to src/common/collection_column_specs/samples-[collection].yml
     In other words, the output of this script is to save the user's time when constructing the sample column
     specifications and is not expected to be completely accurate.
+    
+    Observed discrepancies in the contextual information for certain sample fields, 
+    such as description, display name, etc., between the two sample templates under the same field name. 
+    These inconsistencies should be addressed either through manual correction or by transitioning to the unified 
+    metadata_validation.yml file.
     """
     parser = argparse.ArgumentParser(description=desc, formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument('--input_yaml', help='sample template YAML file', required=True)
