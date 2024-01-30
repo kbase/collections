@@ -303,6 +303,8 @@ COLL_MICROTRAIT_CELLS: Annotated[
 
 ### samples
 
+SAMPLES_PRODUCT_ID = "samples"
+
 COLL_SAMPLES: Annotated[
     str,
     COLL_ANNOTATION,
@@ -311,7 +313,16 @@ COLL_SAMPLES: Annotated[
         COLL_ANNOKEY_SUGGESTED_SHARDS: 3,
     }
     
-] = COLLECTION_PREFIX + "samples"
+] = COLLECTION_PREFIX + SAMPLES_PRODUCT_ID
+
+COLL_SAMPLES_META: Annotated[
+    str,
+    COLL_ANNOTATION,
+    {
+        COLL_ANNOKEY_DESCRIPTION: "A collection holding samples metadata.",
+        COLL_ANNOKEY_SUGGESTED_SHARDS: 1,
+    }
+] = COLLECTION_PREFIX + SAMPLES_PRODUCT_ID + "_meta"
 
 FLD_SAMPLE_LATITUDE = "latitude"
 """ Key name for latitude data in degrees"""

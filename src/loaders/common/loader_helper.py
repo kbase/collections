@@ -53,7 +53,9 @@ NONE_STR = ['N/A', 'NA', 'None', 'none', 'null', 'Null', 'NULL', '']
 
 def _convert_to_iso8601(date_string: str) -> str:
     # Convert a date string to ISO 8601 format
-    formats_to_try = ["%Y/%m/%d", "%Y-%m-%d"]  # Add more formats as needed
+    formats_to_try = ["%Y/%m/%d",
+                      "%Y-%m-%d",
+                      "%m/%d/%y",]  # Add more formats as needed
     # The current code always leaves the date in day precision with no time zone information as that's
     # all that's available from the current data.
     # If higher precision dates are encountered in the future the code should be adapted to
@@ -70,10 +72,18 @@ def _convert_to_iso8601(date_string: str) -> str:
     raise ValueError("Unrecognized date format")
 
 
-def _convert_values_to_type(docs: list[dict], key: str, col_type: ColumnType):
+def _convert_values_to_type(
+        docs: list[dict],
+        key: str,
+        col_type: ColumnType,
+        ignore_missing: bool = False):
     # Convert the values of a column to the specified type
     values = []
     for doc in docs:
+        if key not in doc:
+            if ignore_missing:
+                continue
+            raise ValueError(f'Unable to find key: {key} in {doc}')
         try:
             value = doc[key]
             value = None if value in NONE_STR else value
@@ -93,8 +103,6 @@ def _convert_values_to_type(docs: list[dict], key: str, col_type: ColumnType):
                 raise ValueError(f'casting not implemented for {col_type}')
 
             values.append(doc[key])
-        except KeyError as e:
-            raise ValueError(f'Unable to find key: {key} in {doc}') from e
         except ValueError as e:
             raise ValueError(f'Unable to convert value: {key} from {doc} to type: {col_type}') from e
 
@@ -105,6 +113,8 @@ def process_columnar_meta(
         docs: list[dict],
         kbase_collection: str,
         load_ver: str,
+        product_id: str,
+        ignore_missing: bool = False
 ):
     """
     Process the columnar metadata for the genome attributes.
@@ -112,13 +122,15 @@ def process_columnar_meta(
     :param docs: the list of documents
     :param kbase_collection: the KBase collection name
     :param load_ver: the load version
+    :param product_id: the product id
+    :param ignore_missing: whether to ignore absent keys in the documents from the column spec file (default: False)
     """
 
-    spec = load_spec(names.GENOME_ATTRIBS_PRODUCT_ID, kbase_collection)
+    spec = load_spec(product_id, kbase_collection)
     columns = list()
     for col_spec in spec.columns:
         key, col_type = col_spec.key, col_spec.type
-        values = _convert_values_to_type(docs, key, col_type)
+        values = _convert_values_to_type(docs, key, col_type, ignore_missing=ignore_missing)
         min_value, max_value, enum_values = None, None, None
         if col_type in [ColumnType.INT, ColumnType.FLOAT, ColumnType.DATE]:
             if values:
