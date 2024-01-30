@@ -137,7 +137,7 @@ async def get_columnar_attribs_meta(
             collection,
             collection_id,
             load_ver,
-            bool(load_ver_override)
+            load_ver_override
     )
 
     doc[col_models.FIELD_COLUMNS] = [
