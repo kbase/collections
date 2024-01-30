@@ -3,13 +3,15 @@ Functions common to all data products
 """
 from typing import Any, Callable, NamedTuple
 
+from fastapi import Request
+
 import src.common.storage.collection_and_field_names as names
 from src.common.product_models import columnar_attribs_common_models as col_models
 from src.common.storage.db_doc_conversions import (
     collection_load_version_key,
     collection_data_id_key,
 )
-from src.service import errors, kb_auth, models
+from src.service import errors, kb_auth, models, app_state
 from src.service.filtering.filters import FilterSet
 from src.service.storage_arango import ArangoStorage
 
@@ -111,22 +113,34 @@ async def get_collection_singleton_from_db(
 
 
 async def get_columnar_attribs_meta(
-        storage: ArangoStorage,
+        r: Request,
         collection: str,
         collection_id: str,
-        load_ver: str,
-        load_ver_override: bool
+        data_product: str,
+        load_ver_override,
+        user: kb_auth.KBaseUser,
+        return_only_visible: bool = False
+
 ) -> col_models.ColumnarAttributesMeta:
     """
     Get the columnar attributes meta document for a collection. The document is expected to be
     a singleton per collection load version.
 
-    storage - the storage system.
+    r - the request.
     collection - the arango collection containing the document.
-    collection_id - the KBase collection containing the document.
-    load_ver - the load version of the collection.
-    load_ver_override - whether to override the load version.
+    collection_id - the ID of the Collection from which to retrieve the load version and possibly
+        collection object.
+    data_product - the ID of the data product from which to retrieve the load version.
+    load_ver_override - an override for the load version. If provided:
+        * the user must be a service administrator
+        * the collection is not checked for the existence of the data product.
+    user - the user. Ignored if load_ver is not provided; must be a service administrator.
+    return_only_visible - whether to return only visible columns. Default false.
+
     """
+    storage = app_state.get_app_state(r).arangostorage
+    _, load_ver = await get_load_version(storage, collection_id, data_product, load_ver_override, user)
+
     doc = await get_collection_singleton_from_db(
             storage,
             collection,
@@ -136,7 +150,12 @@ async def get_columnar_attribs_meta(
     )
     doc[col_models.FIELD_COLUMNS] = [col_models.AttributesColumn(**d)
                                      for d in doc[col_models.FIELD_COLUMNS]]
-    return col_models.ColumnarAttributesMeta(**remove_collection_keys(doc))
+
+    meta = col_models.ColumnarAttributesMeta(**remove_collection_keys(doc))
+    if return_only_visible:
+        meta.columns = [c for c in meta.columns if not c.non_visible]
+
+    return meta
 
 
 async def get_doc_from_collection_by_unique_id(

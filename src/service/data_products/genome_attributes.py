@@ -262,12 +262,15 @@ async def get_genome_attributes_meta(
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     load_ver_override: common_models.QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
-    ) -> col_models.ColumnarAttributesMeta:
-    storage = app_state.get_app_state(r).arangostorage
-    _, load_ver = await get_load_version(storage, collection_id, ID, load_ver_override, user)
-    meta = await get_columnar_attribs_meta(
-        storage, names.COLL_GENOME_ATTRIBS_META, collection_id, load_ver, bool(load_ver_override))
-    meta.columns = [c for c in meta.columns if not c.non_visible]
+) -> col_models.ColumnarAttributesMeta:
+    meta = await get_columnar_attribs_meta(r,
+                                           names.COLL_GENOME_ATTRIBS_META,
+                                           collection_id,
+                                           ID,
+                                           load_ver_override,
+                                           user,
+                                           return_only_visible=True)
+    # TODO: remote non_visible field from meta
     return meta
 
 
@@ -321,11 +324,12 @@ async def get_genome_attributes(
         load_ver_override,
         ID,
         (await get_columnar_attribs_meta(
-            appstate.arangostorage,
+            r,
             names.COLL_GENOME_ATTRIBS_META,
             collection_id,
-            load_ver,
-            load_ver_override)).columns,
+            ID,
+            load_ver_override,
+            user)).columns,
         view_name=coll.get_data_product(ID).search_view if coll else None,
         count=count,
         sort_on=sort_on,
@@ -404,11 +408,12 @@ async def get_histogram(
         load_ver_override,
         ID,
         (await get_columnar_attribs_meta(
-            appstate.arangostorage,
+            r,
             names.COLL_GENOME_ATTRIBS_META,
             collection_id,
-            load_ver,
-            load_ver_override)).columns,
+            ID,
+            load_ver_override,
+            user)).columns,
         view_name=coll.get_data_product(ID).search_view if coll else None,
         filter_conjunction=conjunction,
         match_spec=match_spec,
@@ -491,11 +496,12 @@ async def get_xy_scatter(
         load_ver_override,
         ID,
         (await get_columnar_attribs_meta(
-            appstate.arangostorage,
+            r,
             names.COLL_GENOME_ATTRIBS_META,
             collection_id,
-            load_ver,
-            load_ver_override)).columns,
+            ID,
+            load_ver_override,
+            user)).columns,
         view_name=coll.get_data_product(ID).search_view if coll else None,
         filter_conjunction=conjunction,
         match_spec=match_spec,

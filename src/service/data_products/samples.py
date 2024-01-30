@@ -180,10 +180,16 @@ async def get_samples_meta(
     load_ver_override: common_models.QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
 ) -> col_models.ColumnarAttributesMeta:
-    storage = app_state.get_app_state(r).arangostorage
-    _, load_ver = await get_load_version(storage, collection_id, ID, load_ver_override, user)
-    meta = await get_columnar_attribs_meta(storage, names.COLL_SAMPLES_META, collection_id, load_ver, bool(load_ver_override))
-    meta.columns = [c for c in meta.columns if not c.non_visible]
+
+    meta = await get_columnar_attribs_meta(r,
+                                           names.COLL_SAMPLES_META,
+                                           collection_id,
+                                           ID,
+                                           load_ver_override,
+                                           user,
+                                           return_only_visible=True)
+    # TODO: remote non_visible field from meta
+
     return meta
 
 
