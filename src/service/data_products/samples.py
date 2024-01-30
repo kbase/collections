@@ -17,7 +17,8 @@ from src.service.data_products.common_functions import (
     query_table,
     get_load_version,
     QueryTableResult,
-    get_product_meta
+    get_product_meta,
+    get_columnar_attribs_meta
 )
 from src.service.data_products.data_product_processing import (
     MATCH_ID_PREFIX,
@@ -26,7 +27,7 @@ from src.service.data_products.data_product_processing import (
     get_missing_ids as _get_missing_ids
 )
 from src.service.data_products.table_models import TableAttributes
-from src.service.filtering.filters import FilterSet
+from src.service.filtering.filtering_processing import get_filters, FILTER_STRATEGY_TEXT
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.processing import SubsetSpecification
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
@@ -45,6 +46,19 @@ ID = names.SAMPLES_PRODUCT_ID
 _ROUTER = APIRouter(tags=["Samples"], prefix=f"/{ID}")
 
 _MAX_SAMPLE_IDS = 1000
+
+_FILTERING_TEXT = """
+**FILTERING:**
+
+The returned data can be filtered by column content by adding query parameters of the format
+```
+filter_<column name>=<filter criteria>
+```
+For example:
+```
+GET <host>/collections/ENIGMA/data_products/samples/?filter_genome_count=[5,10]
+```
+""" + FILTER_STRATEGY_TEXT
 
 
 class SamplesSpec(common_models.DataProductSpec):
@@ -199,6 +213,7 @@ async def get_samples_meta(
         + "which may differ from collection to collection.\n\n"
         + "Authentication is not required unless submitting a match ID or overriding the load "
         + "version; in the latter case service administration permissions are required.\n\n"
+        + _FILTERING_TEXT
     # TODO SAMPLES - how should we support creating a selection from samples?
 )
 async def get_samples(
@@ -239,17 +254,28 @@ async def get_samples(
     )
     if status_only:
         return _response(dp_match=dp_match, dp_sel=dp_sel)
-    filters = FilterSet(
+    coll = await appstate.arangostorage.get_collection_active(collection_id)
+    filters = await get_filters(
+        r,
+        names.COLL_SAMPLES,
         collection_id,
         load_ver,
-        collection=names.COLL_SAMPLES,
+        load_ver_override,
+        ID,
+        (await get_columnar_attribs_meta(
+            appstate.arangostorage,
+            names.COLL_SAMPLES_META,
+            collection_id,
+            load_ver,
+            load_ver_override)).columns,
+        view_name=coll.get_data_product(ID).search_view if coll else None,
         count=count,
+        sort_on=sort_on,
+        sort_desc=sort_desc,
         match_spec=SubsetSpecification(
             subset_process=dp_match, mark_only=match_mark, prefix=MATCH_ID_PREFIX),
         selection_spec=SubsetSpecification(
             subset_process=dp_sel, mark_only=selection_mark, prefix=SELECTION_ID_PREFIX),
-        sort_on=sort_on,
-        sort_descending=sort_desc,
         skip=skip,
         limit=limit,
     )
