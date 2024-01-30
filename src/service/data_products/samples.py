@@ -7,16 +7,18 @@ from fastapi import APIRouter, Request, Depends, Query
 from pydantic import BaseModel, Field
 
 import src.common.storage.collection_and_field_names as names
+from src.common.product_models import columnar_attribs_common_models as col_models
 from src.common.product_models.common_models import SubsetProcessStates
 from src.service import app_state, errors, kb_auth, models
+from src.service.data_products import common_models
 from src.service.data_products.common_functions import (
     remove_collection_keys,
     remove_marked_subset,
     query_table,
     get_load_version,
-    QueryTableResult
+    QueryTableResult,
+    get_product_meta
 )
-from src.service.data_products import common_models
 from src.service.data_products.data_product_processing import (
     MATCH_ID_PREFIX,
     SELECTION_ID_PREFIX,
@@ -38,7 +40,7 @@ from src.service.storage_arango import ArangoStorage, remove_arango_keys
 # reworked later to remove the many duplicate sample records and instead have some kind of
 # M:1 kbase_id:sample relationship.
 
-ID = "samples"
+ID = names.SAMPLES_PRODUCT_ID
 
 _ROUTER = APIRouter(tags=["Samples"], prefix=f"/{ID}")
 
@@ -73,7 +75,12 @@ SAMPLES_SPEC = SamplesSpec(
     router=_ROUTER,
     db_collections=[
         common_models.DBCollection(
+            name=names.COLL_SAMPLES_META,
+            indexes=[]  # lookup is by key
+        ),
+        common_models.DBCollection(
             name=names.COLL_SAMPLES,
+            view_required=True,
             indexes=[
                 [
                     names.FLD_COLLECTION_ID,
@@ -159,9 +166,32 @@ class Samples(BaseModel):
     )
 
 
+@_ROUTER.get(
+    "/meta",
+    response_model=col_models.ColumnarAttributesMeta,
+    description=
+"""
+Get metadata about the samples table including column names, type,
+minimum and maximum values, etc.
+""")
+async def get_samples_meta(
+    r: Request,
+    collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
+    load_ver_override: common_models.QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
+    user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
+) -> col_models.ColumnarAttributesMeta:
+
+    return await get_product_meta(r,
+                                  names.COLL_SAMPLES_META,
+                                  collection_id,
+                                  ID,
+                                  load_ver_override,
+                                  user)
+
+
 # At some point we're going to want to filter/sort on fields. We may want a list of fields
 # somewhere to check input fields are ok... but really we could just fetch the first document
-# in the collection and check the fields 
+# in the collection and check the fields
 @_ROUTER.get(
     "/",
     response_model=SamplesTable,

@@ -13,6 +13,7 @@ from typing import Annotated, Self
 
 
 FIELD_COLUMNS = "columns"
+NON_VISIBLE = "non_visible"
 
 
 class ColumnType(str, Enum):
@@ -49,9 +50,9 @@ class FilterStrategy(str, Enum):
     """ A search based on ngram matching. """
 
 
-class AttributesColumnSpec(BaseModel):
+class AttributesColumnBase(BaseModel):
     """
-    A specification for a column in an attributes table.
+    A base class for a specification for a column in an attributes table.
     """
     key: str = Field(
         example="checkm_completeness",
@@ -66,11 +67,7 @@ class AttributesColumnSpec(BaseModel):
         description="The filter strategy for the column if any. Not all column types need "
             + "a filter strategy."
     )] = None
-    non_visible: Annotated[bool, Field(
-        example=False,
-        description="Whether the column is visible to the user. "
-             + "If True, the display name and category fields are not required"
-    )] = False
+
     display_name: Annotated[str | None, Field(
         example="Completeness",
         description="The display name of the column. "
@@ -95,6 +92,17 @@ class AttributesColumnSpec(BaseModel):
             raise ValueError("Only string types may have a filter strategy")
         return self
 
+
+class AttributesColumnSpec(AttributesColumnBase):
+    """
+    A specification for a column in an attributes table.
+    """
+    non_visible: Annotated[bool, Field(
+        example=False,
+        description="Whether the column is visible to the user. "
+             + "If True, the display name and category fields are not required"
+    )] = False
+
     @model_validator(mode="after")
     def _check_visible_col(self) -> Self:
         if not self.non_visible:
@@ -115,7 +123,7 @@ class ColumnarAttributesSpec(BaseModel):
     )] = list()
 
 
-class AttributesColumn(AttributesColumnSpec):
+class AttributesColumn(AttributesColumnBase):
     min_value: Annotated[int | float | str | None, Field(
         example="2023-08-25T22:08:30.576+0000",
         description="The minimum value for the column for numeric and date columns. "
