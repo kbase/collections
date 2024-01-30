@@ -181,16 +181,13 @@ async def get_samples_meta(
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
 ) -> col_models.ColumnarAttributesMeta:
 
-    meta = await get_columnar_attribs_meta(r,
+    return await get_columnar_attribs_meta(r,
                                            names.COLL_SAMPLES_META,
                                            collection_id,
                                            ID,
                                            load_ver_override,
                                            user,
                                            return_only_visible=True)
-    # TODO: remote non_visible field from meta
-
-    return meta
 
 
 # At some point we're going to want to filter/sort on fields. We may want a list of fields

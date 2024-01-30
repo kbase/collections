@@ -263,15 +263,15 @@ async def get_genome_attributes_meta(
     load_ver_override: common_models.QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
 ) -> col_models.ColumnarAttributesMeta:
-    meta = await get_columnar_attribs_meta(r,
+
+    return await get_columnar_attribs_meta(r,
                                            names.COLL_GENOME_ATTRIBS_META,
                                            collection_id,
                                            ID,
                                            load_ver_override,
                                            user,
                                            return_only_visible=True)
-    # TODO: remote non_visible field from meta
-    return meta
+
 
 
 @_ROUTER.get(
