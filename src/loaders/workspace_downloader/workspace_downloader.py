@@ -126,7 +126,7 @@ def _process_object_info(
                 loader_common_names.FLD_KB_OBJ_TIMESTAMP: obj_info[3],
                 loader_common_names.FLD_KB_OBJ_GENOME_UPA: "{6}/{0}/{4}".format(*genome_info),
                 loader_common_names.ASSEMBLY_OBJ_INFO_KEY: obj_info,
-                loader_common_names.GENOME_METADATA_FILE: genome_info}
+                loader_common_names.GENOME_OBJ_INFO_KEY: genome_info}
 
     return res_dict
 
