@@ -153,7 +153,7 @@ async def get_product_meta(
         collection: str,
         collection_id: str,
         data_product: str,
-        load_ver_override,
+        load_ver_override: str,
         user: kb_auth.KBaseUser,
 
 ) -> col_models.ColumnarAttributesMeta:
