@@ -117,7 +117,8 @@ async def get_columnar_attribs_meta(
         collection: str,
         collection_id: str,
         load_ver: str,
-        load_ver_override: bool
+        load_ver_override: bool,
+        return_only_visible: bool = False
 ) -> col_models.ColumnarAttributesMeta:
     """
     Get the columnar attributes meta document for a collection. The document is expected to be
@@ -128,6 +129,8 @@ async def get_columnar_attribs_meta(
     collection_id - the KBase collection containing the document.
     load_ver - the load version of the collection.
     load_ver_override - whether to override the load version.
+    return_only_visible - whether to return only visible columns.
+
     """
     doc = await get_collection_singleton_from_db(
             storage,
@@ -136,8 +139,12 @@ async def get_columnar_attribs_meta(
             load_ver,
             bool(load_ver_override)
     )
-    doc[col_models.FIELD_COLUMNS] = [col_models.AttributesColumn(**d)
-                                     for d in doc[col_models.FIELD_COLUMNS]]
+
+    doc[col_models.FIELD_COLUMNS] = [
+        col_models.AttributesColumn(**d) for d in doc[col_models.FIELD_COLUMNS] if
+        not return_only_visible or not d[col_models.NON_VISIBLE]
+    ]
+
     return col_models.ColumnarAttributesMeta(**remove_collection_keys(doc))
 
 
@@ -167,8 +174,12 @@ async def get_product_meta(
 
     storage = app_state.get_app_state(r).arangostorage
     _, load_ver = await get_load_version(storage, collection_id, data_product, load_ver_override, user)
-    meta = await get_columnar_attribs_meta(storage, collection, collection_id, load_ver, bool(load_ver_override))
-    meta.columns = [c for c in meta.columns if not c.non_visible]
+    meta = await get_columnar_attribs_meta(storage,
+                                           collection,
+                                           collection_id,
+                                           load_ver,
+                                           bool(load_ver_override),
+                                           return_only_visible=True)
 
     return meta
 

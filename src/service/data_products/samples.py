@@ -17,7 +17,7 @@ from src.service.data_products.common_functions import (
     query_table,
     get_load_version,
     QueryTableResult,
-    get_columnar_attribs_meta, get_product_meta
+    get_product_meta
 )
 from src.service.data_products.data_product_processing import (
     MATCH_ID_PREFIX,
