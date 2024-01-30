@@ -161,7 +161,7 @@ async def get_product_meta(
     Get the columnar attributes meta document for a collection used by /meta endpoint.
 
     r - the request.
-    collection - the arango collection containing the document.
+    collection - the arango collection containing the meta information.
     collection_id - the ID of the Collection for which to retrieve the meta information.
     data_product - the ID of the data product from which to retrieve the load version.
     load_ver_override - an override for the load version. If provided:
