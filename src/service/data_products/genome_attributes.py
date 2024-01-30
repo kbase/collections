@@ -30,6 +30,7 @@ from src.service.data_products.common_functions import (
     query_table,
     query_simple_collection_list,
     get_columnar_attribs_meta,
+    get_product_meta,
 )
 from src.service.data_products.data_product_processing import (
     MATCH_ID_PREFIX,
@@ -262,15 +263,13 @@ async def get_genome_attributes_meta(
     collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
     load_ver_override: common_models.QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
-) -> col_models.ColumnarAttributesMeta:
-
-    return await get_columnar_attribs_meta(r,
-                                           names.COLL_GENOME_ATTRIBS_META,
-                                           collection_id,
-                                           ID,
-                                           load_ver_override,
-                                           user,
-                                           return_only_visible=True)
+    ) -> col_models.ColumnarAttributesMeta:
+    return await get_product_meta(r,
+                                  names.COLL_GENOME_ATTRIBS_META,
+                                  collection_id,
+                                  ID,
+                                  load_ver_override,
+                                  user)
 
 
 @_ROUTER.get(
@@ -323,12 +322,11 @@ async def get_genome_attributes(
         load_ver_override,
         ID,
         (await get_columnar_attribs_meta(
-            r,
+            appstate.arangostorage,
             names.COLL_GENOME_ATTRIBS_META,
             collection_id,
-            ID,
-            load_ver_override,
-            user)).columns,
+            load_ver,
+            load_ver_override)).columns,
         view_name=coll.get_data_product(ID).search_view if coll else None,
         count=count,
         sort_on=sort_on,
@@ -352,7 +350,7 @@ async def get_genome_attributes(
 
 
 class Histogram(BaseModel):
-    
+
     bins: Annotated[list[float], Field(
         example=[2.5, 3.5, 4.5, 5.5],
         description="The location of the histogram bins. Each bin starts at index i, "
@@ -407,12 +405,11 @@ async def get_histogram(
         load_ver_override,
         ID,
         (await get_columnar_attribs_meta(
-            r,
+            appstate.arangostorage,
             names.COLL_GENOME_ATTRIBS_META,
             collection_id,
-            ID,
-            load_ver_override,
-            user)).columns,
+            load_ver,
+            load_ver_override)).columns,
         view_name=coll.get_data_product(ID).search_view if coll else None,
         filter_conjunction=conjunction,
         match_spec=match_spec,
@@ -436,7 +433,7 @@ async def get_histogram(
 
 
 class XYScatter(BaseModel):
-    
+
     xcolumn: Annotated[str, Field(
         example="Completeness",
         description="The name of the x column."
@@ -495,12 +492,11 @@ async def get_xy_scatter(
         load_ver_override,
         ID,
         (await get_columnar_attribs_meta(
-            r,
+            appstate.arangostorage,
             names.COLL_GENOME_ATTRIBS_META,
             collection_id,
-            ID,
-            load_ver_override,
-            user)).columns,
+            load_ver,
+            load_ver_override)).columns,
         view_name=coll.get_data_product(ID).search_view if coll else None,
         filter_conjunction=conjunction,
         match_spec=match_spec,
@@ -737,7 +733,7 @@ async def process_subset_documents(
             RETURN KEEP(d, @keep)
         """
         bind_vars["keep"] = fields
-    else:    
+    else:
         aql += """
             RETURN d
         """

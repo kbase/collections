@@ -113,18 +113,45 @@ async def get_collection_singleton_from_db(
 
 
 async def get_columnar_attribs_meta(
+        storage: ArangoStorage,
+        collection: str,
+        collection_id: str,
+        load_ver: str,
+        load_ver_override: bool
+) -> col_models.ColumnarAttributesMeta:
+    """
+    Get the columnar attributes meta document for a collection. The document is expected to be
+    a singleton per collection load version.
+
+    storage - the storage system.
+    collection - the arango collection containing the document.
+    collection_id - the KBase collection containing the document.
+    load_ver - the load version of the collection.
+    load_ver_override - whether to override the load version.
+    """
+    doc = await get_collection_singleton_from_db(
+            storage,
+            collection,
+            collection_id,
+            load_ver,
+            bool(load_ver_override)
+    )
+    doc[col_models.FIELD_COLUMNS] = [col_models.AttributesColumn(**d)
+                                     for d in doc[col_models.FIELD_COLUMNS]]
+    return col_models.ColumnarAttributesMeta(**remove_collection_keys(doc))
+
+
+async def get_product_meta(
         r: Request,
         collection: str,
         collection_id: str,
         data_product: str,
         load_ver_override,
         user: kb_auth.KBaseUser,
-        return_only_visible: bool = False
 
 ) -> col_models.ColumnarAttributesMeta:
     """
-    Get the columnar attributes meta document for a collection. The document is expected to be
-    a singleton per collection load version.
+    Get the columnar attributes meta document for a collection used by /meta endpoint.
 
     r - the request.
     collection - the arango collection containing the document.
@@ -135,7 +162,6 @@ async def get_columnar_attribs_meta(
         * the user must be a service administrator
         * the collection is not checked for the existence of the data product.
     user - the user. Ignored if load_ver is not provided; must be a service administrator.
-    return_only_visible - whether to return only visible columns. Default false.
 
     """
     storage = app_state.get_app_state(r).arangostorage
@@ -152,8 +178,37 @@ async def get_columnar_attribs_meta(
                                      for d in doc[col_models.FIELD_COLUMNS]]
 
     meta = col_models.ColumnarAttributesMeta(**remove_collection_keys(doc))
-    if return_only_visible:
-        meta.columns = [c for c in meta.columns if not c.non_visible]
+    meta.columns = [c for c in meta.columns if not c.non_visible]
+
+    return meta
+
+
+async def get_table_meta(
+        r: Request,
+        collection: str,
+        collection_id: str,
+        data_product: str,
+        load_ver_override,
+        user: kb_auth.KBaseUser,
+
+) -> col_models.ColumnarAttributesMeta:
+    """
+    Get the columnar attributes meta document for a collection used by /meta endpoint.
+
+    r - the request.
+    collection - the arango collection containing the document.
+    collection_id - the ID of the Collection from which to retrieve the load version and possibly
+        collection object.
+    data_product - the ID of the data product from which to retrieve the load version.
+    load_ver_override - an override for the load version. If provided:
+        * the user must be a service administrator
+        * the collection is not checked for the existence of the data product.
+    user - the user. Ignored if load_ver is not provided; must be a service administrator.
+    """
+    storage = app_state.get_app_state(r).arangostorage
+    _, load_ver = await get_load_version(storage, collection_id, data_product, load_ver_override, user)
+    meta = await get_columnar_attribs_meta(storage, collection, collection_id, load_ver, bool(load_ver_override))
+    meta.columns = [c for c in meta.columns if not c.non_visible]
 
     return meta
 

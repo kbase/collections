@@ -17,7 +17,7 @@ from src.service.data_products.common_functions import (
     query_table,
     get_load_version,
     QueryTableResult,
-    get_columnar_attribs_meta
+    get_columnar_attribs_meta, get_product_meta
 )
 from src.service.data_products.data_product_processing import (
     MATCH_ID_PREFIX,
@@ -181,18 +181,17 @@ async def get_samples_meta(
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
 ) -> col_models.ColumnarAttributesMeta:
 
-    return await get_columnar_attribs_meta(r,
-                                           names.COLL_SAMPLES_META,
-                                           collection_id,
-                                           ID,
-                                           load_ver_override,
-                                           user,
-                                           return_only_visible=True)
+    return await get_product_meta(r,
+                                  names.COLL_SAMPLES_META,
+                                  collection_id,
+                                  ID,
+                                  load_ver_override,
+                                  user)
 
 
 # At some point we're going to want to filter/sort on fields. We may want a list of fields
 # somewhere to check input fields are ok... but really we could just fetch the first document
-# in the collection and check the fields 
+# in the collection and check the fields
 @_ROUTER.get(
     "/",
     response_model=SamplesTable,
