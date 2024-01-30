@@ -167,7 +167,7 @@ async def get_product_meta(
     load_ver_override - an override for the load version. If provided:
         * the user must be a service administrator
         * the collection is not checked for the existence of the data product.
-    user - the user. Ignored if load_ver is not provided; must be a service administrator.
+    user - the user. Ignored if load_ver_override is not provided; must be a service administrator.
 
     """
 
