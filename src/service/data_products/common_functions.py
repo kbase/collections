@@ -162,8 +162,7 @@ async def get_product_meta(
 
     r - the request.
     collection - the arango collection containing the document.
-    collection_id - the ID of the Collection from which to retrieve the load version and possibly
-        collection object.
+    collection_id - the ID of the Collection for which to retrieve the meta information.
     data_product - the ID of the data product from which to retrieve the load version.
     load_ver_override - an override for the load version. If provided:
         * the user must be a service administrator
