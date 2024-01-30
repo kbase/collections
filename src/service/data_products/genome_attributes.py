@@ -273,7 +273,6 @@ async def get_genome_attributes_meta(
                                            return_only_visible=True)
 
 
-
 @_ROUTER.get(
     "/",
     response_model=TableAttributes,
