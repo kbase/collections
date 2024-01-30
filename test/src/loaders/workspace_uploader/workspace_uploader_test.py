@@ -305,10 +305,11 @@ def test_upload_assembly_files_in_parallel(setup_and_teardown):
         for assembly_name, assembly_dir in zip(ASSEMBLY_NAMES, assembly_dirs)
     }
 
+    # ws.get_object_info3() is unused in this test case
     ws = create_autospec(Workspace, spec_set=True, instance=True)
     asu = create_autospec(AssemblyUtil, spec_set=True, instance=True)
     asu.save_assemblies_from_fastas.return_value = {
-        "results":[
+        "results": [
             {"upa": "12345/58/1"},
             {"upa": "12345/60/1"}
         ]
@@ -328,6 +329,28 @@ def test_upload_assembly_files_in_parallel(setup_and_teardown):
 
     assert uploaded_count == 2
 
+    # assert that no interactions occurred with ws
+    ws.get_object_info3.assert_not_called()
+
+    # assert that asu was called correctly
+    asu.save_assemblies_from_fastas.assert_called_once_with(
+        {
+            "workspace_id": 12345,
+            "inputs": [
+                {
+                    "file": "/kb/module/work/tmp/GCF_000979855.1_gtlEnvA5udCFS_genomic.fna.gz",
+                    "assembly_name": "GCF_000979855.1_gtlEnvA5udCFS_genomic.fna.gz",
+                    "object_metadata": {"load_id": "214"},
+                },
+                {
+                    "file": "/kb/module/work/tmp/GCF_000979175.1_gtlEnvA5udCFS_genomic.fna.gz",
+                    "assembly_name": "GCF_000979175.1_gtlEnvA5udCFS_genomic.fna.gz",
+                    "object_metadata": {"load_id": "214"},
+                }
+            ]
+        }
+    )
+
     # check softlink for post_process
     assert os.readlink(os.path.join(upload_dir, "12345_58_1")) == os.path.join(
         output_dir, "12345_58_1"
@@ -338,11 +361,13 @@ def test_upload_assembly_files_in_parallel(setup_and_teardown):
 
     # check hardlink for post_process
     assert os.path.samefile(
-        src_files[0], os.path.join(os.path.join(output_dir, "12345_58_1"), f"12345_58_1.fna.gz")
+        src_files[0],
+        os.path.join(os.path.join(output_dir, "12345_58_1"), "12345_58_1.fna.gz")
     )
 
     assert os.path.samefile(
-        src_files[1], os.path.join(os.path.join(output_dir, "12345_60_1"), f"12345_60_1.fna.gz")
+        src_files[1],
+        os.path.join(os.path.join(output_dir, "12345_60_1"), "12345_60_1.fna.gz")
     )
 
 
@@ -362,9 +387,9 @@ def test_fail_upload_assembly_files_in_parallel(setup_and_teardown):
     ws = create_autospec(Workspace, spec_set=True, instance=True)
     asu = create_autospec(AssemblyUtil, spec_set=True, instance=True)
     asu.save_assemblies_from_fastas.side_effect = Exception("Illegal character in object name")
-
-    loader_helper.list_objects = create_autospec(loader_helper.list_objects)
-    loader_helper.list_objects.return_value = []
+    ws.get_object_info3.return_value = {
+        'infos': [None, None], 'paths': [None, None]
+    }
 
     uploaded_count = workspace_uploader._upload_assembly_files_in_parallel(
         asu,
@@ -380,8 +405,39 @@ def test_fail_upload_assembly_files_in_parallel(setup_and_teardown):
 
     assert uploaded_count == 0
 
+    # assert that asu was called correctly
+    asu.save_assemblies_from_fastas.assert_called_once_with(
+        {
+            "workspace_id": 12345,
+            "inputs": [
+                {
+                    "file": "/kb/module/work/tmp/GCF_000979855.1_gtlEnvA5udCFS_genomic.fna.gz",
+                    "assembly_name": "GCF_000979855.1_gtlEnvA5udCFS_genomic.fna.gz",
+                    "object_metadata": {"load_id": "214"},
+                },
+                {
+                    "file": "/kb/module/work/tmp/GCF_000979175.1_gtlEnvA5udCFS_genomic.fna.gz",
+                    "assembly_name": "GCF_000979175.1_gtlEnvA5udCFS_genomic.fna.gz",
+                    "object_metadata": {"load_id": "214"},
+                }
+            ]
+        }
+    )
 
-def test_query_workspace_with_load_id_mass(setup_and_teardown):
+    # assert that ws was called correctly
+    ws.get_object_info3.assert_called_once_with(
+        {
+            "objects": [
+                {"wsid": 12345, "name": "GCF_000979855.1_gtlEnvA5udCFS_genomic.fna.gz"},
+                {"wsid": 12345, "name": "GCF_000979175.1_gtlEnvA5udCFS_genomic.fna.gz"}
+            ],
+            "ignoreErrors": 1,
+            "includeMetadata": 1
+        }
+    )
+
+
+def test_fail_query_workspace_with_load_id_mass(setup_and_teardown):
     ws = create_autospec(Workspace, spec_set=True, instance=True)
     with pytest.raises(
         Exception, match="The effective max batch size must be <= 10000"
@@ -394,7 +450,13 @@ def test_query_workspace_with_load_id_mass(setup_and_teardown):
             10001,
         )
 
+    # assert that no interactions occurred with ws
+    ws.get_object_info3.assert_not_called()
+
+
+def test_query_workspace_with_load_id_mass(setup_and_teardown):
     # happy test
+    ws = create_autospec(Workspace, spec_set=True, instance=True)
     ws.get_object_info3.return_value = {
         'infos': [
                     [
@@ -454,3 +516,16 @@ def test_query_workspace_with_load_id_mass(setup_and_teardown):
         "GCF_000979375.1_gtlEnvA5udCFS_genomic.fna.gz",
     ]
     assert obj_upas == ["69046_1086_18", "69046_1068_18"]
+
+    # assert that ws was called correctly
+    ws.get_object_info3.assert_called_once_with(
+        {
+            "objects": [
+                {"wsid": 69046, "name": "GCF_000980105.1_gtlEnvA5udCFS_genomic.fna.gz"},
+                {"wsid": 69046, "name": "GCF_000979375.1_gtlEnvA5udCFS_genomic.fna.gz"},
+                {"wsid": 69046, "name": "aloha"}
+            ],
+            "ignoreErrors": 1,
+            "includeMetadata": 1
+        }
+    )

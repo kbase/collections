@@ -228,6 +228,8 @@ def _upload_assemblies_to_workspace(
     """
     Upload assembly files to the target workspace in batch. The bulk method fails
     and an error will be thrown if any of the assembly files in batch fails to upload.
+    Returns the list of workspace UPAs for the created objects in the same order as
+    `assembly_tuples`.
     """
     inputs = [
         {
@@ -646,14 +648,13 @@ def main():
 
     try:
         # setup container.conf file for the callback server logs if needed
-        conf_path = os.path.expanduser(loader_common_names.CONTAINERS_CONF_PATH)
-        if loader_helper.is_config_modification_required(conf_path):
+        if loader_helper.is_config_modification_required():
             if click.confirm(
                 f"The config file at {loader_common_names.CONTAINERS_CONF_PATH}\n"
                 f"needs to be modified to allow for container logging.\n"
                 f"Params 'seccomp_profile' and 'log_driver' will be added/updated under section [containers]. Do so now?\n"
             ):
-                loader_helper.setup_callback_server_logs(conf_path)
+                loader_helper.setup_callback_server_logs()
             else:
                 print("Permission denied and exiting ...")
                 return

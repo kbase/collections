@@ -31,6 +31,7 @@ from src.common.storage.db_doc_conversions import (
 from src.loaders.common.loader_common_names import (
     COLLECTION_SOURCE_DIR,
     CONTAINERS_CONF_PARAMS,
+    CONTAINERS_CONF_PATH,
     DOCKER_HOST,
     FATAL_ERROR,
     FATAL_STACKTRACE,
@@ -299,8 +300,9 @@ def _get_containers_config(conf_path: str):
     return config
 
 
-def is_config_modification_required(conf_path: str):
+def is_config_modification_required():
     """check if the config requires modification."""
+    conf_path = os.path.expanduser(CONTAINERS_CONF_PATH)
     config = _get_containers_config(conf_path)
     if not config.has_section("containers"):
         return True
@@ -310,8 +312,9 @@ def is_config_modification_required(conf_path: str):
     return False
 
 
-def setup_callback_server_logs(conf_path: str):
+def setup_callback_server_logs():
     """Set up containers.conf file for the callback server logs."""
+    conf_path = os.path.expanduser(CONTAINERS_CONF_PATH)
     with open(conf_path, "w") as writer:
         try:
             fcntl.flock(writer.fileno(), fcntl.LOCK_EX)
