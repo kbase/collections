@@ -141,8 +141,8 @@ async def get_columnar_attribs_meta(
     )
 
     doc[col_models.FIELD_COLUMNS] = [
-        col_models.AttributesColumn(**d) for d in doc[col_models.FIELD_COLUMNS] if
-        not return_only_visible or not d[col_models.NON_VISIBLE]
+        col_models.AttributesColumn(**d) for d in doc[col_models.FIELD_COLUMNS]
+        if not return_only_visible or not d[col_models.NON_VISIBLE]
     ]
 
     return col_models.ColumnarAttributesMeta(**remove_collection_keys(doc))
