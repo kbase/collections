@@ -19,7 +19,6 @@ import src.common.storage.collection_and_field_names as names
 from src.common.collection_column_specs.load_specs import load_spec
 from src.common.product_models.columnar_attribs_common_models import (
     ColumnType,
-    AttributesColumn,
     ColumnarAttributesMeta,
 )
 from src.common.storage.db_doc_conversions import (
@@ -51,7 +50,7 @@ def _convert_to_iso8601(date_string: str) -> str:
     # Convert a date string to ISO 8601 format
     formats_to_try = ["%Y/%m/%d",
                       "%Y-%m-%d",
-                      "%m/%d/%y",]  # Add more formats as needed
+                      "%m/%d/%y", ]  # Add more formats as needed
     # The current code always leaves the date in day precision with no time zone information as that's
     # all that's available from the current data.
     # If higher precision dates are encountered in the future the code should be adapted to
@@ -139,17 +138,17 @@ def process_columnar_meta(
             enum_values = list(set(values))
             enum_values.sort()
 
-        attri_column = AttributesColumn(
-            **col_spec.model_dump(),
-            min_value=min_value,
-            max_value=max_value,
-            enum_values=enum_values
-        )
+        attri_column = {
+            'min_value': min_value,
+            'max_value': max_value,
+            'enum_values': enum_values,
+            **col_spec.model_dump()
+        }
+
         columns.append(attri_column)
 
-    columnar_attri_meta = ColumnarAttributesMeta(columns=columns, count=len(docs))
+    meta_doc = {'columns': columns, 'count': len(docs)}
 
-    meta_doc = columnar_attri_meta.model_dump()
     meta_doc.update({
         names.FLD_ARANGO_KEY: collection_load_version_key(kbase_collection, load_ver),
         names.FLD_COLLECTION_ID: kbase_collection,
