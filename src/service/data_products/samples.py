@@ -7,16 +7,19 @@ from fastapi import APIRouter, Request, Depends, Query
 from pydantic import BaseModel, Field
 
 import src.common.storage.collection_and_field_names as names
+from src.common.product_models import columnar_attribs_common_models as col_models
 from src.common.product_models.common_models import SubsetProcessStates
 from src.service import app_state, errors, kb_auth, models
+from src.service.data_products import common_models
 from src.service.data_products.common_functions import (
     remove_collection_keys,
     remove_marked_subset,
     query_table,
     get_load_version,
-    QueryTableResult
+    QueryTableResult,
+    get_product_meta,
+    get_columnar_attribs_meta
 )
-from src.service.data_products import common_models
 from src.service.data_products.data_product_processing import (
     MATCH_ID_PREFIX,
     SELECTION_ID_PREFIX,
@@ -24,7 +27,7 @@ from src.service.data_products.data_product_processing import (
     get_missing_ids as _get_missing_ids
 )
 from src.service.data_products.table_models import TableAttributes
-from src.service.filtering.filters import FilterSet
+from src.service.filtering.filtering_processing import get_filters, FILTER_STRATEGY_TEXT
 from src.service.http_bearer import KBaseHTTPBearer
 from src.service.processing import SubsetSpecification
 from src.service.routes_common import PATH_VALIDATOR_COLLECTION_ID
@@ -38,11 +41,24 @@ from src.service.storage_arango import ArangoStorage, remove_arango_keys
 # reworked later to remove the many duplicate sample records and instead have some kind of
 # M:1 kbase_id:sample relationship.
 
-ID = "samples"
+ID = names.SAMPLES_PRODUCT_ID
 
 _ROUTER = APIRouter(tags=["Samples"], prefix=f"/{ID}")
 
 _MAX_SAMPLE_IDS = 1000
+
+_FILTERING_TEXT = """
+**FILTERING:**
+
+The returned data can be filtered by column content by adding query parameters of the format
+```
+filter_<column name>=<filter criteria>
+```
+For example:
+```
+GET <host>/collections/ENIGMA/data_products/samples/?filter_genome_count=[5,10]
+```
+""" + FILTER_STRATEGY_TEXT
 
 
 class SamplesSpec(common_models.DataProductSpec):
@@ -73,7 +89,12 @@ SAMPLES_SPEC = SamplesSpec(
     router=_ROUTER,
     db_collections=[
         common_models.DBCollection(
+            name=names.COLL_SAMPLES_META,
+            indexes=[]  # lookup is by key
+        ),
+        common_models.DBCollection(
             name=names.COLL_SAMPLES,
+            view_required=True,
             indexes=[
                 [
                     names.FLD_COLLECTION_ID,
@@ -159,9 +180,32 @@ class Samples(BaseModel):
     )
 
 
+@_ROUTER.get(
+    "/meta",
+    response_model=col_models.ColumnarAttributesMeta,
+    description=
+"""
+Get metadata about the samples table including column names, type,
+minimum and maximum values, etc.
+""")
+async def get_samples_meta(
+    r: Request,
+    collection_id: str = PATH_VALIDATOR_COLLECTION_ID,
+    load_ver_override: common_models.QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
+    user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
+) -> col_models.ColumnarAttributesMeta:
+
+    return await get_product_meta(r,
+                                  names.COLL_SAMPLES_META,
+                                  collection_id,
+                                  ID,
+                                  load_ver_override,
+                                  user)
+
+
 # At some point we're going to want to filter/sort on fields. We may want a list of fields
 # somewhere to check input fields are ok... but really we could just fetch the first document
-# in the collection and check the fields 
+# in the collection and check the fields
 @_ROUTER.get(
     "/",
     response_model=SamplesTable,
@@ -169,6 +213,7 @@ class Samples(BaseModel):
         + "which may differ from collection to collection.\n\n"
         + "Authentication is not required unless submitting a match ID or overriding the load "
         + "version; in the latter case service administration permissions are required.\n\n"
+        + _FILTERING_TEXT
     # TODO SAMPLES - how should we support creating a selection from samples?
 )
 async def get_samples(
@@ -196,7 +241,7 @@ async def get_samples(
     # we have a max limit of 1000, which means sorting is O(n log2 1000).
     # Otherwise we need indexes for every sort
     appstate = app_state.get_app_state(r)
-    load_ver, dp_match, dp_sel = await get_load_version_and_processes(
+    load_ver, dp_match, dp_sel, coll = await get_load_version_and_processes(
         appstate,
         user,
         names.COLL_SAMPLES,
@@ -209,17 +254,28 @@ async def get_samples(
     )
     if status_only:
         return _response(dp_match=dp_match, dp_sel=dp_sel)
-    filters = FilterSet(
+
+    filters = await get_filters(
+        r,
+        names.COLL_SAMPLES,
         collection_id,
         load_ver,
-        collection=names.COLL_SAMPLES,
+        load_ver_override,
+        ID,
+        (await get_columnar_attribs_meta(
+            appstate.arangostorage,
+            names.COLL_SAMPLES_META,
+            collection_id,
+            load_ver,
+            load_ver_override)).columns,
+        view_name=coll.get_data_product(ID).search_view if coll else None,
         count=count,
+        sort_on=sort_on,
+        sort_desc=sort_desc,
         match_spec=SubsetSpecification(
             subset_process=dp_match, mark_only=match_mark, prefix=MATCH_ID_PREFIX),
         selection_spec=SubsetSpecification(
             subset_process=dp_sel, mark_only=selection_mark, prefix=SELECTION_ID_PREFIX),
-        sort_on=sort_on,
-        sort_descending=sort_desc,
         skip=skip,
         limit=limit,
     )
@@ -296,7 +352,7 @@ async def get_sample_locations(
     # might need to return a bare Response if the pydantic checking gets too expensive
     # might need some sort of pagination
     appstate = app_state.get_app_state(r)
-    load_ver, dp_match, dp_sel = await get_load_version_and_processes(
+    load_ver, dp_match, dp_sel, _ = await get_load_version_and_processes(
         appstate,
         user,
         names.COLL_SAMPLES,

@@ -345,7 +345,7 @@ GET <host>/collections/PMI/data_products/{self._id}/?filter_kbase_id=69278_1006_
         # For some reason returning the data as a model slows down the endpoint by ~10x.
         # Serializing manually and returning a plain response is much faster
         appstate = app_state.get_app_state(r)
-        load_ver, dp_match, dp_sel = await get_load_version_and_processes(
+        load_ver, dp_match, dp_sel, _ = await get_load_version_and_processes(
             appstate,
             user,
             self._colname_data,

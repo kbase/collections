@@ -133,7 +133,7 @@ def _process_object_info(
                 loader_common_names.FLD_KB_OBJ_TIMESTAMP: obj_info[3],
                 loader_common_names.FLD_KB_OBJ_GENOME_UPA: "{6}/{0}/{4}".format(*genome_info),
                 loader_common_names.ASSEMBLY_OBJ_INFO_KEY: obj_info,
-                loader_common_names.GENOME_METADATA_FILE: genome_info}
+                loader_common_names.GENOME_OBJ_INFO_KEY: genome_info}
 
     return res_dict
 
@@ -245,14 +245,15 @@ def _find_sample_upa(
     # find one and only one sample associated upa from input upas and retrieve the sample data
     # raise error if multiple samples are found
 
-    found_sample, sample_ret, sample_upa, sample_effective_time = False, None, None, None
+    found_sample_id, sample_ret, sample_upa, sample_effective_time = None, None, None, None
 
     for upa in upas:
         try:
             sample_ret, sample_effective_time = _retrieve_sample(conf, upa)
-            if found_sample:
+            sample_id = sample_ret['id']
+            if found_sample_id and found_sample_id != sample_id:
                 raise ValueError(f"Found multiple samples in input {upas}")
-            found_sample, sample_upa = True, upa
+            found_sample_id, sample_upa = sample_id, upa
         except NoDataLinkError:
             pass
 
