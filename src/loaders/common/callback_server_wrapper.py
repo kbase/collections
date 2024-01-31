@@ -57,10 +57,10 @@ class Conf:
             token_filepath (str): The file path that stores a KBase token appropriate for the KBase environment.
                                 If not supplied, the token must be provided in the environment variable KB_AUTH_TOKEN.
                                 The KB_ADMIN_AUTH_TOKEN environment variable will get set by this token if the user runs as catalog admin.
-            au_service_ver (str): The service verison of AssemblyUtilClient
+            au_service_ver (str): The service version of AssemblyUtilClient
                                 ('dev', 'beta', 'release', or a git commit).
             workers (int): The number of workers to use for multiprocessing.
-            max_callback_server_tasks (int): The maxmium subtasks for the callback server.
+            max_callback_server_tasks (int): The maximum number of subtasks for the callback server.
             worker_function (Callable): The function that will be called by the workers.
             retrieve_sample (bool): Whether to retrieve sample for each genome object.
             ignore_no_sample_error (bool): Whether to ignore the error when no sample data is found.
@@ -135,7 +135,7 @@ class Conf:
             kb_base_url (str): The base url of the KBase services.
             token (str): The KBase token.
             port (int): The port number for the callback server.
-            max_callback_server_tasks (int): The maxmium subtasks for the callback server.
+            max_callback_server_tasks (int): The maximum number of subtasks for the callback server.
             ipv4 (str): The ipv4 address for the callback server.
             catalog_admin (bool): Whether to run the callback server as catalog admin.
 
@@ -190,7 +190,7 @@ class Conf:
             job_dir (str): The directory for SDK jobs per user.
             kb_base_url (str): The base url of the KBase services.
             token (str): The KBase token.
-            max_callback_server_tasks (int): The maxmium subtasks for the callback server.
+            max_callback_server_tasks (int): The maximum number of subtasks for the callback server.
             port (int): The port number for the callback server.
             ipv4 (str): The ipv4 address for the callback server.
             catalog_admin (bool): Whether to run the callback server as catalog admin.

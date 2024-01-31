@@ -26,7 +26,7 @@ optional arguments:
                         A file path that stores a KBase token appropriate for the KBase environment
                         If not provided, the token must be provided in the `KB_AUTH_TOKEN` environment variable
   --cbs_max_tasks CBS_MAX_TASKS
-                        The maxmium subtasks for the callback server (default: 20)
+                        The maximum number of subtasks for the callback server (default: 20)
   --au_service_ver AU_SERVICE_VER
                         The service version of AssemblyUtil client('dev', 'beta', 'release', or a git commit) (default: release)
   --keep_job_dir        Keep SDK job directory after download task is completed
@@ -396,7 +396,7 @@ def main():
         "--cbs_max_tasks",
         type=int,
         default=20,
-        help="The maxmium subtasks for the callback server",
+        help="The maximum number of subtasks for the callback server",
     )
     optional.add_argument(
         "--au_service_ver",
