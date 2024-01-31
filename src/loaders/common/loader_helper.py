@@ -19,7 +19,8 @@ import src.common.storage.collection_and_field_names as names
 from src.common.collection_column_specs.load_specs import load_spec
 from src.common.product_models.columnar_attribs_common_models import (
     ColumnType,
-    ColumnarAttributesMeta,
+    AttributesColumnSpec,
+    ColumnarAttributesSpec,
 )
 from src.common.storage.db_doc_conversions import (
     collection_data_id_key,
@@ -138,17 +139,18 @@ def process_columnar_meta(
             enum_values = list(set(values))
             enum_values.sort()
 
-        attri_column = {
-            'min_value': min_value,
-            'max_value': max_value,
-            'enum_values': enum_values,
-            **col_spec.model_dump()
-        }
+        attri_column = AttributesColumnSpec(
+            **col_spec.model_dump(),
+            min_value=min_value,
+            max_value=max_value,
+            enum_values=enum_values
+        )
 
         columns.append(attri_column)
 
-    meta_doc = {'columns': columns, 'count': len(docs)}
+    columnar_attri_meta = ColumnarAttributesSpec(columns=columns, count=len(docs))
 
+    meta_doc = columnar_attri_meta.model_dump()
     meta_doc.update({
         names.FLD_ARANGO_KEY: collection_load_version_key(kbase_collection, load_ver),
         names.FLD_COLLECTION_ID: kbase_collection,
