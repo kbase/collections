@@ -362,12 +362,12 @@ def test_upload_assembly_files_in_parallel(setup_and_teardown):
     # check hardlink for post_process
     assert os.path.samefile(
         src_files[0],
-        os.path.join(os.path.join(output_dir, "12345_58_1"), "12345_58_1.fna.gz")
+        os.path.join(output_dir, "12345_58_1", "12345_58_1.fna.gz")
     )
 
     assert os.path.samefile(
         src_files[1],
-        os.path.join(os.path.join(output_dir, "12345_60_1"), "12345_60_1.fna.gz")
+        os.path.join(output_dir, "12345_60_1", "12345_60_1.fna.gz")
     )
 
 
