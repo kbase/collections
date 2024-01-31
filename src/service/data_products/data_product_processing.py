@@ -43,7 +43,7 @@ async def get_load_version_and_processes( # pretty huge method sig here
     match_id: str | None = None,
     selection_id: str | None = None,
     multiple_ids: bool = False,
-) -> tuple[str, models.DataProductProcess, models.DataProductProcess]:
+) -> tuple[str, models.DataProductProcess, models.DataProductProcess, models.ActiveCollection | None]:
     f"""
     Get the appropriate load version to use when querying data along with match and / or selection
     processes, if match and selection IDs are provided.
@@ -93,7 +93,7 @@ async def get_load_version_and_processes( # pretty huge method sig here
             appstate, coll, selection_id, data_product,
             partial(_process_subset, collection, multiple_ids)
         )
-    return load_ver, dp_match, dp_sel
+    return load_ver, dp_match, dp_sel, coll
 
 
 async def _process_subset(
@@ -154,7 +154,7 @@ async def get_missing_ids(
     if not match_id and not selection_id:
         raise errors.IllegalParameterError(
             "At last one of a match ID or selection ID must be supplied")
-    _, dp_match, dp_sel = await get_load_version_and_processes(
+    _, dp_match, dp_sel, _ = await get_load_version_and_processes(
         appstate,
         user,
         collection,

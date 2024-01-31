@@ -241,7 +241,7 @@ async def get_samples(
     # we have a max limit of 1000, which means sorting is O(n log2 1000).
     # Otherwise we need indexes for every sort
     appstate = app_state.get_app_state(r)
-    load_ver, dp_match, dp_sel = await get_load_version_and_processes(
+    load_ver, dp_match, dp_sel, coll = await get_load_version_and_processes(
         appstate,
         user,
         names.COLL_SAMPLES,
@@ -254,7 +254,7 @@ async def get_samples(
     )
     if status_only:
         return _response(dp_match=dp_match, dp_sel=dp_sel)
-    coll = await appstate.arangostorage.get_collection_active(collection_id)
+
     filters = await get_filters(
         r,
         names.COLL_SAMPLES,
@@ -352,7 +352,7 @@ async def get_sample_locations(
     # might need to return a bare Response if the pydantic checking gets too expensive
     # might need some sort of pagination
     appstate = app_state.get_app_state(r)
-    load_ver, dp_match, dp_sel = await get_load_version_and_processes(
+    load_ver, dp_match, dp_sel, _ = await get_load_version_and_processes(
         appstate,
         user,
         names.COLL_SAMPLES,
