@@ -129,6 +129,13 @@ KB_BASE_URL_MAP = {'CI': 'https://ci.kbase.us/services/',
                    'APPDEV': 'https://appdev.kbase.us/services/',
                    'PROD': 'https://kbase.us/services/'}
 
+# containers.conf path
+CONTAINERS_CONF_PATH = "~/.config/containers/containers.conf"
+# params in containers.conf file
+CONTAINERS_CONF_PARAMS = {
+    "seccomp_profile": "\"unconfined\"",
+    "log_driver": "\"k8s-file\""
+}
 # field name for Kbase object metadata
 FLD_KB_OBJ_UPA = "upa"
 FLD_KB_OBJ_NAME = "name"

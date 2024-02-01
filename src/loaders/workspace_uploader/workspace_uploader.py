@@ -1,9 +1,13 @@
 """
 usage: workspace_uploader.py [-h] --workspace_id WORKSPACE_ID [--kbase_collection KBASE_COLLECTION] [--source_ver SOURCE_VER]
-                             [--root_dir ROOT_DIR] [--token_filepath TOKEN_FILEPATH] [--env {CI,NEXT,APPDEV,PROD}]
-                             [--upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]] [--workers WORKERS] [--keep_job_dir]
+                             [--root_dir ROOT_DIR] [--load_id LOAD_ID] [--token_filepath TOKEN_FILEPATH] [--env {CI,NEXT,APPDEV,PROD}]
+                             [--upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]] [--batch_size BATCH_SIZE]
+                             [--cbs_max_tasks CBS_MAX_TASKS] [--au_service_ver AU_SERVICE_VER] [--keep_job_dir] [--as_catalog_admin]
 
-PROTOTYPE - Upload assembly files to the workspace service (WSS).
+PROTOTYPE - Upload assembly files to the workspace service (WSS). Note that the uploader determines whether a genome is already uploaded in
+one of two ways. First it consults the *.yaml files in each genomes directory; if that file shows the genome has been uploaded it skips it
+regardless of the current state of the workspace. Second, it checks that the most recent version of the genome object in the workspace, if it
+exists, was part of the current load ID (see the load ID parameter description below). If so, the genome is skipped.
 
 options:
   -h, --help            show this help message and exit
@@ -22,15 +26,26 @@ required named arguments:
 
 optional arguments:
   --root_dir ROOT_DIR   Root directory for the collections project. (default: /global/cfs/cdirs/kbase/collections)
+  --load_id LOAD_ID     The load id of the objects being uploaded to a workspace. If not provided, a random load_id will be generated. For a
+                        particular load, any restarts / resumes of the load should use the same load ID to prevent reuploading the same data.
+                        A new load ID will make new versions of all the objects from the prior upload.
   --token_filepath TOKEN_FILEPATH
-                        A file path that stores a KBase token appropriate for the KBase environment
-                        If not provided, the token must be provided in the `KB_AUTH_TOKEN` environment variable
+                        A file path that stores a KBase token appropriate for the KBase environment.
+                        If not provided, the token must be provided in the `KB_AUTH_TOKEN` environment variable.
   --env {CI,NEXT,APPDEV,PROD}
                         KBase environment (default: PROD)
   --upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]
                         Upload only files that match given extensions (default: ['genomic.fna.gz'])
-  --workers WORKERS     Number of workers for multiprocessing (default: 5)
+  --batch_size BATCH_SIZE
+                        Number of files to upload per batch (default: 2500)
+  --cbs_max_tasks CBS_MAX_TASKS
+                        The maximum number of subtasks for the callback server (default: 20)
+  --au_service_ver AU_SERVICE_VER
+                        The service version of AssemblyUtil client('dev', 'beta', 'release', or a git commit) (default: release)
   --keep_job_dir        Keep SDK job directory after upload task is completed
+  --as_catalog_admin    True means the provided user token has catalog admin privileges and will be used to retrieve secure SDK app
+                        parameters from the catalog. If false, the default, SDK apps run as part of this application will not have access to
+                        catalog secure parameters.
 
 e.g.
 PYTHONPATH=. python src/loaders/workspace_uploader/workspace_uploader.py --workspace_id 69046 --kbase_collection GTDB --source_ver 207 --env CI --keep_job_dir
@@ -48,30 +63,46 @@ The data will be linked to the collections source directory:
 e.g. /global/cfs/cdirs/kbase/collections/collectionssource/ -> ENV -> kbase_collection -> source_ver -> UPA -> .fna.gz file
 """
 import argparse
+import click
 import os
 import shutil
 import time
+import uuid
+from collections import namedtuple
 from datetime import datetime
-from multiprocessing import cpu_count
 from pathlib import Path
-from typing import Tuple
+from typing import Generator
 
 import yaml
 
+from src.clients.AssemblyUtilClient import AssemblyUtil
+from src.clients.workspaceClient import Workspace
 from src.loaders.common import loader_common_names, loader_helper
 from src.loaders.common.callback_server_wrapper import Conf
 
 # setup KB_AUTH_TOKEN as env or provide a token_filepath in --token_filepath
 # export KB_AUTH_TOKEN="your-kb-auth-token"
 
-UPLOAD_FILE_EXT = ["genomic.fna.gz"]  # uplaod only files that match given extensions
-JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER = "/kb/module/work/tmp"
-UPLOADED_YAML = "uploaded.yaml"
+_UPLOAD_FILE_EXT = ["genomic.fna.gz"]  # uplaod only files that match given extensions
+_JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER = "/kb/module/work/tmp"
+_UPLOADED_YAML = "uploaded.yaml"
+_WS_MAX_BATCH_SIZE = 10000
+
+_AssemblyTuple = namedtuple(
+    "AssemblyTuple",
+    ["assembly_name", "host_assembly_dir", "container_internal_assembly_path"],
+)
 
 
 def _get_parser():
     parser = argparse.ArgumentParser(
-        description="PROTOTYPE - Upload assembly files to the workspace service (WSS).",
+        description="PROTOTYPE - Upload assembly files to the workspace service (WSS).\n\n"
+        "Note that the uploader determines whether a genome is already uploaded in one of two ways. "
+        "First it consults the *.yaml files in each genomes directory; if that file shows the genome "
+        "has been uploaded it skips it regardless of the current state of the workspace. "
+        "Second, it checks that the most recent version of the genome object in the workspace, "
+        "if it exists, was part of the current load ID (see the load ID parameter description below). "
+        "If so, the genome is skipped.",
         formatter_class=loader_helper.ExplicitDefaultsHelpFormatter,
     )
 
@@ -89,15 +120,15 @@ def _get_parser():
         f"--{loader_common_names.KBASE_COLLECTION_ARG_NAME}",
         type=str,
         help="The name of the collection being processed. "
-             "Specifies where the files to be uploaded exist (in the default NONE environment) "
-             "and the name of the collection to be created in the specific KBase environment in the 'collectionsource' directory.",
+        "Specifies where the files to be uploaded exist (in the default NONE environment) "
+        "and the name of the collection to be created in the specific KBase environment in the 'collectionsource' directory.",
     )
     required.add_argument(
         f"--{loader_common_names.SOURCE_VER_ARG_NAME}",
         type=str,
         help="The source version of the collection being processed. "
-             "Specifies where the files to be uploaded exist (in the default NONE environment) "
-             "and the source version of the collection to be created in the specific KBase environment in the 'collectionsource' directory.",
+        "Specifies where the files to be uploaded exist (in the default NONE environment) "
+        "and the source version of the collection to be created in the specific KBase environment in the 'collectionsource' directory.",
     )
 
     # Optional argument
@@ -105,13 +136,21 @@ def _get_parser():
         f"--{loader_common_names.ROOT_DIR_ARG_NAME}",
         type=str,
         default=loader_common_names.ROOT_DIR,
-        help=loader_common_names.ROOT_DIR_DESCR
+        help=loader_common_names.ROOT_DIR_DESCR,
+    )
+    optional.add_argument(
+        "--load_id",
+        type=str,
+        help="The load id of the objects being uploaded to a workspace. "
+        "If not provided, a random load_id will be generated. "
+        "For a particular load, any restarts / resumes of the load should use the same load ID to prevent reuploading the same data. "
+        "A new load ID will make new versions of all the objects from the prior upload.",
     )
     optional.add_argument(
         "--token_filepath",
         type=str,
         help="A file path that stores a KBase token appropriate for the KBase environment. "
-             "If not provided, the token must be provided in the `KB_AUTH_TOKEN` environment variable.",
+        "If not provided, the token must be provided in the `KB_AUTH_TOKEN` environment variable.",
     )
     optional.add_argument(
         "--env",
@@ -124,19 +163,39 @@ def _get_parser():
         "--upload_file_ext",
         type=str,
         nargs="+",
-        default=UPLOAD_FILE_EXT,
+        default=_UPLOAD_FILE_EXT,
         help="Upload only files that match given extensions",
     )
     optional.add_argument(
-        "--workers",
+        "--batch_size",
         type=int,
-        default=5,
-        help="Number of workers for multiprocessing",
+        default=2500,
+        help="Number of files to upload per batch",
+    )
+    optional.add_argument(
+        "--cbs_max_tasks",
+        type=int,
+        default=20,
+        help="The maximum number of subtasks for the callback server",
+    )
+    optional.add_argument(
+        "--au_service_ver",
+        type=str,
+        default="release",
+        help="The service version of AssemblyUtil client"
+        "('dev', 'beta', 'release', or a git commit)",
     )
     optional.add_argument(
         "--keep_job_dir",
         action="store_true",
         help="Keep SDK job directory after upload task is completed",
+    )
+    optional.add_argument(
+        "--as_catalog_admin",
+        action="store_true",
+        help="True means the provided user token has catalog admin privileges and will "
+        "be used to retrieve secure SDK app parameters from the catalog. If false, the default, "
+        "SDK apps run as part of this application will not have access to catalog secure parameters.",
     )
     return parser
 
@@ -145,7 +204,7 @@ def _get_yaml_file_path(assembly_dir: str) -> str:
     """
     Get the uploaded.yaml file path from collections source directory.
     """
-    file_path = os.path.join(assembly_dir, UPLOADED_YAML)
+    file_path = os.path.join(assembly_dir, _UPLOADED_YAML)
     Path(file_path).touch(exist_ok=True)
     return file_path
 
@@ -160,51 +219,56 @@ def _get_source_file(assembly_dir: str, assembly_file: str) -> str:
     return src_file
 
 
-def _upload_assembly_to_workspace(
-    conf: Conf,
+def _upload_assemblies_to_workspace(
+    asu: AssemblyUtil,
     workspace_id: int,
-    file_path: str,
-    assembly_name: str,
-) -> str:
-    """Upload an assembly file to workspace."""
-    success, attempts, max_attempts = False, 0, 3
-    while attempts < max_attempts and not success:
-        try:
-            time.sleep(attempts)
-            assembly_ref = conf.asu.save_assembly_from_fasta2(
-                {
-                    "file": {"path": file_path},
-                    "workspace_id": workspace_id,
-                    "assembly_name": assembly_name,
-                }
-            )
-            success = True
-        except Exception as e:
-            print(f"Error:\n{e}\nfrom attempt {attempts + 1}.\nTrying to rerun.")
-            attempts += 1
+    load_id: int,
+    assembly_tuples: list[_AssemblyTuple],
+) -> tuple[str, ...]:
+    """
+    Upload assembly files to the target workspace in batch. The bulk method fails
+    and an error will be thrown if any of the assembly files in batch fails to upload.
+    Returns the list of workspace UPAs for the created objects in the same order as
+    `assembly_tuples`.
+    """
+    inputs = [
+        {
+            "file": assembly_tuple.container_internal_assembly_path,
+            "assembly_name": assembly_tuple.assembly_name,
+            "object_metadata": {"load_id": load_id},
+        }
+        for assembly_tuple in assembly_tuples
+    ]
 
-    if not success:
-        raise ValueError(
-            f"Upload Failed for {file_path} after {max_attempts} attempts!"
-        )
+    assembly_ref = asu.save_assemblies_from_fastas(
+        {"workspace_id": workspace_id, "inputs": inputs}
+    )
 
-    upa = assembly_ref["upa"].replace("/", "_")
-    return upa
+    upas = tuple(
+        [
+            result_dict["upa"].replace("/", "_")
+            for result_dict in assembly_ref["results"]
+        ]
+    )
+    return upas
 
 
 def _read_upload_status_yaml_file(
-        upload_env_key: str,
-        workspace_id: int,
-        assembly_dir: str,
-        assembly_name: str, 
-) -> Tuple[dict[str, dict[int, list[str]]], bool]:
+    upload_env_key: str,
+    workspace_id: int,
+    load_id: str,
+    assembly_dir: str,
+    assembly_name: str,
+) -> tuple[dict[str, dict[int, list[str]]], bool]:
     """
     Get metadata and upload status of an assembly from the uploaded.yaml file.
     """
 
     uploaded = False
     if upload_env_key not in loader_common_names.KB_ENV:
-        raise ValueError(f"Currently only support these {loader_common_names.KB_ENV} envs for upload")
+        raise ValueError(
+            f"Currently only support these {loader_common_names.KB_ENV} envs for upload"
+        )
 
     file_path = _get_yaml_file_path(assembly_dir)
 
@@ -217,40 +281,57 @@ def _read_upload_status_yaml_file(
     if workspace_id not in data[upload_env_key]:
         data[upload_env_key][workspace_id] = dict()
 
-    assembly_dict = data[upload_env_key][workspace_id]
-    if assembly_dict and assembly_dict["file_name"] == assembly_name:
+    workspace_dict = data[upload_env_key][workspace_id]
+
+    if "file_name" not in workspace_dict:
+        workspace_dict["file_name"] = assembly_name
+
+    if "loads" not in workspace_dict:
+        workspace_dict["loads"] = dict()
+
+    if load_id in workspace_dict["loads"]:
         uploaded = True
+
     return data, uploaded
 
 
 def _update_upload_status_yaml_file(
-        upload_env_key: str,
-        workspace_id: int,
-        upa: str,
-        assembly_dir: str,
-        assembly_name: str,
+    upload_env_key: str,
+    workspace_id: int,
+    load_id: str,
+    upa: str,
+    assembly_tuple: _AssemblyTuple,
 ) -> None:
     """
     Update the uploaded.yaml file in target genome_dir with newly uploaded assembly names and upa info.
     """
-    data, uploaded = _read_upload_status_yaml_file(upload_env_key, workspace_id, assembly_dir, assembly_name)
+    data, uploaded = _read_upload_status_yaml_file(
+        upload_env_key,
+        workspace_id,
+        load_id,
+        assembly_tuple.host_assembly_dir,
+        assembly_tuple.assembly_name,
+    )
 
     if uploaded:
-        raise ValueError(f"Assembly {assembly_name} already exists in workspace {workspace_id}")
+        raise ValueError(
+            f"Assembly {assembly_tuple.assembly_name} already exists in workspace {workspace_id}"
+        )
 
-    data[upload_env_key][workspace_id] = {"file_name": assembly_name, "upa": upa}
+    data[upload_env_key][workspace_id]["loads"][load_id] = {"upa": upa}
 
-    file_path = _get_yaml_file_path(assembly_dir)
+    file_path = _get_yaml_file_path(assembly_tuple.host_assembly_dir)
     with open(file_path, "w") as file:
         yaml.dump(data, file)
 
 
 def _fetch_assemblies_to_upload(
-        upload_env_key: str,
-        workspace_id: int,
-        collection_source_dir: str,
-        upload_file_ext: list[str],
-) -> Tuple[int, dict[str, str]]:
+    upload_env_key: str,
+    workspace_id: int,
+    load_id: str,
+    collection_source_dir: str,
+    upload_file_ext: list[str],
+) -> tuple[int, dict[str, str]]:
     count = 0
     wait_to_upload_assemblies = dict()
 
@@ -261,7 +342,6 @@ def _fetch_assemblies_to_upload(
     ]
 
     for assembly_dir in assembly_dirs:
-
         assembly_file_list = [
             f
             for f in os.listdir(assembly_dir)
@@ -270,17 +350,26 @@ def _fetch_assemblies_to_upload(
         ]
 
         if len(assembly_file_list) != 1:
-            raise ValueError(f"One and only one assembly file that ends with {upload_file_ext} "
-                    f"must be present in {assembly_dir} directory")
+            raise ValueError(
+                f"One and only one assembly file that ends with {upload_file_ext} "
+                f"must be present in {assembly_dir} directory"
+            )
 
         count += 1
         assembly_name = assembly_file_list[0]
 
-        _, uploaded = _read_upload_status_yaml_file(upload_env_key, workspace_id, assembly_dir, assembly_name)
+        _, uploaded = _read_upload_status_yaml_file(
+            upload_env_key,
+            workspace_id,
+            load_id,
+            assembly_dir,
+            assembly_name,
+        )
 
         if uploaded:
             print(
-                f"Assembly {assembly_name} already exists in workspace {workspace_id}. Skipping."
+                f"Assembly {assembly_name} already exists in "
+                f"workspace {workspace_id} load {load_id}. Skipping."
             )
             continue
 
@@ -289,7 +378,54 @@ def _fetch_assemblies_to_upload(
     return count, wait_to_upload_assemblies
 
 
-def _prepare_skd_job_dir_to_upload(conf: Conf, wait_to_upload_assemblies: dict[str, str]) -> str:
+def _query_workspace_with_load_id(
+    ws: Workspace,
+    workspace_id: int,
+    load_id: str,
+    assembly_names: list[str],
+) -> tuple[list[str], list[str]]:
+    if len(assembly_names) > _WS_MAX_BATCH_SIZE:
+        raise ValueError(
+            f"The effective max batch size must be <= {_WS_MAX_BATCH_SIZE}"
+        )
+    refs = [{"wsid": workspace_id, "name": name} for name in assembly_names]
+    res = ws.get_object_info3(
+        {"objects": refs, "ignoreErrors": 1, "includeMetadata": 1}
+    )
+    uploaded_obj_names_batch = [
+        info[1]
+        for info in res["infos"]
+        if info is not None and "load_id" in info[10] and info[10]["load_id"] == load_id
+    ]
+    uploaded_obj_upas_batch = [
+        path[0].replace("/", "_") for path in res["paths"] if path is not None
+    ]
+    return uploaded_obj_names_batch, uploaded_obj_upas_batch
+
+
+def _query_workspace_with_load_id_mass(
+    ws: Workspace,
+    workspace_id: int,
+    load_id: str,
+    assembly_names: list[str],
+    batch_size: int = _WS_MAX_BATCH_SIZE,
+) -> tuple[list[str], list[str]]:
+    uploaded_obj_names = []
+    uploaded_obj_upas = []
+
+    for idx in range(0, len(assembly_names), batch_size):
+        obj_names_batch, obj_upas_batch = _query_workspace_with_load_id(
+            ws, workspace_id, load_id, assembly_names[idx : idx + batch_size]
+        )
+        uploaded_obj_names.extend(obj_names_batch)
+        uploaded_obj_upas.extend(obj_upas_batch)
+
+    return uploaded_obj_names, uploaded_obj_upas
+
+
+def _prepare_skd_job_dir_to_upload(
+    conf: Conf, wait_to_upload_assemblies: dict[str, str]
+) -> str:
     """
     Prepare SDK job directory to upload.
     """
@@ -302,13 +438,13 @@ def _prepare_skd_job_dir_to_upload(conf: Conf, wait_to_upload_assemblies: dict[s
 
 
 def _post_process(
-        upload_env_key: str,
-        workspace_id: int,
-        host_assembly_dir: str,
-        assembly_name: str,
-        upload_dir: str,
-        output_dir: str,
-        upa: str,
+    upload_env_key: str,
+    workspace_id: int,
+    load_id: str,
+    assembly_tuple: _AssemblyTuple,
+    upload_dir: str,
+    output_dir: str,
+    upa: str,
 ) -> None:
     """
     Create a standard entry in sourcedata/workspace for each assembly.
@@ -318,129 +454,147 @@ def _post_process(
     """
     # Create a standard entry in sourcedata/workspace
     # hardlink to the original assembly file in sourcedata
-    src_file = _get_source_file(host_assembly_dir, assembly_name)
+    src_file = _get_source_file(
+        assembly_tuple.host_assembly_dir,
+        assembly_tuple.assembly_name,
+    )
     target_dir = os.path.join(output_dir, upa)
     os.makedirs(target_dir, exist_ok=True)
     dest_file = os.path.join(target_dir, f"{upa}.fna.gz")
     loader_helper.create_hardlink_between_files(dest_file, src_file)
 
     # Update the uploaded.yaml file
-    _update_upload_status_yaml_file(upload_env_key, workspace_id, upa, host_assembly_dir, assembly_name)
+    _update_upload_status_yaml_file(
+        upload_env_key,
+        workspace_id,
+        load_id,
+        upa,
+        assembly_tuple,
+    )
 
     # Creates a softlink from new_dir to the contents of upa_dir.
     new_dir = os.path.join(upload_dir, upa)
     loader_helper.create_softlink_between_dirs(new_dir, target_dir)
 
 
-def _process_input(conf: Conf) -> None:
-    """
-    Process input from input_queue and put the result in output_queue.
-    """
-    while True:
-        task = conf.input_queue.get(block=True)
-        if not task:
-            print("Stopping")
-            break
-
-        upa = None
-        (
-            upload_env_key,
-            workspace_id,
-            container_internal_assembly_path,
-            host_assembly_dir,
-            assembly_name,
-            upload_dir,
-            counter,
-            assembly_files_len,
-        ) = task
-
-        try:
-            upa = _upload_assembly_to_workspace(
-                conf, workspace_id, container_internal_assembly_path, assembly_name
-            )
-            _post_process(
-                upload_env_key,
-                workspace_id,
-                host_assembly_dir,
-                assembly_name,
-                upload_dir,
-                conf.output_dir,
-                upa
-            )
-        except Exception as e:
-            print(f"Failed assembly name: {assembly_name}. Exception:")
-            print(e)
-
-        conf.output_queue.put((assembly_name, upa))
-
-        if counter % 3000 == 0:
-            print(f"Assemblies processed: {counter}/{assembly_files_len}, "
-                  f"Percentage: {counter / assembly_files_len * 100:.2f}%, "
-                  f"Time: {datetime.now()}")
-
-
 def _upload_assembly_files_in_parallel(
-        conf: Conf,
-        upload_env_key: str,
-        workspace_id: int,
-        upload_dir: str,
-        wait_to_upload_assemblies: dict[str, str],
+    asu: AssemblyUtil,
+    ws: Workspace,
+    upload_env_key: str,
+    workspace_id: int,
+    load_id: str,
+    upload_dir: str,
+    wait_to_upload_assemblies: dict[str, str],
+    batch_size: int,
+    output_dir: str,
 ) -> list[str]:
     """
     Upload assembly files to the target workspace in parallel using multiprocessing.
 
     Parameters:
-        conf: Conf object
+        asu: AssemblyUtil client
+        ws: Workspace client
         upload_env_key: environment variable key in uploaded.yaml file
         workspace_id: target workspace id
+        load_id: load id
         upload_dir: a directory in collectionssource that creates new directories linking to sourcedata
         wait_to_upload_assemblies: a dictionary that maps assembly file name to assembly directory
+        batch_size: a number of files to upload per batch
+        output_dir: a directory in sourcedata/workspace to store new assembly entries
 
     Returns:
-        a list of assembly names that failed to upload
+        number of assembly files have been sucessfully uploaded from wait_to_upload_assemblies
     """
     assembly_files_len = len(wait_to_upload_assemblies)
-    print(f"Start uploading {assembly_files_len} assembly files with {conf.workers} workers\n")
+    print(f"Start uploading {assembly_files_len} assembly files\n")
 
-    # Put the assembly files in the input_queue
-    counter = 1
-    for assembly_name, host_assembly_dir in wait_to_upload_assemblies.items():
+    uploaded_count = 0
+    uploaded_fail = False
+    for assembly_tuples in _gen(wait_to_upload_assemblies, batch_size):
+        batch_upas = tuple()
+        batch_uploaded_tuples = []
 
-        container_internal_assembly_path = os.path.join(
-            JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER, assembly_name
-        )
-        conf.input_queue.put(
-            (
+        try:
+            batch_upas = _upload_assemblies_to_workspace(
+                asu, workspace_id, load_id, assembly_tuples
+            )
+            batch_uploaded_tuples = assembly_tuples
+        except Exception as e:
+            print(e)
+            uploaded_fail = True
+
+            try:
+                # figure out uploads that succeeded
+                name2tuple = {
+                    assembly_tuple.assembly_name: assembly_tuple
+                    for assembly_tuple in assembly_tuples
+                }
+                (
+                    uploaded_obj_names,
+                    uploaded_obj_upas,
+                ) = _query_workspace_with_load_id_mass(
+                    ws, workspace_id, load_id, list(name2tuple.keys())
+                )
+
+                batch_upas = tuple(uploaded_obj_upas)
+                batch_uploaded_tuples = [
+                    name2tuple[name] for name in uploaded_obj_names
+                ]
+
+            except Exception as e:
+                print(
+                    f"WARNING: There are inconsistencies between "
+                    f"the workspace and the yaml files as the result of {e}\n"
+                    f"Run the script again to attempt resolution."
+                )
+
+        # post process on sucessful uploads
+        for assembly_tuple, upa in zip(batch_uploaded_tuples, batch_upas):
+            _post_process(
                 upload_env_key,
                 workspace_id,
-                container_internal_assembly_path,
-                host_assembly_dir,
-                assembly_name,
+                load_id,
+                assembly_tuple,
                 upload_dir,
-                counter,
-                assembly_files_len,
+                output_dir,
+                upa,
             )
+
+        uploaded_count += len(batch_uploaded_tuples)
+        if uploaded_count % 100 == 0:
+            print(
+                f"Assemblies uploaded: {uploaded_count}/{assembly_files_len}, "
+                f"Percentage: {uploaded_count / assembly_files_len * 100:.2f}%, "
+                f"Time: {datetime.now()}"
+            )
+
+        if uploaded_fail:
+            return uploaded_count
+
+    return uploaded_count
+
+
+def _dict2tuple_list(assemblies_dict: dict[str, str]) -> list[_AssemblyTuple]:
+    assemblyTuple_list = [
+        _AssemblyTuple(
+            i[0], i[1], os.path.join(_JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER, i[0])
         )
+        for i in assemblies_dict.items()
+    ]
+    return assemblyTuple_list
 
-        if counter % 5000 == 0:
-            print(f"Jobs added to the queue: {counter}/{assembly_files_len}, "
-                  f"Percentage: {counter / assembly_files_len * 100:.2f}%, "
-                  f"Time: {datetime.now()}")
 
-        counter += 1
-
-    # Signal the workers to terminate when they finish uploading assembly files
-    for _ in range(conf.workers):
-        conf.input_queue.put(None)
-
-    results = [conf.output_queue.get() for _ in range(assembly_files_len)]
-    failed_names = [assembly_name for assembly_name, upa in results if upa is None]
-
-    # Close and join the processes
-    conf.pools.close()
-    conf.pools.join()
-
-    return failed_names
+def _gen(
+    wait_to_upload_assemblies: dict[str, str],
+    batch_size: int,
+) -> Generator[list[_AssemblyTuple], None, None]:
+    """
+    Generator function to yield the assembly files to upload.
+    """
+    assemblyTuple_list = _dict2tuple_list(wait_to_upload_assemblies)
+    # yield AssemblyTuples in batch
+    for idx in range(0, len(wait_to_upload_assemblies), batch_size):
+        yield assemblyTuple_list[idx : idx + batch_size]
 
 
 def main():
@@ -453,16 +607,29 @@ def main():
     root_dir = getattr(args, loader_common_names.ROOT_DIR_ARG_NAME)
     token_filepath = args.token_filepath
     upload_file_ext = args.upload_file_ext
-    workers = args.workers
+    batch_size = args.batch_size
+    cbs_max_tasks = args.cbs_max_tasks
+    au_service_ver = args.au_service_ver
     keep_job_dir = args.keep_job_dir
+    catalog_admin = args.as_catalog_admin
+    load_id = args.load_id
+    if not load_id:
+        print("load_id is not provided. Generating a load_id ...")
+        load_id = uuid.uuid4().hex
+    print(
+        f"load_id is {load_id}.\n"
+        f"Please keep using this load version until the load is complete!"
+    )
 
     env = args.env
     kb_base_url = loader_common_names.KB_BASE_URL_MAP[env]
 
     if workspace_id <= 0:
         parser.error(f"workspace_id needs to be > 0")
-    if workers < 1 or workers > cpu_count():
-        parser.error(f"minimum worker is 1 and maximum worker is {cpu_count()}")
+    if batch_size <= 0:
+        parser.error(f"batch_size needs to be > 0")
+    if cbs_max_tasks <= 0:
+        parser.error(f"cbs_max_tasks needs to be > 0")
 
     uid = os.getuid()
     username = os.getlogin()
@@ -471,35 +638,81 @@ def main():
     collection_source_dir = loader_helper.make_collection_source_dir(
         root_dir, loader_common_names.DEFAULT_ENV, kbase_collection, source_version
     )
-    upload_dir = loader_helper.make_collection_source_dir(root_dir, env, kbase_collection, source_version)
+    upload_dir = loader_helper.make_collection_source_dir(
+        root_dir, env, kbase_collection, source_version
+    )
     output_dir = loader_helper.make_sourcedata_ws_dir(root_dir, env, workspace_id)
 
     proc = None
     conf = None
 
     try:
+        # setup container.conf file for the callback server logs if needed
+        if loader_helper.is_config_modification_required():
+            if click.confirm(
+                f"The config file at {loader_common_names.CONTAINERS_CONF_PATH}\n"
+                f"needs to be modified to allow for container logging.\n"
+                f"Params 'seccomp_profile' and 'log_driver' will be added/updated under section [containers]. Do so now?\n"
+            ):
+                loader_helper.setup_callback_server_logs()
+            else:
+                print("Permission denied and exiting ...")
+                return
+
         # start podman service
         proc = loader_helper.start_podman_service(uid)
 
-        # set up conf, start callback server, and upload assemblies to workspace
+        # set up conf for uploader, start callback server, and upload assemblies to workspace
         conf = Conf(
-            job_dir,
-            output_dir,
-            _process_input,
-            kb_base_url,
-            token_filepath,
-            workers,
+            job_dir=job_dir,
+            kb_base_url=kb_base_url,
+            token_filepath=token_filepath,
+            max_callback_server_tasks=cbs_max_tasks,
+            catalog_admin=catalog_admin,
         )
 
         count, wait_to_upload_assemblies = _fetch_assemblies_to_upload(
-            env, 
-            workspace_id, 
+            env,
+            workspace_id,
+            load_id,
             collection_source_dir,
             upload_file_ext,
         )
 
+        # set up workspace client
+        ws_url = os.path.join(kb_base_url, "ws")
+        ws = Workspace(ws_url, token=conf.token)
+
+        uploaded_obj_names, uploaded_obj_upas = _query_workspace_with_load_id_mass(
+            ws, workspace_id, load_id, list(wait_to_upload_assemblies.keys())
+        )
+        # fix inconsistencies between the workspace and the local yaml files
+        if uploaded_obj_names:
+            print("Start failure recovery process ...")
+            wait_to_update_assemblies = {
+                assembly_name: wait_to_upload_assemblies[assembly_name]
+                for assembly_name in uploaded_obj_names
+            }
+            uploaded_tuples = _dict2tuple_list(wait_to_update_assemblies)
+            for assembly_tuple, upa in zip(uploaded_tuples, uploaded_obj_upas):
+                _post_process(
+                    env,
+                    workspace_id,
+                    load_id,
+                    assembly_tuple,
+                    upload_dir,
+                    output_dir,
+                    upa,
+                )
+            # remove assemblies that are already uploaded
+            for assembly_name in uploaded_obj_names:
+                wait_to_upload_assemblies.pop(assembly_name)
+            print("Recovery process completed ...")
+
         if not wait_to_upload_assemblies:
-            print(f"All {count} assembly files already exist in workspace {workspace_id}")
+            print(
+                f"All {count} assembly files already exist in workspace {workspace_id}"
+            )
             return
 
         wtus_len = len(wait_to_upload_assemblies)
@@ -507,26 +720,33 @@ def main():
         print(f"Detected {count - wtus_len} assembly files already exist in workspace")
 
         data_dir = _prepare_skd_job_dir_to_upload(conf, wait_to_upload_assemblies)
-        print(f"{wtus_len} assemblies in {data_dir} are ready to upload to workspace {workspace_id}")
+        print(
+            f"{wtus_len} assemblies in {data_dir} are ready to upload to workspace {workspace_id}"
+        )
 
+        asu = AssemblyUtil(
+            conf.callback_url, service_ver=au_service_ver, token=conf.token
+        )
         start = time.time()
-        failed_names = _upload_assembly_files_in_parallel(
-            conf,
+        uploaded_count = _upload_assembly_files_in_parallel(
+            asu,
+            ws,
             env,
             workspace_id,
+            load_id,
             upload_dir,
             wait_to_upload_assemblies,
+            batch_size,
+            output_dir,
         )
-        
-        assembly_count = wtus_len - len(failed_names)
+
         upload_time = (time.time() - start) / 60
-        assy_per_min = assembly_count / upload_time
+        assy_per_min = uploaded_count / upload_time
 
-        print(f"\n{workers} workers took {upload_time:.2f} minutes to upload {assembly_count} assemblies, "
-              f"averaging {assy_per_min:.2f} assemblies per minute")
-
-        if failed_names:
-            raise ValueError(f"\nFailed to upload {failed_names}")
+        print(
+            f"\ntook {upload_time:.2f} minutes to upload {uploaded_count} assemblies, "
+            f"averaging {assy_per_min:.2f} assemblies per minute"
+        )
 
     finally:
         # stop callback server if it is on

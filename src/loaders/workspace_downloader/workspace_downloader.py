@@ -1,6 +1,8 @@
 """
-usage: workspace_downloader.py [-h] --workspace_id WORKSPACE_ID [--kbase_collection KBASE_COLLECTION] [--source_version SOURCE_VERSION] [--root_dir ROOT_DIR]
-                               [--env {CI,NEXT,APPDEV,PROD}] [--workers WORKERS] [--token_filepath TOKEN_FILEPATH] [--keep_job_dir] [--retrieve_sample] [--ignore_no_sample_error]
+usage: workspace_downloader.py [-h] --workspace_id WORKSPACE_ID [--kbase_collection KBASE_COLLECTION] [--source_version SOURCE_VERSION]
+                               [--root_dir ROOT_DIR] [--env {CI,NEXT,APPDEV,PROD}] [--workers WORKERS] [--token_filepath TOKEN_FILEPATH]
+                               [--cbs_max_tasks CBS_MAX_TASKS] [--au_service_ver AU_SERVICE_VER] [--keep_job_dir] [--retrieve_sample]
+                               [--ignore_no_sample_error]
 
 PROTOTYPE - Download genome files from the workspace service (WSS).
 
@@ -21,7 +23,12 @@ optional arguments:
                         KBase environment, defaulting to PROD (default: PROD)
   --workers WORKERS     Number of workers for multiprocessing (default: 5)
   --token_filepath TOKEN_FILEPATH
-                        A file path that stores KBase token
+                        A file path that stores a KBase token appropriate for the KBase environment
+                        If not provided, the token must be provided in the `KB_AUTH_TOKEN` environment variable
+  --cbs_max_tasks CBS_MAX_TASKS
+                        The maximum number of subtasks for the callback server (default: 20)
+  --au_service_ver AU_SERVICE_VER
+                        The service version of AssemblyUtil client('dev', 'beta', 'release', or a git commit) (default: release)
   --keep_job_dir        Keep SDK job directory after download task is completed
   --retrieve_sample     Retrieve sample for each genome object
   --ignore_no_sample_error
@@ -382,7 +389,21 @@ def main():
     optional.add_argument(
         "--token_filepath",
         type=str,
-        help="A file path that stores KBase token",
+        help="A file path that stores a KBase token appropriate for the KBase environment. "
+        "If not provided, the token must be provided in the `KB_AUTH_TOKEN` environment variable. "
+    )
+    optional.add_argument(
+        "--cbs_max_tasks",
+        type=int,
+        default=20,
+        help="The maximum number of subtasks for the callback server",
+    )
+    optional.add_argument(
+        "--au_service_ver",
+        type=str,
+        default="release",
+        help="The service version of AssemblyUtil client"
+             "('dev', 'beta', 'release', or a git commit)",
     )
     optional.add_argument(
         "--keep_job_dir",
@@ -409,6 +430,8 @@ def main():
     env = args.env
     workers = args.workers
     token_filepath = args.token_filepath
+    cbs_max_tasks = args.cbs_max_tasks
+    au_service_ver = args.au_service_ver
     keep_job_dir = args.keep_job_dir
     retrieve_sample = args.retrieve_sample
     ignore_no_sample_error = args.ignore_no_sample_error
@@ -447,19 +470,22 @@ def main():
 
         # set up conf and start callback server
         conf = Conf(
-            job_dir,
-            output_dir,
-            _process_input,
-            kb_base_url,
-            token_filepath,
-            workers,
-            retrieve_sample,
-            ignore_no_sample_error,
+            job_dir=job_dir,
+            output_dir=output_dir,
+            kb_base_url=kb_base_url,
+            token_filepath=token_filepath,
+            au_service_ver=au_service_ver,
+            workers=workers,
+            max_callback_server_tasks=cbs_max_tasks,
+            worker_function=_process_input,
+            retrieve_sample=retrieve_sample,
+            ignore_no_sample_error=ignore_no_sample_error,
+            workspace_downloader=True,
         )
 
         genome_objs = loader_helper.list_objects(
             workspace_id,
-            conf,
+            conf.ws,
             loader_common_names.OBJECTS_NAME_GENOME,
             include_metadata=True,
         )
@@ -470,7 +496,7 @@ def main():
 
         assembly_objs = loader_helper.list_objects(
             workspace_id,
-            conf,
+            conf.ws,
             loader_common_names.OBJECTS_NAME_ASSEMBLY,
             include_metadata=True,
         )
