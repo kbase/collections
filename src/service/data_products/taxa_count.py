@@ -42,6 +42,8 @@ _TYPE2PREFIX = {
     models.SubsetType.SELECTION: "s_",
 }
 
+_MAX_RANKS = 20  # max number of rank counts records to return
+
 
 class TaxaCountSpec(DataProductSpec):
 
@@ -149,6 +151,7 @@ _FLD_KEY = "key"
 _FLD_COL_NAME = "colname"
 _FLD_COL_LV = "colload"
 _FLD_COL_RANK = "rank"
+_FLD_COL_NAME_LIST = "colnamelist"
 
 
 @_ROUTER.get(
@@ -260,8 +263,8 @@ async def _add_subset_data_in_place(
             collection_id,
             load_ver,
             rank,
-            dp_process.internal_id,
-            dp_process.type,
+            internal_id=dp_process.internal_id,
+            type_=dp_process.type,
         )
         name, count = names.FLD_TAXA_COUNT_NAME, names.FLD_TAXA_COUNT_COUNT
         mqd = {d[name]: d[count] for d in matchq}
@@ -290,8 +293,22 @@ async def _query(
     load_ver: str,
     rank: str,
     internal_id: str | None = None,
-    type_: models.SubsetType | None = None
+    type_: models.SubsetType | None = None,
+    name_list: list[str] = None,
+    limit: int = _MAX_RANKS
 ):
+    """
+    Query the taxa count data.
+
+    store - the storage system
+    collection_id - the ID of the Collection for which to retrieve the taxa counts information
+    load_ver - the load version of the collection.
+    rank - the rank at which to retrieve the taxa counts
+    internal_id - the internal ID of a related match or selection, if any
+    type_ - the type of the subset data, match or selection
+    name_list - a list of names for filtering by matching the 'name' field
+    limit - the maximum number of records to return.
+    """
     if internal_id:
         internal_id = _TYPE2PREFIX[type_] + internal_id
     bind_vars = {
@@ -301,6 +318,12 @@ async def _query(
         _FLD_COL_RANK: rank,
         "internal_id": internal_id,
     }
+
+    aql_name_list = ""
+    if name_list:
+        bind_vars[_FLD_COL_NAME_LIST] = name_list
+        aql_name_list = f"FILTER d.{names.FLD_TAXA_COUNT_NAME} IN @{_FLD_COL_NAME_LIST}"
+
     # will probably want some sort of sort / limit options, but don't get too crazy. Wait for
     # feedback for now
     aql = f"""
@@ -309,10 +332,12 @@ async def _query(
             FILTER d.{names.FLD_LOAD_VERSION} == @{_FLD_COL_LV}
             FILTER d.{names.FLD_INTERNAL_ID} == @internal_id
             FILTER d.{names.FLD_TAXA_COUNT_RANK} == @{_FLD_COL_RANK}
+            {aql_name_list}
             SORT d.{names.FLD_TAXA_COUNT_COUNT} DESC
-            LIMIT 20
+            LIMIT {limit}
             RETURN d
     """
+
     # could get the doc count, but that'll be slower since all docs have to be counted vs. just
     # getting LIMIT docs. YAGNI for now
     cur = await store.execute_aql(aql, bind_vars=bind_vars)
