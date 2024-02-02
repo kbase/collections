@@ -42,7 +42,7 @@ _TYPE2PREFIX = {
     models.SubsetType.SELECTION: "s_",
 }
 
-_MAX_RANKS = 20  # max number of rank counts records to return
+_MAX_COUNT = 20  # max number of taxa count records to return
 
 
 class TaxaCountSpec(DataProductSpec):
@@ -295,7 +295,7 @@ async def _query(
     internal_id: str | None = None,
     type_: models.SubsetType | None = None,
     name_list: list[str] = None,
-    limit: int = _MAX_RANKS
+    limit: int = _MAX_COUNT
 ):
     """
     Query the taxa count data.
