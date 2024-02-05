@@ -53,6 +53,8 @@ _DEFAULT_SORT_ORDER = [names.FLD_TAXA_COUNT_COUNT,
                        _FLD_TAXA_COUNT_MATCH_COUNT,
                        _FLD_TAXA_COUNT_SEL_COUNT]
 
+_INF_NEG = float('-inf')
+
 
 class TaxaCountSpec(DataProductSpec):
 
@@ -250,14 +252,13 @@ async def get_taxa_counts(
 
 def _sort_dict_list(
         dict_list: list[dict],
-        key: str,
-        reverse: bool = True):
+        key: str):
     # Sort taxa count records, a list of dicts, in place by the key of dictionary with None values last.
     # Key values should be either numeric or None.
     # Certain keys, such as 'sel_count' or 'match_count,' may not exist in all dictionaries.
     # For instance, these keys might be absent if the corresponding match or selection process did not occur/complete.
     # In such cases, the default value of float('-inf') is used to ensure that the dictionaries are sorted correctly.
-    dict_list.sort(key=lambda x: (int(x.get(key)) if x.get(key) is not None else float('-inf')), reverse=reverse)
+    dict_list.sort(key=lambda x: (int(x.get(key)) if x.get(key) is not None else _INF_NEG), reverse=True)
 
 
 def _fill_missing_orders(sort_order: list[str]):
