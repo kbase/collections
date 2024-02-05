@@ -265,7 +265,7 @@ def _fill_missing_orders(sort_order: list[str]):
     if not isinstance(sort_order, list):
         raise ValueError(f"sort_order must be a list of strings, provided: {sort_order}")
 
-    return sort_order + [order for order in _DEFAULT_SORT_ORDER if order not in sort_order]
+    return [order for order in _DEFAULT_SORT_ORDER if order not in sort_order] + sort_order
 
 
 def _sort_taxa_counts(
