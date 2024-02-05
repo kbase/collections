@@ -44,6 +44,15 @@ _TYPE2PREFIX = {
 
 _MAX_COUNT = 20  # max number of taxa count records to return
 
+# TaxaCount fields. These need to match the field names in the TaxaCount class below
+_FLD_TAXA_COUNT_MATCH_COUNT = "match_count"
+_FLD_TAXA_COUNT_SEL_COUNT = "sel_count"
+
+# The default sorting order for taxa counts results
+_DEFAULT_SORT_ORDER = [names.FLD_TAXA_COUNT_COUNT,
+                       _FLD_TAXA_COUNT_MATCH_COUNT,
+                       _FLD_TAXA_COUNT_SEL_COUNT]
+
 
 class TaxaCountSpec(DataProductSpec):
 
@@ -134,8 +143,8 @@ class TaxaCount(BaseModel):
 
 # these need to match the field names in TaxaCount above
 _TYPE2FIELD = {
-    models.SubsetType.MATCH: "match_count",
-    models.SubsetType.SELECTION: "sel_count",
+    models.SubsetType.MATCH: _FLD_TAXA_COUNT_MATCH_COUNT,
+    models.SubsetType.SELECTION: _FLD_TAXA_COUNT_SEL_COUNT,
 }
 
 
@@ -234,7 +243,45 @@ async def get_taxa_counts(
         await _add_subset_data_in_place(q, store, collection_id, load_ver, rank, dp_proc)
         # For now always sort by the std data. See if ppl want sort by match/selection data
         # before implementing something more sophisticated.
+    _sort_taxa_counts(q)
+
     return _taxa_counts(dp_match=dp_match, dp_sel=dp_sel, data=q)
+
+
+def _sort_dict_list(
+        dict_list: list[dict],
+        key: str,
+        reverse: bool = True):
+    # Sort taxa count records, a list of dicts, in place by the key of dictionary with None values last.
+    # Key values should be either numeric or None.
+    # Certain keys, such as 'sel_count' or 'match_count,' may not exist in all dictionaries.
+    # For instance, these keys might be absent if the corresponding match or selection process did not occur/complete.
+    # In such cases, the default value of float('-inf') is used to ensure that the dictionaries are sorted correctly.
+    dict_list.sort(key=lambda x: (int(x.get(key)) if x.get(key) is not None else float('-inf')), reverse=reverse)
+
+
+def _fill_missing_orders(sort_order: list[str]):
+    # fill in missing orders with the default sort order
+    if isinstance(sort_order, list):
+        raise ValueError(f"sort_order must be a list of strings, provided: {sort_order}")
+
+    return sort_order + [order for order in _DEFAULT_SORT_ORDER if order not in sort_order]
+
+
+def _sort_taxa_counts(
+        q: list[dict],
+        sort_order: list[str] = None):
+    # sort the taxa counts result in place by the sort order
+    sort_order = _fill_missing_orders(sort_order) if sort_order else _DEFAULT_SORT_ORDER
+
+    # Remove the `count` order if it is the first element since the records are already sorted by count in the
+    # _query function.
+    sort_order.pop(0) if sort_order[0] == names.FLD_TAXA_COUNT_COUNT else None
+
+    for k in sort_order:
+        if k not in _DEFAULT_SORT_ORDER:
+            raise errors.IllegalParameterError(f"Invalid sort key: {k}")
+        _sort_dict_list(q, k)
 
 
 def _taxa_counts(
