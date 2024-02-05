@@ -269,14 +269,10 @@ def _fill_missing_orders(sort_order: list[str]):
 
 
 def _sort_taxa_counts(
-        q: list[dict],
+        q: list[dict[str, Any]],
         sort_order: list[str] = None):
     # sort the taxa counts result in place by the sort order
     sort_order = _fill_missing_orders(sort_order) if sort_order else _DEFAULT_SORT_ORDER
-
-    # Remove the `count` order if it is the first element since the records are already sorted by count in the
-    # _query function.
-    sort_order.pop(0) if sort_order[0] == names.FLD_TAXA_COUNT_COUNT else None
 
     for k in sort_order:
         if k not in _DEFAULT_SORT_ORDER:
