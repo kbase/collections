@@ -262,7 +262,7 @@ def _sort_dict_list(
 
 def _fill_missing_orders(sort_order: list[str]):
     # fill in missing orders with the default sort order
-    if isinstance(sort_order, list):
+    if not isinstance(sort_order, list):
         raise ValueError(f"sort_order must be a list of strings, provided: {sort_order}")
 
     return sort_order + [order for order in _DEFAULT_SORT_ORDER if order not in sort_order]
