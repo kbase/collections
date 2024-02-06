@@ -261,18 +261,23 @@ async def get_taxa_counts(
     return _taxa_counts(dp_match=dp_match, dp_sel=dp_sel, data=q)
 
 
-def _fill_missing_orders(sort_order: list[str]):
-    # fill in missing orders with the default sort order
+def _fill_missing_orders(sort_order: list[str], processed_count: list[str]):
+    # fill in missing orders with the default sort order if order exists in the processed count
     if not isinstance(sort_order, list):
         raise ValueError(f"sort_order must be a list of strings, provided: {sort_order}")
 
-    return [order for order in _DEFAULT_SORT_ORDER if order not in sort_order] + sort_order
+    missing_orders = [order for order in _DEFAULT_SORT_ORDER
+                      if order not in sort_order and
+                      (order in processed_count or order == names.FLD_TAXA_COUNT_COUNT)]
+
+    return missing_orders + sort_order
 
 
 def _sort_taxa_counts(
         q: list[dict[str, Any]],
         sort_priority: str,
-        dp_list: list[models.DataProductProcess]):
+        dp_list: list[models.DataProductProcess],
+        sort_by_count_already: bool = True):
     # Sort taxa count records in place by the sort_priority list.
 
     processed_count = [_TYPE2FIELD[dp.type] for dp in dp_list if dp]
@@ -297,12 +302,18 @@ def _sort_taxa_counts(
                                            f"taxa count records")
 
     # fill in missing orders with the default precedence order
-    sort_order = _fill_missing_orders(sort_order_rev[::-1])
-    # remove any sort orders that are not processed (i.e. match or selection counts)
-    sort_order = [order for order in sort_order if order in processed_count or order == names.FLD_TAXA_COUNT_COUNT]
+    sort_order = _fill_missing_orders(sort_order_rev[::-1], processed_count)
+
+    if sort_by_count_already:
+        # remove unnecessary sort order if records are already sorted by count
+        sort_order.pop(0) if sort_order[0] == names.FLD_TAXA_COUNT_COUNT else None
 
     for k in sort_order:
         q.sort(key=lambda x: x[k], reverse=True)
+
+    if not sort_by_count_already:
+        # indicating that we have added more taxa count records in _add_subset_data_in_place step.
+        q[:] = q[:_MAX_COUNT]
 
 
 def _taxa_counts(
