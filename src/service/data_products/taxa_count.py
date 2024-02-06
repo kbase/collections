@@ -250,6 +250,24 @@ async def get_taxa_counts(
     return _taxa_counts(dp_match=dp_match, dp_sel=dp_sel, data=q)
 
 
+def _is_numeric(value: Any):
+    return isinstance(value, int) or isinstance(value, float)
+
+
+def _sort_key(
+        taxa_count_record: dict[str, Any],
+        key: str):
+    # Return the key value if it is numeric. If key is not present, return _INF_NEG.
+    value = taxa_count_record.get(key)
+    if value is None:
+        return _INF_NEG
+
+    if not _is_numeric(value):
+        raise errors.IllegalParameterError(f"Non-numeric value found for key {key}: {value}")
+
+    return value
+
+
 def _sort_dict_list(
         dict_list: list[dict],
         key: str):
@@ -258,7 +276,7 @@ def _sort_dict_list(
     # Certain keys, such as 'sel_count' or 'match_count,' may not exist in all dictionaries.
     # For instance, these keys might be absent if the corresponding match or selection process did not occur/complete.
     # In such cases, the default value of float('-inf') is used to ensure that the dictionaries are sorted correctly.
-    dict_list.sort(key=lambda x: (int(x.get(key)) if x.get(key) is not None else _INF_NEG), reverse=True)
+    dict_list.sort(key=lambda x: _sort_key(x, key), reverse=True)
 
 
 def _fill_missing_orders(sort_order: list[str]):
@@ -273,6 +291,9 @@ def _sort_taxa_counts(
         q: list[dict[str, Any]],
         sort_order: list[str] = None):
     # sort the taxa counts result in place by the sort order
+    # sort_order is a list of taxa count fields, e.g. ['count', 'match_count', 'sel_count']
+    # taxa count records are sorted in the order of the sort_order list from first to last
+    # meaning that the last element in the sort_order list has the highest priority
     sort_order = _fill_missing_orders(sort_order) if sort_order else _DEFAULT_SORT_ORDER
 
     for k in sort_order:
