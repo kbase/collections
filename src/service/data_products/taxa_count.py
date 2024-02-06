@@ -250,10 +250,13 @@ async def get_taxa_counts(
     if rank not in ranks.data:
         raise errors.IllegalParameterError(f"Invalid rank: {rank}")
     q = await _query(store, collection_id, load_ver, rank)
+    retrieved_new = False
     for dp_proc in [dp_match, dp_sel]:
-        await _add_subset_data_in_place(q, store, collection_id, load_ver, rank, dp_proc)
+        retrieved_new_proc = await _add_subset_data_in_place(q, store, collection_id, load_ver, rank, dp_proc)
+        if retrieved_new_proc:
+            retrieved_new = True
 
-    _sort_taxa_counts(q, sort_priority, [dp_match, dp_sel])
+    _sort_taxa_counts(q, sort_priority, [dp_match, dp_sel], sort_by_count_already=not retrieved_new)
 
     return _taxa_counts(dp_match=dp_match, dp_sel=dp_sel, data=q)
 
@@ -316,7 +319,7 @@ def _sort_taxa_counts(
 def _taxa_counts(
     dp_match: models.DataProductProcess = None,
     dp_sel: models.DataProductProcess = None,
-    data: dict[str, Any] = None,
+    data: list[dict[str, Any]] = None,
 ) -> TaxaCounts:
     return TaxaCounts(
         match_state=dp_match.state if dp_match else None,
@@ -326,13 +329,14 @@ def _taxa_counts(
 
 
 async def _add_subset_data_in_place(
-    q: dict[str, Any],
+    q: list[dict[str, Any]],
     store: ArangoStorage,
     collection_id: str,
     load_ver: str,
     rank: str,
     dp_process: models.DataProductProcess,
 ):
+    found_new = False
     if dp_process and dp_process.is_complete():
         matchq = await _query(
             store,
@@ -344,8 +348,21 @@ async def _add_subset_data_in_place(
         )
         name, count = names.FLD_TAXA_COUNT_NAME, names.FLD_TAXA_COUNT_COUNT
         mqd = {d[name]: d[count] for d in matchq}
+
+        missing_names = set(mqd.keys()) - set(d[name] for d in q)
+        if missing_names:
+            q.extend(await _query(store,
+                                  collection_id,
+                                  load_ver,
+                                  rank,
+                                  name_list=list(missing_names),
+                                  limit=len(missing_names)))
+            found_new = True
+
         for d in q:
             d[_TYPE2FIELD[dp_process.type]] = mqd.get(d[name], 0)
+
+    return found_new
 
 
 def _check_genome_attribs(coll: models.ActiveCollection, match: bool, selection: bool):
