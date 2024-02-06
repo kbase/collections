@@ -226,6 +226,7 @@ async def get_taxa_counts(
             + "Note that if a selection ID is set, any load version override is ignored."),
     sort_priority: str = Query(
         default=None,
+        example="standard",  # or make a constant for this. That's probably better
         description=f"A comma separated list of sort priorities. Valid values are: "
                     f"{', '.join(_SORT_PRIORITY_ORDER_MAP.keys())}. ",
     ),
