@@ -252,9 +252,9 @@ async def get_taxa_counts(
     q = await _query(store, collection_id, load_ver, rank)
     retrieved_new = False
     for dp_proc in [dp_match, dp_sel]:
-        retrieved_new_proc = await _add_subset_data_in_place(q, store, collection_id, load_ver, rank, dp_proc)
-        if retrieved_new_proc:
-            retrieved_new = True
+        retrieved_new = await _add_subset_data_in_place(
+            q, store, collection_id, load_ver, rank, dp_proc) or retrieved_new
+
 
     _sort_taxa_counts(q, sort_priority, [dp_match, dp_sel], sort_by_count_already=not retrieved_new)
 
