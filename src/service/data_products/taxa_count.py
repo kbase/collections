@@ -261,17 +261,6 @@ async def get_taxa_counts(
     return _taxa_counts(dp_match=dp_match, dp_sel=dp_sel, data=q)
 
 
-def _sort_dict_list(
-        dict_list: list[dict],
-        key: str):
-    # Sort taxa count records, a list of dicts, in place by the key of dictionary with None values last.
-    # Key values should be either integer or None.
-    # Certain keys, such as 'sel_count' or 'match_count,' may not exist in all dictionaries.
-    # For instance, these keys might be absent if the corresponding match or selection process did not occur/complete.
-    # In such cases, the default value of float('-inf') is used to ensure that the dictionaries are sorted correctly.
-    dict_list.sort(key=lambda x: x.get(key, _INF_NEG), reverse=True)
-
-
 def _fill_missing_orders(sort_order: list[str]):
     # fill in missing orders with the default sort order
     if not isinstance(sort_order, list):
@@ -306,7 +295,7 @@ def _sort_taxa_counts(
         sort_order = [names.FLD_TAXA_COUNT_COUNT]
 
     for k in sort_order:
-        _sort_dict_list(q, k)
+        q.sort(key=lambda x: x[k], reverse=True)
 
 
 def _taxa_counts(
