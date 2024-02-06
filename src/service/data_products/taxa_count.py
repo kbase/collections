@@ -55,6 +55,13 @@ _DEFAULT_SORT_ORDER = [names.FLD_TAXA_COUNT_COUNT,
 
 _INF_NEG = float('-inf')
 
+# The mapping of sort priority to the corresponding field in the taxa count records
+_SORT_PRIORITY_ORDER_MAP = {
+    "selected": _FLD_TAXA_COUNT_SEL_COUNT,
+    "matched": _FLD_TAXA_COUNT_MATCH_COUNT,
+    "standard": names.FLD_TAXA_COUNT_COUNT
+}
+
 
 class TaxaCountSpec(DataProductSpec):
 
@@ -219,7 +226,12 @@ async def get_taxa_counts(
             + "Note that if a selection ID is set, any load version override is ignored."),
     status_only: QUERY_VALIDATOR_STATUS_ONLY = False,
     load_ver_override: QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
-    user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
+    user: kb_auth.KBaseUser = Depends(_OPT_AUTH),
+    sort_priority: list[str] = Query(
+        default=list(_SORT_PRIORITY_ORDER_MAP.keys()),
+        description="Specify the priority order for sorting taxa counts based on the provided fields and "
+                    "their corresponding order.",
+    )
 ):
     appstate = app_state.get_app_state(r)
     store = appstate.arangostorage
@@ -243,40 +255,21 @@ async def get_taxa_counts(
     q = await _query(store, collection_id, load_ver, rank)
     for dp_proc in [dp_match, dp_sel]:
         await _add_subset_data_in_place(q, store, collection_id, load_ver, rank, dp_proc)
-        # For now always sort by the std data. See if ppl want sort by match/selection data
-        # before implementing something more sophisticated.
-    _sort_taxa_counts(q)
+
+    _sort_taxa_counts(q, sort_priority, [dp_match, dp_sel])
 
     return _taxa_counts(dp_match=dp_match, dp_sel=dp_sel, data=q)
-
-
-def _is_numeric(value: Any):
-    return isinstance(value, int) or isinstance(value, float)
-
-
-def _sort_key(
-        taxa_count_record: dict[str, Any],
-        key: str):
-    # Return the key value if it is numeric. If key is not present, return _INF_NEG.
-    value = taxa_count_record.get(key)
-    if value is None:
-        return _INF_NEG
-
-    if not _is_numeric(value):
-        raise errors.IllegalParameterError(f"Non-numeric value found for key {key}: {value}")
-
-    return value
 
 
 def _sort_dict_list(
         dict_list: list[dict],
         key: str):
     # Sort taxa count records, a list of dicts, in place by the key of dictionary with None values last.
-    # Key values should be either numeric or None.
+    # Key values should be either integer or None.
     # Certain keys, such as 'sel_count' or 'match_count,' may not exist in all dictionaries.
     # For instance, these keys might be absent if the corresponding match or selection process did not occur/complete.
     # In such cases, the default value of float('-inf') is used to ensure that the dictionaries are sorted correctly.
-    dict_list.sort(key=lambda x: _sort_key(x, key), reverse=True)
+    dict_list.sort(key=lambda x: x.get(key, _INF_NEG), reverse=True)
 
 
 def _fill_missing_orders(sort_order: list[str]):
@@ -289,16 +282,30 @@ def _fill_missing_orders(sort_order: list[str]):
 
 def _sort_taxa_counts(
         q: list[dict[str, Any]],
-        sort_order: list[str] = None):
-    # sort the taxa counts result in place by the sort order
-    # sort_order is a list of taxa count fields, e.g. ['count', 'match_count', 'sel_count']
-    # taxa count records are sorted in the order of the sort_order list from first to last
-    # meaning that the last element in the sort_order list has the highest priority
-    sort_order = _fill_missing_orders(sort_order) if sort_order else _DEFAULT_SORT_ORDER
+        sort_priority: list[str],
+        dp_list: list[models.DataProductProcess]):
+    # Sort taxa count records in place by the sort_priority list.
+    processed_count = [_TYPE2FIELD[dp.type] for dp in dp_list if dp]
+
+    if processed_count:
+
+        if len(sort_priority) != len(set(sort_priority)):
+            raise errors.IllegalParameterError(f"Duplicate sort priority found: {sort_priority}")
+
+        try:
+            sort_order_rev = [_SORT_PRIORITY_ORDER_MAP[k] for k in sort_priority]
+        except KeyError as e:
+            raise errors.IllegalParameterError(f"Invalid sort priority: {e}, "
+                                               f"valid priorities are: {list(_SORT_PRIORITY_ORDER_MAP.keys())}")
+
+        # fill in missing orders with the default precedence order
+        sort_order = _fill_missing_orders(sort_order_rev[::-1])
+        # remove any sort orders that are not processed (i.e. match or selection counts)
+        sort_order = [order for order in sort_order if order in processed_count or order == names.FLD_TAXA_COUNT_COUNT]
+    else:
+        sort_order = [names.FLD_TAXA_COUNT_COUNT]
 
     for k in sort_order:
-        if k not in _DEFAULT_SORT_ORDER:
-            raise errors.IllegalParameterError(f"Invalid sort key: {k}")
         _sort_dict_list(q, k)
 
 
