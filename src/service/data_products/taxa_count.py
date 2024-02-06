@@ -62,6 +62,8 @@ _SORT_PRIORITY_ORDER_MAP = {
     "standard": names.FLD_TAXA_COUNT_COUNT
 }
 
+_DEFAULT_SORT_PRIORITY = "selected, matched, standard"
+
 
 class TaxaCountSpec(DataProductSpec):
 
@@ -224,14 +226,14 @@ async def get_taxa_counts(
         default = None,
         description="A selection ID to include the selection count in the taxa count data. "
             + "Note that if a selection ID is set, any load version override is ignored."),
+    sort_priority: str = Query(
+        default=_DEFAULT_SORT_PRIORITY,
+        description=f"A comma separated list of sort priorities. Valid values are: "
+                    f"{', '.join(_SORT_PRIORITY_ORDER_MAP.keys())}. ",
+    ),
     status_only: QUERY_VALIDATOR_STATUS_ONLY = False,
     load_ver_override: QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
-    user: kb_auth.KBaseUser = Depends(_OPT_AUTH),
-    sort_priority: list[str] = Query(
-        default=list(_SORT_PRIORITY_ORDER_MAP.keys()),
-        description="Specify the priority order for sorting taxa counts based on the provided fields and "
-                    "their corresponding order.",
-    )
+    user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
 ):
     appstate = app_state.get_app_state(r)
     store = appstate.arangostorage
@@ -271,13 +273,14 @@ def _fill_missing_orders(sort_order: list[str]):
 
 def _sort_taxa_counts(
         q: list[dict[str, Any]],
-        sort_priority: list[str],
+        sort_priority: str,
         dp_list: list[models.DataProductProcess]):
     # Sort taxa count records in place by the sort_priority list.
     processed_count = [_TYPE2FIELD[dp.type] for dp in dp_list if dp]
 
     if processed_count:
 
+        sort_priority = [p.strip() for p in sort_priority.split(",")]
         if len(sort_priority) != len(set(sort_priority)):
             raise errors.IllegalParameterError(f"Duplicate sort priority found: {sort_priority}")
 
