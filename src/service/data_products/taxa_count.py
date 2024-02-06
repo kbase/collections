@@ -298,8 +298,8 @@ def _sort_taxa_counts(
     missing_processes = [p for p in sort_order_rev if p not in processed_count and p != names.FLD_TAXA_COUNT_COUNT]
     if missing_processes:
         missing_priority = [key for key, value in _SORT_PRIORITY_ORDER_MAP.items() if value in missing_processes]
-        raise errors.IllegalParameterError(f"No occurrences of the {missing_priority} data were found in the "
-                                           f"taxa count records")
+        raise errors.IllegalParameterError(f"Specified sort priority {missing_priority} without providing associated "
+                                           f"match or selection identifier")
 
     # fill in missing orders with the default precedence order
     sort_order = _fill_missing_orders(sort_order_rev[::-1], processed_count)
