@@ -48,14 +48,10 @@ _MAX_COUNT = 20  # max number of taxa count records to return
 _FLD_TAXA_COUNT_MATCH_COUNT = "match_count"
 _FLD_TAXA_COUNT_SEL_COUNT = "sel_count"
 
-# The default sorting order for taxa counts results
-_DEFAULT_SORT_ORDER = [names.FLD_TAXA_COUNT_COUNT,
-                       _FLD_TAXA_COUNT_MATCH_COUNT,
-                       _FLD_TAXA_COUNT_SEL_COUNT]
-
 _INF_NEG = float('-inf')
 
 # The mapping of sort priority to the corresponding field in the taxa count records
+# NOTE that the order of the fields in the mapping is the default precedence order for sorting
 _SORT_PRIORITY_ORDER_MAP = {
     "selected": _FLD_TAXA_COUNT_SEL_COUNT,
     "matched": _FLD_TAXA_COUNT_MATCH_COUNT,
@@ -267,7 +263,7 @@ def _fill_missing_orders(sort_order: list[str], processed_count: list[str]):
     if not isinstance(sort_order, list):
         raise ValueError(f"sort_order must be a list of strings, provided: {sort_order}")
 
-    missing_orders = [order for order in _DEFAULT_SORT_ORDER
+    missing_orders = [order for order in list(_SORT_PRIORITY_ORDER_MAP.values())[::-1]
                       if order not in sort_order and
                       (order in processed_count or order == names.FLD_TAXA_COUNT_COUNT)]
 
