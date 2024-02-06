@@ -44,6 +44,20 @@ _TYPE2PREFIX = {
 
 _MAX_COUNT = 20  # max number of taxa count records to return
 
+# TaxaCount fields. These need to match the field names in the TaxaCount class below
+_FLD_TAXA_COUNT_MATCH_COUNT = "match_count"
+_FLD_TAXA_COUNT_SEL_COUNT = "sel_count"
+
+_INF_NEG = float('-inf')
+
+# The mapping of sort priority to the corresponding field in the taxa count records
+# NOTE that the order of the fields in the mapping is the default precedence order for sorting
+_SORT_PRIORITY_ORDER_MAP = {
+    "selected": _FLD_TAXA_COUNT_SEL_COUNT,
+    "matched": _FLD_TAXA_COUNT_MATCH_COUNT,
+    "standard": names.FLD_TAXA_COUNT_COUNT
+}
+
 
 class TaxaCountSpec(DataProductSpec):
 
@@ -134,8 +148,8 @@ class TaxaCount(BaseModel):
 
 # these need to match the field names in TaxaCount above
 _TYPE2FIELD = {
-    models.SubsetType.MATCH: "match_count",
-    models.SubsetType.SELECTION: "sel_count",
+    models.SubsetType.MATCH: _FLD_TAXA_COUNT_MATCH_COUNT,
+    models.SubsetType.SELECTION: _FLD_TAXA_COUNT_SEL_COUNT,
 }
 
 
@@ -206,6 +220,12 @@ async def get_taxa_counts(
         default = None,
         description="A selection ID to include the selection count in the taxa count data. "
             + "Note that if a selection ID is set, any load version override is ignored."),
+    sort_priority: str = Query(
+        default=None,
+        example="standard",  # or make a constant for this. That's probably better
+        description=f"A comma separated list of sort priorities. Valid values are: "
+                    f"{', '.join(_SORT_PRIORITY_ORDER_MAP.keys())}. ",
+    ),
     status_only: QUERY_VALIDATOR_STATUS_ONLY = False,
     load_ver_override: QUERY_VALIDATOR_LOAD_VERSION_OVERRIDE = None,
     user: kb_auth.KBaseUser = Depends(_OPT_AUTH)
@@ -232,9 +252,65 @@ async def get_taxa_counts(
     q = await _query(store, collection_id, load_ver, rank)
     for dp_proc in [dp_match, dp_sel]:
         await _add_subset_data_in_place(q, store, collection_id, load_ver, rank, dp_proc)
-        # For now always sort by the std data. See if ppl want sort by match/selection data
-        # before implementing something more sophisticated.
+
+    _sort_taxa_counts(q, sort_priority, [dp_match, dp_sel])
+
     return _taxa_counts(dp_match=dp_match, dp_sel=dp_sel, data=q)
+
+
+def _fill_missing_orders(sort_order: list[str], processed_count: list[str]):
+    # fill in missing orders with the default sort order if order exists in the processed count
+    if not isinstance(sort_order, list):
+        raise ValueError(f"sort_order must be a list of strings, provided: {sort_order}")
+
+    missing_orders = [order for order in list(_SORT_PRIORITY_ORDER_MAP.values())[::-1]
+                      if order not in sort_order and
+                      (order in processed_count or order == names.FLD_TAXA_COUNT_COUNT)]
+
+    return missing_orders + sort_order
+
+
+def _sort_taxa_counts(
+        q: list[dict[str, Any]],
+        sort_priority: str,
+        dp_list: list[models.DataProductProcess],
+        sort_by_count_already: bool = True):
+    # Sort taxa count records in place by the sort_priority list.
+
+    processed_count = [_TYPE2FIELD[dp.type] for dp in dp_list if dp]
+
+    if sort_priority:
+        sort_priority = [p.strip() for p in sort_priority.split(",")]
+    else:
+        sort_priority = list()
+
+    if len(sort_priority) != len(set(sort_priority)):
+        raise errors.IllegalParameterError(f"Duplicate sort priority found: {sort_priority}")
+
+    try:
+        sort_order_rev = [_SORT_PRIORITY_ORDER_MAP[k] for k in sort_priority]
+    except KeyError as e:
+        raise errors.IllegalParameterError(f"Invalid sort priority: {e}, "
+                                           f"valid priorities are: {list(_SORT_PRIORITY_ORDER_MAP.keys())}")
+    missing_processes = [p for p in sort_order_rev if p not in processed_count and p != names.FLD_TAXA_COUNT_COUNT]
+    if missing_processes:
+        missing_priority = [key for key, value in _SORT_PRIORITY_ORDER_MAP.items() if value in missing_processes]
+        raise errors.IllegalParameterError(f"Specified sort priority {missing_priority} without providing associated "
+                                           f"match or selection identifier")
+
+    # fill in missing orders with the default precedence order
+    sort_order = _fill_missing_orders(sort_order_rev[::-1], processed_count)
+
+    if sort_by_count_already:
+        # remove unnecessary sort order if records are already sorted by count
+        sort_order.pop(0) if sort_order[0] == names.FLD_TAXA_COUNT_COUNT else None
+
+    for k in sort_order:
+        q.sort(key=lambda x: x[k], reverse=True)
+
+    if not sort_by_count_already:
+        # indicating that we have added more taxa count records in _add_subset_data_in_place step.
+        q[:] = q[:_MAX_COUNT]
 
 
 def _taxa_counts(
