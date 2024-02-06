@@ -62,8 +62,6 @@ _SORT_PRIORITY_ORDER_MAP = {
     "standard": names.FLD_TAXA_COUNT_COUNT
 }
 
-_DEFAULT_SORT_PRIORITY = "selected, matched, standard"
-
 
 class TaxaCountSpec(DataProductSpec):
 
@@ -227,7 +225,7 @@ async def get_taxa_counts(
         description="A selection ID to include the selection count in the taxa count data. "
             + "Note that if a selection ID is set, any load version override is ignored."),
     sort_priority: str = Query(
-        default=_DEFAULT_SORT_PRIORITY,
+        default=None,
         description=f"A comma separated list of sort priorities. Valid values are: "
                     f"{', '.join(_SORT_PRIORITY_ORDER_MAP.keys())}. ",
     ),
@@ -276,26 +274,32 @@ def _sort_taxa_counts(
         sort_priority: str,
         dp_list: list[models.DataProductProcess]):
     # Sort taxa count records in place by the sort_priority list.
+
     processed_count = [_TYPE2FIELD[dp.type] for dp in dp_list if dp]
 
-    if processed_count:
-
+    if sort_priority:
         sort_priority = [p.strip() for p in sort_priority.split(",")]
-        if len(sort_priority) != len(set(sort_priority)):
-            raise errors.IllegalParameterError(f"Duplicate sort priority found: {sort_priority}")
-
-        try:
-            sort_order_rev = [_SORT_PRIORITY_ORDER_MAP[k] for k in sort_priority]
-        except KeyError as e:
-            raise errors.IllegalParameterError(f"Invalid sort priority: {e}, "
-                                               f"valid priorities are: {list(_SORT_PRIORITY_ORDER_MAP.keys())}")
-
-        # fill in missing orders with the default precedence order
-        sort_order = _fill_missing_orders(sort_order_rev[::-1])
-        # remove any sort orders that are not processed (i.e. match or selection counts)
-        sort_order = [order for order in sort_order if order in processed_count or order == names.FLD_TAXA_COUNT_COUNT]
     else:
-        sort_order = [names.FLD_TAXA_COUNT_COUNT]
+        sort_priority = list()
+
+    if len(sort_priority) != len(set(sort_priority)):
+        raise errors.IllegalParameterError(f"Duplicate sort priority found: {sort_priority}")
+
+    try:
+        sort_order_rev = [_SORT_PRIORITY_ORDER_MAP[k] for k in sort_priority]
+    except KeyError as e:
+        raise errors.IllegalParameterError(f"Invalid sort priority: {e}, "
+                                           f"valid priorities are: {list(_SORT_PRIORITY_ORDER_MAP.keys())}")
+    missing_processes = [p for p in sort_order_rev if p not in processed_count and p != names.FLD_TAXA_COUNT_COUNT]
+    if missing_processes:
+        missing_priority = [key for key, value in _SORT_PRIORITY_ORDER_MAP.items() if value in missing_processes]
+        raise errors.IllegalParameterError(f"No occurrences of the {missing_priority} data were found in the "
+                                           f"taxa count records")
+
+    # fill in missing orders with the default precedence order
+    sort_order = _fill_missing_orders(sort_order_rev[::-1])
+    # remove any sort orders that are not processed (i.e. match or selection counts)
+    sort_order = [order for order in sort_order if order in processed_count or order == names.FLD_TAXA_COUNT_COUNT]
 
     for k in sort_order:
         q.sort(key=lambda x: x[k], reverse=True)
