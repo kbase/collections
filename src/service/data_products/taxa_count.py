@@ -249,13 +249,15 @@ async def get_taxa_counts(
     ranks = await get_ranks_from_db(store, collection_id, load_ver, bool(load_ver_override))
     if rank not in ranks.data:
         raise errors.IllegalParameterError(f"Invalid rank: {rank}")
-    q = await _query(store, collection_id, load_ver, rank)
+    count_records = await _query(store, collection_id, load_ver, rank)
+    retrieved_new = False
     for dp_proc in [dp_match, dp_sel]:
-        await _add_subset_data_in_place(q, store, collection_id, load_ver, rank, dp_proc)
+        retrieved_new = await _add_subset_data_in_place(
+            count_records, store, collection_id, load_ver, rank, dp_proc) or retrieved_new
 
-    _sort_taxa_counts(q, sort_priority, [dp_match, dp_sel])
+    _sort_taxa_counts(count_records, sort_priority, [dp_match, dp_sel], sort_by_count_already=not retrieved_new)
 
-    return _taxa_counts(dp_match=dp_match, dp_sel=dp_sel, data=q)
+    return _taxa_counts(dp_match=dp_match, dp_sel=dp_sel, data=count_records)
 
 
 def _fill_missing_orders(sort_order: list[str], processed_count: list[str]):
@@ -271,7 +273,7 @@ def _fill_missing_orders(sort_order: list[str], processed_count: list[str]):
 
 
 def _sort_taxa_counts(
-        q: list[dict[str, Any]],
+        count_records: list[dict[str, Any]],
         sort_priority: str,
         dp_list: list[models.DataProductProcess],
         sort_by_count_already: bool = True):
@@ -306,17 +308,17 @@ def _sort_taxa_counts(
         sort_order.pop(0) if sort_order[0] == names.FLD_TAXA_COUNT_COUNT else None
 
     for k in sort_order:
-        q.sort(key=lambda x: x[k], reverse=True)
+        count_records.sort(key=lambda x: x[k], reverse=True)
 
     if not sort_by_count_already:
         # indicating that we have added more taxa count records in _add_subset_data_in_place step.
-        q[:] = q[:_MAX_COUNT]
+        count_records[:] = count_records[:_MAX_COUNT]
 
 
 def _taxa_counts(
     dp_match: models.DataProductProcess = None,
     dp_sel: models.DataProductProcess = None,
-    data: dict[str, Any] = None,
+    data: list[dict[str, Any]] = None,
 ) -> TaxaCounts:
     return TaxaCounts(
         match_state=dp_match.state if dp_match else None,
@@ -326,13 +328,14 @@ def _taxa_counts(
 
 
 async def _add_subset_data_in_place(
-    q: dict[str, Any],
+    count_records: list[dict[str, Any]],
     store: ArangoStorage,
     collection_id: str,
     load_ver: str,
     rank: str,
     dp_process: models.DataProductProcess,
 ):
+    found_new = False
     if dp_process and dp_process.is_complete():
         matchq = await _query(
             store,
@@ -344,8 +347,22 @@ async def _add_subset_data_in_place(
         )
         name, count = names.FLD_TAXA_COUNT_NAME, names.FLD_TAXA_COUNT_COUNT
         mqd = {d[name]: d[count] for d in matchq}
-        for d in q:
+
+        # TODO: this step might be skipped if the last sort order is standard since any missing names will be cut off
+        missing_names = set(mqd.keys()) - set(d[name] for d in count_records)
+        if missing_names:
+            count_records.extend(await _query(store,
+                                              collection_id,
+                                              load_ver,
+                                              rank,
+                                              name_list=list(missing_names),
+                                              limit=len(missing_names)))
+            found_new = True
+
+        for d in count_records:
             d[_TYPE2FIELD[dp_process.type]] = mqd.get(d[name], 0)
+
+    return found_new
 
 
 def _check_genome_attribs(coll: models.ActiveCollection, match: bool, selection: bool):
