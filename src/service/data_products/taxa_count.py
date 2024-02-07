@@ -348,6 +348,7 @@ async def _add_subset_data_in_place(
         name, count = names.FLD_TAXA_COUNT_NAME, names.FLD_TAXA_COUNT_COUNT
         mqd = {d[name]: d[count] for d in matchq}
 
+        # TODO: this step might be skipped if the last sort order is standard since any missing names will be cut off
         missing_names = set(mqd.keys()) - set(d[name] for d in count_records)
         if missing_names:
             count_records.extend(await _query(store,
