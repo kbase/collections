@@ -279,7 +279,7 @@ def _sort_taxa_counts(
         sort_by_count_already: bool = True):
     # Sort taxa count records in place by the sort_priority list.
 
-    processed_count = [_TYPE2FIELD[dp.type] for dp in dp_list if dp]
+    processed_count = [_TYPE2FIELD[dp.type] for dp in dp_list if dp and dp.is_complete()]
 
     if sort_priority:
         sort_priority = [p.strip() for p in sort_priority.split(",")]
@@ -298,7 +298,7 @@ def _sort_taxa_counts(
     if missing_processes:
         missing_priority = [key for key, value in _SORT_PRIORITY_ORDER_MAP.items() if value in missing_processes]
         raise errors.IllegalParameterError(f"Specified sort priority {missing_priority} without providing associated "
-                                           f"match or selection identifier")
+                                           f"match or selection identifier or the process is not completed yet.")
 
     # fill in missing orders with the default precedence order
     sort_order = _fill_missing_orders(sort_order_rev[::-1], processed_count)
@@ -313,6 +313,13 @@ def _sort_taxa_counts(
     if not sort_by_count_already:
         # indicating that we have added more taxa count records in _add_subset_data_in_place step.
         count_records[:] = count_records[:_MAX_COUNT]
+
+    # fill in 0 for any record with null counts
+    # We append missed records associated with the matching/selection process in the previous step. But do not fill
+    # in the count if record is not found in another process.
+    for r in count_records:
+        for proc in processed_count:
+            r[proc] = r.get(proc, 0)
 
 
 def _taxa_counts(
