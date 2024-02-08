@@ -88,7 +88,7 @@ def test_read_upload_status_yaml_file(setup_and_teardown):
         "CI", 12345, "214", assembly_dir, assembly_name
     )
     expected_data = {
-        "CI": {12345: {assembly_name: {workspace_uploader._KEY_LOADS: {}}}}
+        "CI": {12345: {assembly_name: {"loads": {}}}}
     }
     assert not uploaded
     assert expected_data == data
@@ -110,8 +110,7 @@ def test_update_upload_status_yaml_file(setup_and_teardown):
     )
 
     expected_data = {
-        "CI": {12345: {assembly_name: {workspace_uploader._KEY_LOADS:
-                                           {"214": {workspace_uploader._KEY_UPA: "12345_58_1"}}}}}
+        "CI": {12345: {assembly_name: {"loads": {"214": {"upa": "12345_58_1"}}}}}
     }
 
     assert uploaded
@@ -220,8 +219,7 @@ def test_post_process(setup_and_teardown):
         "CI", 88888, "214", host_assembly_dir, assembly_name
     )
     expected_data = {
-        "CI": {88888: {assembly_name: {workspace_uploader._KEY_LOADS:
-                                           {"214": {workspace_uploader._KEY_UPA: "12345_58_1"}}}}}
+        "CI": {88888: {assembly_name: {"loads": {"214": {"upa": "12345_58_1"}}}}}
     }
 
     dest_file = os.path.join(
