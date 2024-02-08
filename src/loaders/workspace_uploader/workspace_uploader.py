@@ -93,6 +93,10 @@ _WSObjTuple = namedtuple(
     ["obj_name", "host_file_dir", "container_internal_file_dir"],
 )
 
+# keys for the uploaded.yaml file
+_KEY_LOADS = "loads"
+_KEY_UPA = "upa"
+
 
 def _get_parser():
     parser = argparse.ArgumentParser(
@@ -262,9 +266,16 @@ def _read_upload_status_yaml_file(
 ) -> tuple[dict[str, dict[int, list[str]]], bool]:
     """
     Get metadata and upload status of a WS object from the uploaded.yaml file.
+
+    Structure of result yaml file:
+    <env>:
+        <workspace_id>:
+            <obj_name>:
+                loads:
+                    <load_id>:
+                        upa: <upa>
     """
 
-    uploaded = False
     if upload_env_key not in loader_common_names.KB_ENV:
         raise ValueError(
             f"Currently only support these {loader_common_names.KB_ENV} envs for upload"
@@ -273,24 +284,12 @@ def _read_upload_status_yaml_file(
     file_path = _get_yaml_file_path(obj_dir)
 
     with open(file_path, "r") as file:
-        data = yaml.safe_load(file)
+        data = yaml.safe_load(file) or dict()
 
-    if not data:
-        data = {upload_env_key: dict()}
+    workspace_dict = data.setdefault(upload_env_key, {}).setdefault(workspace_id, {})
+    obj_dict = workspace_dict.setdefault(obj_name, {_KEY_LOADS: {}})
 
-    if workspace_id not in data[upload_env_key]:
-        data[upload_env_key][workspace_id] = dict()
-
-    workspace_dict = data[upload_env_key][workspace_id]
-
-    if "file_name" not in workspace_dict:
-        workspace_dict["file_name"] = obj_name
-
-    if "loads" not in workspace_dict:
-        workspace_dict["loads"] = dict()
-
-    if load_id in workspace_dict["loads"]:
-        uploaded = True
+    uploaded = load_id in obj_dict[_KEY_LOADS]
 
     return data, uploaded
 
@@ -318,7 +317,7 @@ def _update_upload_status_yaml_file(
             f"Object {obj_tuple.obj_name} already exists in workspace {workspace_id}"
         )
 
-    data[upload_env_key][workspace_id]["loads"][load_id] = {"upa": upa}
+    data[upload_env_key][workspace_id][obj_tuple.obj_name][_KEY_LOADS][load_id] = {_KEY_UPA: upa}
 
     file_path = _get_yaml_file_path(obj_tuple.host_file_dir)
     with open(file_path, "w") as file:
