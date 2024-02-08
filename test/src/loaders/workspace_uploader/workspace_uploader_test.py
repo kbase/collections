@@ -98,7 +98,7 @@ def test_update_upload_status_yaml_file(setup_and_teardown):
     params = setup_and_teardown
     assembly_dir = params.assembly_dirs[0]
     assembly_name = ASSEMBLY_NAMES[0]
-    assembly_tuple = workspace_uploader._AssemblyTuple(
+    assembly_tuple = workspace_uploader._WSObjTuple(
         assembly_name, assembly_dir, "/path/to/file/in/AssembilyUtil"
     )
 
@@ -122,12 +122,12 @@ def test_update_upload_status_yaml_file(setup_and_teardown):
         )
 
 
-def test_fetch_assemblies_to_upload(setup_and_teardown):
+def test_fetch_objects_to_upload(setup_and_teardown):
     params = setup_and_teardown
     assembly_dirs = params.assembly_dirs
     collection_source_dir = params.collection_source_dir
 
-    count, wait_to_upload_assemblies = workspace_uploader._fetch_assemblies_to_upload(
+    count, wait_to_upload_assemblies = workspace_uploader._fetch_objects_to_upload(
         "CI",
         12345,
         "214",
@@ -149,7 +149,7 @@ def test_fetch_assemblies_to_upload(setup_and_teardown):
     # Both assemnly files will be skipped in the next fetch_assemblies_to_upload call
     upas = ["12345_58_1", "12345_58_2"]
     for assembly_name, assembly_dir, upa in zip(ASSEMBLY_NAMES, assembly_dirs, upas):
-        assembly_tuple = workspace_uploader._AssemblyTuple(
+        assembly_tuple = workspace_uploader._WSObjTuple(
             assembly_name, assembly_dir, "/path/to/file/in/AssembilyUtil"
         )
         workspace_uploader._update_upload_status_yaml_file(
@@ -159,7 +159,7 @@ def test_fetch_assemblies_to_upload(setup_and_teardown):
     (
         new_count,
         new_wait_to_upload_assemblies,
-    ) = workspace_uploader._fetch_assemblies_to_upload(
+    ) = workspace_uploader._fetch_objects_to_upload(
         "CI",
         12345,
         "214",
@@ -201,7 +201,7 @@ def test_post_process(setup_and_teardown):
     host_assembly_dir = params.assembly_dirs[0]
     assembly_name = ASSEMBLY_NAMES[0]
     src_file = params.target_files[0]
-    assembly_tuple = workspace_uploader._AssemblyTuple(
+    assembly_tuple = workspace_uploader._WSObjTuple(
         assembly_name, host_assembly_dir, "/path/to/file/in/AssembilyUtil"
     )
 
@@ -243,7 +243,7 @@ def test_upload_assembly_to_workspace(setup_and_teardown):
 
     asu = create_autospec(AssemblyUtil, spec_set=True, instance=True)
     asu.save_assemblies_from_fastas.return_value = {"results":[{"upa": "12345/58/1"}]}
-    assembly_tuple = workspace_uploader._AssemblyTuple(
+    assembly_tuple = workspace_uploader._WSObjTuple(
         assembly_name, host_assembly_dir, "/path/to/file/in/AssembilyUtil"
     )
     upas = workspace_uploader._upload_assemblies_to_workspace(
@@ -255,8 +255,8 @@ def test_upload_assembly_to_workspace(setup_and_teardown):
             "workspace_id": 12345,
             "inputs": [
                 {
-                    "file": assembly_tuple.container_internal_assembly_path,
-                    "assembly_name": assembly_tuple.assembly_name,
+                    "file": getattr(assembly_tuple, workspace_uploader._CONTAINER_OBJ_PATH),
+                    "assembly_name": getattr(assembly_tuple, workspace_uploader._OBJ_NAME),
                     "object_metadata": {"load_id": "214"},
                 }
             ]
@@ -274,14 +274,14 @@ def test_generator(setup_and_teardown):
     assemblyTuple_list = list(workspace_uploader._gen(wait_to_upload_assemblies, 1))
     expected_assemblyTuple_list = [
         [
-            workspace_uploader._AssemblyTuple(
+            workspace_uploader._WSObjTuple(
                 "GCF_000979855.1_gtlEnvA5udCFS_genomic.fna.gz",
                 assembly_dirs[0],
                 "/kb/module/work/tmp/GCF_000979855.1_gtlEnvA5udCFS_genomic.fna.gz",
             )
         ],
         [
-            workspace_uploader._AssemblyTuple(
+            workspace_uploader._WSObjTuple(
                 "GCF_000979175.1_gtlEnvA5udCFS_genomic.fna.gz",
                 assembly_dirs[1],
                 "/kb/module/work/tmp/GCF_000979175.1_gtlEnvA5udCFS_genomic.fna.gz",
