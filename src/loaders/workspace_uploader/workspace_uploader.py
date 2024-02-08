@@ -88,13 +88,9 @@ _JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER = "/kb/module/work/tmp"
 _UPLOADED_YAML = "uploaded.yaml"
 _WS_MAX_BATCH_SIZE = 10000
 
-# fields of _WSObjTuple
-_OBJ_NAME = "obj_name"
-_OBJ_DIR = "host_obj_dir"
-_CONTAINER_OBJ_PATH = "container_internal_obj_path"
 _WSObjTuple = namedtuple(
     "WSObjTuple",
-    [_OBJ_NAME, _OBJ_DIR, _CONTAINER_OBJ_PATH],
+    ["obj_name", "host_file_dir", "container_internal_file_dir"],
 )
 
 
@@ -237,8 +233,8 @@ def _upload_assemblies_to_workspace(
     """
     inputs = [
         {
-            "file": getattr(obj_tuple, _CONTAINER_OBJ_PATH),
-            "assembly_name": getattr(obj_tuple, _OBJ_NAME),
+            "file": obj_tuple.container_internal_file_dir,
+            "assembly_name": obj_tuple.obj_name,
             "object_metadata": {"load_id": load_id},
         }
         for obj_tuple in ws_obj_tuples
@@ -313,18 +309,18 @@ def _update_upload_status_yaml_file(
         upload_env_key,
         workspace_id,
         load_id,
-        getattr(obj_tuple, _OBJ_DIR),
-        getattr(obj_tuple, _OBJ_NAME),
+        obj_tuple.host_file_dir,
+        obj_tuple.obj_name,
     )
 
     if uploaded:
         raise ValueError(
-            f"Object {getattr(obj_tuple, _OBJ_NAME)} already exists in workspace {workspace_id}"
+            f"Object {obj_tuple.obj_name} already exists in workspace {workspace_id}"
         )
 
     data[upload_env_key][workspace_id]["loads"][load_id] = {"upa": upa}
 
-    file_path = _get_yaml_file_path(getattr(obj_tuple, _OBJ_DIR))
+    file_path = _get_yaml_file_path(obj_tuple.host_file_dir)
     with open(file_path, "w") as file:
         yaml.dump(data, file)
 
@@ -461,8 +457,8 @@ def _post_process(
     # Create a standard entry in sourcedata/workspace
     # hardlink to the original object file in sourcedata
     src_file = _get_source_file(
-        getattr(obj_tuple, _OBJ_DIR),
-        getattr(obj_tuple, _OBJ_NAME)
+        obj_tuple.host_file_dir,
+        obj_tuple.obj_name,
     )
     target_dir = os.path.join(output_dir, upa)
     os.makedirs(target_dir, exist_ok=True)
@@ -532,7 +528,7 @@ def _upload_assembly_files_in_parallel(
             try:
                 # figure out uploads that succeeded
                 name2tuple = {
-                    getattr(obj_tuple, _OBJ_NAME): obj_tuple
+                    obj_tuple.obj_name: obj_tuple
                     for obj_tuple in obj_tuples
                 }
                 (

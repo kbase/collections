@@ -255,8 +255,8 @@ def test_upload_assembly_to_workspace(setup_and_teardown):
             "workspace_id": 12345,
             "inputs": [
                 {
-                    "file": getattr(assembly_tuple, workspace_uploader._CONTAINER_OBJ_PATH),
-                    "assembly_name": getattr(assembly_tuple, workspace_uploader._OBJ_NAME),
+                    "file": assembly_tuple.container_internal_file_dir,
+                    "assembly_name": assembly_tuple.obj_name,
                     "object_metadata": {"load_id": "214"},
                 }
             ]
