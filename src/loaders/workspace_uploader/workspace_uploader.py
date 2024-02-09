@@ -274,8 +274,8 @@ def _read_upload_status_yaml_file(
             <load_id>:
                 assembly_upa: <assembly_upa>
                 assembly_filename: <assembly_filename>
-                genome_upa: <genome_upa>
-                genome_filename: <genome_filename>
+                genome_upa: <genome_upa> (can be None)
+                genome_filename: <genome_filename> (can be None)
     """
 
     if upload_env_key not in loader_common_names.KB_ENV:
