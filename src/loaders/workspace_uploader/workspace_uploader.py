@@ -94,8 +94,10 @@ _WSObjTuple = namedtuple(
 )
 
 # keys for the uploaded.yaml file
-_KEY_LOADS = "loads"
-_KEY_UPA = "upa"
+_KEY_ASSEMBLY_UPA = "assembly_upa"
+_KEY_ASSEMBLY_FILENAME = "assembly_filename"
+_KEY_GENOME_UPA = "genome_upa"
+_KEY_GENOME_FILENAME = "genome_filename"
 
 
 def _get_parser():
@@ -262,7 +264,6 @@ def _read_upload_status_yaml_file(
     workspace_id: int,
     load_id: str,
     obj_dir: str,
-    obj_name: str,
 ) -> tuple[dict[str, dict[int, list[str]]], bool]:
     """
     Get metadata and upload status of a WS object from the uploaded.yaml file.
@@ -270,10 +271,11 @@ def _read_upload_status_yaml_file(
     Structure of result yaml file:
     <env>:
         <workspace_id>:
-            <obj_name>:
-                loads:
-                    <load_id>:
-                        upa: <upa>
+            <load_id>:
+                assembly_upa: <assembly_upa>
+                assembly_filename: <assembly_filename>
+                genome_upa: <genome_upa>
+                genome_filename: <genome_filename>
     """
 
     if upload_env_key not in loader_common_names.KB_ENV:
@@ -287,9 +289,9 @@ def _read_upload_status_yaml_file(
         data = yaml.safe_load(file) or dict()
 
     workspace_dict = data.setdefault(upload_env_key, {}).setdefault(workspace_id, {})
-    obj_dict = workspace_dict.setdefault(obj_name, {_KEY_LOADS: {}})
 
-    uploaded = load_id in obj_dict[_KEY_LOADS]
+    # TODO - we might want to check that upa and filename matches
+    uploaded = load_id in workspace_dict
 
     return data, uploaded
 
@@ -298,18 +300,21 @@ def _update_upload_status_yaml_file(
     upload_env_key: str,
     workspace_id: int,
     load_id: str,
-    upa: str,
-    obj_tuple: _WSObjTuple,
+    assembly_upa: str,
+    assembly_tuple: _WSObjTuple,
+    genome_upa: str = None,
+    genome_tuple: _WSObjTuple = None,
 ) -> None:
     """
     Update the uploaded.yaml file in target genome_dir with newly uploaded WS object names and upa info.
     """
+    obj_tuple = genome_tuple if genome_tuple else assembly_tuple
+
     data, uploaded = _read_upload_status_yaml_file(
         upload_env_key,
         workspace_id,
         load_id,
         obj_tuple.host_file_dir,
-        obj_tuple.obj_name,
     )
 
     if uploaded:
@@ -317,7 +322,12 @@ def _update_upload_status_yaml_file(
             f"Object {obj_tuple.obj_name} already exists in workspace {workspace_id}"
         )
 
-    data[upload_env_key][workspace_id][obj_tuple.obj_name][_KEY_LOADS][load_id] = {_KEY_UPA: upa}
+    data[upload_env_key][workspace_id][load_id] = {
+        _KEY_ASSEMBLY_UPA: assembly_upa,
+        _KEY_ASSEMBLY_FILENAME: assembly_tuple.obj_name,
+        _KEY_GENOME_UPA: genome_upa,
+        _KEY_GENOME_FILENAME: genome_tuple.obj_name if genome_tuple else None,
+    }
 
     file_path = _get_yaml_file_path(obj_tuple.host_file_dir)
     with open(file_path, "w") as file:
@@ -364,7 +374,6 @@ def _fetch_objects_to_upload(
             workspace_id,
             load_id,
             obj_dir,
-            obj_name,
         )
 
         if uploaded:
