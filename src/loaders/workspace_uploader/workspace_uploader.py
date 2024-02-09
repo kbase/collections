@@ -264,6 +264,7 @@ def _read_upload_status_yaml_file(
     workspace_id: int,
     load_id: str,
     obj_dir: str,
+    create_assembly_only: bool = True,
 ) -> tuple[dict[str, dict[int, list[str]]], bool]:
     """
     Get metadata and upload status of a WS object from the uploaded.yaml file.
@@ -290,8 +291,11 @@ def _read_upload_status_yaml_file(
 
     workspace_dict = data.setdefault(upload_env_key, {}).setdefault(workspace_id, {})
 
-    # TODO - we might want to check that upa and filename matches
     uploaded = load_id in workspace_dict
+
+    # In the event of genome upload and an assembly with the identical load_id has already been uploaded.
+    if not create_assembly_only:
+        uploaded = uploaded and workspace_dict[load_id].get(_KEY_GENOME_UPA)
 
     return data, uploaded
 
