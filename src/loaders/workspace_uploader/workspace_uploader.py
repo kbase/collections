@@ -178,9 +178,11 @@ def _get_parser():
         "--upload_file_ext",
         type=str,
         nargs="+",
-        help="Upload only files that match given extensions. If not provided, the default extension determined by the "
-             "create_assembly_only flag",
+        help="Upload only files that match given extensions. If not provided, uses the appropriate default extension "
+             "depending on the create_assembly_only flag",
     )
+
+
 
     optional.add_argument(
         "--batch_size",
