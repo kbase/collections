@@ -93,6 +93,12 @@ _WSObjTuple = namedtuple(
     ["obj_name", "host_file_dir", "container_internal_file_dir"],
 )
 
+# keys for the uploaded.yaml file
+_KEY_ASSEMBLY_UPA = "assembly_upa"
+_KEY_ASSEMBLY_FILENAME = "assembly_filename"
+_KEY_GENOME_UPA = "genome_upa"
+_KEY_GENOME_FILENAME = "genome_filename"
+
 
 def _get_parser():
     parser = argparse.ArgumentParser(
@@ -258,13 +264,21 @@ def _read_upload_status_yaml_file(
     workspace_id: int,
     load_id: str,
     obj_dir: str,
-    obj_name: str,
+    create_assembly_only: bool = True,
 ) -> tuple[dict[str, dict[int, list[str]]], bool]:
     """
     Get metadata and upload status of a WS object from the uploaded.yaml file.
+
+    Structure of result yaml file:
+    <env>:
+        <workspace_id>:
+            <load_id>:
+                assembly_upa: <assembly_upa>
+                assembly_filename: <assembly_filename>
+                genome_upa: <genome_upa> (can be None)
+                genome_filename: <genome_filename> (can be None)
     """
 
-    uploaded = False
     if upload_env_key not in loader_common_names.KB_ENV:
         raise ValueError(
             f"Currently only support these {loader_common_names.KB_ENV} envs for upload"
@@ -273,24 +287,15 @@ def _read_upload_status_yaml_file(
     file_path = _get_yaml_file_path(obj_dir)
 
     with open(file_path, "r") as file:
-        data = yaml.safe_load(file)
+        data = yaml.safe_load(file) or dict()
 
-    if not data:
-        data = {upload_env_key: dict()}
+    workspace_dict = data.setdefault(upload_env_key, {}).setdefault(workspace_id, {})
 
-    if workspace_id not in data[upload_env_key]:
-        data[upload_env_key][workspace_id] = dict()
+    uploaded = load_id in workspace_dict
 
-    workspace_dict = data[upload_env_key][workspace_id]
-
-    if "file_name" not in workspace_dict:
-        workspace_dict["file_name"] = obj_name
-
-    if "loads" not in workspace_dict:
-        workspace_dict["loads"] = dict()
-
-    if load_id in workspace_dict["loads"]:
-        uploaded = True
+    # In the event of genome upload and an assembly with the identical load_id has already been uploaded.
+    if not create_assembly_only:
+        uploaded = uploaded and workspace_dict[load_id].get(_KEY_GENOME_UPA)
 
     return data, uploaded
 
@@ -299,18 +304,21 @@ def _update_upload_status_yaml_file(
     upload_env_key: str,
     workspace_id: int,
     load_id: str,
-    upa: str,
-    obj_tuple: _WSObjTuple,
+    assembly_upa: str,
+    assembly_tuple: _WSObjTuple,
+    genome_upa: str = None,
+    genome_tuple: _WSObjTuple = None,
 ) -> None:
     """
     Update the uploaded.yaml file in target genome_dir with newly uploaded WS object names and upa info.
     """
+    obj_tuple = genome_tuple if genome_tuple else assembly_tuple
+
     data, uploaded = _read_upload_status_yaml_file(
         upload_env_key,
         workspace_id,
         load_id,
         obj_tuple.host_file_dir,
-        obj_tuple.obj_name,
     )
 
     if uploaded:
@@ -318,7 +326,12 @@ def _update_upload_status_yaml_file(
             f"Object {obj_tuple.obj_name} already exists in workspace {workspace_id}"
         )
 
-    data[upload_env_key][workspace_id]["loads"][load_id] = {"upa": upa}
+    data[upload_env_key][workspace_id][load_id] = {
+        _KEY_ASSEMBLY_UPA: assembly_upa,
+        _KEY_ASSEMBLY_FILENAME: assembly_tuple.obj_name,
+        _KEY_GENOME_UPA: genome_upa,
+        _KEY_GENOME_FILENAME: genome_tuple.obj_name if genome_tuple else None,
+    }
 
     file_path = _get_yaml_file_path(obj_tuple.host_file_dir)
     with open(file_path, "w") as file:
@@ -365,7 +378,6 @@ def _fetch_objects_to_upload(
             workspace_id,
             load_id,
             obj_dir,
-            obj_name,
         )
 
         if uploaded:

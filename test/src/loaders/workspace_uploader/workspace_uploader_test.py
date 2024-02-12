@@ -85,11 +85,12 @@ def test_read_upload_status_yaml_file(setup_and_teardown):
 
     # test empty yaml file in assembly_dir
     data, uploaded = workspace_uploader._read_upload_status_yaml_file(
-        "CI", 12345, "214", assembly_dir, assembly_name
+        "CI", 12345, "214", assembly_dir
     )
+
     expected_data = {
-        "CI": {12345: {"file_name": assembly_name, "loads": {}}}
-    }
+        "CI": {12345: {}}}
+
     assert not uploaded
     assert expected_data == data
 
@@ -106,12 +107,14 @@ def test_update_upload_status_yaml_file(setup_and_teardown):
         "CI", 12345, "214", "12345_58_1", assembly_tuple
     )
     data, uploaded = workspace_uploader._read_upload_status_yaml_file(
-        "CI", 12345, "214", assembly_dir, assembly_name
+        "CI", 12345, "214", assembly_dir,
     )
 
     expected_data = {
-        "CI": {12345: {"file_name": assembly_name, "loads": {"214": {"upa": "12345_58_1"}}}}
-    }
+        "CI": {12345: {"214": {"assembly_upa": "12345_58_1",
+                               "assembly_filename": assembly_name,
+                               "genome_upa": None,
+                               "genome_filename": None}}}}
 
     assert uploaded
     assert expected_data == data
@@ -216,11 +219,13 @@ def test_post_process(setup_and_teardown):
     )
 
     data, uploaded = workspace_uploader._read_upload_status_yaml_file(
-        "CI", 88888, "214", host_assembly_dir, assembly_name
+        "CI", 88888, "214", host_assembly_dir
     )
     expected_data = {
-        "CI": {88888: {"file_name": assembly_name, "loads": {"214": {"upa": "12345_58_1"}}}}
-    }
+        "CI": {88888: {"214": {"assembly_upa": "12345_58_1",
+                               "assembly_filename": assembly_name,
+                               "genome_upa": None,
+                               "genome_filename": None}}}}
 
     dest_file = os.path.join(
         os.path.join(output_dir, "12345_58_1"), f"12345_58_1.fna.gz"
