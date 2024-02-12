@@ -135,7 +135,7 @@ def test_fetch_objects_to_upload(setup_and_teardown):
         12345,
         "214",
         collection_source_dir,
-        workspace_uploader._UPLOAD_FILE_EXT,
+        workspace_uploader._UPLOAD_ASSEMBLY_FILE_EXT,
     )
 
     expected_count = len(ASSEMBLY_NAMES)
@@ -167,7 +167,7 @@ def test_fetch_objects_to_upload(setup_and_teardown):
         12345,
         "214",
         collection_source_dir,
-        workspace_uploader._UPLOAD_FILE_EXT,
+        workspace_uploader._UPLOAD_ASSEMBLY_FILE_EXT,
     )
 
     assert expected_count == new_count

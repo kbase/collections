@@ -34,8 +34,11 @@ optional arguments:
                         If not provided, the token must be provided in the `KB_AUTH_TOKEN` environment variable.
   --env {CI,NEXT,APPDEV,PROD}
                         KBase environment (default: PROD)
+  --create_assembly_only
+                        Create only assembly object. If not set create Genome object using genbank files by default.
   --upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]
-                        Upload only files that match given extensions (default: ['genomic.fna.gz'])
+                        Upload only files that match given extensions. If not provided, the default extension determined by the
+                        create_assembly_only flag
   --batch_size BATCH_SIZE
                         Number of files to upload per batch (default: 2500)
   --cbs_max_tasks CBS_MAX_TASKS
@@ -83,7 +86,8 @@ from src.loaders.common.callback_server_wrapper import Conf
 # setup KB_AUTH_TOKEN as env or provide a token_filepath in --token_filepath
 # export KB_AUTH_TOKEN="your-kb-auth-token"
 
-_UPLOAD_FILE_EXT = ["genomic.fna.gz"]  # uplaod only files that match given extensions
+_UPLOAD_ASSEMBLY_FILE_EXT = ["genomic.fna.gz"]
+_UPLOAD_GENOME_FILE_EXT = ["genomic.gbff.gz"]
 _JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER = "/kb/module/work/tmp"
 _UPLOADED_YAML = "uploaded.yaml"
 _WS_MAX_BATCH_SIZE = 10000
@@ -166,12 +170,18 @@ def _get_parser():
         help="KBase environment",
     )
     optional.add_argument(
+        "--create_assembly_only",
+        action="store_true",
+        help="Create only assembly object. If not set create Genome object using genbank files by default.",
+    )
+    optional.add_argument(
         "--upload_file_ext",
         type=str,
         nargs="+",
-        default=_UPLOAD_FILE_EXT,
-        help="Upload only files that match given extensions",
+        help="Upload only files that match given extensions. If not provided, the default extension determined by the "
+             "create_assembly_only flag",
     )
+
     optional.add_argument(
         "--batch_size",
         type=int,
@@ -204,6 +214,10 @@ def _get_parser():
         "SDK apps run as part of this application will not have access to catalog secure parameters.",
     )
     return parser
+
+
+def _get_default_file_ext(create_assembly_only: bool) -> list[str]:
+    return _UPLOAD_ASSEMBLY_FILE_EXT if create_assembly_only else _UPLOAD_GENOME_FILE_EXT
 
 
 def _get_yaml_file_path(obj_dir: str) -> str:
@@ -620,7 +634,8 @@ def main():
     source_version = getattr(args, loader_common_names.SOURCE_VER_ARG_NAME)
     root_dir = getattr(args, loader_common_names.ROOT_DIR_ARG_NAME)
     token_filepath = args.token_filepath
-    upload_file_ext = args.upload_file_ext
+    create_assembly_only = args.create_assembly_only
+    upload_file_ext = args.upload_file_ext or _get_default_file_ext(create_assembly_only)
     batch_size = args.batch_size
     cbs_max_tasks = args.cbs_max_tasks
     au_service_ver = args.au_service_ver
@@ -738,21 +753,23 @@ def main():
             f"{wtus_len} objects in {data_dir} are ready to upload to workspace {workspace_id}"
         )
 
-        asu = AssemblyUtil(
-            conf.callback_url, service_ver=au_service_ver, token=conf.token
-        )
         start = time.time()
-        uploaded_count = _upload_assembly_files_in_parallel(
-            asu,
-            ws,
-            env,
-            workspace_id,
-            load_id,
-            upload_dir,
-            wait_to_upload_objs,
-            batch_size,
-            output_dir,
-        )
+        if create_assembly_only:
+            uploaded_count = _upload_assembly_files_in_parallel(
+                AssemblyUtil(
+                    conf.callback_url, service_ver=au_service_ver, token=conf.token
+                ),
+                ws,
+                env,
+                workspace_id,
+                load_id,
+                upload_dir,
+                wait_to_upload_objs,
+                batch_size,
+                output_dir,
+            )
+        else:
+            raise NotImplementedError("Genome object uploader is not implemented yet")
 
         upload_time = (time.time() - start) / 60
         assy_per_min = uploaded_count / upload_time
