@@ -37,8 +37,8 @@ optional arguments:
   --create_assembly_only
                         Create only assembly object. If not set create Genome object using genbank files by default.
   --upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]
-                        Upload only files that match given extensions. If not provided, the default extension determined by the
-                        create_assembly_only flag
+                        Upload only files that match given extensions. If not provided, uses the appropriate default extension
+                        depending on the create_assembly_only flag
   --batch_size BATCH_SIZE
                         Number of files to upload per batch (default: 2500)
   --cbs_max_tasks CBS_MAX_TASKS
