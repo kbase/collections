@@ -485,6 +485,7 @@ def _post_process(
     Hardlink to the original object file in sourcedata to avoid duplicating the file.
     Creates a softlink from new_dir in collectionssource to the contents of target_dir in sourcedata.
     """
+    # TODO: make all parameters positional arguments
 
     if (genome_tuple is None) != (genome_upa is None):
         raise ValueError(
