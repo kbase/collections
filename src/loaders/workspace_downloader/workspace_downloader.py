@@ -113,31 +113,6 @@ def _assembly_genome_lookup(genome_objs):
     return hashmap, duplicate
 
 
-def _process_object_info(
-        obj_info: list[Any],
-        genome_info: list[Any]
-) -> dict[str, Any]:
-    """
-    "upa", "name", "type", and "timestamp info will be extracted from object info and save as a dict."
-    {
-        "upa": "68981/9/1"
-        "name": <copy object name from object info>
-        "type": <copy object type from object info>
-        "timestamp": <copy timestamp from object info>
-        "genome_upa": "68981/507/1"
-    }
-    """
-    res_dict = {loader_common_names.FLD_KB_OBJ_UPA: "{6}/{0}/{4}".format(*obj_info),
-                loader_common_names.FLD_KB_OBJ_NAME: obj_info[1],
-                loader_common_names.FLD_KB_OBJ_TYPE: obj_info[2],
-                loader_common_names.FLD_KB_OBJ_TIMESTAMP: obj_info[3],
-                loader_common_names.FLD_KB_OBJ_GENOME_UPA: "{6}/{0}/{4}".format(*genome_info),
-                loader_common_names.ASSEMBLY_OBJ_INFO_KEY: obj_info,
-                loader_common_names.GENOME_OBJ_INFO_KEY: genome_info}
-
-    return res_dict
-
-
 def _process_input(conf: Conf):
     """
     Download .fa and .meta files from workspace and save a copy under output_dir.
@@ -175,7 +150,7 @@ def _process_input(conf: Conf):
             os.link(cfn, dst)
 
             # save meta file with relevant object_info
-            _dump_json_to_file(metafile, _process_object_info(obj_info, genome_info))
+            loader_helper.dump_json_to_file(metafile, loader_helper.generate_import_dir_meta(obj_info, genome_info))
 
             print("Completed %s" % (upa_format))
         else:
@@ -222,20 +197,14 @@ def _download_sample_data(
     sample_file = os.path.join(upa_dir, sample_file_name)
     sample_prepared_name = f"{sample_file_prefix}.{loader_common_names.SAMPLE_PREPARED_EXT}"
     sample_prepared_file = os.path.join(upa_dir, sample_prepared_name)
-    _dump_json_to_file(sample_file, sample_ret)
-    _dump_json_to_file(sample_prepared_file, node_data)
+    loader_helper.dump_json_to_file(sample_file, sample_ret)
+    loader_helper.dump_json_to_file(sample_prepared_file, node_data)
 
     # update metadata file with sample information
     meta[loader_common_names.SAMPLE_FILE_KEY] = sample_file_name
     meta[loader_common_names.SAMPLE_PREPARED_KEY] = sample_prepared_name
     meta[loader_common_names.SAMPLE_EFFECTIVE_TIME] = sample_effective_time
-    _dump_json_to_file(metafile, meta)
-
-
-def _dump_json_to_file(json_file_path: str | Path, json_data: dict[str, Any] | list[Any]) -> None:
-    # dump json data to file
-    with open(json_file_path, "w", encoding="utf8") as json_file:
-        json.dump(json_data, json_file, indent=2)
+    loader_helper.dump_json_to_file(metafile, meta)
 
 
 def _find_sample_upa(

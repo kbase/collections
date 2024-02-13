@@ -26,21 +26,8 @@ from src.common.storage.db_doc_conversions import (
     collection_data_id_key,
     collection_load_version_key,
 )
-from src.loaders.common.loader_common_names import (
-    COLLECTION_SOURCE_DIR,
-    CONTAINERS_CONF_PARAMS,
-    CONTAINERS_CONF_PATH,
-    DOCKER_HOST,
-    FATAL_ERROR,
-    FATAL_STACKTRACE,
-    FATAL_TOOL,
-    IMPORT_DIR,
-    KB_AUTH_TOKEN,
-    SDK_JOB_DIR,
-    SOURCE_DATA_DIR,
-    SOURCE_METADATA_FILE_KEYS,
-    WS,
-)
+import src.loaders.common.loader_common_names as loader_common_names
+
 
 """
 This module contains helper functions used for loaders (e.g. compute_genome_attribs, gtdb_genome_attribs_loader, etc.)
@@ -182,7 +169,7 @@ def create_import_dir(
     """
     Create the import directory for the given environment.
     """
-    import_dir = Path(root_dir, IMPORT_DIR, env, kbase_collection, load_ver)
+    import_dir = Path(root_dir, loader_common_names.IMPORT_DIR, env, kbase_collection, load_ver)
     os.makedirs(import_dir, exist_ok=True)
 
     return import_dir
@@ -275,10 +262,10 @@ def get_token(token_filepath):
         with open(os.path.expanduser(token_filepath), "r") as f:
             token = f.readline().strip()
     else:
-        token = os.environ.get(KB_AUTH_TOKEN)
+        token = os.environ.get(loader_common_names.KB_AUTH_TOKEN)
     if not token:
         raise ValueError(
-            f"Need to provide a token in the {KB_AUTH_TOKEN} "
+            f"Need to provide a token in the {loader_common_names.KB_AUTH_TOKEN} "
             + f"environment variable or as --token_filepath argument to the CLI"
         )
     return token
@@ -298,7 +285,7 @@ def start_podman_service(uid: int):
     if return_code:
         raise ValueError(f"The command {command} failed with return code {return_code}. "
                          f"Podman service failed to start")
-    os.environ["DOCKER_HOST"] = DOCKER_HOST.format(uid)
+    os.environ["DOCKER_HOST"] = loader_common_names.DOCKER_HOST.format(uid)
     return proc
 
 
@@ -311,11 +298,11 @@ def _get_containers_config(conf_path: str):
 
 def is_config_modification_required():
     """check if the config requires modification."""
-    conf_path = os.path.expanduser(CONTAINERS_CONF_PATH)
+    conf_path = os.path.expanduser(loader_common_names.CONTAINERS_CONF_PATH)
     config = _get_containers_config(conf_path)
     if not config.has_section("containers"):
         return True
-    for key, val in CONTAINERS_CONF_PARAMS.items():
+    for key, val in loader_common_names.CONTAINERS_CONF_PARAMS.items():
         if config.get("containers", key, fallback=None) != val:
             return True
     return False
@@ -323,7 +310,7 @@ def is_config_modification_required():
 
 def setup_callback_server_logs():
     """Set up containers.conf file for the callback server logs."""
-    conf_path = os.path.expanduser(CONTAINERS_CONF_PATH)
+    conf_path = os.path.expanduser(loader_common_names.CONTAINERS_CONF_PATH)
     with open(conf_path, "w") as writer:
         try:
             fcntl.flock(writer.fileno(), fcntl.LOCK_EX)
@@ -332,7 +319,7 @@ def setup_callback_server_logs():
             if not config.has_section("containers"):
                 config.add_section("containers")
 
-            for key, val in CONTAINERS_CONF_PARAMS.items():
+            for key, val in loader_common_names.CONTAINERS_CONF_PARAMS.items():
                 config.set("containers", key, val)
 
             config.write(writer)
@@ -356,14 +343,14 @@ def is_upa_info_complete(upa_dir: str):
             data = json.load(json_file)
     except:
         return False
-    if not set(SOURCE_METADATA_FILE_KEYS).issubset(set(data.keys())):
+    if not set(loader_common_names.SOURCE_METADATA_FILE_KEYS).issubset(set(data.keys())):
         return False
     return True
 
 
 def make_job_dir(root_dir, username):
     """Helper function that creates a job_dir for a user under root directory."""
-    job_dir = os.path.join(root_dir, SDK_JOB_DIR, username, uuid.uuid4().hex)
+    job_dir = os.path.join(root_dir, loader_common_names.SDK_JOB_DIR, username, uuid.uuid4().hex)
     os.makedirs(job_dir, exist_ok=True)
     # only user can read, write, or execute
     os.chmod(job_dir, stat.S_IRWXU)
@@ -373,14 +360,14 @@ def make_job_dir(root_dir, username):
 def make_job_data_dir(job_dir):
     """
     Helper function that creates a temporary directory for sharing files between the host, callback server, and container.
-    
+
     SDK modules (like AssemblyUtil) have the shared directory mounted in the container at `/kb/module/work`. The
     scratch directory provided to the SDK module `*Impl.py` code is `/kb/module/work/tmp`. The SDK code is expected
     to read and write shared files there.
-    
+
     The callback server mounts `<job_dir>/workdir` as the host shared directory into the SDK module.
-    
-    `<job_dir>` is also mounted into the callback server and it writes job information (e.g. the token and job configuration) 
+
+    `<job_dir>` is also mounted into the callback server and it writes job information (e.g. the token and job configuration)
     into `<job_dir>/workdir`
     """
     data_dir = os.path.join(job_dir, "workdir/tmp")
@@ -390,7 +377,11 @@ def make_job_data_dir(job_dir):
 
 def make_sourcedata_ws_dir(root_dir, env, workspace_id):
     """Helper function that creates a output directory for a specific workspace id under root directory."""
-    output_dir = os.path.join(root_dir, SOURCE_DATA_DIR, WS, env, str(workspace_id))
+    output_dir = os.path.join(root_dir,
+                              loader_common_names.SOURCE_DATA_DIR,
+                              loader_common_names.WS,
+                              env,
+                              str(workspace_id))
     os.makedirs(output_dir, exist_ok=True)
     return output_dir
 
@@ -400,7 +391,11 @@ def make_collection_source_dir(root_dir: str, env: str, collection: str, source_
     Helper function that creates a collection & source_version and link in data
     to that collection from the overall source data dir.
     """
-    collection_source_dir = os.path.join(root_dir, COLLECTION_SOURCE_DIR, env, collection, source_ver)
+    collection_source_dir = os.path.join(root_dir,
+                                         loader_common_names.COLLECTION_SOURCE_DIR,
+                                         env,
+                                         collection,
+                                         source_ver)
     os.makedirs(collection_source_dir, exist_ok=True)
     return collection_source_dir
 
@@ -537,9 +532,9 @@ def find_free_port():
 
 
 def create_global_fatal_dict_doc(tool, error_message, stacktrace=None):
-    doc = {FATAL_TOOL: tool,
-           FATAL_ERROR: error_message,
-           FATAL_STACKTRACE: stacktrace}
+    doc = {loader_common_names.FATAL_TOOL: tool,
+           loader_common_names.FATAL_ERROR: error_message,
+           loader_common_names.FATAL_STACKTRACE: stacktrace}
     return doc
 
 
@@ -548,3 +543,46 @@ class ExplicitDefaultsHelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
         if action.default is None or action.default is False:
             return action.help
         return super()._get_help_string(action)
+
+
+def generate_import_dir_meta(
+        assembly_obj_info: list[Any],
+        genome_obj_info: list[Any]
+) -> dict[str, Any]:
+    """
+    Generate metadata by processing Assembly and Genome object information, tailored for the parser
+
+    assembly_obj_info - Workspace Assembly object info
+    genome_obj_info - Workspace Genome object info
+
+    "upa", "name", "type", and "timestamp" info will be extracted from assembly object info and saved as a dict.
+    {
+        "upa": <assembly object upa>
+        "name": <copy object name from assembly object info>
+        "type": <copy object type from assembly object info>
+        "timestamp": <copy timestamp from assembly object info>
+        "genome_upa": <genome object upa>
+        "assembly_obj_info": <copy assembly object info>
+        "genome_obj_info": <copy genome object info>
+    }
+    """
+    res_dict = {loader_common_names.FLD_KB_OBJ_UPA: "{6}/{0}/{4}".format(*assembly_obj_info),
+                loader_common_names.FLD_KB_OBJ_NAME: assembly_obj_info[1],
+                loader_common_names.FLD_KB_OBJ_TYPE: assembly_obj_info[2],
+                loader_common_names.FLD_KB_OBJ_TIMESTAMP: assembly_obj_info[3],
+                loader_common_names.FLD_KB_OBJ_GENOME_UPA: "{6}/{0}/{4}".format(*genome_obj_info),
+                loader_common_names.ASSEMBLY_OBJ_INFO_KEY: assembly_obj_info,
+                loader_common_names.GENOME_OBJ_INFO_KEY: genome_obj_info}
+
+    return res_dict
+
+
+def dump_json_to_file(json_file_path: str | Path, json_data: dict[str, Any] | list[Any]) -> None:
+    """
+    Dump json data to a file.
+
+    json_file_path - the path to the result json file
+    json_data - the json data to be dumped
+    """
+    with open(json_file_path, "w", encoding="utf8") as json_file:
+        json.dump(json_data, json_file, indent=2)
