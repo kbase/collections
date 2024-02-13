@@ -542,7 +542,7 @@ def _process_genome_objects(
     metafile = os.path.join(target_dir, f"{assembly_upa}.meta")
     loader_helper.dump_json_to_file(metafile, meta)
 
-    # Creates a softlink from new_dir to the contents of upa_dir.
+    # create a softlink from new_dir in collectionssource to the contents of target_dir in sourcedata
     new_dir = os.path.join(upload_dir, assembly_upa)
     loader_helper.create_softlink_between_dirs(new_dir, target_dir)
 
