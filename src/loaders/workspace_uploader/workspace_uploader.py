@@ -485,16 +485,11 @@ def _post_process(
     Hardlink to the original object file in sourcedata to avoid duplicating the file.
     Creates a softlink from new_dir in collectionssource to the contents of target_dir in sourcedata.
     """
-    # Update the uploaded.yaml file
-    _update_upload_status_yaml_file(
-        upload_env_key,
-        workspace_id,
-        load_id,
-        assembly_upa,
-        assembly_tuple,
-        genome_upa=genome_upa,
-        genome_tuple=genome_tuple,
-    )
+
+    if (genome_tuple is None) != (genome_upa is None):
+        raise ValueError(
+            "Both genome_tuple and genome_upa must be provided if one of them is provided"
+        )
 
     if genome_tuple and genome_upa:
 
@@ -505,6 +500,18 @@ def _post_process(
 
         _process_genome_objects(
             upload_dir, output_dir, assembly_tuple, assembly_upa, assembly_obj_info, genome_obj_info)
+
+    # Update the 'uploaded.yaml' file, serving as a marker to indicate the successful upload of the object.
+    # Ensure that this operation is the final step in the post-processing workflow
+    _update_upload_status_yaml_file(
+        upload_env_key,
+        workspace_id,
+        load_id,
+        assembly_upa,
+        assembly_tuple,
+        genome_upa=genome_upa,
+        genome_tuple=genome_tuple,
+    )
 
 
 def _process_genome_objects(
