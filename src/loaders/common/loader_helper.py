@@ -335,7 +335,7 @@ def is_upa_info_complete(upa_dir: str):
     """
     upa = os.path.basename(upa_dir)
     fa_path = os.path.join(upa_dir, upa + ".fa")
-    meta_path = get_meta_file_path(upa_dir, upa)
+    meta_path = get_meta_file_path(os.path.dirname(upa_dir), upa)
     if not os.path.exists(fa_path) or not os.path.exists(meta_path):
         return False
     try:
