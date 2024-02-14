@@ -487,7 +487,7 @@ def _post_process(
     """
     # TODO: make all parameters positional arguments
 
-    if (genome_tuple is None) != (genome_upa is None):
+    if bool(genome_tuple) != bool(genome_upa):  # xor
         raise ValueError(
             "Both genome_tuple and genome_upa must be provided if one of them is provided"
         )
