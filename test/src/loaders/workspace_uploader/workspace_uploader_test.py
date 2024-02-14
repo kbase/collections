@@ -203,7 +203,7 @@ def test_prepare_skd_job_dir_to_upload(setup_and_teardown):
         assert os.path.samefile(src_file, os.path.join(data_dir, assembly_name))
 
 
-def test_post_process(setup_and_teardown):
+def test_post_process_with_assembly_only(setup_and_teardown):
     params = setup_and_teardown
     upload_dir = Path(params.tmp_dir) / "upload_dir"
     upload_dir.mkdir()
@@ -239,7 +239,14 @@ def test_post_process(setup_and_teardown):
     assert uploaded
     assert expected_data == data
 
+def test_post_process_with_genome(setup_and_teardown):
     # test with genome_tuple and genome_upa
+    params = setup_and_teardown
+    collections_source_dir = Path(params.tmp_dir) / "collections_source_dir"
+    collections_source_dir.mkdir()
+    source_dir = Path(params.tmp_dir) / "source_dir"
+    source_dir.mkdir()
+
     host_assembly_dir2 = params.assembly_dirs[1]
     assembly_name2 = ASSEMBLY_NAMES[1]
     src_file2 = params.target_files[1]
@@ -256,8 +263,8 @@ def test_post_process(setup_and_teardown):
         "CI",
         88888,
         "214",
-        upload_dir,
-        output_dir,
+        collections_source_dir,
+        source_dir,
         assembly_tuple2,
         "42_4_75",
         genome_tuple=genome_tuple2,
@@ -280,16 +287,16 @@ def test_post_process(setup_and_teardown):
     assert uploaded
     assert expected_data == data
 
-    assembly_dest_file = output_dir / "42_4_75" / "42_4_75.fna.gz"
+    assembly_dest_file = source_dir / "42_4_75" / "42_4_75.fna.gz"
     # check softlink
-    assert os.readlink(os.path.join(upload_dir, "42_4_75")) == os.path.join(
-        output_dir, "42_4_75"
+    assert os.readlink(os.path.join(collections_source_dir, "42_4_75")) == os.path.join(
+        source_dir, "42_4_75"
     )
     # check hardlink
     assert os.path.samefile(src_file2, assembly_dest_file)
 
     # check metadata file
-    metadata_file = output_dir / "42_4_75" / "42_4_75.meta"
+    metadata_file = source_dir / "42_4_75" / "42_4_75.meta"
     with open(metadata_file, 'r') as file:
         data = json.load(file)
 
