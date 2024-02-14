@@ -127,7 +127,6 @@ def _process_input(conf: Conf):
         upa_format = "{6}_{0}_{4}".format(*obj_info)
 
         upa_dir = os.path.join(conf.output_dir, upa_format)
-        metafile = os.path.join(upa_dir, f"{upa_format}.meta")
         if not os.path.isdir(upa_dir) or not loader_helper.is_upa_info_complete(upa_dir):
 
             # remove legacy upa_dir to avoid FileExistsError in hard link
@@ -159,7 +158,7 @@ def _process_input(conf: Conf):
         if conf.retrieve_sample:
             _download_sample_data(conf,
                                   ["{6}/{0}/{4}".format(*obj_info), "{6}/{0}/{4}".format(*genome_info)],
-                                  metafile)
+                                  loader_helper.get_meta_file_path(conf.output_dir, upa_format))
 
 
 def _download_sample_data(
