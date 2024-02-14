@@ -598,7 +598,7 @@ def create_meta_file(
     Generates a metadata file for a workspace object and saves it in the associated sourcedata directory.
 
     output_dir - The directory for a specific workspace id under sourcedata/WS/<env>.
-    upa_format - The UPA of a workspace object in the format of "wsid/objid/ver"
+    upa_format - The UPA of a workspace object in the format of "<wsid>_<objid>_<ver>"
     assembly_obj_info - Workspace Assembly object info
     genome_obj_info - Workspace Genome object info
     """
