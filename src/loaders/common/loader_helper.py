@@ -599,7 +599,11 @@ def get_meta_file_path(
     structured_upa - The UPA of a workspace object in the format of "<wsid>_<objid>_<ver>"
     """
     source_dir = Path(source_dir)
-    return source_dir / structured_upa / f"{structured_upa}.meta"
+    metafile = source_dir / structured_upa / f"{structured_upa}.meta"
+    # Ensure the directory structure exists, create if not
+    metafile.parent.mkdir(parents=True, exist_ok=True)
+
+    return metafile
 
 
 def create_meta_file(
@@ -617,8 +621,6 @@ def create_meta_file(
     genome_obj_info - Workspace Genome object info
     """
     metafile = get_meta_file_path(source_dir, structured_upa)
-    # Ensure the directory structure exists, create if not
-    metafile.parent.mkdir(parents=True, exist_ok=True)
 
     dump_json_to_file(metafile, generate_import_dir_meta(assembly_obj_info, genome_obj_info))
 
