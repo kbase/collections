@@ -590,7 +590,7 @@ def dump_json_to_file(json_file_path: str | Path, json_data: dict[str, Any] | li
 
 def create_meta_file(
         output_dir: Path | str,
-        upa_format: str,
+        structured_upa: str,
         assembly_obj_info: list[Any],
         genome_obj_info: list[Any],
 ) -> None:
@@ -598,12 +598,12 @@ def create_meta_file(
     Generates a metadata file for a workspace object and saves it in the associated sourcedata directory.
 
     output_dir - The directory for a specific workspace id under sourcedata/WS/<env>.
-    upa_format - The UPA of a workspace object in the format of "<wsid>_<objid>_<ver>"
+    structured_upa - The UPA of a workspace object in the format of "<wsid>_<objid>_<ver>"
     assembly_obj_info - Workspace Assembly object info
     genome_obj_info - Workspace Genome object info
     """
     output_dir = Path(output_dir)
-    metafile = output_dir / upa_format / f"{upa_format}.meta"
+    metafile = output_dir / structured_upa / f"{structured_upa}.meta"
     # Ensure the directory structure exists, create if not
     metafile.parent.mkdir(parents=True, exist_ok=True)
 
