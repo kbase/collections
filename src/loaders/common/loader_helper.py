@@ -593,7 +593,7 @@ def create_meta_file(
         structured_upa: str,
         assembly_obj_info: list[Any],
         genome_obj_info: list[Any],
-) -> None:
+) -> Path:
     """
     Generates a metadata file for a workspace object and saves it in the associated sourcedata directory.
 
@@ -608,4 +608,6 @@ def create_meta_file(
     metafile.parent.mkdir(parents=True, exist_ok=True)
 
     dump_json_to_file(metafile, generate_import_dir_meta(assembly_obj_info, genome_obj_info))
+
+    return metafile
 
