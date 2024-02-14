@@ -539,9 +539,7 @@ def _process_genome_objects(
     loader_helper.create_hardlink_between_files(dest_file, src_file)
 
     # create metadata file used by parser
-    meta = loader_helper.generate_import_dir_meta(assembly_obj_info, genome_obj_info)
-    metafile = os.path.join(target_dir, f"{assembly_upa}.meta")
-    loader_helper.dump_json_to_file(metafile, meta)
+    loader_helper.create_meta_file(output_dir, assembly_upa, assembly_obj_info, genome_obj_info)
 
     # create a softlink from new_dir in collectionssource to the contents of target_dir in sourcedata
     new_dir = os.path.join(upload_dir, assembly_upa)

@@ -150,7 +150,7 @@ def _process_input(conf: Conf):
             os.link(cfn, dst)
 
             # save meta file with relevant object_info
-            loader_helper.dump_json_to_file(metafile, loader_helper.generate_import_dir_meta(obj_info, genome_info))
+            loader_helper.create_meta_file(conf.output_dir, upa_format, obj_info, genome_info)
 
             print("Completed %s" % (upa_format))
         else:
