@@ -598,8 +598,8 @@ def get_meta_file_path(
     source_dir - The directory for a specific workspace id under sourcedata/WS/<env>
     structured_upa - The UPA of a workspace object in the format of "<wsid>_<objid>_<ver>"
     """
-    source_dir = Path(source_dir)
-    metafile = source_dir / structured_upa / f"{structured_upa}.meta"
+
+    metafile = Path(source_dir) / structured_upa / f"{structured_upa}.meta"
     # Ensure the directory structure exists, create if not
     metafile.parent.mkdir(parents=True, exist_ok=True)
 
