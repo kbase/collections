@@ -512,8 +512,8 @@ def test_fail_query_workspace_with_load_id_mass(setup_and_teardown):
     ws.get_object_info3.assert_not_called()
 
 
-def test_query_workspace_with_load_id_mass(setup_and_teardown):
-    # happy test
+def test_query_workspace_with_load_id_mass_assembly(setup_and_teardown):
+    # test with assembly objects only
     ws = create_autospec(Workspace, spec_set=True, instance=True)
     mock_object_info = {
         'infos': [
