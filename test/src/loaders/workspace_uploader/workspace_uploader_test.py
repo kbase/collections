@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import uuid
@@ -17,6 +18,10 @@ ASSEMBLY_NAMES = [
     "GCF_000979855.1_gtlEnvA5udCFS_genomic.fna.gz",
     "GCF_000979175.1_gtlEnvA5udCFS_genomic.fna.gz",
 ]
+GEMOME_NAMES = [
+    "GCF_000979855.1_gtlEnvA5udCFS_genomic.gbff.gz",
+    "GCF_000979175.1_gtlEnvA5udCFS_genomic.gbff.gz",
+]
 
 
 class Params(NamedTuple):
@@ -25,6 +30,7 @@ class Params(NamedTuple):
     collection_source_dir: str
     assembly_dirs: list[str]
     target_files: list[str]
+    genbank_files: list[str]
 
 
 @pytest.fixture(scope="function")
@@ -39,21 +45,24 @@ def setup_and_teardown():
     sourcedata_dir.mkdir(parents=True)
     collection_source_dir.mkdir()
 
-    assembly_dirs, target_files = list(), list()
-    for assembly_dir_name, assembly_name in zip(ASSEMBLY_DIR_NAMES, ASSEMBLY_NAMES):
+    assembly_dirs, target_files, genbank_files = list(), list(), list()
+    for assembly_dir_name, assembly_name, genome_name in zip(ASSEMBLY_DIR_NAMES, ASSEMBLY_NAMES, GEMOME_NAMES):
         target_dir_path = sourcedata_dir.joinpath(assembly_dir_name)
         target_dir_path.mkdir()
         target_file_path = target_dir_path.joinpath(assembly_name)
         target_file_path.touch()
+        genbank_file_path = target_dir_path.joinpath(genome_name)
+        genbank_file_path.touch()
         new_dir_path = collection_source_dir.joinpath(assembly_dir_name)
         os.symlink(
             target_dir_path.resolve(), new_dir_path.resolve(), target_is_directory=True
         )
         assembly_dirs.append(str(new_dir_path))
         target_files.append(str(target_file_path))
+        genbank_files.append(str(genbank_file_path))
 
     yield Params(
-        tmp_dir, sourcedata_dir, collection_source_dir, assembly_dirs, target_files
+        tmp_dir, sourcedata_dir, collection_source_dir, assembly_dirs, target_files, genbank_files
     )
 
     shutil.rmtree(tmp_dir, ignore_errors=True)
@@ -194,7 +203,7 @@ def test_prepare_skd_job_dir_to_upload(setup_and_teardown):
         assert os.path.samefile(src_file, os.path.join(data_dir, assembly_name))
 
 
-def test_post_process(setup_and_teardown):
+def test_post_process_with_assembly_only(setup_and_teardown):
     params = setup_and_teardown
     upload_dir = Path(params.tmp_dir) / "upload_dir"
     upload_dir.mkdir()
@@ -203,7 +212,7 @@ def test_post_process(setup_and_teardown):
 
     host_assembly_dir = params.assembly_dirs[0]
     assembly_name = ASSEMBLY_NAMES[0]
-    src_file = params.target_files[0]
+
     assembly_tuple = workspace_uploader._WSObjTuple(
         assembly_name, host_assembly_dir, "/path/to/file/in/AssembilyUtil"
     )
@@ -212,9 +221,9 @@ def test_post_process(setup_and_teardown):
         "CI",
         88888,
         "214",
-        assembly_tuple,
         upload_dir,
         output_dir,
+        assembly_tuple,
         "12345_58_1",
     )
 
@@ -227,18 +236,81 @@ def test_post_process(setup_and_teardown):
                                "genome_upa": None,
                                "genome_filename": None}}}}
 
-    dest_file = os.path.join(
-        os.path.join(output_dir, "12345_58_1"), f"12345_58_1.fna.gz"
+    assert uploaded
+    assert expected_data == data
+
+
+def test_post_process_with_genome(setup_and_teardown):
+    # test with genome_tuple and genome_upa
+    params = setup_and_teardown
+    collections_source_dir = Path(params.tmp_dir) / "collections_source_dir"
+    collections_source_dir.mkdir()
+    source_dir = Path(params.tmp_dir) / "source_dir"
+    source_dir.mkdir()
+
+    host_assembly_dir = params.assembly_dirs[1]
+    assembly_name = ASSEMBLY_NAMES[1]
+    src_file = params.target_files[1]
+    assembly_tuple = workspace_uploader._WSObjTuple(
+        assembly_name, host_assembly_dir, "/path/to/file/in/AssembilyUtil"
     )
+    genome_name = GEMOME_NAMES[1]
+    genome_tuple = workspace_uploader._WSObjTuple(
+        genome_name, host_assembly_dir, "/path/to/file/in/GenomeUtil"
+    )
+    assembly_obj_info = [4, 'name', 'type', 'time', 75, 'user', 42, 'wsname', 'md5', 78, {'foo': 'bar'}]
+    genome_obj_info = [7, 'name', 'type', 'time', 1, 'user', 42, 'wsname', 'md5', 78, {}]
+    workspace_uploader._post_process(
+        "CI",
+        88888,
+        "214",
+        collections_source_dir,
+        source_dir,
+        assembly_tuple,
+        "42_4_75",
+        genome_tuple=genome_tuple,
+        genome_upa="42_7_1",
+        assembly_obj_info=assembly_obj_info,
+        genome_obj_info=genome_obj_info
+    )
+
+    data, uploaded = workspace_uploader._read_upload_status_yaml_file(
+        "CI", 88888, "214", host_assembly_dir
+    )
+
+    expected_data = {
+        'CI': {88888: {'214':
+                           {'assembly_filename': assembly_name,
+                            'assembly_upa': '42_4_75',
+                            'genome_filename': genome_name,
+                            'genome_upa': '42_7_1'}}}}
 
     assert uploaded
     assert expected_data == data
+
+    assembly_dest_file = source_dir / "42_4_75" / "42_4_75.fna.gz"
     # check softlink
-    assert os.readlink(os.path.join(upload_dir, "12345_58_1")) == os.path.join(
-        output_dir, "12345_58_1"
+    assert os.readlink(os.path.join(collections_source_dir, "42_4_75")) == os.path.join(
+        source_dir, "42_4_75"
     )
     # check hardlink
-    assert os.path.samefile(src_file, dest_file)
+    assert os.path.samefile(src_file, assembly_dest_file)
+
+    # check metadata file
+    metadata_file = source_dir / "42_4_75" / "42_4_75.meta"
+    with open(metadata_file, 'r') as file:
+        data = json.load(file)
+
+    expected_metadata = {
+        'upa': '42/4/75',
+        'name': 'name',
+        'timestamp': 'time',
+        'type': 'type',
+        'genome_upa': '42/7/1',
+        'assembly_object_info': assembly_obj_info,
+        'genome_object_info': genome_obj_info
+    }
+    assert data == expected_metadata
 
 
 def test_upload_assembly_to_workspace(setup_and_teardown):
@@ -354,25 +426,6 @@ def test_upload_assembly_files_in_parallel(setup_and_teardown):
                 }
             ]
         }
-    )
-
-    # check softlink for post_process
-    assert os.readlink(os.path.join(upload_dir, "12345_58_1")) == os.path.join(
-        output_dir, "12345_58_1"
-    )
-    assert os.readlink(os.path.join(upload_dir, "12345_60_1")) == os.path.join(
-        output_dir, "12345_60_1"
-    )
-
-    # check hardlink for post_process
-    assert os.path.samefile(
-        src_files[0],
-        os.path.join(output_dir, "12345_58_1", "12345_58_1.fna.gz")
-    )
-
-    assert os.path.samefile(
-        src_files[1],
-        os.path.join(output_dir, "12345_60_1", "12345_60_1.fna.gz")
     )
 
 

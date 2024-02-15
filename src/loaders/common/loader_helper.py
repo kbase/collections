@@ -335,7 +335,7 @@ def is_upa_info_complete(upa_dir: str):
     """
     upa = os.path.basename(upa_dir)
     fa_path = os.path.join(upa_dir, upa + ".fa")
-    meta_path = os.path.join(upa_dir, upa + ".meta")
+    meta_path = get_meta_file_path(os.path.dirname(upa_dir), upa)
     if not os.path.exists(fa_path) or not os.path.exists(meta_path):
         return False
     try:
@@ -586,3 +586,43 @@ def dump_json_to_file(json_file_path: str | Path, json_data: dict[str, Any] | li
     """
     with open(json_file_path, "w", encoding="utf8") as json_file:
         json.dump(json_data, json_file, indent=2)
+
+
+def get_meta_file_path(
+        source_dir: Path | str,
+        structured_upa: str
+) -> Path:
+    """
+    Get the metadata file path for a specific workspace id under sourcedata/WS/<env>.
+
+    source_dir - The directory for a specific workspace id under sourcedata/WS/<env>
+    structured_upa - The UPA of a workspace object in the format of "<wsid>_<objid>_<ver>"
+    """
+
+    metafile = Path(source_dir) / structured_upa / f"{structured_upa}.meta"
+    # Ensure the directory structure exists, create if not
+    metafile.parent.mkdir(parents=True, exist_ok=True)
+
+    return metafile
+
+
+def create_meta_file(
+        source_dir: Path | str,
+        structured_upa: str,
+        assembly_obj_info: list[Any],
+        genome_obj_info: list[Any],
+) -> Path:
+    """
+    Generates a metadata file for a workspace object and saves it in the associated sourcedata directory.
+
+    source_dir - The directory for a specific workspace id under sourcedata/WS/<env>.
+    structured_upa - The UPA of a workspace object in the format of "<wsid>_<objid>_<ver>"
+    assembly_obj_info - Workspace Assembly object info
+    genome_obj_info - Workspace Genome object info
+    """
+    metafile = get_meta_file_path(source_dir, structured_upa)
+
+    dump_json_to_file(metafile, generate_import_dir_meta(assembly_obj_info, genome_obj_info))
+
+    return metafile
+

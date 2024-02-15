@@ -74,7 +74,7 @@ import uuid
 from collections import namedtuple
 from datetime import datetime
 from pathlib import Path
-from typing import Generator
+from typing import Generator, Any
 
 import yaml
 
@@ -181,9 +181,6 @@ def _get_parser():
         help="Upload only files that match given extensions. If not provided, uses the appropriate default extension "
              "depending on the create_assembly_only flag",
     )
-
-
-
     optional.add_argument(
         "--batch_size",
         type=int,
@@ -471,39 +468,81 @@ def _post_process(
     upload_env_key: str,
     workspace_id: int,
     load_id: str,
-    obj_tuple: _WSObjTuple,
-    upload_dir: str,
-    output_dir: str,
-    upa: str,
+    collections_source_dir: str,
+    source_dir: str,
+    assembly_tuple: _WSObjTuple,
+    assembly_upa: str,
+    genome_tuple: _WSObjTuple = None,
+    genome_upa: str = None,
+    assembly_obj_info: list[Any] = None,
+    genome_obj_info: list[Any] = None,
 ) -> None:
     """
+    Update the uploaded.yaml file in the genome directory with the object name and upa info.
+
+    If genome_tuple and genome_upa are provided, the function will also:
     Create a standard entry in sourcedata/workspace for each object.
     Hardlink to the original object file in sourcedata to avoid duplicating the file.
-    Update the uploaded.yaml file in the genome directory with the object name and upa info.
     Creates a softlink from new_dir in collectionssource to the contents of target_dir in sourcedata.
     """
-    # Create a standard entry in sourcedata/workspace
-    # hardlink to the original object file in sourcedata
-    src_file = _get_source_file(
-        obj_tuple.host_file_dir,
-        obj_tuple.obj_name,
-    )
-    target_dir = os.path.join(output_dir, upa)
-    os.makedirs(target_dir, exist_ok=True)
-    dest_file = os.path.join(target_dir, f"{upa}.fna.gz")
-    loader_helper.create_hardlink_between_files(dest_file, src_file)
+    # TODO: make all parameters positional arguments
 
-    # Update the uploaded.yaml file
+    if bool(genome_tuple) != bool(genome_upa):  # xor
+        raise ValueError(
+            "Both genome_tuple and genome_upa must be provided if one of them is provided"
+        )
+
+    if genome_tuple and genome_upa:
+
+        if not assembly_obj_info or not genome_obj_info:
+            raise ValueError(
+                "Both assembly_obj_info and genome_obj_info must be provided"
+            )
+
+        _process_genome_objects(
+            collections_source_dir, source_dir, assembly_tuple, assembly_upa, assembly_obj_info, genome_obj_info)
+
+    # Update the 'uploaded.yaml' file, serving as a marker to indicate the successful upload of the object.
+    # Ensure that this operation is the final step in the post-processing workflow
     _update_upload_status_yaml_file(
         upload_env_key,
         workspace_id,
         load_id,
-        upa,
-        obj_tuple,
+        assembly_upa,
+        assembly_tuple,
+        genome_upa=genome_upa,
+        genome_tuple=genome_tuple,
     )
 
-    # Creates a softlink from new_dir to the contents of upa_dir.
-    new_dir = os.path.join(upload_dir, upa)
+
+def _process_genome_objects(
+        collections_source_dir: str,
+        source_dir: str,
+        assembly_tuple: _WSObjTuple,
+        assembly_upa: str,
+        assembly_obj_info: list[Any],
+        genome_obj_info: list[Any],
+) -> None:
+    """
+    Post process on successful genome uploads.
+    """
+    # Create a standard entry in sourcedata/workspace
+    # hardlink to the original object file in sourcedata
+    src_file = Path(_get_source_file(assembly_tuple.host_file_dir, assembly_tuple.obj_name))
+    target_dir = os.path.join(source_dir, assembly_upa)
+    os.makedirs(target_dir, exist_ok=True)
+
+    suffixes = src_file.suffixes
+    # TODO - handle extension other than .gz
+    dest_suffix = suffixes[-1] if suffixes[-1] != ".gz" else "".join(suffixes[-2:])
+    dest_file = os.path.join(target_dir, f"{assembly_upa}{dest_suffix}")
+    loader_helper.create_hardlink_between_files(dest_file, src_file)
+
+    # create metadata file used by parser
+    loader_helper.create_meta_file(source_dir, assembly_upa, assembly_obj_info, genome_obj_info)
+
+    # create a softlink from new_dir in collectionssource to the contents of target_dir in sourcedata
+    new_dir = os.path.join(collections_source_dir, assembly_upa)
     loader_helper.create_softlink_between_dirs(new_dir, target_dir)
 
 
@@ -513,10 +552,10 @@ def _upload_assembly_files_in_parallel(
     upload_env_key: str,
     workspace_id: int,
     load_id: str,
-    upload_dir: str,
+    collections_source_dir: str,
     wait_to_upload_objs: dict[str, str],
     batch_size: int,
-    output_dir: str,
+    source_dir: str,
 ) -> int:
     """
     Upload assembly files to the target workspace in parallel using multiprocessing.
@@ -527,10 +566,10 @@ def _upload_assembly_files_in_parallel(
         upload_env_key: environment variable key in uploaded.yaml file
         workspace_id: target workspace id
         load_id: load id
-        upload_dir: a directory in collectionssource that creates new directories linking to sourcedata
+        collections_source_dir: a directory in collectionssource that creates new directories linking to sourcedata
         wait_to_upload_objs: a dictionary that maps object(assembly) file name to object(assembly) directory
         batch_size: a number of files to upload per batch
-        output_dir: a directory in sourcedata/workspace to store new assembly entries
+        source_dir: a directory in sourcedata/workspace to store new assembly entries
 
     Returns:
         number of object(assembly) files have been successfully uploaded from wait_to_upload_assemblies
@@ -584,9 +623,9 @@ def _upload_assembly_files_in_parallel(
                 upload_env_key,
                 workspace_id,
                 load_id,
+                collections_source_dir,
+                source_dir,
                 obj_tuple,
-                upload_dir,
-                output_dir,
                 upa,
             )
 
@@ -669,10 +708,10 @@ def main():
     collection_source_dir = loader_helper.make_collection_source_dir(
         root_dir, loader_common_names.DEFAULT_ENV, kbase_collection, source_version
     )
-    upload_dir = loader_helper.make_collection_source_dir(
+    collections_source_dir = loader_helper.make_collection_source_dir(
         root_dir, env, kbase_collection, source_version
     )
-    output_dir = loader_helper.make_sourcedata_ws_dir(root_dir, env, workspace_id)
+    source_dir = loader_helper.make_sourcedata_ws_dir(root_dir, env, workspace_id)
 
     proc = None
     conf = None
@@ -730,9 +769,9 @@ def main():
                     env,
                     workspace_id,
                     load_id,
+                    collections_source_dir,
+                    source_dir,
                     obj_tuple,
-                    upload_dir,
-                    output_dir,
                     upa,
                 )
             # remove objects that are already uploaded
@@ -765,10 +804,10 @@ def main():
                 env,
                 workspace_id,
                 load_id,
-                upload_dir,
+                collections_source_dir,
                 wait_to_upload_objs,
                 batch_size,
-                output_dir,
+                source_dir,
             )
         else:
             raise NotImplementedError("Genome object uploader is not implemented yet")
