@@ -410,24 +410,50 @@ def _query_workspace_with_load_id(
     workspace_id: int,
     load_id: str,
     obj_names: list[str],
-) -> tuple[list[str], list[str]]:
+    assembly_objs_only: bool = True,
+) -> tuple[list[str], list[str], list[str], list[str]]:
     if len(obj_names) > _WS_MAX_BATCH_SIZE:
         raise ValueError(
             f"The effective max batch size must be <= {_WS_MAX_BATCH_SIZE}"
         )
     refs = [{"wsid": workspace_id, "name": name} for name in obj_names]
-    res = ws.get_object_info3(
-        {"objects": refs, "ignoreErrors": 1, "includeMetadata": 1}
-    )
-    uploaded_obj_names_batch = [
-        info[1]
-        for info in res["infos"]
-        if info is not None and "load_id" in info[10] and info[10]["load_id"] == load_id
-    ]
-    uploaded_obj_upas_batch = [
-        path[0].replace("/", "_") for path in res["paths"] if path is not None
-    ]
-    return uploaded_obj_names_batch, uploaded_obj_upas_batch
+    res = ws.get_object_info3({"objects": refs, "ignoreErrors": 1, "includeMetadata": 1})
+    uploaded_objs_info = [info for info in res["infos"] if info and info[10].get("load_id") == load_id]
+    if not uploaded_objs_info:
+        return list(), list(), list(), list()
+    uploaded_obj_names_batch = [info[1] for info in uploaded_objs_info]
+    uploaded_obj_upas_batch = ["{6}_{0}_{4}".format(*info) for info in uploaded_objs_info]
+
+    if assembly_objs_only:
+        _check_obj_type(workspace_id, load_id, uploaded_objs_info, {loader_common_names.OBJECTS_NAME_ASSEMBLY})
+        assembly_objs_info = uploaded_objs_info
+        genome_objs_info = list()
+    else:
+        _check_obj_type(workspace_id, load_id, uploaded_objs_info, {loader_common_names.OBJECTS_NAME_GENOME})
+        genome_objs_info = uploaded_objs_info
+        try:
+            assembly_objs_ref = [info[10]['Assembly Object'] for info in genome_objs_info]
+        except KeyError:
+            raise ValueError(
+                f"Genome objects must have an 'Assembly Object' field in their metadata"
+            )
+        assembly_objs_spec = [{"ref": ref} for ref in assembly_objs_ref]
+        assembly_objs_info = ws.get_object_info3({"objects": assembly_objs_spec, "includeMetadata": 1})["infos"]
+
+    return uploaded_obj_names_batch, uploaded_obj_upas_batch, assembly_objs_info, genome_objs_info
+
+
+def _check_obj_type(
+    workspace_id: int,
+    load_id: str,
+    obj_infos: list[Any],
+    expected_obj_types: set[str],
+):
+    obj_types = {info[2].split("-")[0] for info in obj_infos}
+    if obj_types != expected_obj_types:
+        raise ValueError(
+            f"Only expecting {sorted(expected_obj_types)} objects. "
+            f"However, found {sorted(obj_types)} in the workspace {workspace_id} with load {load_id}")
 
 
 def _query_workspace_with_load_id_mass(
@@ -436,18 +462,26 @@ def _query_workspace_with_load_id_mass(
     load_id: str,
     obj_names: list[str],
     batch_size: int = _WS_MAX_BATCH_SIZE,
-) -> tuple[list[str], list[str]]:
-    uploaded_obj_names = []
-    uploaded_obj_upas = []
+    assembly_objs_only: bool = True,
+) -> tuple[list[str], list[str], list[str], list[str]]:
 
-    for idx in range(0, len(obj_names), batch_size):
-        obj_names_batch, obj_upas_batch = _query_workspace_with_load_id(
-            ws, workspace_id, load_id, obj_names[idx: idx + batch_size]
-        )
-        uploaded_obj_names.extend(obj_names_batch)
-        uploaded_obj_upas.extend(obj_upas_batch)
+    # TODO: run _query_workspace_with_load_id in parallel instead of in serial
+    (uploaded_obj_names,
+     uploaded_obj_upas,
+     uploaded_assembly_objs_info,
+     uploaded_genome_objs_info) = zip(*[_query_workspace_with_load_id(ws,
+                                                                      workspace_id,
+                                                                      load_id,
+                                                                      obj_names[i:i + batch_size],
+                                                                      assembly_objs_only=assembly_objs_only)
+                                        for i in range(0, len(obj_names), batch_size)])
 
-    return uploaded_obj_names, uploaded_obj_upas
+    return (
+        [item for sublist in uploaded_obj_names for item in sublist],
+        [item for sublist in uploaded_obj_upas for item in sublist],
+        [item for sublist in uploaded_assembly_objs_info for item in sublist],
+        [item for sublist in uploaded_genome_objs_info for item in sublist]
+    )
 
 
 def _prepare_skd_job_dir_to_upload(
@@ -601,6 +635,8 @@ def _upload_assembly_files_in_parallel(
                 (
                     uploaded_obj_names,
                     uploaded_obj_upas,
+                    _,
+                    _,
                 ) = _query_workspace_with_load_id_mass(
                     ws, workspace_id, load_id, list(name2tuple.keys())
                 )
@@ -753,9 +789,15 @@ def main():
         ws_url = os.path.join(kb_base_url, "ws")
         ws = Workspace(ws_url, token=conf.token)
 
-        uploaded_obj_names, uploaded_obj_upas = _query_workspace_with_load_id_mass(
-            ws, workspace_id, load_id, list(wait_to_upload_objs.keys())
-        )
+        (uploaded_obj_names,
+         uploaded_obj_upas,
+         uploaded_assembly_objs_info,
+         uploaded_genome_objs_info) = _query_workspace_with_load_id_mass(ws,
+                                                                         workspace_id,
+                                                                         load_id,
+                                                                         list(wait_to_upload_objs.keys()),
+                                                                         assembly_objs_only=create_assembly_only)
+
         # fix inconsistencies between the workspace and the local yaml files
         if uploaded_obj_names:
             print("Start failure recovery process ...")

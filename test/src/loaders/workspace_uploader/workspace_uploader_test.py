@@ -4,7 +4,7 @@ import shutil
 import uuid
 from pathlib import Path
 from typing import NamedTuple
-from unittest.mock import Mock, create_autospec
+from unittest.mock import Mock, create_autospec, call
 
 import pytest
 
@@ -515,7 +515,7 @@ def test_fail_query_workspace_with_load_id_mass(setup_and_teardown):
 def test_query_workspace_with_load_id_mass(setup_and_teardown):
     # happy test
     ws = create_autospec(Workspace, spec_set=True, instance=True)
-    ws.get_object_info3.return_value = {
+    mock_object_info = {
         'infos': [
                     [
                         1086,
@@ -558,8 +558,9 @@ def test_query_workspace_with_load_id_mass(setup_and_teardown):
                     None],
         'paths': [['69046/1086/18'], ['69046/1068/18'], None]
     }
+    ws.get_object_info3.return_value = mock_object_info
 
-    obj_names, obj_upas = workspace_uploader._query_workspace_with_load_id_mass(
+    obj_names, obj_upas, assembly_objs_info, genome_objs_info = workspace_uploader._query_workspace_with_load_id_mass(
         ws,
         69046,
         "998",
@@ -574,6 +575,8 @@ def test_query_workspace_with_load_id_mass(setup_and_teardown):
         "GCF_000979375.1_gtlEnvA5udCFS_genomic.fna.gz",
     ]
     assert obj_upas == ["69046_1086_18", "69046_1068_18"]
+    assert assembly_objs_info == mock_object_info['infos'][:2]
+    assert genome_objs_info == []
 
     # assert that ws was called correctly
     ws.get_object_info3.assert_called_once_with(
@@ -587,3 +590,89 @@ def test_query_workspace_with_load_id_mass(setup_and_teardown):
             "includeMetadata": 1
         }
     )
+
+
+def test_query_workspace_with_load_id_mass_genome(setup_and_teardown):
+    # Test case 1: Valid scenario - test with genome objects and assembly_objs_only is set to False
+    ws = create_autospec(Workspace, spec_set=True, instance=True)
+    load_id = "998"
+    assembly_objs_response = {
+        "infos": [
+            [1, 'assembly_1', 'KBaseGenomeAnnotations.Assembly-6', 'time', 75, 'user', 42, 'wsname', 'md5', 78, {'foo': 'bar'}],
+            [2, 'assembly_2', 'KBaseGenomeAnnotations.Assembly-10', 'time', 75, 'user', 42, 'wsname', 'md5', 78, {}]
+        ]
+    }
+
+    genome_objs_response = {
+        "infos": [
+            [1, 'genome_1', 'KBaseGenomes.Genome-6', 'time', 75, 'user', 42, 'wsname', 'md5', 78,
+             {"load_id": load_id, "Assembly Object": "1/1/1"}],
+            [4, 'genome_2', 'KBaseGenomes.Genome-9.3', 'time', 75, 'user', 42, 'wsname', 'md5', 78,
+             {"load_id": load_id, "Assembly Object": "2/2"}]
+        ]
+    }
+
+    ws.get_object_info3.side_effect = [genome_objs_response, assembly_objs_response]
+
+    obj_names, obj_upas, assembly_objs_info, genome_objs_info = workspace_uploader._query_workspace_with_load_id_mass(
+        ws,
+        69046,
+        load_id,
+        ["genome_1", "genome_2",],
+        assembly_objs_only=False
+    )
+    assert obj_names == ["genome_1", "genome_2",]
+    assert obj_upas == ['42_1_75', '42_4_75']
+    assert assembly_objs_info == assembly_objs_response['infos']
+    assert genome_objs_info == genome_objs_response['infos']
+
+    # Assert expected calls to ws.get_object_info3
+    expected_calls = [
+        call({"objects": [{"wsid": 69046, "name": "genome_1"},
+                          {"wsid": 69046, "name": "genome_2"}], "ignoreErrors": 1, "includeMetadata": 1}),
+        call({"objects": [{"ref": "1/1/1"}, {"ref": "2/2"}], "includeMetadata": 1}),
+    ]
+    ws.get_object_info3.assert_has_calls(expected_calls, any_order=False)
+
+    # Test case 2: Invalid scenario - genome object does not have an 'Assembly Object' field in its metadata
+    genome_objs_response = {
+        "infos": [
+            [1, 'genome_1', 'KBaseGenomes.Genome-6', 'time', 75, 'user', 42, 'wsname', 'md5', 78,
+             {"load_id": load_id}]
+        ]
+    }
+
+    ws.get_object_info3.side_effect = [genome_objs_response]
+    with pytest.raises(ValueError) as excinfo:
+        workspace_uploader._query_workspace_with_load_id_mass(
+            ws,
+            69046,
+            load_id,
+            ["genome_1"],
+            assembly_objs_only=False
+        )
+    assert "Genome objects must have an 'Assembly Object' field in their metadata" == str(excinfo.value)
+
+
+def test_check_obj_type():
+    # Test case 1: Valid scenario
+    workspace_id = 1
+    load_id = "12345"
+    obj_infos = [
+        [1, 'abc-123', 'TypeA', 'time', 75, 'user', 42, 'wsname', 'md5', 78, {'foo': 'bar'}],
+        [2, 'def-456', 'TypeB', 'time', 75, 'user', 42, 'wsname', 'md5', 78, {}]
+    ]
+    expected_obj_types = {'TypeA', 'TypeB'}
+
+    workspace_uploader._check_obj_type(workspace_id, load_id, obj_infos, expected_obj_types)
+
+    # Test case 2: Invalid scenario
+    obj_infos = [
+        [1, 'abc-123', 'TypeA', 'time', 75, 'user', 42, 'wsname', 'md5', 78, {'foo': 'bar'}],
+        [2, 'def-456', 'TypeC', 'time', 75, 'user', 42, 'wsname', 'md5', 78, {}]  # TypeC is not expected
+    ]
+
+    with pytest.raises(ValueError) as excinfo:
+        workspace_uploader._check_obj_type(workspace_id, load_id, obj_infos, expected_obj_types)
+
+    assert "Only expecting ['TypeA', 'TypeB'] objects" in str(excinfo.value)
