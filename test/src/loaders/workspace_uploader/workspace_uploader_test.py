@@ -239,6 +239,7 @@ def test_post_process_with_assembly_only(setup_and_teardown):
     assert uploaded
     assert expected_data == data
 
+
 def test_post_process_with_genome(setup_and_teardown):
     # test with genome_tuple and genome_upa
     params = setup_and_teardown
@@ -247,15 +248,15 @@ def test_post_process_with_genome(setup_and_teardown):
     source_dir = Path(params.tmp_dir) / "source_dir"
     source_dir.mkdir()
 
-    host_assembly_dir2 = params.assembly_dirs[1]
-    assembly_name2 = ASSEMBLY_NAMES[1]
-    src_file2 = params.target_files[1]
-    assembly_tuple2 = workspace_uploader._WSObjTuple(
-        assembly_name2, host_assembly_dir2, "/path/to/file/in/AssembilyUtil"
+    host_assembly_dir = params.assembly_dirs[1]
+    assembly_name = ASSEMBLY_NAMES[1]
+    src_file = params.target_files[1]
+    assembly_tuple = workspace_uploader._WSObjTuple(
+        assembly_name, host_assembly_dir, "/path/to/file/in/AssembilyUtil"
     )
-    genome_name2 = GEMOME_NAMES[1]
-    genome_tuple2 = workspace_uploader._WSObjTuple(
-        genome_name2, host_assembly_dir2, "/path/to/file/in/GenomeUtil"
+    genome_name = GEMOME_NAMES[1]
+    genome_tuple = workspace_uploader._WSObjTuple(
+        genome_name, host_assembly_dir, "/path/to/file/in/GenomeUtil"
     )
     assembly_obj_info = [4, 'name', 'type', 'time', 75, 'user', 42, 'wsname', 'md5', 78, {'foo': 'bar'}]
     genome_obj_info = [7, 'name', 'type', 'time', 1, 'user', 42, 'wsname', 'md5', 78, {}]
@@ -265,23 +266,23 @@ def test_post_process_with_genome(setup_and_teardown):
         "214",
         collections_source_dir,
         source_dir,
-        assembly_tuple2,
+        assembly_tuple,
         "42_4_75",
-        genome_tuple=genome_tuple2,
+        genome_tuple=genome_tuple,
         genome_upa="42_7_1",
         assembly_obj_info=assembly_obj_info,
         genome_obj_info=genome_obj_info
     )
 
     data, uploaded = workspace_uploader._read_upload_status_yaml_file(
-        "CI", 88888, "214", host_assembly_dir2
+        "CI", 88888, "214", host_assembly_dir
     )
 
     expected_data = {
         'CI': {88888: {'214':
-                           {'assembly_filename': assembly_name2,
+                           {'assembly_filename': assembly_name,
                             'assembly_upa': '42_4_75',
-                            'genome_filename': genome_name2,
+                            'genome_filename': genome_name,
                             'genome_upa': '42_7_1'}}}}
 
     assert uploaded
@@ -293,17 +294,23 @@ def test_post_process_with_genome(setup_and_teardown):
         source_dir, "42_4_75"
     )
     # check hardlink
-    assert os.path.samefile(src_file2, assembly_dest_file)
+    assert os.path.samefile(src_file, assembly_dest_file)
 
     # check metadata file
     metadata_file = source_dir / "42_4_75" / "42_4_75.meta"
     with open(metadata_file, 'r') as file:
         data = json.load(file)
 
-    assert data['upa'] == '42/4/75'
-    assert data['genome_upa'] == '42/7/1'
-    assert data['assembly_object_info'] == assembly_obj_info
-    assert data['genome_object_info'] == genome_obj_info
+    expected_metadata = {
+        'upa': '42/4/75',
+        'name': 'name',
+        'timestamp': 'time',
+        'type': 'type',
+        'genome_upa': '42/7/1',
+        'assembly_object_info': assembly_obj_info,
+        'genome_object_info': genome_obj_info
+    }
+    assert data == expected_metadata
 
 
 def test_upload_assembly_to_workspace(setup_and_teardown):
