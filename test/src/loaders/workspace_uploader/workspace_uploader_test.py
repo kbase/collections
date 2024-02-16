@@ -662,7 +662,6 @@ def test_query_workspace_with_load_id_mass_genome_fail(setup_and_teardown):
 
 
 def test_check_obj_type():
-    # Test case 1: Valid scenario
     workspace_id = 1
     load_id = "12345"
     obj_infos = [
@@ -673,7 +672,16 @@ def test_check_obj_type():
 
     workspace_uploader._check_obj_type(workspace_id, load_id, obj_infos, expected_obj_types)
 
-    # Test case 2: Invalid scenario
+
+def test_check_obj_type_fail():
+
+    workspace_id = 1
+    load_id = "12345"
+    obj_infos = [
+        [1, 'abc-123', 'TypeA', 'time', 75, 'user', 42, 'wsname', 'md5', 78, {'foo': 'bar'}],
+        [2, 'def-456', 'TypeB', 'time', 75, 'user', 42, 'wsname', 'md5', 78, {}]
+    ]
+
     expected_obj_types = {'TypeA', 'TypeC'}
     with pytest.raises(ValueError) as excinfo:
         workspace_uploader._check_obj_type(workspace_id, load_id, obj_infos, expected_obj_types)
