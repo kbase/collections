@@ -471,7 +471,6 @@ def _query_workspace_with_load_id_mass(
 
     uploaded_obj_names, uploaded_obj_upas, uploaded_assembly_objs_info, uploaded_genome_objs_info = [], [], [], []
 
-    # TODO: call _query_workspace_with_load_id in parallel instead of in serial
     for i in range(0, len(obj_names), batch_size):
         (uploaded_obj_names_batch,
          uploaded_obj_upas_batch,
