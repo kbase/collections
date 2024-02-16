@@ -61,6 +61,7 @@ from pathlib import Path
 from typing import Any
 
 import src.common.storage.collection_and_field_names as names
+from src.common.common_helper import obj_info_to_upa
 from src.loaders.common import loader_common_names, loader_helper
 from src.loaders.common.callback_server_wrapper import Conf
 
@@ -84,7 +85,7 @@ def _assembly_genome_lookup(genome_objs):
     hashmap = {}
     duplicate = defaultdict(list)
     for obj_info in genome_objs:
-        genome_upa = loader_helper.obj_info_to_upa(obj_info)
+        genome_upa = obj_info_to_upa(obj_info)
         save_date = obj_info[3]
         try:
             assembly_upa = obj_info[-1]["Assembly Object"]
@@ -124,7 +125,7 @@ def _process_input(conf: Conf):
             break
         obj_info, genome_info = task
 
-        upa_format = loader_helper.obj_info_to_upa(obj_info, underscore_sep=True)
+        upa_format = obj_info_to_upa(obj_info, underscore_sep=True)
 
         upa_dir = os.path.join(conf.output_dir, upa_format)
         if not os.path.isdir(upa_dir) or not loader_helper.is_upa_info_complete(upa_dir):
@@ -157,8 +158,7 @@ def _process_input(conf: Conf):
 
         if conf.retrieve_sample:
             _download_sample_data(conf,
-                                  [loader_helper.obj_info_to_upa(obj_info),
-                                   loader_helper.obj_info_to_upa(genome_info)],
+                                  [obj_info_to_upa(obj_info), obj_info_to_upa(genome_info)],
                                   loader_helper.get_meta_file_path(conf.output_dir, upa_format))
 
 
@@ -459,7 +459,7 @@ def main():
             include_metadata=True,
         )
         genome_upa_info_map = {
-            loader_helper.obj_info_to_upa(genome_info): genome_info
+            obj_info_to_upa(genome_info): genome_info
             for genome_info in genome_objs
         }
 
@@ -485,7 +485,7 @@ def main():
 
         upas = []
         for obj_info in assembly_objs:
-            upa = loader_helper.obj_info_to_upa(obj_info, underscore_sep=True)
+            upa = obj_info_to_upa(obj_info, underscore_sep=True)
             upas.append(upa)
             genome_upa = assembly_genome_map[upa.replace("_", "/")]
             conf.input_queue.put([obj_info, genome_upa_info_map[genome_upa]])

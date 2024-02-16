@@ -80,6 +80,7 @@ import yaml
 
 from src.clients.AssemblyUtilClient import AssemblyUtil
 from src.clients.workspaceClient import Workspace
+from src.common.common_helper import obj_info_to_upa
 from src.loaders.common import loader_common_names, loader_helper
 from src.loaders.common.callback_server_wrapper import Conf
 
@@ -422,7 +423,7 @@ def _query_workspace_with_load_id(
     if not uploaded_objs_info:
         return list(), list(), list(), list()
     uploaded_obj_names_batch = [info[1] for info in uploaded_objs_info]
-    uploaded_obj_upas_batch = [loader_helper.obj_info_to_upa(info, underscore_sep=True) for info in uploaded_objs_info]
+    uploaded_obj_upas_batch = [obj_info_to_upa(info, underscore_sep=True) for info in uploaded_objs_info]
 
     if assembly_objs_only:
         _check_obj_type(workspace_id, load_id, uploaded_objs_info, {loader_common_names.OBJECTS_NAME_ASSEMBLY})
@@ -436,7 +437,7 @@ def _query_workspace_with_load_id(
             try:
                 assembly_objs_ref.append(info[10]["Assembly Object"])
             except KeyError:
-                genome_ref = loader_helper.obj_info_to_upa(info)
+                genome_ref = obj_info_to_upa(info)
                 raise ValueError(
                     f"Genome object {genome_ref} does not have an assembly object linked to it"
                 )
