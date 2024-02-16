@@ -658,7 +658,7 @@ def test_query_workspace_with_load_id_mass_genome_fail(setup_and_teardown):
             ["genome_1"],
             assembly_objs_only=False
         )
-    assert "Genome objects must have an 'Assembly Object' field in their metadata" == str(excinfo.value)
+    assert "Genome object 42/1/75 does not have an assembly object linked to it" == str(excinfo.value)
 
 
 def test_check_obj_type():

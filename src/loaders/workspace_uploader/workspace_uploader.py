@@ -431,12 +431,16 @@ def _query_workspace_with_load_id(
     else:
         _check_obj_type(workspace_id, load_id, uploaded_objs_info, {loader_common_names.OBJECTS_NAME_GENOME})
         genome_objs_info = uploaded_objs_info
-        try:
-            assembly_objs_ref = [info[10]['Assembly Object'] for info in genome_objs_info]
-        except KeyError:
-            raise ValueError(
-                f"Genome objects must have an 'Assembly Object' field in their metadata"
-            )
+        assembly_objs_ref = list()
+        for info in genome_objs_info:
+            try:
+                assembly_objs_ref.append(info[10]["Assembly Object"])
+            except KeyError:
+                genome_ref = f"{info[6]}/{info[0]}/{info[4]}"
+                raise ValueError(
+                    f"Genome object {genome_ref} does not have an assembly object linked to it"
+                )
+
         assembly_objs_spec = [{"ref": ref} for ref in assembly_objs_ref]
         assembly_objs_info = ws.get_object_info3({"objects": assembly_objs_spec, "includeMetadata": 1})["infos"]
 
