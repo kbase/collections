@@ -467,7 +467,7 @@ def _query_workspace_with_load_id_mass(
     obj_names: list[str],
     batch_size: int = _WS_MAX_BATCH_SIZE,
     assembly_objs_only: bool = True,
-) -> tuple[list[str], list[str], list[str], list[str]]:
+) -> tuple[list[str], list[str], list[Any], list[Any]]:
 
     uploaded_obj_names, uploaded_obj_upas, uploaded_assembly_objs_info, uploaded_genome_objs_info = [], [], [], []
 
