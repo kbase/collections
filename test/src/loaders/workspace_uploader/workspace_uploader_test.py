@@ -608,7 +608,7 @@ def test_query_workspace_with_load_id_mass_genome(setup_and_teardown):
             [1, 'genome_1', 'KBaseGenomes.Genome-6', 'time', 75, 'user', 42, 'wsname', 'md5', 78,
              {"load_id": load_id, "Assembly Object": "1/1/1"}],
             [4, 'genome_2', 'KBaseGenomes.Genome-9.3', 'time', 75, 'user', 42, 'wsname', 'md5', 78,
-             {"load_id": load_id, "Assembly Object": "2/2"}]
+             {"load_id": load_id, "Assembly Object": "2/2/2"}]
         ]
     }
 
@@ -630,7 +630,7 @@ def test_query_workspace_with_load_id_mass_genome(setup_and_teardown):
     expected_calls = [
         call({"objects": [{"wsid": 69046, "name": "genome_1"},
                           {"wsid": 69046, "name": "genome_2"}], "ignoreErrors": 1, "includeMetadata": 1}),
-        call({"objects": [{"ref": "1/1/1"}, {"ref": "2/2"}], "includeMetadata": 1}),
+        call({"objects": [{"ref": "1/1/1"}, {"ref": "2/2/2"}], "includeMetadata": 1}),
     ]
     ws.get_object_info3.assert_has_calls(expected_calls, any_order=False)
     assert ws.get_object_info3.call_count == 2
