@@ -633,8 +633,15 @@ def test_query_workspace_with_load_id_mass_genome(setup_and_teardown):
         call({"objects": [{"ref": "1/1/1"}, {"ref": "2/2"}], "includeMetadata": 1}),
     ]
     ws.get_object_info3.assert_has_calls(expected_calls, any_order=False)
+    assert ws.get_object_info3.call_count == 2
 
-    # Test case 2: Invalid scenario - genome object does not have an 'Assembly Object' field in its metadata
+
+def test_query_workspace_with_load_id_mass_genome_fail(setup_and_teardown):
+
+    ws = create_autospec(Workspace, spec_set=True, instance=True)
+    load_id = "998"
+
+    # Invalid scenario - genome object does not have an 'Assembly Object' field in its metadata
     genome_objs_response = {
         "infos": [
             [1, 'genome_1', 'KBaseGenomes.Genome-6', 'time', 75, 'user', 42, 'wsname', 'md5', 78,
@@ -667,12 +674,8 @@ def test_check_obj_type():
     workspace_uploader._check_obj_type(workspace_id, load_id, obj_infos, expected_obj_types)
 
     # Test case 2: Invalid scenario
-    obj_infos = [
-        [1, 'abc-123', 'TypeA', 'time', 75, 'user', 42, 'wsname', 'md5', 78, {'foo': 'bar'}],
-        [2, 'def-456', 'TypeC', 'time', 75, 'user', 42, 'wsname', 'md5', 78, {}]  # TypeC is not expected
-    ]
-
+    expected_obj_types = {'TypeA', 'TypeC'}
     with pytest.raises(ValueError) as excinfo:
         workspace_uploader._check_obj_type(workspace_id, load_id, obj_infos, expected_obj_types)
 
-    assert "Only expecting ['TypeA', 'TypeB'] objects" in str(excinfo.value)
+    assert "Only expecting ['TypeA', 'TypeC'] objects" in str(excinfo.value)

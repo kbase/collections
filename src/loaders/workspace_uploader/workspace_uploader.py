@@ -411,7 +411,7 @@ def _query_workspace_with_load_id(
     load_id: str,
     obj_names: list[str],
     assembly_objs_only: bool = True,
-) -> tuple[list[str], list[str], list[str], list[str]]:
+) -> tuple[list[str], list[str], list[Any], list[Any]]:
     if len(obj_names) > _WS_MAX_BATCH_SIZE:
         raise ValueError(
             f"The effective max batch size must be <= {_WS_MAX_BATCH_SIZE}"
@@ -465,23 +465,25 @@ def _query_workspace_with_load_id_mass(
     assembly_objs_only: bool = True,
 ) -> tuple[list[str], list[str], list[str], list[str]]:
 
-    # TODO: run _query_workspace_with_load_id in parallel instead of in serial
-    (uploaded_obj_names,
-     uploaded_obj_upas,
-     uploaded_assembly_objs_info,
-     uploaded_genome_objs_info) = zip(*[_query_workspace_with_load_id(ws,
-                                                                      workspace_id,
-                                                                      load_id,
-                                                                      obj_names[i:i + batch_size],
-                                                                      assembly_objs_only=assembly_objs_only)
-                                        for i in range(0, len(obj_names), batch_size)])
+    uploaded_obj_names, uploaded_obj_upas, uploaded_assembly_objs_info, uploaded_genome_objs_info = [], [], [], []
 
-    return (
-        [item for sublist in uploaded_obj_names for item in sublist],
-        [item for sublist in uploaded_obj_upas for item in sublist],
-        [item for sublist in uploaded_assembly_objs_info for item in sublist],
-        [item for sublist in uploaded_genome_objs_info for item in sublist]
-    )
+    # TODO: call _query_workspace_with_load_id in parallel instead of in serial
+    for i in range(0, len(obj_names), batch_size):
+        (uploaded_obj_names_batch,
+         uploaded_obj_upas_batch,
+         uploaded_assembly_objs_info_batch,
+         uploaded_genome_objs_info_batch) = _query_workspace_with_load_id(ws,
+                                                                          workspace_id,
+                                                                          load_id,
+                                                                          obj_names[i:i + batch_size],
+                                                                          assembly_objs_only=assembly_objs_only)
+
+        uploaded_obj_names.extend(uploaded_obj_names_batch)
+        uploaded_obj_upas.extend(uploaded_obj_upas_batch)
+        uploaded_assembly_objs_info.extend(uploaded_assembly_objs_info_batch)
+        uploaded_genome_objs_info.extend(uploaded_genome_objs_info_batch)
+
+    return uploaded_obj_names, uploaded_obj_upas, uploaded_assembly_objs_info, uploaded_genome_objs_info
 
 
 def _prepare_skd_job_dir_to_upload(
