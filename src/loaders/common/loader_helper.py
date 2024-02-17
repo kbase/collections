@@ -625,4 +625,3 @@ def create_meta_file(
     dump_json_to_file(metafile, generate_import_dir_meta(assembly_obj_info, genome_obj_info))
 
     return metafile
-
