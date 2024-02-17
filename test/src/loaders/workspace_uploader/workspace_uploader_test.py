@@ -4,11 +4,12 @@ import shutil
 import uuid
 from pathlib import Path
 from typing import NamedTuple
-from unittest.mock import Mock, create_autospec, call
+from unittest.mock import Mock, create_autospec, call, patch
 
 import pytest
 
 from src.clients.AssemblyUtilClient import AssemblyUtil
+from src.clients.GenomeFileUtilClient import GenomeFileUtil
 from src.clients.workspaceClient import Workspace
 from src.loaders.common import loader_helper
 from src.loaders.workspace_uploader import workspace_uploader
@@ -108,7 +109,7 @@ def test_update_upload_status_yaml_file(setup_and_teardown):
     params = setup_and_teardown
     assembly_dir = params.assembly_dirs[0]
     assembly_name = ASSEMBLY_NAMES[0]
-    assembly_tuple = workspace_uploader._WSObjTuple(
+    assembly_tuple = workspace_uploader.WSObjTuple(
         assembly_name, assembly_dir, "/path/to/file/in/AssembilyUtil"
     )
 
@@ -161,7 +162,7 @@ def test_fetch_objects_to_upload(setup_and_teardown):
     # Both assemnly files will be skipped in the next fetch_assemblies_to_upload call
     upas = ["12345_58_1", "12345_58_2"]
     for assembly_name, assembly_dir, upa in zip(ASSEMBLY_NAMES, assembly_dirs, upas):
-        assembly_tuple = workspace_uploader._WSObjTuple(
+        assembly_tuple = workspace_uploader.WSObjTuple(
             assembly_name, assembly_dir, "/path/to/file/in/AssembilyUtil"
         )
         workspace_uploader._update_upload_status_yaml_file(
@@ -213,7 +214,7 @@ def test_post_process_with_assembly_only(setup_and_teardown):
     host_assembly_dir = params.assembly_dirs[0]
     assembly_name = ASSEMBLY_NAMES[0]
 
-    assembly_tuple = workspace_uploader._WSObjTuple(
+    assembly_tuple = workspace_uploader.WSObjTuple(
         assembly_name, host_assembly_dir, "/path/to/file/in/AssembilyUtil"
     )
 
@@ -251,11 +252,11 @@ def test_post_process_with_genome(setup_and_teardown):
     host_assembly_dir = params.assembly_dirs[1]
     assembly_name = ASSEMBLY_NAMES[1]
     src_file = params.target_files[1]
-    assembly_tuple = workspace_uploader._WSObjTuple(
+    assembly_tuple = workspace_uploader.WSObjTuple(
         assembly_name, host_assembly_dir, "/path/to/file/in/AssembilyUtil"
     )
     genome_name = GEMOME_NAMES[1]
-    genome_tuple = workspace_uploader._WSObjTuple(
+    genome_tuple = workspace_uploader.WSObjTuple(
         genome_name, host_assembly_dir, "/path/to/file/in/GenomeUtil"
     )
     assembly_obj_info = [4, 'name', 'type', 'time', 75, 'user', 42, 'wsname', 'md5', 78, {'foo': 'bar'}]
@@ -319,14 +320,14 @@ def test_upload_assembly_to_workspace(setup_and_teardown):
     host_assembly_dir = params.assembly_dirs[0]
 
     asu = create_autospec(AssemblyUtil, spec_set=True, instance=True)
-    asu.save_assemblies_from_fastas.return_value = {"results":[{"upa": "12345/58/1"}]}
-    assembly_tuple = workspace_uploader._WSObjTuple(
+    asu.save_assemblies_from_fastas.return_value = {"results": [{"upa": "12345/58/1"}]}
+    assembly_tuple = workspace_uploader.WSObjTuple(
         assembly_name, host_assembly_dir, "/path/to/file/in/AssembilyUtil"
     )
-    upas = workspace_uploader._upload_assemblies_to_workspace(
+    upload_results = workspace_uploader._upload_assemblies_to_workspace(
         asu, 12345, "214", [assembly_tuple]
     )
-    assert upas == tuple(["12345_58_1"])
+    assert [r.assembly_upa for r in upload_results] == ["12345_58_1"]
     asu.save_assemblies_from_fastas.assert_called_once_with(
         {
             "workspace_id": 12345,
@@ -335,6 +336,48 @@ def test_upload_assembly_to_workspace(setup_and_teardown):
                     "file": assembly_tuple.container_internal_file_dir,
                     "assembly_name": assembly_tuple.obj_name,
                     "object_metadata": {"load_id": "214"},
+                }
+            ]
+        }
+    )
+
+
+def test_upload_genome_to_workspace(setup_and_teardown):
+    params = setup_and_teardown
+    genome_name = GEMOME_NAMES[0]
+    host_genome_dir = params.genbank_files[0]
+    assembly_dirs = params.assembly_dirs
+    load_id = "214"
+    genome_obj_info = [1, 'genome_1', 'KBaseGenomes.Genome-6', 'time', 58, 'user', 12345, 'wsname',
+                       'md5', 78, {"load_id": load_id, "Assembly Object": "1/1/1"}]
+    assembly_obj_info = [1, 'assembly_1', 'KBaseGenomeAnnotations.Assembly-6', 'time', 59, 'user', 12345, 'wsname',
+                         'md5', 78, {'foo': 'bar'}]
+
+    gfu = create_autospec(GenomeFileUtil, spec_set=True, instance=True)
+    gfu.genbanks_to_genomes.return_value = {"results": [{"genome_ref": "12345/1/58",
+                                                         "assembly_ref": "12345/1/59",
+                                                         "assembly_path": Path(assembly_dirs[0]) / ASSEMBLY_NAMES[0],
+                                                         "assembly_info": assembly_obj_info,
+                                                         "genome_info": genome_obj_info}]}
+    genome_tuple = workspace_uploader.WSObjTuple(
+        genome_name, host_genome_dir, "/path/to/file/in/AssembilyUtil"
+    )
+    upload_results = workspace_uploader._upload_genomes_to_workspace(
+        gfu, 12345, "214", [genome_tuple], assembly_dirs[0]
+    )
+    assert [r.assembly_upa for r in upload_results] == ["12345_1_59"]
+    assert [r.genome_upa for r in upload_results] == ["12345_1_58"]
+    assert [r.genome_obj_info for r in upload_results] == [genome_obj_info]
+    assert [r.assembly_obj_info for r in upload_results] == [assembly_obj_info]
+
+    gfu.genbanks_to_genomes.assert_called_once_with(
+        {
+            "workspace_id": 12345,
+            "inputs": [
+                {
+                    "file": {"path": genome_tuple.container_internal_file_dir},
+                    "genome_name": genome_tuple.obj_name,
+                    "metadata": {"load_id": "214"},
                 }
             ]
         }
@@ -351,14 +394,14 @@ def test_generator(setup_and_teardown):
     assemblyTuple_list = list(workspace_uploader._gen(wait_to_upload_assemblies, 1))
     expected_assemblyTuple_list = [
         [
-            workspace_uploader._WSObjTuple(
+            workspace_uploader.WSObjTuple(
                 "GCF_000979855.1_gtlEnvA5udCFS_genomic.fna.gz",
                 assembly_dirs[0],
                 "/kb/module/work/tmp/GCF_000979855.1_gtlEnvA5udCFS_genomic.fna.gz",
             )
         ],
         [
-            workspace_uploader._WSObjTuple(
+            workspace_uploader.WSObjTuple(
                 "GCF_000979175.1_gtlEnvA5udCFS_genomic.fna.gz",
                 assembly_dirs[1],
                 "/kb/module/work/tmp/GCF_000979175.1_gtlEnvA5udCFS_genomic.fna.gz",
@@ -366,6 +409,150 @@ def test_generator(setup_and_teardown):
         ],
     ]
     assert assemblyTuple_list == expected_assemblyTuple_list
+
+
+def test_upload_genome_files_in_parallel(setup_and_teardown):
+    params = setup_and_teardown
+    src_files = params.target_files
+    genome_dirs = params.assembly_dirs
+    upload_dir = Path(params.tmp_dir) / "upload_dir"
+    upload_dir.mkdir()
+    output_dir = Path(params.tmp_dir) / "output_dir"
+    output_dir.mkdir()
+    job_dir = Path(params.tmp_dir) / "job_dir"
+    job_dir.mkdir()
+    # copy the source files to the job_dir
+    for src_file in src_files:
+        shutil.copy(src_file, job_dir)
+
+    load_id = "214"
+
+    assembly_dirs = params.assembly_dirs
+
+    assembly_obj_infos = [
+        [1, 'assembly_1', 'KBaseGenomeAnnotations.Assembly-6', 'time', 1, 'user', 42, 'wsname', 'md5', 78, {'foo': 'bar'}],
+        [2, 'assembly_2', 'KBaseGenomeAnnotations.Assembly-10', 'time', 1, 'user', 42, 'wsname', 'md5', 78, {}]
+    ]
+
+    genome_obj_infos = [
+        [3, 'genome_1', 'KBaseGenomes.Genome-6', 'time', 1, 'user', 42, 'wsname', 'md5', 78,
+         {"load_id": load_id, "Assembly Object": "1/1/1"}],
+        [4, 'genome_2', 'KBaseGenomes.Genome-9.3', 'time', 1, 'user', 42, 'wsname', 'md5', 78,
+         {"load_id": load_id, "Assembly Object": "2/2"}]
+    ]
+
+    wait_to_upload_genomes = {
+        genome_name: genome_dir
+        for genome_name, genome_dir in zip(GEMOME_NAMES, genome_dirs)
+    }
+
+    # ws.get_object_info3() is unused in this test case
+    ws = create_autospec(Workspace, spec_set=True, instance=True)
+    genbanks_to_genomes_results = {
+        "results": [{"genome_ref": "42/3/1",
+                     "assembly_ref": "42/1/1",
+                     "assembly_path": job_dir / ASSEMBLY_NAMES[0],
+                     "assembly_info": assembly_obj_infos[0],
+                     "genome_info": genome_obj_infos[0]},
+                    {"genome_ref": "42/4/1",
+                     "assembly_ref": "42/2/1",
+                     "assembly_path": job_dir / ASSEMBLY_NAMES[1],
+                     "assembly_info": assembly_obj_infos[1],
+                     "genome_info": genome_obj_infos[1]}]
+    }
+
+    with patch('src.loaders.workspace_uploader.workspace_uploader.GenomeFileUtil') as mock_genome_util:
+        mock_genome_util_instance = mock_genome_util.return_value
+        mock_genome_util_instance.genbanks_to_genomes.return_value = genbanks_to_genomes_results
+
+        uploaded_count = workspace_uploader._upload_objects_in_parallel(
+            ws=ws,
+            upload_env_key="CI",
+            workspace_id=42,
+            load_id="214",
+            collections_source_dir=upload_dir,
+            wait_to_upload_objs=wait_to_upload_genomes,
+            batch_size=2,
+            source_dir=output_dir,
+            conf=Mock(),
+            service_ver='dev',
+            data_dir=job_dir,
+            upload_assembly_only=False
+        )
+
+    assert uploaded_count == 2
+
+    # assert that no interactions occurred with ws
+    ws.get_object_info3.assert_not_called()
+
+    # assert that asu was called correctly
+    mock_genome_util_instance.genbanks_to_genomes.assert_called_once_with(
+        {
+            "workspace_id": 42,
+            "inputs": [
+                {
+                    "file": {"path": "/kb/module/work/tmp/GCF_000979855.1_gtlEnvA5udCFS_genomic.gbff.gz"},
+                    "genome_name": "GCF_000979855.1_gtlEnvA5udCFS_genomic.gbff.gz",
+                    "metadata": {"load_id": "214"},
+                },
+                {
+                    "file": {"path": "/kb/module/work/tmp/GCF_000979175.1_gtlEnvA5udCFS_genomic.gbff.gz"},
+                    "genome_name": "GCF_000979175.1_gtlEnvA5udCFS_genomic.gbff.gz",
+                    "metadata": {"load_id": "214"},
+                }
+            ]
+        }
+    )
+
+    # check softlink for post_process
+    assert os.readlink(os.path.join(upload_dir, "42_2_1")) == os.path.join(
+        output_dir, "42_2_1"
+    )
+    assert os.readlink(os.path.join(upload_dir, "42_1_1")) == os.path.join(
+        output_dir, "42_1_1"
+    )
+
+    # check hardlink for post_process
+    assert os.path.samefile(
+        src_files[0],
+        os.path.join(output_dir, "42_1_1", "42_1_1.fna.gz")
+    )
+
+    assert os.path.samefile(
+        src_files[1],
+        os.path.join(output_dir, "42_2_1", "42_2_1.fna.gz")
+    )
+
+    # check metadata file
+    metadata_file = output_dir / "42_1_1" / "42_1_1.meta"
+    with open(metadata_file, 'r') as file:
+        data = json.load(file)
+
+    expected_metadata = {
+        'upa': '42/1/1',
+        'name': 'assembly_1',
+        'timestamp': 'time',
+        'type': 'KBaseGenomeAnnotations.Assembly-6',
+        'genome_upa': '42/3/1',
+        'assembly_object_info': assembly_obj_infos[0],
+        'genome_object_info': genome_obj_infos[0]
+    }
+    assert data == expected_metadata
+
+    metadata_file = output_dir / "42_2_1" / "42_2_1.meta"
+    with open(metadata_file, 'r') as file:
+        data = json.load(file)
+
+    expected_metadata = {
+        'upa': '42/2/1',
+        'name': 'assembly_2',
+        'timestamp': 'time',
+        'type': 'KBaseGenomeAnnotations.Assembly-10',
+        'genome_upa': '42/4/1',
+        'assembly_object_info': assembly_obj_infos[1],
+        'genome_object_info': genome_obj_infos[1]
+    }
+    assert data == expected_metadata
 
 
 def test_upload_assembly_files_in_parallel(setup_and_teardown):
@@ -384,25 +571,30 @@ def test_upload_assembly_files_in_parallel(setup_and_teardown):
 
     # ws.get_object_info3() is unused in this test case
     ws = create_autospec(Workspace, spec_set=True, instance=True)
-    asu = create_autospec(AssemblyUtil, spec_set=True, instance=True)
-    asu.save_assemblies_from_fastas.return_value = {
+    save_assembly_results = {
         "results": [
             {"upa": "12345/58/1"},
             {"upa": "12345/60/1"}
         ]
     }
 
-    uploaded_count = workspace_uploader._upload_assembly_files_in_parallel(
-        asu,
-        ws,
-        "CI",
-        12345,
-        "214",
-        upload_dir,
-        wait_to_upload_assemblies,
-        2,
-        output_dir,
-    )
+    with patch('src.loaders.workspace_uploader.workspace_uploader.AssemblyUtil') as mock_assembly_util:
+        mock_assembly_util_instance = mock_assembly_util.return_value
+        mock_assembly_util_instance.save_assemblies_from_fastas.return_value = save_assembly_results
+
+        uploaded_count = workspace_uploader._upload_objects_in_parallel(
+            ws,
+            "CI",
+            12345,
+            "214",
+            upload_dir,
+            wait_to_upload_assemblies,
+            2,
+            output_dir,
+            conf=Mock(),
+            service_ver='dev',
+            data_dir='path/to/data_dirs'
+        )
 
     assert uploaded_count == 2
 
@@ -410,7 +602,7 @@ def test_upload_assembly_files_in_parallel(setup_and_teardown):
     ws.get_object_info3.assert_not_called()
 
     # assert that asu was called correctly
-    asu.save_assemblies_from_fastas.assert_called_once_with(
+    mock_assembly_util_instance.save_assemblies_from_fastas.assert_called_once_with(
         {
             "workspace_id": 12345,
             "inputs": [
@@ -443,28 +635,31 @@ def test_fail_upload_assembly_files_in_parallel(setup_and_teardown):
     }
 
     ws = create_autospec(Workspace, spec_set=True, instance=True)
-    asu = create_autospec(AssemblyUtil, spec_set=True, instance=True)
-    asu.save_assemblies_from_fastas.side_effect = Exception("Illegal character in object name")
     ws.get_object_info3.return_value = {
         'infos': [None, None], 'paths': [None, None]
     }
 
-    uploaded_count = workspace_uploader._upload_assembly_files_in_parallel(
-        asu,
-        ws,
-        "CI",
-        12345,
-        "214",
-        upload_dir,
-        wait_to_upload_assemblies,
-        2,
-        output_dir,
-    )
+    with patch('src.loaders.workspace_uploader.workspace_uploader.AssemblyUtil') as mock_assembly_util:
+        mock_assembly_util_instance = mock_assembly_util.return_value
+        mock_assembly_util_instance.save_assemblies_from_fastas.side_effect = Exception("Illegal character in object name")
+        uploaded_count = workspace_uploader._upload_objects_in_parallel(
+            ws=ws,
+            upload_env_key="CI",
+            workspace_id=12345,
+            load_id="214",
+            collections_source_dir=upload_dir,
+            wait_to_upload_objs=wait_to_upload_assemblies,
+            batch_size=2,
+            source_dir=output_dir,
+            conf=Mock(),
+            service_ver='dev',
+            data_dir='path/to/data_dir',
+        )
 
     assert uploaded_count == 0
 
     # assert that asu was called correctly
-    asu.save_assemblies_from_fastas.assert_called_once_with(
+    mock_assembly_util_instance.save_assemblies_from_fastas.assert_called_once_with(
         {
             "workspace_id": 12345,
             "inputs": [
@@ -687,3 +882,4 @@ def test_check_obj_type_fail():
         workspace_uploader._check_obj_type(workspace_id, load_id, obj_infos, expected_obj_types)
 
     assert "Only expecting ['TypeA', 'TypeC'] objects" in str(excinfo.value)
+
