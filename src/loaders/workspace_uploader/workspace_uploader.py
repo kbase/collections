@@ -268,9 +268,6 @@ def _upload_genomes_to_workspace(
         genome_obj_info = result_dict["genome_info"]
         assembly_obj_info = result_dict["assembly_info"]
 
-        assembly_upa = obj_info_to_upa(assembly_obj_info, underscore_sep=True)
-        genome_upa = obj_info_to_upa(genome_obj_info, underscore_sep=True)
-
         genome_tuple = obj_tuple
 
         # copy assembly file to the source directory
@@ -280,13 +277,11 @@ def _upload_genomes_to_workspace(
             raise ValueError(f"Assembly file {assembly_path_local} does not exist")
 
         source_dir = Path(genome_tuple.host_file_dir)
-        shutil.copy(assembly_path_local, source_dir)
+        loader_helper.create_hardlink_between_files(source_dir / assembly_path.name, assembly_path_local)
 
         assembly_tuple = WSObjTuple(assembly_path.name, source_dir, assembly_path)
 
         upload_result = UploadResult(
-            genome_upa=genome_upa,
-            assembly_upa=assembly_upa,
             genome_obj_info=genome_obj_info,
             assembly_obj_info=assembly_obj_info,
             genome_tuple=genome_tuple,
@@ -324,9 +319,9 @@ def _upload_assemblies_to_workspace(
 
     upload_results = []
     for result_dict, obj_tuple in zip(assembly_ref["results"], ws_obj_tuples):
-        assembly_upa = result_dict["upa"].replace("/", "_")
+        assembly_obj_info = result_dict["object_info"]
         upload_result = UploadResult(
-            assembly_upa=assembly_upa,
+            assembly_obj_info=assembly_obj_info,
             assembly_tuple=obj_tuple,
         )
 
@@ -477,7 +472,7 @@ def _query_workspace_with_load_id(
     load_id: str,
     obj_names: list[str],
     assembly_objs_only: bool = True,
-) -> tuple[list[str], list[str], list[Any], list[Any]]:
+) -> tuple[list[Any], list[Any]]:
     if len(obj_names) > _WS_MAX_BATCH_SIZE:
         raise ValueError(
             f"The effective max batch size must be <= {_WS_MAX_BATCH_SIZE}"
@@ -486,9 +481,7 @@ def _query_workspace_with_load_id(
     res = ws.get_object_info3({"objects": refs, "ignoreErrors": 1, "includeMetadata": 1})
     uploaded_objs_info = [info for info in res["infos"] if info and info[10].get("load_id") == load_id]
     if not uploaded_objs_info:
-        return list(), list(), list(), list()
-    uploaded_obj_names_batch = [info[1] for info in uploaded_objs_info]
-    uploaded_obj_upas_batch = [obj_info_to_upa(info, underscore_sep=True) for info in uploaded_objs_info]
+        return list(), list()
 
     if assembly_objs_only:
         _check_obj_type(workspace_id, load_id, uploaded_objs_info, {loader_common_names.OBJECTS_NAME_ASSEMBLY})
@@ -510,7 +503,7 @@ def _query_workspace_with_load_id(
         assembly_objs_spec = [{"ref": ref} for ref in assembly_objs_ref]
         assembly_objs_info = ws.get_object_info3({"objects": assembly_objs_spec, "includeMetadata": 1})["infos"]
 
-    return uploaded_obj_names_batch, uploaded_obj_upas_batch, assembly_objs_info, genome_objs_info
+    return assembly_objs_info, genome_objs_info
 
 
 def _check_obj_type(
@@ -533,26 +526,22 @@ def _query_workspace_with_load_id_mass(
     obj_names: list[str],
     batch_size: int = _WS_MAX_BATCH_SIZE,
     assembly_objs_only: bool = True,
-) -> tuple[list[str], list[str], list[Any], list[Any]]:
+) -> tuple[list[Any], list[Any]]:
 
-    uploaded_obj_names, uploaded_obj_upas, uploaded_assembly_objs_info, uploaded_genome_objs_info = [], [], [], []
+    uploaded_assembly_objs_info, uploaded_genome_objs_info = [], []
 
     for i in range(0, len(obj_names), batch_size):
-        (uploaded_obj_names_batch,
-         uploaded_obj_upas_batch,
-         uploaded_assembly_objs_info_batch,
+        (uploaded_assembly_objs_info_batch,
          uploaded_genome_objs_info_batch) = _query_workspace_with_load_id(ws,
                                                                           workspace_id,
                                                                           load_id,
                                                                           obj_names[i:i + batch_size],
                                                                           assembly_objs_only=assembly_objs_only)
 
-        uploaded_obj_names.extend(uploaded_obj_names_batch)
-        uploaded_obj_upas.extend(uploaded_obj_upas_batch)
         uploaded_assembly_objs_info.extend(uploaded_assembly_objs_info_batch)
         uploaded_genome_objs_info.extend(uploaded_genome_objs_info_batch)
 
-    return uploaded_obj_names, uploaded_obj_upas, uploaded_assembly_objs_info, uploaded_genome_objs_info
+    return uploaded_assembly_objs_info, uploaded_genome_objs_info
 
 
 def _prepare_skd_job_dir_to_upload(
@@ -679,13 +668,9 @@ def _process_failed_uploads(
 
     # figure out uploads that succeeded
     upload_results = list()
-    name2tuple = {
-        obj_tuple.obj_name: obj_tuple
-        for obj_tuple in obj_tuples
-    }
-    (uploaded_obj_names,
-     uploaded_obj_upas,
-     uploaded_assembly_obj_infos,
+    name2tuple = {obj_tuple.obj_name: obj_tuple for obj_tuple in obj_tuples}
+
+    (uploaded_assembly_obj_infos,
      uploaded_genome_obj_infos) = _query_workspace_with_load_id_mass(ws,
                                                                      workspace_id,
                                                                      load_id,
@@ -693,36 +678,24 @@ def _process_failed_uploads(
                                                                      assembly_objs_only=upload_assembly_only)
 
     if upload_assembly_only:
-        batch_assembly_upas = uploaded_obj_upas
-        batch_uploaded_assembly_tuples = [name2tuple[name] for name in uploaded_obj_names]
+        batch_uploaded_assembly_tuples = [name2tuple[info[1]] for info in uploaded_assembly_obj_infos]
 
-        for assembly_upa, assembly_tuple in zip(batch_assembly_upas, batch_uploaded_assembly_tuples):
+        for assembly_obj_info, assembly_tuple in zip(uploaded_assembly_obj_infos, batch_uploaded_assembly_tuples):
             upload_result = UploadResult(
-                assembly_upa=assembly_upa,
+                assembly_obj_info=assembly_obj_info,
                 assembly_tuple=assembly_tuple
             )
             upload_results.append(upload_result)
     else:
-        batch_genome_upas = uploaded_obj_upas
-        batch_assembly_upas = [obj_info_to_upa(info, underscore_sep=True) for info in uploaded_assembly_obj_infos]
 
-        batch_genome_obj_infos = uploaded_genome_obj_infos
-        batch_assembly_obj_infos = uploaded_assembly_obj_infos
+        batch_uploaded_genome_tuples = [name2tuple[info[1]] for info in uploaded_genome_obj_infos]
 
-        batch_uploaded_genome_tuples = [name2tuple[name] for name in uploaded_obj_names]
-
-        for (genome_upa,
-             assembly_upa,
-             genome_obj_info,
+        for (genome_obj_info,
              assembly_obj_info,
-             genome_tuple) in zip(batch_genome_upas,
-                                  batch_assembly_upas,
-                                  batch_genome_obj_infos,
-                                  batch_assembly_obj_infos,
+             genome_tuple) in zip(uploaded_genome_obj_infos,
+                                  uploaded_assembly_obj_infos,
                                   batch_uploaded_genome_tuples):
             upload_result = UploadResult(
-                genome_upa=genome_upa,
-                assembly_upa=assembly_upa,
                 genome_obj_info=genome_obj_info,
                 assembly_obj_info=assembly_obj_info,
                 genome_tuple=genome_tuple,
@@ -760,8 +733,10 @@ def _upload_objects_in_parallel(
         source_dir: a directory in sourcedata/workspace to store new assembly entries
         conf: callback server configuration
         service_ver: service version of a KBase client (AssemblyUtil or GenomeFileUtil)
-        data_dir: a directory to store job related data files
         upload_assembly_only: upload assembly only if True, otherwise upload genome only
+
+    Returns:
+        number of object files have been successfully uploaded from wait_to_upload_objs
     """
     objects_len = len(wait_to_upload_objs)
     print(f"Start uploading {objects_len} objects\n")
@@ -775,7 +750,6 @@ def _upload_objects_in_parallel(
                 obj_tuples, conf, workspace_id, load_id, service_ver, upload_assembly_only)
         except Exception as e:
             traceback.print_exc()
-            print(e)
             uploaded_fail = True
             try:
                 upload_results = _process_failed_uploads(
@@ -928,14 +902,18 @@ def main():
         ws_url = os.path.join(kb_base_url, "ws")
         ws = Workspace(ws_url, token=conf.token)
 
-        (uploaded_obj_names,
-         uploaded_obj_upas,
-         uploaded_assembly_objs_info,
+        (uploaded_assembly_objs_info,
          uploaded_genome_objs_info) = _query_workspace_with_load_id_mass(ws,
                                                                          workspace_id,
                                                                          load_id,
                                                                          list(wait_to_upload_objs.keys()),
                                                                          assembly_objs_only=create_assembly_only)
+        if create_assembly_only:
+            uploaded_obj_names = [info[1] for info in uploaded_assembly_objs_info]
+            uploaded_obj_upas = [obj_info_to_upa(info, underscore_sep=True) for info in uploaded_assembly_objs_info]
+        else:
+            uploaded_obj_names = [info[1] for info in uploaded_genome_objs_info]
+            uploaded_obj_upas = [obj_info_to_upa(info, underscore_sep=True) for info in uploaded_genome_objs_info]
 
         # fix inconsistencies between the workspace and the local yaml files
         if uploaded_obj_names:
