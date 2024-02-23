@@ -272,6 +272,7 @@ def _upload_genomes_to_workspace(
 
         # copy assembly file to the source directory
         assembly_path = Path(result_dict["assembly_path"])
+        # TODO: Determine data_dir based on assembly_path
         assembly_path_local = Path(data_dir) / assembly_path.name
         if not os.path.exists(assembly_path_local):
             raise ValueError(f"Assembly file {assembly_path_local} does not exist")
