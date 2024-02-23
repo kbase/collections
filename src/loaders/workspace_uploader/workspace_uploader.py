@@ -290,8 +290,7 @@ def _upload_genomes_to_workspace(
             genome_obj_info=genome_obj_info,
             assembly_obj_info=assembly_obj_info,
             genome_tuple=genome_tuple,
-            assembly_tuple=assembly_tuple,
-            assembly_path=assembly_path_local
+            assembly_tuple=assembly_tuple
         )
 
         upload_results.append(upload_result)
@@ -729,7 +728,6 @@ def _process_failed_uploads(
                 assembly_obj_info=assembly_obj_info,
                 genome_tuple=genome_tuple,
                 assembly_tuple=None,
-                assembly_path=None,
             )
             upload_results.append(upload_result)
 

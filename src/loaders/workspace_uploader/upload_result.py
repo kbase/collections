@@ -1,12 +1,17 @@
 from collections import namedtuple
 from typing import Any
 
-
 # TODO: this struct assumes obj_name is the file name,
 #  but not true for downloaded fasta file associated with Assembly object
 #  This is okay for now as we are currently focusing solely on Genome/Assembly uploads and not a combination of both.
 # i.g. assembly object name: 'GCF_000979555.1_gtlEnvA5udCFS_genomic.gbff.gz_assembly'
 #      downloaded fasta file name: 'GCF_000979555.1_gtlEnvA5udCFS_genomic.gbff.gz_assembly.fasta'
+"""
+WSObjTuple is a named tuple that contains the following fields:
+- obj_name: the name of the object (in many cases, also serves as the file name)
+- host_file_dir: the directory of the associated file in the source collection directory
+- container_internal_file_dir: the directory of the associated file in the container
+"""
 WSObjTuple = namedtuple(
     "WSObjTuple",
     ["obj_name", "host_file_dir", "container_internal_file_dir"],
@@ -14,6 +19,20 @@ WSObjTuple = namedtuple(
 
 
 class UploadResult:
+    """
+    UploadResult is a class that contains the result of the upload process for a genome or assembly object.
+
+    Attributes:
+    - genome_upa: the UPA of the genome object (in format of wsid_objid_ver)
+    - assembly_upa: the UPA of the assembly object (in format of wsid_objid_ver)
+    - genome_obj_info: the info of the genome object
+    - assembly_obj_info: the info of the assembly object
+    - genome_tuple: the WSObjTuple of the genome object
+    - assembly_tuple: the WSObjTuple of the assembly object
+
+    In the case of an genome object result, all of the attributes are required.
+    In the case of an assembly object result, only assembly_upa and assembly_tuple are required.
+    """
 
     def _validate_upa(self) -> None:
 
@@ -54,8 +73,7 @@ class UploadResult:
                  genome_obj_info: list[Any] = None,
                  assembly_obj_info: list[Any] = None,
                  genome_tuple: WSObjTuple = None,
-                 assembly_tuple: WSObjTuple = None,
-                 assembly_path: str = None):
+                 assembly_tuple: WSObjTuple = None):
 
         self._genome_upa = genome_upa
         self._assembly_upa = assembly_upa
@@ -63,7 +81,6 @@ class UploadResult:
         self._assembly_obj_info = assembly_obj_info
         self._genome_tuple = genome_tuple
         self._assembly_tuple = assembly_tuple
-        self._assembly_path = assembly_path
 
         self._validate_upa()
 
@@ -78,28 +95,42 @@ class UploadResult:
 
     @property
     def genome_upa(self):
+        """
+        Returns the UPA of the genome object (in format of wsid_objid_ver)
+        """
         return self._genome_upa
 
     @property
     def assembly_upa(self):
+        """
+        Returns the UPA of the assembly object (in format of wsid_objid_ver)
+        """
         return self._assembly_upa
 
     @property
     def genome_obj_info(self):
+        """
+        Returns the info of the genome object
+        """
         return self._genome_obj_info
 
     @property
     def assembly_obj_info(self):
+        """
+        Returns the info of the assembly object
+        """
         return self._assembly_obj_info
 
     @property
     def genome_tuple(self):
+        """
+        Returns the WSObjTuple of the genome object
+        """
         return self._genome_tuple
 
     @property
     def assembly_tuple(self):
+        """
+        Returns the WSObjTuple of the assembly object
+        """
         return self._assembly_tuple
-
-    @property
-    def assembly_path(self):
-        return self._assembly_path
