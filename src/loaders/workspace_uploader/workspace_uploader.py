@@ -657,7 +657,6 @@ def _process_batch_upload(
         workspace_id: int,
         load_id: str,
         service_ver: str,
-        data_dir: str,
         upload_assembly_only: bool = True,
 ) -> list[UploadResult]:
     if upload_assembly_only:
@@ -665,7 +664,7 @@ def _process_batch_upload(
         upload_results = _upload_assemblies_to_workspace(asu, workspace_id, load_id, obj_tuples)
     else:
         gfu = GenomeFileUtil(conf.callback_url, service_ver=service_ver, token=conf.token)
-        upload_results = _upload_genomes_to_workspace(gfu, workspace_id, load_id, obj_tuples, data_dir)
+        upload_results = _upload_genomes_to_workspace(gfu, workspace_id, load_id, obj_tuples, conf.job_data_dir)
 
     return upload_results
 
@@ -745,7 +744,6 @@ def _upload_objects_in_parallel(
         source_dir: str,
         conf: Conf,
         service_ver: str,
-        data_dir: str,
         upload_assembly_only: bool = True,
 ) -> int:
     """
@@ -774,7 +772,7 @@ def _upload_objects_in_parallel(
     for obj_tuples in _gen(wait_to_upload_objs, batch_size):
         try:
             upload_results = _process_batch_upload(
-                obj_tuples, conf, workspace_id, load_id, service_ver, data_dir, upload_assembly_only)
+                obj_tuples, conf, workspace_id, load_id, service_ver, upload_assembly_only)
         except Exception as e:
             traceback.print_exc()
             print(e)
@@ -972,9 +970,9 @@ def main():
         print(f"Originally planned to upload {count} object files")
         print(f"Detected {count - wtus_len} object files already exist in workspace")
 
-        data_dir = _prepare_skd_job_dir_to_upload(conf, wait_to_upload_objs)
+        _prepare_skd_job_dir_to_upload(conf, wait_to_upload_objs)
         print(
-            f"{wtus_len} objects in {data_dir} are ready to upload to workspace {workspace_id}"
+            f"{wtus_len} objects in {conf.job_data_dir} are ready to upload to workspace {workspace_id}"
         )
 
         start = time.time()
@@ -990,7 +988,6 @@ def main():
             source_dir,
             conf,
             au_service_ver,   # TODO - add GFU service ver
-            data_dir,
             upload_assembly_only=create_assembly_only
         )
 
