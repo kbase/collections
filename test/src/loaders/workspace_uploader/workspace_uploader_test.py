@@ -464,7 +464,8 @@ def test_upload_genome_files_in_parallel(setup_and_teardown):
     with patch('src.loaders.workspace_uploader.workspace_uploader.GenomeFileUtil') as mock_genome_util:
         mock_genome_util_instance = mock_genome_util.return_value
         mock_genome_util_instance.genbanks_to_genomes.return_value = genbanks_to_genomes_results
-
+        conf = Mock()
+        conf.job_data_dir = job_dir
         uploaded_count = workspace_uploader._upload_objects_in_parallel(
             ws=ws,
             upload_env_key="CI",
@@ -474,9 +475,8 @@ def test_upload_genome_files_in_parallel(setup_and_teardown):
             wait_to_upload_objs=wait_to_upload_genomes,
             batch_size=2,
             source_dir=output_dir,
-            conf=Mock(),
+            conf=conf,
             service_ver='dev',
-            data_dir=job_dir,
             upload_assembly_only=False
         )
 
@@ -593,7 +593,6 @@ def test_upload_assembly_files_in_parallel(setup_and_teardown):
             output_dir,
             conf=Mock(),
             service_ver='dev',
-            data_dir='path/to/data_dirs'
         )
 
     assert uploaded_count == 2
@@ -653,7 +652,6 @@ def test_fail_upload_assembly_files_in_parallel(setup_and_teardown):
             source_dir=output_dir,
             conf=Mock(),
             service_ver='dev',
-            data_dir='path/to/data_dir',
         )
 
     assert uploaded_count == 0
