@@ -251,7 +251,7 @@ def _upload_genomes_to_workspace(
 
     inputs = [
         {
-            "file": {'path': obj_tuple.container_internal_file_dir},
+            "file": {'path': obj_tuple.container_internal_file_dir},  # GFU has the capability to discern and retrieve the accurate GenBank file from the directory
             "genome_name": obj_tuple.obj_name,
             "metadata": {"load_id": load_id},
         }
@@ -272,8 +272,9 @@ def _upload_genomes_to_workspace(
 
         # copy assembly file to the source directory
         assembly_path = Path(result_dict["assembly_path"])
-        # TODO: Determine data_dir based on assembly_path
-        assembly_path_local = Path(data_dir) / assembly_path.name
+        # remove prefix of the assembly_path
+        assembly_path = assembly_path.relative_to(_JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER)
+        assembly_path_local = Path(data_dir) / assembly_path
         if not os.path.exists(assembly_path_local):
             raise ValueError(f"Assembly file {assembly_path_local} does not exist")
 
@@ -646,15 +647,14 @@ def _process_batch_upload(
         conf: Conf,
         workspace_id: int,
         load_id: str,
-        service_ver: str,
+        asu_client: AssemblyUtil,
+        gfu_client: GenomeFileUtil,
         upload_assembly_only: bool = True,
 ) -> list[UploadResult]:
     if upload_assembly_only:
-        asu = AssemblyUtil(conf.callback_url, service_ver=service_ver, token=conf.token)
-        upload_results = _upload_assemblies_to_workspace(asu, workspace_id, load_id, obj_tuples)
+        upload_results = _upload_assemblies_to_workspace(asu_client, workspace_id, load_id, obj_tuples)
     else:
-        gfu = GenomeFileUtil(conf.callback_url, service_ver=service_ver, token=conf.token)
-        upload_results = _upload_genomes_to_workspace(gfu, workspace_id, load_id, obj_tuples, conf.job_data_dir)
+        upload_results = _upload_genomes_to_workspace(gfu_client, workspace_id, load_id, obj_tuples, conf.job_data_dir)
 
     return upload_results
 
@@ -717,7 +717,8 @@ def _upload_objects_in_parallel(
         batch_size: int,
         source_dir: str,
         conf: Conf,
-        service_ver: str,
+        asu_client: AssemblyUtil,
+        gfu_client: GenomeFileUtil,
         upload_assembly_only: bool = True,
 ) -> int:
     """
@@ -747,14 +748,22 @@ def _upload_objects_in_parallel(
     upload_results = list()
     for obj_tuples in _gen(wait_to_upload_objs, batch_size):
         try:
-            upload_results = _process_batch_upload(
-                obj_tuples, conf, workspace_id, load_id, service_ver, upload_assembly_only)
+            upload_results = _process_batch_upload(obj_tuples,
+                                                   conf,
+                                                   workspace_id,
+                                                   load_id,
+                                                   asu_client,
+                                                   gfu_client,
+                                                   upload_assembly_only=upload_assembly_only)
         except Exception as e:
             traceback.print_exc()
             uploaded_fail = True
             try:
-                upload_results = _process_failed_uploads(
-                    ws, workspace_id, load_id, obj_tuples, upload_assembly_only)
+                upload_results = _process_failed_uploads(ws,
+                                                         workspace_id,
+                                                         load_id,
+                                                         obj_tuples,
+                                                         upload_assembly_only=upload_assembly_only)
             except Exception as e:
                 print(
                     f"WARNING: There are inconsistencies between "
@@ -966,7 +975,8 @@ def main():
             batch_size,
             source_dir,
             conf,
-            au_service_ver,   # TODO - add GFU service ver
+            AssemblyUtil(conf.callback_url, service_ver=au_service_ver, token=conf.token),
+            GenomeFileUtil(conf.callback_url, service_ver=au_service_ver, token=conf.token), # TODO - add GFU service ver
             upload_assembly_only=create_assembly_only
         )
 
