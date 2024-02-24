@@ -730,7 +730,7 @@ def _upload_objects_in_parallel(
         workspace_id: target workspace id
         load_id: load id
         collections_source_dir: a directory in collectionssource that creates new directories linking to sourcedata
-        wait_to_upload_objs: a dictionary that maps object(assembly) file name to object(assembly) directory
+        wait_to_upload_objs: a dictionary that maps object file name to object directory
         batch_size: a number of files to upload per batch
         source_dir: a directory in sourcedata/workspace to store new assembly entries
         conf: callback server configuration
