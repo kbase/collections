@@ -12,13 +12,13 @@ from src.common.product_models.common_models import SubsetProcessStates
 from src.service import app_state, errors, kb_auth, models
 from src.service.data_products import common_models
 from src.service.data_products.common_functions import (
-    remove_collection_keys,
     remove_marked_subset,
     query_table,
     get_load_version,
     QueryTableResult,
     get_product_meta,
-    get_columnar_attribs_meta
+    get_columnar_attribs_meta,
+    COLLECTION_KEYS
 )
 from src.service.data_products.data_product_processing import (
     MATCH_ID_PREFIX,
@@ -133,12 +133,13 @@ SAMPLES_SPEC = SamplesSpec(
 
 _OPT_AUTH = KBaseHTTPBearer(optional=True)
 
+_KEYS_TO_REMOVE = (COLLECTION_KEYS
+     | {names.FLD_MATCHES_SELECTIONS, names.FLD_SAMPLE_GEO, names.FLD_KBASE_IDS})
 
 def _remove_keys(doc):
-    doc = remove_collection_keys(remove_arango_keys(doc))
-    doc.pop(names.FLD_MATCHES_SELECTIONS, None)
-    doc.pop(names.FLD_SAMPLE_GEO, None)
-    doc.pop(names.FLD_KBASE_IDS, None)
+    doc = remove_arango_keys(doc)
+    for k in _KEYS_TO_REMOVE:
+        doc.pop(k, None)
     return doc
 
 
@@ -255,6 +256,13 @@ async def get_samples(
     if status_only:
         return _response(dp_match=dp_match, dp_sel=dp_sel)
 
+    cols = (await get_columnar_attribs_meta(
+            appstate.arangostorage,
+            names.COLL_SAMPLES_META,
+            collection_id,
+            load_ver,
+            load_ver_override)
+    ).columns
     filters = await get_filters(
         r,
         names.COLL_SAMPLES,
@@ -262,12 +270,7 @@ async def get_samples(
         load_ver,
         load_ver_override,
         ID,
-        (await get_columnar_attribs_meta(
-            appstate.arangostorage,
-            names.COLL_SAMPLES_META,
-            collection_id,
-            load_ver,
-            load_ver_override)).columns,
+        cols,
         view_name=coll.get_data_product(ID).search_view if coll else None,
         count=count,
         sort_on=sort_on,
@@ -279,7 +282,14 @@ async def get_samples(
         skip=skip,
         limit=limit,
     )
-    res = await query_table(appstate.arangostorage, filters, output_table, _remove_keys)
+    res = await query_table(
+        appstate.arangostorage,
+        # for now sort alphabetically by key, might want to do something else later
+        [c for c in sorted(cols, key=lambda col: col.key) if c.key not in _KEYS_TO_REMOVE],
+        filters,
+        output_table=output_table,
+        document_mutator=_remove_keys
+    )
     return _response(dp_match=dp_match, dp_sel=dp_sel, res=res)
 
 
