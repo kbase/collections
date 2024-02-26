@@ -23,7 +23,6 @@ from src.service.app_state_data_structures import CollectionsState, PickleableDe
 from src.service.data_products import common_models
 from src.service.data_products.common_functions import (
     get_load_version,
-    remove_collection_keys,
     mark_data_by_kbase_id,
     remove_marked_subset,
     override_load_version,
@@ -31,6 +30,7 @@ from src.service.data_products.common_functions import (
     query_simple_collection_list,
     get_columnar_attribs_meta,
     get_product_meta,
+    COLLECTION_KEYS
 )
 from src.service.data_products.data_product_processing import (
     MATCH_ID_PREFIX,
@@ -233,10 +233,12 @@ GENOME_ATTRIBS_SPEC = GenomeAttribsSpec(
 
 _OPT_AUTH = KBaseHTTPBearer(optional=True)
 
+_KEYS_TO_REMOVE = (COLLECTION_KEYS | {names.FLD_MATCHES_SELECTIONS, names.FLD_UPA_MAP})
+
 def _remove_keys(doc):
-    doc = remove_collection_keys(remove_arango_keys(doc))
-    doc.pop(names.FLD_MATCHES_SELECTIONS, None)
-    doc.pop(names.FLD_UPA_MAP, None)
+    doc = remove_arango_keys(doc)
+    for k in _KEYS_TO_REMOVE:
+        doc.pop(k, None)
     return doc
 
 
@@ -314,6 +316,13 @@ async def get_genome_attributes(
     coll, load_ver = await get_load_version(appstate.arangostorage, collection_id, ID, lvo, user)
     match_spec = await _get_match_spec(appstate, user, coll, match_id, match_mark)
     sel_spec = await _get_selection_spec(appstate, coll, selection_id, selection_mark)
+    cols = (await get_columnar_attribs_meta(
+            appstate.arangostorage,
+            names.COLL_GENOME_ATTRIBS_META,
+            collection_id,
+            load_ver,
+            load_ver_override)
+    ).columns
     filters = await get_filters(
         r,
         names.COLL_GENOME_ATTRIBS,
@@ -321,12 +330,7 @@ async def get_genome_attributes(
         load_ver,
         load_ver_override,
         ID,
-        (await get_columnar_attribs_meta(
-            appstate.arangostorage,
-            names.COLL_GENOME_ATTRIBS_META,
-            collection_id,
-            load_ver,
-            load_ver_override)).columns,
+        cols,
         view_name=coll.get_data_product(ID).search_view if coll else None,
         count=count,
         sort_on=sort_on,
@@ -338,7 +342,13 @@ async def get_genome_attributes(
         limit=limit,
     )
     res = await query_table(
-        appstate.arangostorage, filters, output_table=output_table, document_mutator=_remove_keys)
+        appstate.arangostorage,
+        # for now sort alphabetically by key, might want to do something else later
+        [c for c in sorted(cols, key=lambda col: col.key) if c.key not in _KEYS_TO_REMOVE],
+        filters,
+        output_table=output_table,
+        document_mutator=_remove_keys
+    )
     return {
         _FLD_SKIP: res.skip,
         _FLD_LIMIT: res.limit,

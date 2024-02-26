@@ -279,20 +279,22 @@ async def query_simple_collection_list(
 
 
 def _query_acceptor(
+    fields: list[str],
     data: list[dict[str, Any]],
-    last: list[dict[str, Any]],
     doc: dict[str, Any],
     output_table: bool,
     document_mutator: Callable[[dict[str, Any]], dict[str, Any]],
     count: bool,
 ):
-    last[0] = doc
     if count:
         data.append(doc)
-    elif output_table:
-        data.append([doc[k] for k in sorted(document_mutator(doc))])
     else:
-        data.append({k: doc[k] for k in sorted(document_mutator(doc))})
+        doc = document_mutator(doc)
+        # it's not guaranteed that all "rows" have all fields
+        if output_table:
+            data.append([doc.get(k) for k in fields])
+        else:
+            data.append({k: doc.get(k) for k in fields})
 
 
 class QueryTableResult(NamedTuple):
@@ -324,6 +326,7 @@ class QueryTableResult(NamedTuple):
 
 async def query_table(
     store: ArangoStorage,
+    columns: list[col_models.AttributesColumn],
     filters: FilterSet,
     output_table: bool = True,
     document_mutator: Callable[[dict[str, Any]], dict[str, Any]] = lambda x: x,
@@ -337,36 +340,31 @@ async def query_table(
     will be used to mark which rows are matched / selected by a value of `True`.
 
     storage - the storage system.
+    columns - the expected columns in the table data.
     filters - the filters to apply to the search
     output_table - whether to return the results as a list of lists (e.g. a table) with a separate
         fields entry defining the key for each table column, or a list of key / value dictionaries.
     document_mutator - a function applied to a document retrieved from the database before
         returning the results.
     """
+    fields = [c.key for c in columns]
+    if filters.sort_on not in fields:
+        raise errors.IllegalParameterError(
+                f"No such field for collection {filters.collection_id} load version "
+                + f"{filters.load_ver}: {filters.sort_on}")
     data = []
-    last = [None]
     await query_simple_collection_list(
         store,
         filters,
         lambda doc: _query_acceptor(
-            data, last, doc, output_table, document_mutator, filters.count),
+            fields, data, doc, output_table, document_mutator, filters.count),
         match_field=names.FLD_MATCHED_SAFE,
         selection_field=names.FLD_SELECTED_SAFE,
     )
     if filters.count:
         return QueryTableResult(skip=0, limit=0, count=data[0])
-    # Sort everything since we can't necessarily rely on arango, the client, or the loader
-    # to have the same insertion order for the dicts
-    # If we want a specific order the loader should stick a keys doc or something into arango
-    # and we order by that
-    fields = []
-    if last[0]:
-        if filters.sort_on not in last[0]: 
-            raise errors.IllegalParameterError(
-                f"No such field for collection {filters.collection_id} load version "
-                + f"{filters.load_ver}: {filters.sort_on}")
-        fields = [{"name": k} for k in sorted(last[0])]
     if output_table:
+        fields = [{"name": f} for f in fields]
         return QueryTableResult(skip=filters.skip, limit=filters.limit, fields=fields, table=data)
     else:
         return QueryTableResult(skip=filters.skip, limit=filters.limit, data=data)
