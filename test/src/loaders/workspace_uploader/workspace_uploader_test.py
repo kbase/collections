@@ -480,8 +480,6 @@ def test_upload_genome_files_in_parallel(setup_and_teardown):
     }
     gfu.genbanks_to_genomes.return_value = genbanks_to_genomes_results
 
-    conf = Mock()
-    conf.job_data_dir = job_dir
     with patch.object(workspace_uploader, '_JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER', new=job_dir):
         uploaded_count = workspace_uploader._upload_objects_in_parallel(
             ws=ws,
@@ -492,10 +490,10 @@ def test_upload_genome_files_in_parallel(setup_and_teardown):
             wait_to_upload_objs=wait_to_upload_genomes,
             batch_size=2,
             source_dir=output_dir,
-            conf=conf,
             asu_client=Mock(),
             gfu_client=gfu,
-            upload_assembly_only=False
+            job_data_dir=job_dir,
+            upload_assembly_only=False,
         )
 
     assert uploaded_count == 2
@@ -608,9 +606,9 @@ def test_upload_assembly_files_in_parallel(setup_and_teardown):
         wait_to_upload_assemblies,
         2,
         output_dir,
-        conf=Mock(),
         asu_client=asu,
         gfu_client=Mock(),
+        job_data_dir='path/to/job_data_dir'
     )
 
     assert uploaded_count == 2
@@ -667,9 +665,9 @@ def test_fail_upload_assembly_files_in_parallel(setup_and_teardown):
         wait_to_upload_objs=wait_to_upload_assemblies,
         batch_size=2,
         source_dir=output_dir,
-        conf=Mock(),
         asu_client=asu,
         gfu_client=Mock(),
+        job_data_dir='path/to/job_data_dir'
     )
 
     assert uploaded_count == 0

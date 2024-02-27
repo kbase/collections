@@ -644,17 +644,17 @@ def _process_genome_objects(
 
 def _process_batch_upload(
         obj_tuples: list[WSObjTuple],
-        conf: Conf,
         workspace_id: int,
         load_id: str,
         asu_client: AssemblyUtil,
         gfu_client: GenomeFileUtil,
+        job_data_dir: str,
         upload_assembly_only: bool = True,
 ) -> list[UploadResult]:
     if upload_assembly_only:
         upload_results = _upload_assemblies_to_workspace(asu_client, workspace_id, load_id, obj_tuples)
     else:
-        upload_results = _upload_genomes_to_workspace(gfu_client, workspace_id, load_id, obj_tuples, conf.job_data_dir)
+        upload_results = _upload_genomes_to_workspace(gfu_client, workspace_id, load_id, obj_tuples, job_data_dir)
 
     return upload_results
 
@@ -690,7 +690,7 @@ def _process_failed_uploads(
     else:
 
         batch_uploaded_genome_tuples = [name2tuple[info[1]] for info in uploaded_genome_obj_infos]
-
+        # TODO: In case of missing assembly_tuple, we need to build it.
         for (genome_obj_info,
              assembly_obj_info,
              genome_tuple) in zip(uploaded_genome_obj_infos,
@@ -716,9 +716,9 @@ def _upload_objects_in_parallel(
         wait_to_upload_objs: dict[str, str],
         batch_size: int,
         source_dir: str,
-        conf: Conf,
         asu_client: AssemblyUtil,
         gfu_client: GenomeFileUtil,
+        job_data_dir: str,
         upload_assembly_only: bool = True,
 ) -> int:
     """
@@ -733,8 +733,9 @@ def _upload_objects_in_parallel(
         wait_to_upload_objs: a dictionary that maps object file name to object directory
         batch_size: a number of files to upload per batch
         source_dir: a directory in sourcedata/workspace to store new assembly entries
-        conf: callback server configuration
-        service_ver: service version of a KBase client (AssemblyUtil or GenomeFileUtil)
+        asu_client: AssemblyUtil client
+        gfu_client: GenomeFileUtil client
+        job_data_dir: the job directory to store object files
         upload_assembly_only: upload assembly only if True, otherwise upload genome only
 
     Returns:
@@ -749,11 +750,11 @@ def _upload_objects_in_parallel(
     for obj_tuples in _gen(wait_to_upload_objs, batch_size):
         try:
             upload_results = _process_batch_upload(obj_tuples,
-                                                   conf,
                                                    workspace_id,
                                                    load_id,
                                                    asu_client,
                                                    gfu_client,
+                                                   job_data_dir,
                                                    upload_assembly_only=upload_assembly_only)
         except Exception as e:
             traceback.print_exc()
@@ -974,9 +975,9 @@ def main():
             wait_to_upload_objs,
             batch_size,
             source_dir,
-            conf,
             AssemblyUtil(conf.callback_url, service_ver=au_service_ver, token=conf.token),
             GenomeFileUtil(conf.callback_url, service_ver=au_service_ver, token=conf.token), # TODO - add GFU service ver
+            conf.job_data_dir,
             upload_assembly_only=create_assembly_only
         )
 

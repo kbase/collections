@@ -24,6 +24,11 @@ class UploadResult:
     """
     UploadResult is a class that contains the result of the upload process for a genome or assembly object.
 
+    Attributes:
+        - genome_obj_info: the info of the genome object
+        - assembly_obj_info: the info of the assembly object
+        - genome_tuple: the WSObjTuple of the genome object
+        - assembly_tuple: the WSObjTuple of the assembly object
     """
 
     def __init__(self,
@@ -50,8 +55,6 @@ class UploadResult:
         self._genome_tuple = genome_tuple
         self._assembly_tuple = assembly_tuple
 
-        # TODO: In case of missing assembly_tuple, we need to build it.
-        # This situation might occur during recovery process.
         if not self._assembly_tuple or not self._assembly_obj_info:
             raise ValueError(
                 "Both assembly_obj_info and assembly_tuple must be provided for assembly object"
