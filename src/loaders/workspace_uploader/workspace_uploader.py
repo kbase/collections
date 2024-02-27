@@ -282,7 +282,7 @@ def _upload_genomes_to_workspace(
         source_dir = Path(genome_tuple.host_file_dir)
         loader_helper.create_hardlink_between_files(source_dir / assembly_path.name, assembly_path_local)
 
-        assembly_tuple = WSObjTuple(assembly_path.name, source_dir, assembly_path)
+        assembly_tuple = WSObjTuple(assembly_path.name, source_dir, result_dict["assembly_path"])
 
         upload_result = UploadResult(
             genome_obj_info=genome_obj_info,
