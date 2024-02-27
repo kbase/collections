@@ -251,7 +251,8 @@ def _upload_genomes_to_workspace(
 
     inputs = [
         {
-            "file": {'path': obj_tuple.container_internal_file_dir},  # GFU has the capability to discern and retrieve the accurate GenBank file from the directory
+              # GFU has the capability to discern and retrieve the accurate GenBank file from the directory
+            "file": {'path': obj_tuple.container_internal_file_dir},
             "genome_name": obj_tuple.obj_name,
             "metadata": {"load_id": load_id},
         }
