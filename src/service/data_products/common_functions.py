@@ -277,7 +277,7 @@ async def query_simple_collection_list(
         await cur.close(ignore_missing=True)
 
 
-def _get_matchsel(spec: SubsetSpecification, doc: dict[str, Any]):
+def _get_matchsel(spec: SubsetSpecification, doc: dict[str, Any]) -> bool:
     if not doc.get(names.FLD_MATCHES_SELECTIONS):
         return False
     return spec.get_prefixed_subset_id() in doc[names.FLD_MATCHES_SELECTIONS]
