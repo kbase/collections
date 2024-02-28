@@ -77,7 +77,9 @@ Additionally, the script will create a metadata file in the workspace object dir
 Assembly and Genome object information.
 
 Collection source directory:
-The data in the source data directory will be eventually linked (soft) to the collections source directory:
+The workspace object directory, originating from the source data directory, will ultimately be connected through
+a soft link to the collections source directory which will be used by tools such as GTDB-TK, checkm, etc.
+
 /root_dir/collectionssource/<env>/<kbase_collection>/<source_ver>/<UPA>/<file_name>
 """
 
