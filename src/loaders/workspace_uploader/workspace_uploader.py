@@ -67,7 +67,7 @@ For files obtained from the workspace, the storage structure is as follows:
 /root_dir/sourcedata/WS/<env>/<workspace_id>/<UPA>/<file_name>
 
 For files obtained from NCBI, the storage structure is as follows:
-/root_dir/sourcedata/WS/NCBI/NONE/<genome_name>/<file_name>
+/root_dir/sourcedata/NCBI/NONE/<genome_name>/<file_name>
 
 Following a successful upload of a genome object, the GenomeFileUtil will generate an associated FASTA file
 linked to the assembly object, which will be stored in the job data directory. Subsequently, the script will
