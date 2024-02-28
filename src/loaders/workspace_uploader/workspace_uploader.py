@@ -54,17 +54,33 @@ e.g.
 PYTHONPATH=. python src/loaders/workspace_uploader/workspace_uploader.py --workspace_id 69046 --kbase_collection GTDB --source_ver 207 --env CI --keep_job_dir
 
 NOTE:
-NERSC file structure for WS:
+NERSC file structure:
 
-/global/cfs/cdirs/kbase/collections/sourcedata/ -> WS -> ENV -> workspace ID -> UPA -> .fna.gz file
+Job data directory:
+A temporary job directory for KBase SDK jobs. For more information, see make_job_data_dir in src/loaders/common/loader_helper.py
+/root_dir/sdk_job_dir/<user_id>/<uuid>/workdir/tmp
 
-e.g.
-/global/cfs/cdirs/kbase/collections/sourcedata/WS -> CI -> 69046 -> 69046_58_1 -> 69046_58_1.fna.gz
-                                                                    69046_60_1 -> 69046_60_1.fna.gz
+Source data directory:
+The directory where the original data files are housed.
 
-The data will be linked to the collections source directory:
-e.g. /global/cfs/cdirs/kbase/collections/collectionssource/ -> ENV -> kbase_collection -> source_ver -> UPA -> .fna.gz file
+For files obtained from the workspace, the storage structure is as follows:
+/root_dir/sourcedata/WS/<env>/<workspace_id>/<UPA>/<file_name>
+
+For files obtained from NCBI, the storage structure is as follows:
+/root_dir/sourcedata/WS/NCBI/NONE/<genome_name>/<file_name>
+
+Following a successful upload of a genome object, the GenomeFileUtil will generate an associated FASTA file
+linked to the assembly object, which will be stored in the job data directory. Subsequently, the script will
+establish a hardlink for the FASTA file within the corresponding workspace object directory.
+
+Additionally, the script will create a metadata file in the workspace object directory, encompassing both the
+Assembly and Genome object information.
+
+Collection source directory:
+The data in the source data directory will be eventually linked (soft) to the collections source directory:
+/root_dir/collectionssource/<env>/<kbase_collection>/<source_ver>/<UPA>/<file_name>
 """
+
 import argparse
 import os
 import shutil

@@ -13,6 +13,7 @@ from src.clients.GenomeFileUtilClient import GenomeFileUtil
 from src.clients.workspaceClient import Workspace
 from src.loaders.common import loader_helper
 from src.loaders.workspace_uploader import workspace_uploader
+from src.loaders.workspace_uploader.upload_result import UploadResult, WSObjTuple
 
 ASSEMBLY_DIR_NAMES = ["GCF_000979855.1", "GCF_000979175.1"]
 ASSEMBLY_NAMES = [
@@ -373,10 +374,19 @@ def test_upload_genome_to_workspace(setup_and_teardown):
         upload_results = workspace_uploader._upload_genomes_to_workspace(
             gfu, 12345, "214", [genome_tuple], job_dir
         )
-    assert [r.assembly_upa for r in upload_results] == ["12345_1_59"]
-    assert [r.genome_upa for r in upload_results] == ["12345_1_58"]
-    assert [r.genome_obj_info for r in upload_results] == [genome_obj_info]
-    assert [r.assembly_obj_info for r in upload_results] == [assembly_obj_info]
+
+    expected_assembly_tuple = workspace_uploader.WSObjTuple(
+        obj_name=ASSEMBLY_NAMES[0],
+        host_file_dir=host_genome_dir,
+        container_internal_file_dir=job_dir / ASSEMBLY_NAMES[0])
+
+    expected_upload_results = [UploadResult(
+        assembly_obj_info=assembly_obj_info,
+        assembly_tuple=expected_assembly_tuple,
+        genome_obj_info=genome_obj_info,
+        genome_tuple=genome_tuple)]
+
+    assert upload_results == expected_upload_results
 
     gfu.genbanks_to_genomes.assert_called_once_with(
         {

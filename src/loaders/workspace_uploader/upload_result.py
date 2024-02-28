@@ -108,3 +108,17 @@ class UploadResult:
         Returns the WSObjTuple of the assembly object
         """
         return self._assembly_tuple
+
+    def __eq__(self, other):
+        """
+        Checks if two UploadResult objects are equal.
+        """
+        if not isinstance(other, UploadResult):
+            return False
+
+        return (
+            self.genome_obj_info == other.genome_obj_info
+            and self.assembly_obj_info == other.assembly_obj_info
+            and self.genome_tuple == other.genome_tuple
+            and self.assembly_tuple == other.assembly_tuple
+        )
