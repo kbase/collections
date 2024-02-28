@@ -13,6 +13,7 @@ from src.common.storage.db_doc_conversions import (
 )
 from src.service import errors, kb_auth, models, app_state
 from src.service.filtering.filters import FilterSet
+from src.service.processing import SubsetSpecification
 from src.service.storage_arango import ArangoStorage
 
 
@@ -268,14 +269,18 @@ async def query_simple_collection_list(
         async for d in cur:
             if not filters.count:
                 if not filters.match_spec.is_null_subset():
-                    d[match_field] = filters.match_spec.get_prefixed_subset_id() in d[
-                        names.FLD_MATCHES_SELECTIONS]
+                    d[match_field] = _get_matchsel(filters.match_spec, d)
                 if not filters.selection_spec.is_null_subset():
-                    d[selection_field] = filters.selection_spec.get_prefixed_subset_id() in d[
-                        names.FLD_MATCHES_SELECTIONS]
+                    d[selection_field] = _get_matchsel(filters.selection_spec, d)
             acceptor(d)
     finally:
         await cur.close(ignore_missing=True)
+
+
+def _get_matchsel(spec: SubsetSpecification, doc: dict[str, Any]):
+    if not doc.get(names.FLD_MATCHES_SELECTIONS):
+        return False
+    return spec.get_prefixed_subset_id() in doc[names.FLD_MATCHES_SELECTIONS]
 
 
 def _query_acceptor(
@@ -352,6 +357,10 @@ async def query_table(
         raise errors.IllegalParameterError(
                 f"No such field for collection {filters.collection_id} load version "
                 + f"{filters.load_ver}: {filters.sort_on}")
+    if not filters.selection_spec.is_null_subset():
+        fields = [names.FLD_SELECTED_SAFE] + fields
+    if not filters.match_spec.is_null_subset():
+        fields = [names.FLD_MATCHED_SAFE] + fields
     data = []
     await query_simple_collection_list(
         store,
