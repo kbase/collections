@@ -66,15 +66,14 @@ The directory where the original data files are housed.
 For files obtained from the workspace, the storage structure is as follows:
 /root_dir/sourcedata/WS/<env>/<workspace_id>/<UPA>/<file_name>
 
+In this directory, we anticipate finding exclusively a FASTA file and a metadata file. Those files can be created by
+the workspace downloader script or by this script upon successful upload of a genome object.
+
 For files obtained from NCBI, the storage structure is as follows:
 /root_dir/sourcedata/NCBI/NONE/<genome_name>/<file_name>
 
-Following a successful upload of a genome object, the GenomeFileUtil will generate an associated FASTA file
-linked to the assembly object, which will be stored in the job data directory. Subsequently, the script will
-establish a hardlink for the FASTA file within the corresponding workspace object directory.
-
-Additionally, the script will create a metadata file in the workspace object directory, encompassing both the
-Assembly and Genome object information.
+In this directory, we anticipate finding a GenBank file downloaded using the NCBI downloader script. Upon the
+successful upload of a genome object, we also expect to observe a hardlink to the FASTA file and an uploaded.yaml file.
 
 Collection source directory:
 The workspace object directory, originating from the source data directory, will ultimately be connected through
