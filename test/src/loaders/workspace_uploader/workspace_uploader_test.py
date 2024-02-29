@@ -207,10 +207,6 @@ def test_prepare_skd_job_dir_to_upload(setup_and_teardown):
 
 def test_post_process_with_assembly_only(setup_and_teardown):
     params = setup_and_teardown
-    upload_dir = Path(params.tmp_dir) / "upload_dir"
-    upload_dir.mkdir()
-    output_dir = Path(params.tmp_dir) / "output_dir"
-    output_dir.mkdir()
 
     host_assembly_dir = params.assembly_dirs[0]
     assembly_name = ASSEMBLY_NAMES[0]
@@ -223,8 +219,8 @@ def test_post_process_with_assembly_only(setup_and_teardown):
         "CI",
         88888,
         "214",
-        upload_dir,
-        output_dir,
+        params.collection_source_dir,
+        params.sourcedata_dir,
         assembly_tuple,
         "12345_58_1",
     )
@@ -245,10 +241,8 @@ def test_post_process_with_assembly_only(setup_and_teardown):
 def test_post_process_with_genome(setup_and_teardown):
     # test with genome_tuple and genome_upa
     params = setup_and_teardown
-    collections_source_dir = Path(params.tmp_dir) / "collections_source_dir"
-    collections_source_dir.mkdir()
-    source_dir = Path(params.tmp_dir) / "source_dir"
-    source_dir.mkdir()
+    collections_source_dir = params.collection_source_dir
+    source_dir = params.sourcedata_dir
 
     host_assembly_dir = params.assembly_dirs[1]
     assembly_name = ASSEMBLY_NAMES[1]
@@ -431,23 +425,21 @@ def test_generator(setup_and_teardown):
 
 def test_upload_genome_files_in_parallel(setup_and_teardown):
     params = setup_and_teardown
+    collection_source_dir = params.collection_source_dir
+    sourcedata_dir = params.sourcedata_dir
     src_files = params.target_files
     genbank_files = params.genbank_files
     genome_names = ["NewGenome1", "NewGenome2"]
-    genome_dirs = list()
+    genome_collection_source_dirs = list()
     for genome_name, genbank_file in zip(genome_names, genbank_files):
-        genome_dir = Path(params.sourcedata_dir) / genome_name
-        genome_dir.mkdir(parents=True)
-        shutil.copy(genbank_file, genome_dir)
+        genome_source_data_dir = sourcedata_dir / genome_name
+        genome_source_data_dir.mkdir(parents=True)
+        shutil.copy(genbank_file, genome_source_data_dir)
         os.symlink(
-            genome_dir.resolve(), Path(params.collection_source_dir) / genome_name, target_is_directory=True
+            genome_source_data_dir.resolve(), collection_source_dir / genome_name, target_is_directory=True
         )
-        genome_dirs.append(Path(params.collection_source_dir) / genome_name)
+        genome_collection_source_dirs.append(collection_source_dir / genome_name)
 
-    upload_dir = Path(params.tmp_dir) / "upload_dir"
-    upload_dir.mkdir()
-    output_dir = Path(params.tmp_dir) / "output_dir"
-    output_dir.mkdir()
     job_dir = Path(params.tmp_dir) / "kb/module/work/tmp"
     job_dir.mkdir(parents=True)
     # copy the source files to the job_dir
@@ -470,7 +462,7 @@ def test_upload_genome_files_in_parallel(setup_and_teardown):
 
     wait_to_upload_genomes = {
         genome_name: genome_dir
-        for genome_name, genome_dir in zip(GEMOME_NAMES, genome_dirs)
+        for genome_name, genome_dir in zip(GEMOME_NAMES, genome_collection_source_dirs)
     }
 
     # ws.get_object_info3() is unused in this test case
@@ -496,10 +488,10 @@ def test_upload_genome_files_in_parallel(setup_and_teardown):
             upload_env_key="CI",
             workspace_id=42,
             load_id="214",
-            collections_source_dir=upload_dir,
+            collections_source_dir=collection_source_dir,
             wait_to_upload_objs=wait_to_upload_genomes,
             batch_size=2,
-            source_dir=output_dir,
+            source_data_dir=sourcedata_dir,
             asu_client=Mock(),
             gfu_client=gfu,
             job_data_dir=job_dir,
@@ -531,26 +523,26 @@ def test_upload_genome_files_in_parallel(setup_and_teardown):
     )
 
     # check softlink for post_process
-    assert os.readlink(os.path.join(upload_dir, "42_1_1")) == os.path.join(
-        output_dir, "42_1_1"
+    assert os.readlink(os.path.join(collection_source_dir, "42_1_1")) == os.path.join(
+        sourcedata_dir, "42_1_1"
     )
-    assert os.readlink(os.path.join(upload_dir, "42_2_1")) == os.path.join(
-        output_dir, "42_2_1"
+    assert os.readlink(os.path.join(collection_source_dir, "42_2_1")) == os.path.join(
+        sourcedata_dir, "42_2_1"
     )
 
     # check hardlink for post_process
     assert os.path.samefile(
-        genome_dirs[0] / ASSEMBLY_NAMES[0],
-        os.path.join(output_dir, "42_1_1", "42_1_1.fna.gz")
+        genome_collection_source_dirs[0] / ASSEMBLY_NAMES[0],
+        os.path.join(sourcedata_dir, "42_1_1", "42_1_1.fna.gz")
     )
 
     assert os.path.samefile(
-        genome_dirs[1] / ASSEMBLY_NAMES[1],
-        os.path.join(output_dir, "42_2_1", "42_2_1.fna.gz")
+        genome_collection_source_dirs[1] / ASSEMBLY_NAMES[1],
+        os.path.join(sourcedata_dir, "42_2_1", "42_2_1.fna.gz")
     )
 
     # check metadata file
-    metadata_file = output_dir / "42_1_1" / "42_1_1.meta"
+    metadata_file = sourcedata_dir / "42_1_1" / "42_1_1.meta"
     with open(metadata_file, 'r') as file:
         data = json.load(file)
 
@@ -565,7 +557,7 @@ def test_upload_genome_files_in_parallel(setup_and_teardown):
     }
     assert data == expected_metadata
 
-    metadata_file = output_dir / "42_2_1" / "42_2_1.meta"
+    metadata_file = sourcedata_dir / "42_2_1" / "42_2_1.meta"
     with open(metadata_file, 'r') as file:
         data = json.load(file)
 
@@ -583,12 +575,7 @@ def test_upload_genome_files_in_parallel(setup_and_teardown):
 
 def test_upload_assembly_files_in_parallel(setup_and_teardown):
     params = setup_and_teardown
-    src_files = params.target_files
     assembly_dirs = params.assembly_dirs
-    upload_dir = Path(params.tmp_dir) / "upload_dir"
-    upload_dir.mkdir()
-    output_dir = Path(params.tmp_dir) / "output_dir"
-    output_dir.mkdir()
 
     wait_to_upload_assemblies = {
         assembly_name: assembly_dir
@@ -612,10 +599,10 @@ def test_upload_assembly_files_in_parallel(setup_and_teardown):
         "CI",
         12345,
         "214",
-        upload_dir,
+        params.collection_source_dir,
         wait_to_upload_assemblies,
         2,
-        output_dir,
+        params.sourcedata_dir,
         asu_client=asu,
         gfu_client=Mock(),
         job_data_dir='path/to/job_data_dir'
@@ -649,10 +636,6 @@ def test_upload_assembly_files_in_parallel(setup_and_teardown):
 def test_fail_upload_assembly_files_in_parallel(setup_and_teardown):
     params = setup_and_teardown
     assembly_dirs = params.assembly_dirs
-    upload_dir = Path(params.tmp_dir) / "upload_dir"
-    upload_dir.mkdir()
-    output_dir = Path(params.tmp_dir) / "output_dir"
-    output_dir.mkdir()
 
     wait_to_upload_assemblies = {
         assembly_name: assembly_dir
@@ -671,10 +654,10 @@ def test_fail_upload_assembly_files_in_parallel(setup_and_teardown):
         upload_env_key="CI",
         workspace_id=12345,
         load_id="214",
-        collections_source_dir=upload_dir,
+        collections_source_dir=params.sourcedata_dir,
         wait_to_upload_objs=wait_to_upload_assemblies,
         batch_size=2,
-        source_dir=output_dir,
+        source_data_dir=params.sourcedata_dir,
         asu_client=asu,
         gfu_client=Mock(),
         job_data_dir='path/to/job_data_dir'

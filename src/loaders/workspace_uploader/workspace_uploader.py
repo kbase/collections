@@ -265,7 +265,7 @@ def _upload_genomes_to_workspace(
     workspace_id: int,
     load_id: str,
     ws_obj_tuples: list[WSObjTuple],
-    data_dir: str,
+    job_data_dir: str,
 ) -> list[UploadResult]:
     """
     Upload genbank files to the target workspace as Genome in batch. The bulk method fails
@@ -275,7 +275,7 @@ def _upload_genomes_to_workspace(
 
     inputs = [
         {
-              # GFU has the capability to discern and retrieve the accurate GenBank file from the directory
+            # GFU has the capability to discern and retrieve the accurate GenBank file from the directory
             "file": {'path': obj_tuple.container_internal_file_dir},
             "genome_name": obj_tuple.obj_name,
             "metadata": {"load_id": load_id},
@@ -295,18 +295,19 @@ def _upload_genomes_to_workspace(
 
         genome_tuple = obj_tuple
 
-        # copy assembly file to the source directory
-        assembly_path = Path(result_dict["assembly_path"])
+        # copy assembly file from tmp job dir to the sourcedata/NCBI directory
+        container_assembly_path = Path(result_dict["assembly_path"])
         # remove prefix of the assembly_path
-        assembly_path = assembly_path.relative_to(_JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER)
-        assembly_path_local = Path(data_dir) / assembly_path
-        if not os.path.exists(assembly_path_local):
-            raise ValueError(f"Assembly file {assembly_path_local} does not exist")
+        relative_assembly_path = container_assembly_path.relative_to(_JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER)
+        local_assembly_path = Path(job_data_dir) / relative_assembly_path
+        if not os.path.exists(local_assembly_path):
+            raise ValueError(f"Assembly file {local_assembly_path} does not exist")
 
-        source_dir = Path(genome_tuple.host_file_dir)
-        loader_helper.create_hardlink_between_files(source_dir / assembly_path.name, assembly_path_local)
+        ncbi_source_data_dir = Path(genome_tuple.host_file_dir)
+        loader_helper.create_hardlink_between_files(ncbi_source_data_dir / container_assembly_path.name,
+                                                    local_assembly_path)
 
-        assembly_tuple = WSObjTuple(assembly_path.name, source_dir, result_dict["assembly_path"])
+        assembly_tuple = WSObjTuple(container_assembly_path.name, ncbi_source_data_dir, container_assembly_path)
 
         upload_result = UploadResult(
             genome_obj_info=genome_obj_info,
@@ -590,7 +591,7 @@ def _post_process(
     workspace_id: int,
     load_id: str,
     collections_source_dir: str,
-    source_dir: str,
+    source_data_dir: str,
     assembly_tuple: WSObjTuple,
     assembly_upa: str,
     genome_tuple: WSObjTuple = None,
@@ -621,7 +622,7 @@ def _post_process(
             )
 
         _process_genome_objects(
-            collections_source_dir, source_dir, assembly_tuple, assembly_upa, assembly_obj_info, genome_obj_info)
+            collections_source_dir, source_data_dir, assembly_tuple, assembly_upa, assembly_obj_info, genome_obj_info)
 
     # Update the 'uploaded.yaml' file, serving as a marker to indicate the successful upload of the object.
     # Ensure that this operation is the final step in the post-processing workflow
@@ -638,7 +639,7 @@ def _post_process(
 
 def _process_genome_objects(
         collections_source_dir: str,
-        source_dir: str,
+        source_data_dir: str,
         assembly_tuple: WSObjTuple,
         assembly_upa: str,
         assembly_obj_info: list[Any],
@@ -647,24 +648,23 @@ def _process_genome_objects(
     """
     Post process on successful genome uploads.
     """
-    # Create a standard entry in sourcedata/workspace
-    # hardlink to the original object file in sourcedata
-    src_file = Path(_get_source_file(assembly_tuple.host_file_dir, assembly_tuple.obj_name))
-    target_dir = os.path.join(source_dir, assembly_upa)
-    os.makedirs(target_dir, exist_ok=True)
+    # create hardlink for the FASTA file from NCBI source directory to the corresponding workspace object directory.
+    ncbi_src_assembly = Path(_get_source_file(assembly_tuple.host_file_dir, assembly_tuple.obj_name))
+    ws_source_data_dir = os.path.join(source_data_dir, assembly_upa)
+    os.makedirs(ws_source_data_dir, exist_ok=True)
 
-    suffixes = src_file.suffixes
+    suffixes = ncbi_src_assembly.suffixes
     # TODO - handle extension other than .gz
     dest_suffix = suffixes[-1] if suffixes[-1] != ".gz" else "".join(suffixes[-2:])
-    dest_file = os.path.join(target_dir, f"{assembly_upa}{dest_suffix}")
-    loader_helper.create_hardlink_between_files(dest_file, src_file)
+    ws_src_assembly = os.path.join(ws_source_data_dir, f"{assembly_upa}{dest_suffix}")
+    loader_helper.create_hardlink_between_files(ws_src_assembly, ncbi_src_assembly)
 
     # create metadata file used by parser
-    loader_helper.create_meta_file(source_dir, assembly_upa, assembly_obj_info, genome_obj_info)
+    loader_helper.create_meta_file(source_data_dir, assembly_upa, assembly_obj_info, genome_obj_info)
 
     # create a softlink from new_dir in collectionssource to the contents of target_dir in sourcedata
     new_dir = os.path.join(collections_source_dir, assembly_upa)
-    loader_helper.create_softlink_between_dirs(new_dir, target_dir)
+    loader_helper.create_softlink_between_dirs(new_dir, ws_source_data_dir)
 
 
 def _process_batch_upload(
@@ -740,7 +740,7 @@ def _upload_objects_in_parallel(
         collections_source_dir: str,
         wait_to_upload_objs: dict[str, str],
         batch_size: int,
-        source_dir: str,
+        source_data_dir: str,
         asu_client: AssemblyUtil,
         gfu_client: GenomeFileUtil,
         job_data_dir: str,
@@ -754,10 +754,10 @@ def _upload_objects_in_parallel(
         upload_env_key: environment variable key in uploaded.yaml file
         workspace_id: target workspace id
         load_id: load id
-        collections_source_dir: a directory in collectionssource that creates new directories linking to sourcedata
+        collections_source_dir: a directory in collectionssource that creates new directories linking to sourcedata.  i.e. /root_dir/collectionssource
         wait_to_upload_objs: a dictionary that maps object file name to object directory
         batch_size: a number of files to upload per batch
-        source_dir: a directory in sourcedata/workspace to store new assembly entries
+        source_data_dir: directory for all source data. i.e. /root_dir/sourcedata
         asu_client: AssemblyUtil client
         gfu_client: GenomeFileUtil client
         job_data_dir: the job directory to store object files
@@ -804,7 +804,7 @@ def _upload_objects_in_parallel(
                 workspace_id,
                 load_id,
                 collections_source_dir,
-                source_dir,
+                source_data_dir,
                 upload_result.assembly_tuple,
                 upload_result.assembly_upa,
                 genome_tuple=upload_result.genome_tuple,
