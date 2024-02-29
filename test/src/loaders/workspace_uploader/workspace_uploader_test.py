@@ -371,7 +371,7 @@ def test_upload_genome_to_workspace(setup_and_teardown):
 
     expected_assembly_tuple = workspace_uploader.WSObjTuple(
         obj_name=ASSEMBLY_NAMES[0],
-        host_file_dir=job_dir,
+        host_file_dir=host_genome_dir,
         container_internal_file_dir=job_dir / ASSEMBLY_NAMES[0])
 
     expected_upload_results = [UploadResult(
@@ -532,12 +532,12 @@ def test_upload_genome_files_in_parallel(setup_and_teardown):
 
     # check hardlink for post_process
     assert os.path.samefile(
-        job_dir / ASSEMBLY_NAMES[0],
+        genome_collection_source_dirs[0] / ASSEMBLY_NAMES[0],
         os.path.join(sourcedata_dir, "42_1_1", "42_1_1.fna.gz")
     )
 
     assert os.path.samefile(
-        job_dir / ASSEMBLY_NAMES[1],
+        genome_collection_source_dirs[1] / ASSEMBLY_NAMES[1],
         os.path.join(sourcedata_dir, "42_2_1", "42_2_1.fna.gz")
     )
 

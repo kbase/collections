@@ -74,7 +74,13 @@ For files obtained from NCBI, the storage structure is as follows:
 
 In this directory, we anticipate finding a GenBank file downloaded using the NCBI downloader script.
 
-Following a successful upload of a genome object, this script also creates an uploaded.yaml file in the NCBI source directory.
+Following a successful upload of a genome object, the GenomeFileUtil will generate an associated FASTA file
+linked to the assembly object, which will be originally stored in the job data directory. Subsequently, the script will
+establish a hardlink for the FASTA file in both the NCBI source directory and the corresponding workspace object
+directory. This script also creates an uploaded.yaml file in the NCBI source directory.
+
+Additionally, the script will create a metadata file in the workspace object directory, encompassing both the
+Assembly and Genome object information.
 
 Collection source directory:
 The workspace object directory, originating from the source data directory, will ultimately be connected through
@@ -289,7 +295,7 @@ def _upload_genomes_to_workspace(
 
         genome_tuple = obj_tuple
 
-        # get the assembly file accessible locally
+        # copy assembly file from tmp job dir to the sourcedata/NCBI directory
         container_assembly_path = Path(result_dict["assembly_path"])
         # remove prefix of the assembly_path
         relative_assembly_path = container_assembly_path.relative_to(_JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER)
@@ -297,9 +303,11 @@ def _upload_genomes_to_workspace(
         if not os.path.exists(local_assembly_path):
             raise ValueError(f"Assembly file {local_assembly_path} does not exist")
 
-        assembly_tuple = WSObjTuple(local_assembly_path.name,
-                                    local_assembly_path.parent,
-                                    container_assembly_path)
+        ncbi_source_data_dir = Path(genome_tuple.host_file_dir)
+        loader_helper.create_hardlink_between_files(ncbi_source_data_dir / container_assembly_path.name,
+                                                    local_assembly_path)
+
+        assembly_tuple = WSObjTuple(container_assembly_path.name, ncbi_source_data_dir, container_assembly_path)
 
         upload_result = UploadResult(
             genome_obj_info=genome_obj_info,
@@ -640,16 +648,16 @@ def _process_genome_objects(
     """
     Post process on successful genome uploads.
     """
-    # create hardlink for the FASTA file from job directory to the corresponding workspace object directory.
-    job_assembly_file = Path(assembly_tuple.host_file_dir) / assembly_tuple.obj_name
+    # create hardlink for the FASTA file from NCBI source directory to the corresponding workspace object directory.
+    ncbi_src_assembly = Path(_get_source_file(assembly_tuple.host_file_dir, assembly_tuple.obj_name))
     ws_source_data_dir = os.path.join(source_data_dir, assembly_upa)
     os.makedirs(ws_source_data_dir, exist_ok=True)
 
-    suffixes = job_assembly_file.suffixes
+    suffixes = ncbi_src_assembly.suffixes
     # TODO - handle extension other than .gz
     dest_suffix = suffixes[-1] if suffixes[-1] != ".gz" else "".join(suffixes[-2:])
-    ws_src_assembly_file = os.path.join(ws_source_data_dir, f"{assembly_upa}{dest_suffix}")
-    loader_helper.create_hardlink_between_files(ws_src_assembly_file, job_assembly_file)
+    ws_src_assembly = os.path.join(ws_source_data_dir, f"{assembly_upa}{dest_suffix}")
+    loader_helper.create_hardlink_between_files(ws_src_assembly, ncbi_src_assembly)
 
     # create metadata file used by parser
     loader_helper.create_meta_file(source_data_dir, assembly_upa, assembly_obj_info, genome_obj_info)
