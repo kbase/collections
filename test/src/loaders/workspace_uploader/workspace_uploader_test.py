@@ -13,7 +13,7 @@ from src.clients.GenomeFileUtilClient import GenomeFileUtil
 from src.clients.workspaceClient import Workspace
 from src.loaders.common import loader_helper
 from src.loaders.workspace_uploader import workspace_uploader
-from src.loaders.workspace_uploader.upload_result import UploadResult, WSObjTuple
+from src.loaders.workspace_uploader.upload_result import UploadResult
 
 ASSEMBLY_DIR_NAMES = ["GCF_000979855.1", "GCF_000979175.1"]
 ASSEMBLY_NAMES = [
