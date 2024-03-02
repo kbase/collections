@@ -13,6 +13,7 @@ columns:
      type: string
      filter_strategy: identity
      non_visible: true
+     no_cast: true
 
    - key: kbase_id
      type: string
