@@ -103,6 +103,12 @@ class AttributesColumnSpec(AttributesColumnBase):
              + "If True, the display name and category fields are not required"
     )] = False
 
+    no_cast: Annotated[bool, Field(
+        example=False,
+        description="Whether the column value should not be cast to the specified type according to "
+            + "the column type. If True, the column value will not be cast to the specified type."
+    )] = False
+
     @model_validator(mode="after")
     def _check_visible_col(self) -> Self:
         if not self.non_visible:

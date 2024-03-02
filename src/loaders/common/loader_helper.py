@@ -61,7 +61,8 @@ def _convert_values_to_type(
         docs: list[dict],
         key: str,
         col_type: ColumnType,
-        ignore_missing: bool = False):
+        ignore_missing: bool = False,
+        no_cast: bool = False):
     # Convert the values of a column to the specified type
     values = []
     for doc in docs:
@@ -75,17 +76,17 @@ def _convert_values_to_type(
             if value is None:
                 doc[key] = value
                 continue
-
-            if col_type == ColumnType.INT:
-                doc[key] = int(value)
-            elif col_type == ColumnType.FLOAT:
-                doc[key] = float(value)
-            elif col_type == ColumnType.STRING:
-                doc[key] = str(value)
-            elif col_type == ColumnType.DATE:
-                doc[key] = _convert_to_iso8601(value)
-            else:
-                raise ValueError(f'casting not implemented for {col_type}')
+            if not no_cast:
+                if col_type == ColumnType.INT:
+                    doc[key] = int(value)
+                elif col_type == ColumnType.FLOAT:
+                    doc[key] = float(value)
+                elif col_type == ColumnType.STRING:
+                    doc[key] = str(value)
+                elif col_type == ColumnType.DATE:
+                    doc[key] = _convert_to_iso8601(value)
+                else:
+                    raise ValueError(f'casting not implemented for {col_type}')
 
             values.append(doc[key])
         except ValueError as e:
@@ -114,8 +115,12 @@ def process_columnar_meta(
     spec = load_spec(product_id, kbase_collection)
     columns = list()
     for col_spec in spec.columns:
-        key, col_type = col_spec.key, col_spec.type
-        values = _convert_values_to_type(docs, key, col_type, ignore_missing=ignore_missing)
+        key, col_type, no_cast = col_spec.key, col_spec.type, col_spec.no_cast
+        values = _convert_values_to_type(docs,
+                                         key,
+                                         col_type,
+                                         ignore_missing=ignore_missing,
+                                         no_cast=no_cast)
         min_value, max_value, enum_values = None, None, None
         if col_type in [ColumnType.INT, ColumnType.FLOAT, ColumnType.DATE]:
             if values:
