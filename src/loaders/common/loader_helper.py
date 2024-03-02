@@ -115,21 +115,20 @@ def process_columnar_meta(
     spec = load_spec(product_id, kbase_collection)
     columns = list()
     for col_spec in spec.columns:
-        key, col_type, no_cast = col_spec.key, col_spec.type, col_spec.no_cast
         values = _convert_values_to_type(docs,
-                                         key,
-                                         col_type,
+                                         col_spec.key,
+                                         col_spec.type,
                                          ignore_missing=ignore_missing,
-                                         no_cast=no_cast)
+                                         no_cast=col_spec.no_cast)
         min_value, max_value, enum_values = None, None, None
-        if col_type in [ColumnType.INT, ColumnType.FLOAT, ColumnType.DATE]:
+        if col_spec.type in [ColumnType.INT, ColumnType.FLOAT, ColumnType.DATE]:
             if values:
                 min_value, max_value = min(values), max(values)
             else:
                 # set min_value and max_value to None if all values from the column are None
                 min_value = max_value = None
 
-        elif col_type == ColumnType.ENUM:
+        elif col_spec.type == ColumnType.ENUM:
             enum_values = list(set(values))
             enum_values.sort()
 
