@@ -22,6 +22,7 @@ columns:
     display_name: Related KBase IDs
     category: Identifiers
     description:
+    no_cast: true
 
   - key: genome_count
     type: int
