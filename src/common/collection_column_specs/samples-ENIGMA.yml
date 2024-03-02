@@ -19,10 +19,10 @@ columns:
     type: string
     filter_strategy: identity
     non_visible: true
+    no_cast: true
     display_name: Related KBase IDs
     category: Identifiers
     description:
-    no_cast: true
 
   - key: genome_count
     type: int
