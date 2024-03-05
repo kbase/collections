@@ -303,11 +303,13 @@ def _upload_genomes_to_workspace(
         if not os.path.exists(local_assembly_path):
             raise ValueError(f"Assembly file {local_assembly_path} does not exist")
 
-        ncbi_source_data_dir = Path(genome_tuple.host_file_dir)
-        loader_helper.create_hardlink_between_files(ncbi_source_data_dir / container_assembly_path.name,
+        collection_source_data_dir = Path(genome_tuple.host_file_dir)
+        # this file is overwritten when a different GTDB version is uploaded.
+        fasta_file_name = container_assembly_path.name
+        loader_helper.create_hardlink_between_files(collection_source_data_dir / fasta_file_name,
                                                     local_assembly_path)
 
-        assembly_tuple = WSObjTuple(container_assembly_path.name, ncbi_source_data_dir, container_assembly_path)
+        assembly_tuple = WSObjTuple(fasta_file_name, collection_source_data_dir, container_assembly_path)
 
         upload_result = UploadResult(
             genome_obj_info=genome_obj_info,
