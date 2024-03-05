@@ -122,3 +122,9 @@ class UploadResult:
             and self.genome_tuple == other.genome_tuple
             and self.assembly_tuple == other.assembly_tuple
         )
+
+    def __repr__(self):
+        return (f"UploadResult(genome_obj_info={self.genome_obj_info}, "
+                f"assembly_obj_info={self.assembly_obj_info}, "
+                f"genome_tuple={self.genome_tuple}, "
+                f"assembly_tuple={self.assembly_tuple})")
