@@ -53,7 +53,7 @@ Note:
 
 * For usage instructions for each script, please refer to the help option (-h) of the script.
 * Default directory layout at NERSC
-    * source genome files: `/global/cfs/cdirs/kbase/collections/sourcedata/[kbase_collection]/[env]`
+    * source genome files: `/global/cfs/cdirs/kbase/collections/sourcedata/[NCBI/WS]/[env]`
     * collections source genome files: `/global/cfs/cdirs/kbase/collections/collectionssource/[env]/[kbase_collection]/[source_ver]`
     * computed genome files: `/global/cfs/cdirs/kbase/collections/collectionsdata/[env]/[kbase_collection]/[load_ver]/[tool_name]`
 * Under common use, all tools should be run at the same time in the script [parse_tool_results.py](../src/loaders/genome_collection/parse_tool_results.py) so that errors can be handled consistently

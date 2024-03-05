@@ -104,6 +104,46 @@
          ```text
          collectionssource/NONE/GTDB/[GTDB_release_ver]/[ncbi_genome_id]/
          ```
+   * Workspace Uploader
+     * Example usage
+        ```commandline
+        python src/loaders/workspace_uploader/workspace_uploader.py \
+          --workspace_id $workspace_id \
+          --kbase_collection $kbase_collection \
+          --source_ver $source_verion \
+          --env $env \
+          --token_filepath $token_filepath \
+          --au_service_ver $au_service_ver \
+          --load_id $load_id
+        ```
+     * Generated files/metafiles
+       * NCBI source data directory
+         ```text
+         sourcedata/NCBI/NONE/<genome_name>/<file_name>
+         ```
+         In this directory, we anticipate finding a GenBank file downloaded using the NCBI downloader script.
+            
+         Following a successful upload of a genome object, the GenomeFileUtil will generate an associated FASTA file 
+         linked to the assembly object, which will be originally stored in the job data directory. Subsequently, 
+         the script will establish a hardlink for the FASTA file in both the NCBI source directory and the corresponding 
+         workspace object directory. This script also creates an uploaded.yaml file in the NCBI source directory.
+       * WS source data directory
+         ```text
+         sourcedata/WS/[env]/[workspace_id]/[UPA]/[UPA].fa or [UPA].meta
+         ```
+         
+         In this directory, we anticipate finding exclusively a FASTA file and a metadata file. 
+         Those files are created upon successful upload of a genome object.
+
+       * Softlinks for collections
+         ```text
+         collectionssource/[env]/[kbase_collection]/[source_ver]/[UPA]/
+         ```
+       * KBase SDK job directory
+         ```text
+         sdk_job_dir/[username]/
+         ```
+         (preserved with `--keep_job_dir` option, otherwise removed automatically)
 ## Schedule Taskfarmer Jobs
    * Example usage
      ```commandline
