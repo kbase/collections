@@ -342,8 +342,8 @@ def test_upload_assembly_to_workspace(setup_and_teardown):
 
 def test_upload_genome_to_workspace(setup_and_teardown):
     params = setup_and_teardown
-    host_genome_dir = Path(params.sourcedata_dir) / "NewGenome"
-    host_genome_dir.mkdir(parents=True)
+    genome_coll_src_dir = Path(params.collection_source_dir) / "NewGenome"
+    genome_coll_src_dir.mkdir(parents=True)
     job_dir = Path(params.tmp_dir) / "kb/module/work/tmp"
     job_dir.mkdir(parents=True)
     shutil.copy(params.target_files[0], job_dir)
@@ -361,7 +361,7 @@ def test_upload_genome_to_workspace(setup_and_teardown):
                                                          "assembly_info": assembly_obj_info,
                                                          "genome_info": genome_obj_info}]}
     genome_tuple = workspace_uploader.WSObjTuple(
-        "genome_name", host_genome_dir, "/path/to/file/in/AssembilyUtil"
+        "genome_name", genome_coll_src_dir, "/path/to/file/in/AssembilyUtil"
     )
 
     with patch.object(workspace_uploader, '_JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER', new=job_dir):
@@ -371,7 +371,7 @@ def test_upload_genome_to_workspace(setup_and_teardown):
 
     expected_assembly_tuple = workspace_uploader.WSObjTuple(
         obj_name=ASSEMBLY_NAMES[0],
-        host_file_dir=host_genome_dir,
+        obj_coll_src_dir=genome_coll_src_dir,
         container_internal_file_dir=job_dir / ASSEMBLY_NAMES[0])
 
     expected_upload_results = [UploadResult(

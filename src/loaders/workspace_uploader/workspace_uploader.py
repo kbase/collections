@@ -303,7 +303,7 @@ def _upload_genomes_to_workspace(
         if not os.path.exists(local_assembly_path):
             raise ValueError(f"Assembly file {local_assembly_path} does not exist")
 
-        collection_source_data_dir = Path(genome_tuple.host_file_dir)
+        collection_source_data_dir = Path(genome_tuple.obj_coll_src_dir)
         # this file is overwritten when a different GTDB version is uploaded.
         fasta_file_name = container_assembly_path.name
         loader_helper.create_hardlink_between_files(collection_source_data_dir / fasta_file_name,
@@ -419,7 +419,7 @@ def _update_upload_status_yaml_file(
         upload_env_key,
         workspace_id,
         load_id,
-        obj_tuple.host_file_dir,
+        obj_tuple.obj_coll_src_dir,
         create_assembly_only=not genome_tuple,
     )
 
@@ -435,7 +435,7 @@ def _update_upload_status_yaml_file(
         _KEY_GENOME_FILENAME: genome_tuple.obj_name if genome_tuple else None,
     }
 
-    file_path = _get_yaml_file_path(obj_tuple.host_file_dir)
+    file_path = _get_yaml_file_path(obj_tuple.obj_coll_src_dir)
     with open(file_path, "w") as file:
         yaml.dump(data, file)
 
@@ -651,15 +651,15 @@ def _process_genome_objects(
     Post process on successful genome uploads.
     """
     # create hardlink for the FASTA file from NCBI source directory to the corresponding workspace object directory.
-    ncbi_src_assembly = Path(_get_source_file(assembly_tuple.host_file_dir, assembly_tuple.obj_name))
+    gtdb_coll_src_assembly = Path(_get_source_file(assembly_tuple.obj_coll_src_dir, assembly_tuple.obj_name))
     ws_source_data_dir = os.path.join(source_data_dir, assembly_upa)
     os.makedirs(ws_source_data_dir, exist_ok=True)
 
-    suffixes = ncbi_src_assembly.suffixes
+    suffixes = gtdb_coll_src_assembly.suffixes
     # TODO - handle extension other than .gz
     dest_suffix = suffixes[-1] if suffixes[-1] != ".gz" else "".join(suffixes[-2:])
     ws_src_assembly = os.path.join(ws_source_data_dir, f"{assembly_upa}{dest_suffix}")
-    loader_helper.create_hardlink_between_files(ws_src_assembly, ncbi_src_assembly)
+    loader_helper.create_hardlink_between_files(ws_src_assembly, gtdb_coll_src_assembly)
 
     # create metadata file used by parser
     loader_helper.create_meta_file(source_data_dir, assembly_upa, assembly_obj_info, genome_obj_info)
