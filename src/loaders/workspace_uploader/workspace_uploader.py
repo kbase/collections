@@ -304,7 +304,8 @@ def _upload_genomes_to_workspace(
             raise ValueError(f"Assembly file {local_assembly_path} does not exist")
 
         collection_source_data_dir = Path(genome_tuple.obj_coll_src_dir)
-        # this file is overwritten when a different GTDB version is uploaded.
+        # TODO: this file is overwritten when a different GTDB version is uploaded.
+        #  If this poses a concern, we should revisit and update file_name here and logic for writing to the upload.yaml file.
         fasta_file_name = container_assembly_path.name
         loader_helper.create_hardlink_between_files(collection_source_data_dir / fasta_file_name,
                                                     local_assembly_path)
@@ -650,7 +651,7 @@ def _process_genome_objects(
     """
     Post process on successful genome uploads.
     """
-    # create hardlink for the FASTA file from NCBI source directory to the corresponding workspace object directory.
+    # create hardlink for the FASTA file from GTDB collection source directory to the corresponding workspace object directory.
     gtdb_coll_src_assembly = Path(_get_source_file(assembly_tuple.obj_coll_src_dir, assembly_tuple.obj_name))
     ws_source_data_dir = os.path.join(source_data_dir, assembly_upa)
     os.makedirs(ws_source_data_dir, exist_ok=True)
