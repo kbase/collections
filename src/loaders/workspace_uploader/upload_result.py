@@ -1,4 +1,5 @@
 from collections import namedtuple
+from types import NotImplementedType
 from typing import Any
 
 from src.common.common_helper import obj_info_to_upa
@@ -110,7 +111,7 @@ class UploadResult:
         """
         return self._assembly_tuple
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other) -> bool | NotImplementedType:
         """
         Checks if two UploadResult objects are equal.
         """
