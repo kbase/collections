@@ -110,7 +110,7 @@ class UploadResult:
         """
         return self._assembly_tuple
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool | NotImplemented:
         """
         Checks if two UploadResult objects are equal.
         """
@@ -125,7 +125,7 @@ class UploadResult:
                                          other.genome_tuple,
                                          other.assembly_tuple]
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (f"UploadResult(genome_obj_info={self.genome_obj_info}, "
                 f"assembly_obj_info={self.assembly_obj_info}, "
                 f"genome_tuple={self.genome_tuple}, "

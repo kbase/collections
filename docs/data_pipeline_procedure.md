@@ -122,7 +122,7 @@
          sourcedata/NCBI/NONE/<genome_name>/<file_name>
          ```
          In this directory, we originally anticipated finding a GenBank file downloaded using the NCBI downloader script.
-         As this directory is softlinked to the corresponding GTDB collection source directory, we also anticipate the 
+         As this directory is softlinked to the corresponding collection source directory, we also anticipate the 
          presence of a FASTA file and an uploaded.yaml file upon the successful upload of a genome object.
 
        * WS source data directory
@@ -131,20 +131,20 @@
          ```
          In this directory, we anticipate finding exclusively a FASTA file and a metadata file.
          This script generates the metadata file upon the successful upload of a genome object and hardlinks the FASTA file
-         from the GTDB collection source directory.
+         from the collection source directory.
      
          The workspace source directory will eventually be linked as a soft link to the corresponding workspace 
          collection source directory.
 
        * Softlinks for collections
          ```text
-         collectionssource/NONE/GTDB/[source_ver]/[GTDB_genome_id]/
-         collectionssource/[env]/GTDB/[source_ver]/[UPA]/
+         collectionssource/NONE/[kbase_collection]/[source_ver]/[genome_id]/
+         collectionssource/[env]/[kbase_collection]/[source_ver]/[UPA]/
          ```
          Following a successful upload of a genome object, the GenomeFileUtil will generate an associated FASTA file
          linked to the assembly object, which will be originally stored in the job data directory. Subsequently, the script will
-         establish a hardlink for the FASTA file in both the GTDB collection source directory and the corresponding workspace object
-         source directory. In addition, this script creates an uploaded.yaml file in the GTDB collection source directory.
+         establish a hardlink for the FASTA file in both the collection source directory and the corresponding workspace object
+         source directory. In addition, this script creates an uploaded.yaml file in the collection source directory.
          
 
        * KBase SDK job directory
