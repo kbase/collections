@@ -121,9 +121,10 @@
          ```text
          sourcedata/NCBI/NONE/<genome_name>/<file_name>
          ```
-         In this directory, we originally anticipated finding a GenBank file downloaded using the NCBI downloader script.
-         As this directory is softlinked to the corresponding collection source directory, we also anticipate the 
-         presence of a FASTA file and an uploaded.yaml file upon the successful upload of a genome object.
+        Prior to running the workspace uploader, these directories should contain a GenBank file downloaded
+        using the NCBI downloader script.
+        A softlink is created by the downloader from the appropriate `collectionssource` directory (see below),
+        and when an upload is complete a FASTA file and an `uploaded.yaml` file should be present.
 
        * WS source data directory
          ```text
