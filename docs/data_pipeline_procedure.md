@@ -159,7 +159,6 @@
          uploaded.yaml file in the collection source directory containing the data to upload (the NONE
          environment directory) and a meta.yaml file in the uploaded data collection source directory
          (the directory with an environment and UPA).
-         
 
        * KBase SDK job directory
          ```text
