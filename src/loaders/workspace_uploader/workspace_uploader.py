@@ -690,6 +690,7 @@ def _process_failed_uploads(
 
         batch_uploaded_genome_tuples = [name2tuple[info[1]] for info in uploaded_genome_obj_infos]
         # TODO: In case of missing assembly_tuple, we need to build it.
+        # TODO: download assembly files for successful uploads and store in standard places
         for (genome_obj_info,
              assembly_obj_info,
              genome_tuple) in zip(uploaded_genome_obj_infos,
