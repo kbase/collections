@@ -132,6 +132,10 @@
          In this directory, we anticipate finding exclusively a FASTA file and a metadata file.
          This script generates the metadata file upon the successful upload of a genome object and hardlinks the FASTA file
          from the GTDB collection source directory.
+     
+         The workspace source directory will eventually be linked as a soft link to the corresponding workspace 
+         collection source directory.
+
        * Softlinks for collections
          ```text
          collectionssource/NONE/GTDB/[source_ver]/[GTDB_genome_id]/
@@ -141,6 +145,7 @@
          linked to the assembly object, which will be originally stored in the job data directory. Subsequently, the script will
          establish a hardlink for the FASTA file in both the GTDB collection source directory and the corresponding workspace object
          source directory. In addition, this script creates an uploaded.yaml file in the GTDB collection source directory.
+         
 
        * KBase SDK job directory
          ```text
