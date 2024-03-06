@@ -130,12 +130,10 @@
          ```text
          sourcedata/WS/[env]/[workspace_id]/[UPA]/[UPA].fa or [UPA].meta
          ```
-         In this directory, we anticipate finding exclusively a FASTA file and a metadata file.
-         This script generates the metadata file upon the successful upload of a genome object and hardlinks the FASTA file
-         from the collection source directory.
-     
-         The workspace source directory will eventually be linked as a soft link to the corresponding workspace 
-         collection source directory.
+         After an upload is complete, these directories should contain a FASTA file and a metadata file.
+         This script generates the metadata file upon the successful upload of a genome object. 
+         The FASTA file is hardlinked into the corresponding `collectionssource`directory, which is a
+         softlink to a `sourcedata/WS` directory.
 
        * Softlinks for collections
          ```text
