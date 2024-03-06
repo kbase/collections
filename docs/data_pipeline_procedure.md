@@ -140,10 +140,25 @@
          collectionssource/NONE/[kbase_collection]/[source_ver]/[genome_id]/
          collectionssource/[env]/[kbase_collection]/[source_ver]/[UPA]/
          ```
-         Following a successful upload of a genome object, the GenomeFileUtil will generate an associated FASTA file
-         linked to the assembly object, which will be originally stored in the job data directory. Subsequently, the script will
-         establish a hardlink for the FASTA file in both the collection source directory and the corresponding workspace object
-         source directory. In addition, this script creates an uploaded.yaml file in the collection source directory.
+         These directories are subsets of the `sourcedir` directories - currently either the `NCBI` directory
+         or the `WS` directory. More data source directories may be added in future.
+         The environment parameter `[env]` is one of the KBase environments, either `CI`, `NEXT`,
+         `APPDEV`, or `PROD`, if the data source is from KBase. Otherwise the environment is `NONE`
+         for non-KBase sources (currently only NCBI).
+         
+         The directories are always softlinks into the `sourcedir` directory structure. Effectively `sourcedir`
+         acts like a cache, and establishing a new collection or new version of a collection just requires
+         fetching any data that does not yet exist in `sourcedir` and then softlinking the `sourcedir` directories
+         that are part of the collection. This prevents storing duplicate data that is otherwise shared between
+         collections or collection versions.
+
+         Following a successful upload of a genome object, the GenomeFileUtil will generate an associated
+         FASTA file linked to the assembly object, which will be originally stored in the job data directory.
+         Subsequently, the script will establish a hardlink for the FASTA file in both the collection source
+         directory and the corresponding workspace object source directory. In addition, this script creates an
+         uploaded.yaml file in the collection source directory containing the data to upload (the NONE
+         environment directory) and a meta.yaml file in the uploaded data collection source directory
+         (the directory with an environment and UPA).
          
 
        * KBase SDK job directory
