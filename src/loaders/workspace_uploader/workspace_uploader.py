@@ -53,40 +53,8 @@ optional arguments:
 e.g.
 PYTHONPATH=. python src/loaders/workspace_uploader/workspace_uploader.py --workspace_id 69046 --kbase_collection GTDB --source_ver 207 --env CI --keep_job_dir
 
-NOTE:
-NERSC file structure:
-
-Job data directory:
-A temporary job directory for KBase SDK jobs. For more information, see make_job_data_dir in src/loaders/common/loader_helper.py
-/root_dir/sdk_job_dir/<user_id>/<uuid>/workdir/tmp
-
-Source data directory:
-The directory where the original data files are housed.
-
-For files obtained from the workspace, the storage structure is as follows:
-/root_dir/sourcedata/WS/<env>/<workspace_id>/<UPA>/<file_name>
-
-In this directory, we anticipate finding exclusively a FASTA file and a metadata file. Those files can be created by
-the workspace downloader script or by this script upon successful upload of a genome object.
-
-For files obtained from NCBI, the storage structure is as follows:
-/root_dir/sourcedata/NCBI/NONE/<genome_name>/<file_name>
-
-In this directory, we anticipate finding a GenBank file downloaded using the NCBI downloader script.
-
-Following a successful upload of a genome object, the GenomeFileUtil will generate an associated FASTA file
-linked to the assembly object, which will be originally stored in the job data directory. Subsequently, the script will
-establish a hardlink for the FASTA file in both the NCBI source directory and the corresponding workspace object
-directory. This script also creates an uploaded.yaml file in the NCBI source directory.
-
-Additionally, the script will create a metadata file in the workspace object directory, encompassing both the
-Assembly and Genome object information.
-
-Collection source directory:
-The workspace object directory, originating from the source data directory, will ultimately be connected through
-a soft link to the collections source directory which will be used by tools such as GTDB-TK, checkm, etc.
-
-/root_dir/collectionssource/<env>/<kbase_collection>/<source_ver>/<UPA>/<file_name>
+For more information regarding file structure, please refer to the 'Workspace Uploader' section in the documentation
+at docs/data_pipeline_procedure.md.
 """
 
 import argparse

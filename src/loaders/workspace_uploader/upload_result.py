@@ -8,16 +8,17 @@ from src.common.common_helper import obj_info_to_upa
 #  This is okay for now as we are currently focusing solely on Genome/Assembly uploads and not a combination of both.
 # i.g. assembly object name: 'GCF_000979555.1_gtlEnvA5udCFS_genomic.gbff.gz_assembly'
 #      downloaded fasta file name: 'GCF_000979555.1_gtlEnvA5udCFS_genomic.gbff.gz_assembly.fasta'
+
+WSObjTuple = namedtuple(
+    "WSObjTuple",
+    ["obj_name", "obj_coll_src_dir", "container_internal_file_dir"],
+)
 """
 WSObjTuple is a named tuple that contains the following fields:
 - obj_name: the name of the object (in many cases, also serves as the file name)
 - obj_coll_src_dir: the directory of the associated file in the collection source directory
 - container_internal_file_dir: the directory of the associated file in the docker container
 """
-WSObjTuple = namedtuple(
-    "WSObjTuple",
-    ["obj_name", "obj_coll_src_dir", "container_internal_file_dir"],
-)
 
 
 class UploadResult:
@@ -114,14 +115,15 @@ class UploadResult:
         Checks if two UploadResult objects are equal.
         """
         if not isinstance(other, UploadResult):
-            return False
+            return NotImplemented
 
-        return (
-            self.genome_obj_info == other.genome_obj_info
-            and self.assembly_obj_info == other.assembly_obj_info
-            and self.genome_tuple == other.genome_tuple
-            and self.assembly_tuple == other.assembly_tuple
-        )
+        return [self.genome_obj_info,
+                self.assembly_obj_info,
+                self.genome_tuple,
+                self.assembly_tuple] == [other.genome_obj_info,
+                                         other.assembly_obj_info,
+                                         other.genome_tuple,
+                                         other.assembly_tuple]
 
     def __repr__(self):
         return (f"UploadResult(genome_obj_info={self.genome_obj_info}, "
