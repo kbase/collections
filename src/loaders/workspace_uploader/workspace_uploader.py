@@ -307,6 +307,9 @@ def _upload_genomes_to_workspace(
         # TODO: this file is overwritten when a different GTDB version is uploaded.
         #  If this poses a concern, we should revisit and update file_name here and logic for writing to the upload.yaml file.
         fasta_file_name = container_assembly_path.name
+        # links the assemly file created by GFU into the collectionsource directory that is the upload data source
+        # for example:
+        #  root/collectionssource/NONE/GTDB/v214/<genome_id>/<assembly file name>
         loader_helper.create_hardlink_between_files(collection_source_data_dir / fasta_file_name,
                                                     local_assembly_path)
 
