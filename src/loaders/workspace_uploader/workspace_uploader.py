@@ -624,15 +624,15 @@ def _process_genome_objects(
     """
     # create hardlink for the FASTA file from upload data collection source directory (e.g. GTDB)
     # to the corresponding workspace object directory.
-    gtdb_coll_src_assembly = Path(_get_source_file(assembly_tuple.obj_coll_src_dir, assembly_tuple.obj_name))
+    coll_src_assembly = Path(_get_source_file(assembly_tuple.obj_coll_src_dir, assembly_tuple.obj_name))
     ws_source_data_dir = os.path.join(source_data_dir, assembly_upa)
     os.makedirs(ws_source_data_dir, exist_ok=True)
 
-    suffixes = gtdb_coll_src_assembly.suffixes
+    suffixes = coll_src_assembly.suffixes
     # TODO - handle extension other than .gz
     dest_suffix = suffixes[-1] if suffixes[-1] != ".gz" else "".join(suffixes[-2:])
     ws_src_assembly = os.path.join(ws_source_data_dir, f"{assembly_upa}{dest_suffix}")
-    loader_helper.create_hardlink_between_files(ws_src_assembly, gtdb_coll_src_assembly)
+    loader_helper.create_hardlink_between_files(ws_src_assembly, coll_src_assembly)
 
     # create metadata file used by parser
     loader_helper.create_meta_file(source_data_dir, assembly_upa, assembly_obj_info, genome_obj_info)
