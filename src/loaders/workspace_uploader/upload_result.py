@@ -110,7 +110,7 @@ class UploadResult:
         """
         return self._assembly_tuple
 
-    def __eq__(self, other) -> bool | NotImplemented:
+    def __eq__(self, other) -> bool:
         """
         Checks if two UploadResult objects are equal.
         """
