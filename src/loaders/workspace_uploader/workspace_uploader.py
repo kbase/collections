@@ -622,7 +622,8 @@ def _process_genome_objects(
     """
     Post process on successful genome uploads.
     """
-    # create hardlink for the FASTA file from GTDB collection source directory to the corresponding workspace object directory.
+    # create hardlink for the FASTA file from upload data collection source directory (e.g. GTDB)
+    # to the corresponding workspace object directory.
     gtdb_coll_src_assembly = Path(_get_source_file(assembly_tuple.obj_coll_src_dir, assembly_tuple.obj_name))
     ws_source_data_dir = os.path.join(source_data_dir, assembly_upa)
     os.makedirs(ws_source_data_dir, exist_ok=True)
