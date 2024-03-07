@@ -451,6 +451,8 @@ def test_upload_genome_to_workspace(setup_and_teardown):
     container_dir.mkdir(parents=True)
     shutil.copy(params.target_files[0], container_dir)
 
+    genome_container_file = container_dir / genome_name  # the existence of this file is not checked in the test
+
     genome_obj_info = GENOME_OBJ_INFOS[0]
     assembly_obj_info = ASSEMBLY_OBJ_INFOS[0]
 
@@ -461,7 +463,7 @@ def test_upload_genome_to_workspace(setup_and_teardown):
                                                          "assembly_info": assembly_obj_info,
                                                          "genome_info": genome_obj_info}]}
     genome_tuple = workspace_uploader.WSObjTuple(
-        genome_name, genome_coll_src_dir, container_dir
+        genome_name, genome_coll_src_dir, genome_container_file
     )
 
     with patch.object(workspace_uploader, '_JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER', new=container_dir):
@@ -487,7 +489,7 @@ def test_upload_genome_to_workspace(setup_and_teardown):
             "workspace_id": 12345,
             "inputs": [
                 {
-                    "file": {"path": container_dir},
+                    "file": {"path": genome_container_file},
                     "genome_name": genome_name,
                     "metadata": {"load_id": "214"},
                 }
@@ -626,8 +628,8 @@ def test_upload_genome_files_in_parallel(setup_and_teardown):
     assert (os.readlink(os.path.join(collection_source_dir, assembly_dirs[0]))
             == os.path.join(sourcedata_dir, assembly_dirs[0]))
 
-    assert (os.readlink(os.path.join(collection_source_dir, assembly_dirs[0]))
-            == os.path.join(sourcedata_dir, assembly_dirs[0]))
+    assert (os.readlink(os.path.join(collection_source_dir, assembly_dirs[1]))
+            == os.path.join(sourcedata_dir, assembly_dirs[1]))
 
     # check hardlink for post_process
     assert os.path.samefile(
