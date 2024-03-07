@@ -11,6 +11,7 @@ import pytest
 from src.clients.AssemblyUtilClient import AssemblyUtil
 from src.clients.GenomeFileUtilClient import GenomeFileUtil
 from src.clients.workspaceClient import Workspace
+from src.common.common_helper import obj_info_to_upa
 from src.loaders.common import loader_helper
 from src.loaders.workspace_uploader import workspace_uploader
 from src.loaders.workspace_uploader.upload_result import UploadResult
@@ -23,6 +24,106 @@ ASSEMBLY_NAMES = [
 GEMOME_NAMES = [
     "GCF_000979855.1_gtlEnvA5udCFS_genomic.gbff.gz",
     "GCF_000979175.1_gtlEnvA5udCFS_genomic.gbff.gz",
+]
+ASSEMBLY_OBJ_INFOS = [
+    [
+        60,
+        ASSEMBLY_NAMES[0],
+        "KBaseGenomeAnnotations.Assembly-6.3",
+        "2024-03-01T18:47:59+0000",
+        1,
+        "tgu2",
+        72231,
+        "tgu2:narrative_1706737132837",
+        "11d4f238f1fc4ce420322c999cb7e879",
+        53669,
+        {
+            "GC content": "0.41622",
+            "Size": "4078931",
+            "N Contigs": "185",
+            "MD5": "a26f200923f8c860f86a8d728055fd02"
+        }
+    ],
+    [
+        7,
+        ASSEMBLY_NAMES[1],
+        "KBaseGenomeAnnotations.Assembly-6.3",
+        "2024-03-01T18:18:45+0000",
+        2,
+        "tgu2",
+        72231,
+        "tgu2:narrative_1706737132837",
+        "957989f1b48d713ee95dc388807ea54f",
+        914,
+        {
+            "GC content": "0.5207",
+            "Size": "10000",
+            "N Contigs": "1",
+            "MD5": "a049c3e96aabd0821b83715bf0ca4250"
+        }
+    ]
+]
+GENOME_OBJ_INFOS = [
+    [
+        61,
+        GEMOME_NAMES[0],
+        "KBaseGenomes.Genome-17.2",
+        "2024-03-01T18:49:15+0000",
+        1,
+        "tgu2",
+        72231,
+        "tgu2:narrative_1706737132837",
+        "6b981d906e956afbb93c678ce12839cf",
+        12205456,
+        {
+            "load_id": "1",
+            "Taxonomy": "Unconfirmed Organism",
+            "Size": "4078931",
+            "Source": "Genbank",
+            "Name": "Methanosarcina mazei",
+            "GC content": "0.41622",
+            "Genetic code": "11",
+            "Suspect Genome": "1",
+            "Number of Genome Level Warnings": "16",
+            "Source ID": "NZ_JJPE01000015",
+            "Number of Protein Encoding Genes": "3475",
+            "Assembly Object": "72231/60/1",
+            "Number contigs": "185",
+            "Domain": "Unknown",
+            "Number of CDS": "3475",
+            "MD5": "a26f200923f8c860f86a8d728055fd02"
+        }
+    ],
+    [
+        8,
+        GEMOME_NAMES[1],
+        "KBaseGenomes.Genome-17.2",
+        "2024-03-01T18:19:14+0000",
+        2,
+        "tgu2",
+        72231,
+        "tgu2:narrative_1706737132837",
+        "2f8ccd9828c55f6d59d33315c7ceb60e",
+        15742,
+        {
+            "Taxonomy": "Unconfirmed Organism",
+            "Size": "10000",
+            "Source": "RefSeq",
+            "Name": "Escherichia coli str. K-12 substr. MG1655",
+            "GC content": "0.5207",
+            "Genetic code": "11",
+            "Suspect Genome": "1",
+            "Number of Genome Level Warnings": "2",
+            "Source ID": "NC_000913",
+            "Number of Protein Encoding Genes": "3",
+            "Assembly Object": "72231/7/2",
+            "Number contigs": "1",
+            "Domain": "Unknown",
+            "Number of CDS": "3",
+            "Genome Type": "draft isolate",
+            "MD5": "a049c3e96aabd0821b83715bf0ca4250"
+        }
+    ]
 ]
 
 
@@ -342,37 +443,36 @@ def test_upload_assembly_to_workspace(setup_and_teardown):
 
 def test_upload_genome_to_workspace(setup_and_teardown):
     params = setup_and_teardown
-    genome_coll_src_dir = Path(params.collection_source_dir) / "NewGenome"
+    genome_name = GEMOME_NAMES[0]
+    assembly_name = ASSEMBLY_NAMES[0]
+    genome_coll_src_dir = Path(params.collection_source_dir) / genome_name
     genome_coll_src_dir.mkdir(parents=True)
-    job_dir = Path(params.tmp_dir) / "kb/module/work/tmp"
-    job_dir.mkdir(parents=True)
-    shutil.copy(params.target_files[0], job_dir)
+    container_dir = Path(params.tmp_dir) / "kb/module/work/tmp"
+    container_dir.mkdir(parents=True)
+    shutil.copy(params.target_files[0], container_dir)
 
-    load_id = "214"
-    genome_obj_info = [1, 'genome_1', 'KBaseGenomes.Genome-6', 'time', 58, 'user', 12345, 'wsname',
-                       'md5', 78, {"load_id": load_id, "Assembly Object": "1/1/1"}]
-    assembly_obj_info = [1, 'assembly_1', 'KBaseGenomeAnnotations.Assembly-6', 'time', 59, 'user', 12345, 'wsname',
-                         'md5', 78, {'foo': 'bar'}]
+    genome_obj_info = GENOME_OBJ_INFOS[0]
+    assembly_obj_info = ASSEMBLY_OBJ_INFOS[0]
 
     gfu = create_autospec(GenomeFileUtil, spec_set=True, instance=True)
-    gfu.genbanks_to_genomes.return_value = {"results": [{"genome_ref": "12345/1/58",
-                                                         "assembly_ref": "12345/1/59",
-                                                         "assembly_path": job_dir / ASSEMBLY_NAMES[0],
+    gfu.genbanks_to_genomes.return_value = {"results": [{"genome_ref": "72231/61/1",
+                                                         "assembly_ref": "72231/60/1",
+                                                         "assembly_path": container_dir / assembly_name,
                                                          "assembly_info": assembly_obj_info,
                                                          "genome_info": genome_obj_info}]}
     genome_tuple = workspace_uploader.WSObjTuple(
-        "genome_name", genome_coll_src_dir, "/path/to/file/in/AssembilyUtil"
+        genome_name, genome_coll_src_dir, container_dir
     )
 
-    with patch.object(workspace_uploader, '_JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER', new=job_dir):
+    with patch.object(workspace_uploader, '_JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER', new=container_dir):
         upload_results = workspace_uploader._upload_genomes_to_workspace(
-            gfu, 12345, "214", [genome_tuple], job_dir
+            gfu, 12345, "214", [genome_tuple], container_dir
         )
 
     expected_assembly_tuple = workspace_uploader.WSObjTuple(
-        obj_name=ASSEMBLY_NAMES[0],
+        obj_name=assembly_name,
         obj_coll_src_dir=genome_coll_src_dir,
-        container_internal_file_dir=job_dir / ASSEMBLY_NAMES[0])
+        container_internal_file_dir=container_dir / assembly_name)
 
     expected_upload_results = [UploadResult(
         assembly_obj_info=assembly_obj_info,
@@ -387,12 +487,18 @@ def test_upload_genome_to_workspace(setup_and_teardown):
             "workspace_id": 12345,
             "inputs": [
                 {
-                    "file": {"path": genome_tuple.container_internal_file_dir},
-                    "genome_name": genome_tuple.obj_name,
+                    "file": {"path": container_dir},
+                    "genome_name": genome_name,
                     "metadata": {"load_id": "214"},
                 }
             ]
         }
+    )
+
+    # check hardlink for associated FASTA file
+    assert os.path.samefile(
+        genome_coll_src_dir / assembly_name,
+        container_dir / assembly_name
     )
 
 
@@ -427,38 +533,29 @@ def test_upload_genome_files_in_parallel(setup_and_teardown):
     params = setup_and_teardown
     collection_source_dir = params.collection_source_dir
     sourcedata_dir = params.sourcedata_dir
-    src_files = params.target_files
+    # Source files here are the assembly files, which are normally produced by GFU.
+    # This test fakes that process by placing them in the container job directory in the setup below
+    assembly_files = params.target_files
     genbank_files = params.genbank_files
-    genome_names = ["NewGenome1", "NewGenome2"]
+    genome_ids = ["GCF_000979115.1", "GCF_000979555.1"]
     genome_collection_source_dirs = list()
-    for genome_name, genbank_file in zip(genome_names, genbank_files):
-        genome_source_data_dir = sourcedata_dir / genome_name
+    for genome_id, genbank_file in zip(genome_ids, genbank_files):
+        genome_source_data_dir = sourcedata_dir / genome_id
         genome_source_data_dir.mkdir(parents=True)
         shutil.copy(genbank_file, genome_source_data_dir)
         os.symlink(
-            genome_source_data_dir.resolve(), collection_source_dir / genome_name, target_is_directory=True
+            genome_source_data_dir.resolve(), collection_source_dir / genome_id, target_is_directory=True
         )
-        genome_collection_source_dirs.append(collection_source_dir / genome_name)
+        genome_collection_source_dirs.append(collection_source_dir / genome_id)
 
-    job_dir = Path(params.tmp_dir) / "kb/module/work/tmp"
-    job_dir.mkdir(parents=True)
-    # copy the source files to the job_dir
-    for src_file in src_files:
-        shutil.copy(src_file, job_dir)
+    container_dir = Path(params.tmp_dir) / "kb/module/work/tmp"
+    container_dir.mkdir(parents=True)
+    # copy the assembly files to the container_dir
+    for assembly_file in assembly_files:
+        shutil.copy(assembly_file, container_dir)
 
-    load_id = "214"
-
-    assembly_obj_infos = [
-        [1, 'assembly_1', 'KBaseGenomeAnnotations.Assembly-6', 'time', 1, 'user', 42, 'wsname', 'md5', 78, {'foo': 'bar'}],
-        [2, 'assembly_2', 'KBaseGenomeAnnotations.Assembly-10', 'time', 1, 'user', 42, 'wsname', 'md5', 78, {}]
-    ]
-
-    genome_obj_infos = [
-        [3, 'genome_1', 'KBaseGenomes.Genome-6', 'time', 1, 'user', 42, 'wsname', 'md5', 78,
-         {"load_id": load_id, "Assembly Object": "1/1/1"}],
-        [4, 'genome_2', 'KBaseGenomes.Genome-9.3', 'time', 1, 'user', 42, 'wsname', 'md5', 78,
-         {"load_id": load_id, "Assembly Object": "2/2"}]
-    ]
+    assembly_refs = [obj_info_to_upa(info) for info in ASSEMBLY_OBJ_INFOS]
+    genome_refs = [obj_info_to_upa(info) for info in GENOME_OBJ_INFOS]
 
     wait_to_upload_genomes = {
         genome_name: genome_dir
@@ -469,24 +566,24 @@ def test_upload_genome_files_in_parallel(setup_and_teardown):
     ws = create_autospec(Workspace, spec_set=True, instance=True)
     gfu = create_autospec(GenomeFileUtil, spec_set=True, instance=True)
     genbanks_to_genomes_results = {
-        "results": [{"genome_ref": "42/3/1",
-                     "assembly_ref": "42/1/1",
-                     "assembly_path": job_dir / ASSEMBLY_NAMES[0],
-                     "assembly_info": assembly_obj_infos[0],
-                     "genome_info": genome_obj_infos[0]},
-                    {"genome_ref": "42/4/1",
-                     "assembly_ref": "42/2/1",
-                     "assembly_path": job_dir / ASSEMBLY_NAMES[1],
-                     "assembly_info": assembly_obj_infos[1],
-                     "genome_info": genome_obj_infos[1]}]
+        "results": [{"genome_ref": genome_refs[0],
+                     "assembly_ref": assembly_refs[0],
+                     "assembly_path": container_dir / ASSEMBLY_NAMES[0],
+                     "assembly_info": ASSEMBLY_OBJ_INFOS[0],
+                     "genome_info": GENOME_OBJ_INFOS[0]},
+                    {"genome_ref": genome_refs[1],
+                     "assembly_ref": assembly_refs[1],
+                     "assembly_path": container_dir / ASSEMBLY_NAMES[1],
+                     "assembly_info": ASSEMBLY_OBJ_INFOS[1],
+                     "genome_info": GENOME_OBJ_INFOS[1]}]
     }
     gfu.genbanks_to_genomes.return_value = genbanks_to_genomes_results
 
-    with patch.object(workspace_uploader, '_JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER', new=job_dir):
+    with patch.object(workspace_uploader, '_JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER', new=container_dir):
         uploaded_count = workspace_uploader._upload_objects_in_parallel(
             ws=ws,
             upload_env_key="CI",
-            workspace_id=42,
+            workspace_id=72231,
             load_id="214",
             collections_source_dir=collection_source_dir,
             wait_to_upload_objs=wait_to_upload_genomes,
@@ -494,7 +591,7 @@ def test_upload_genome_files_in_parallel(setup_and_teardown):
             source_data_dir=sourcedata_dir,
             asu_client=Mock(),
             gfu_client=gfu,
-            job_data_dir=job_dir,
+            job_data_dir=container_dir,
             upload_assembly_only=False,
         )
 
@@ -506,15 +603,15 @@ def test_upload_genome_files_in_parallel(setup_and_teardown):
     # assert that asu was called correctly
     gfu.genbanks_to_genomes.assert_called_once_with(
         {
-            "workspace_id": 42,
+            "workspace_id": 72231,
             "inputs": [
                 {
-                    "file": {"path": f"{job_dir}/GCF_000979855.1_gtlEnvA5udCFS_genomic.gbff.gz"},
+                    "file": {"path": f"{container_dir}/GCF_000979855.1_gtlEnvA5udCFS_genomic.gbff.gz"},
                     "genome_name": "GCF_000979855.1_gtlEnvA5udCFS_genomic.gbff.gz",
                     "metadata": {"load_id": "214"},
                 },
                 {
-                    "file": {"path": f"{job_dir}/GCF_000979175.1_gtlEnvA5udCFS_genomic.gbff.gz"},
+                    "file": {"path": f"{container_dir}/GCF_000979175.1_gtlEnvA5udCFS_genomic.gbff.gz"},
                     "genome_name": "GCF_000979175.1_gtlEnvA5udCFS_genomic.gbff.gz",
                     "metadata": {"load_id": "214"},
                 }
@@ -522,53 +619,55 @@ def test_upload_genome_files_in_parallel(setup_and_teardown):
         }
     )
 
+    assembly_dirs = [obj_info_to_upa(info, underscore_sep=True) for info in ASSEMBLY_OBJ_INFOS]
+    genome_dirs = [obj_info_to_upa(info, underscore_sep=True) for info in GENOME_OBJ_INFOS]
+
     # check softlink for post_process
-    assert os.readlink(os.path.join(collection_source_dir, "42_1_1")) == os.path.join(
-        sourcedata_dir, "42_1_1"
-    )
-    assert os.readlink(os.path.join(collection_source_dir, "42_2_1")) == os.path.join(
-        sourcedata_dir, "42_2_1"
-    )
+    assert (os.readlink(os.path.join(collection_source_dir, assembly_dirs[0]))
+            == os.path.join(sourcedata_dir, assembly_dirs[0]))
+
+    assert (os.readlink(os.path.join(collection_source_dir, assembly_dirs[0]))
+            == os.path.join(sourcedata_dir, assembly_dirs[0]))
 
     # check hardlink for post_process
     assert os.path.samefile(
         genome_collection_source_dirs[0] / ASSEMBLY_NAMES[0],
-        os.path.join(sourcedata_dir, "42_1_1", "42_1_1.fna.gz")
+        os.path.join(sourcedata_dir, assembly_dirs[0], f"{assembly_dirs[0]}.fna.gz")
     )
 
     assert os.path.samefile(
         genome_collection_source_dirs[1] / ASSEMBLY_NAMES[1],
-        os.path.join(sourcedata_dir, "42_2_1", "42_2_1.fna.gz")
+        os.path.join(sourcedata_dir, assembly_dirs[1], f"{assembly_dirs[1]}.fna.gz")
     )
 
     # check metadata file
-    metadata_file = sourcedata_dir / "42_1_1" / "42_1_1.meta"
+    metadata_file = sourcedata_dir / assembly_dirs[0] / f"{assembly_dirs[0]}.meta"
     with open(metadata_file, 'r') as file:
         data = json.load(file)
 
     expected_metadata = {
-        'upa': '42/1/1',
-        'name': 'assembly_1',
-        'timestamp': 'time',
-        'type': 'KBaseGenomeAnnotations.Assembly-6',
-        'genome_upa': '42/3/1',
-        'assembly_object_info': assembly_obj_infos[0],
-        'genome_object_info': genome_obj_infos[0]
+        'upa': assembly_refs[0],
+        'name': ASSEMBLY_NAMES[0],
+        'timestamp': ASSEMBLY_OBJ_INFOS[0][3],
+        'type': ASSEMBLY_OBJ_INFOS[0][2],
+        'genome_upa': genome_refs[0],
+        'assembly_object_info': ASSEMBLY_OBJ_INFOS[0],
+        'genome_object_info': GENOME_OBJ_INFOS[0]
     }
     assert data == expected_metadata
 
-    metadata_file = sourcedata_dir / "42_2_1" / "42_2_1.meta"
+    metadata_file = sourcedata_dir / assembly_dirs[1] / f"{assembly_dirs[1]}.meta"
     with open(metadata_file, 'r') as file:
         data = json.load(file)
 
     expected_metadata = {
-        'upa': '42/2/1',
-        'name': 'assembly_2',
-        'timestamp': 'time',
-        'type': 'KBaseGenomeAnnotations.Assembly-10',
-        'genome_upa': '42/4/1',
-        'assembly_object_info': assembly_obj_infos[1],
-        'genome_object_info': genome_obj_infos[1]
+        'upa': assembly_refs[1],
+        'name': ASSEMBLY_NAMES[1],
+        'timestamp': ASSEMBLY_OBJ_INFOS[1][3],
+        'type': ASSEMBLY_OBJ_INFOS[1][2],
+        'genome_upa': genome_refs[1],
+        'assembly_object_info': ASSEMBLY_OBJ_INFOS[1],
+        'genome_object_info': GENOME_OBJ_INFOS[1]
     }
     assert data == expected_metadata
 
