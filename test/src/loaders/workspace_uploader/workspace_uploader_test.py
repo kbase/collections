@@ -533,7 +533,7 @@ def test_upload_genome_files_in_parallel(setup_and_teardown):
     params = setup_and_teardown
     collection_source_dir = params.collection_source_dir
     sourcedata_dir = params.sourcedata_dir
-    # Source files here are the assembly files, which are normally produced by GFU.
+    # Assembly files are normally produced by the GFU.
     # This test fakes that process by placing them in the container job directory in the setup below
     assembly_files = params.target_files
     genbank_files = params.genbank_files
