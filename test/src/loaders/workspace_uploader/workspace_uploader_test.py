@@ -621,29 +621,28 @@ def test_upload_genome_files_in_parallel(setup_and_teardown):
         }
     )
 
-    assembly_dirs = [obj_info_to_upa(info, underscore_sep=True) for info in ASSEMBLY_OBJ_INFOS]
-    genome_dirs = [obj_info_to_upa(info, underscore_sep=True) for info in GENOME_OBJ_INFOS]
+    assembly_upa_dirs = [obj_info_to_upa(info, underscore_sep=True) for info in ASSEMBLY_OBJ_INFOS]
 
     # check softlink for post_process
-    assert (os.readlink(os.path.join(collection_source_dir, assembly_dirs[0]))
-            == os.path.join(sourcedata_dir, assembly_dirs[0]))
+    assert (os.readlink(os.path.join(collection_source_dir, assembly_upa_dirs[0]))
+            == os.path.join(sourcedata_dir, assembly_upa_dirs[0]))
 
-    assert (os.readlink(os.path.join(collection_source_dir, assembly_dirs[1]))
-            == os.path.join(sourcedata_dir, assembly_dirs[1]))
+    assert (os.readlink(os.path.join(collection_source_dir, assembly_upa_dirs[1]))
+            == os.path.join(sourcedata_dir, assembly_upa_dirs[1]))
 
     # check hardlink for post_process
     assert os.path.samefile(
         genome_collection_source_dirs[0] / ASSEMBLY_NAMES[0],
-        os.path.join(sourcedata_dir, assembly_dirs[0], f"{assembly_dirs[0]}.fna.gz")
+        os.path.join(sourcedata_dir, assembly_upa_dirs[0], f"{assembly_upa_dirs[0]}.fna.gz")
     )
 
     assert os.path.samefile(
         genome_collection_source_dirs[1] / ASSEMBLY_NAMES[1],
-        os.path.join(sourcedata_dir, assembly_dirs[1], f"{assembly_dirs[1]}.fna.gz")
+        os.path.join(sourcedata_dir, assembly_upa_dirs[1], f"{assembly_upa_dirs[1]}.fna.gz")
     )
 
     # check metadata file
-    metadata_file = sourcedata_dir / assembly_dirs[0] / f"{assembly_dirs[0]}.meta"
+    metadata_file = sourcedata_dir / assembly_upa_dirs[0] / f"{assembly_upa_dirs[0]}.meta"
     with open(metadata_file, 'r') as file:
         data = json.load(file)
 
@@ -658,7 +657,7 @@ def test_upload_genome_files_in_parallel(setup_and_teardown):
     }
     assert data == expected_metadata
 
-    metadata_file = sourcedata_dir / assembly_dirs[1] / f"{assembly_dirs[1]}.meta"
+    metadata_file = sourcedata_dir / assembly_upa_dirs[1] / f"{assembly_upa_dirs[1]}.meta"
     with open(metadata_file, 'r') as file:
         data = json.load(file)
 
