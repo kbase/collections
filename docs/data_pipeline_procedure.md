@@ -104,6 +104,67 @@
          ```text
          collectionssource/NONE/GTDB/[GTDB_release_ver]/[ncbi_genome_id]/
          ```
+   * Workspace Uploader
+     * Example usage
+        ```commandline
+        python src/loaders/workspace_uploader/workspace_uploader.py \
+          --workspace_id $workspace_id \
+          --kbase_collection $kbase_collection \
+          --source_ver $source_verion \
+          --env $env \
+          --token_filepath $token_filepath \
+          --au_service_ver $au_service_ver \
+          --load_id $load_id
+        ```
+     * Generated files/metafiles
+       * NCBI source data directory
+         ```text
+         sourcedata/NCBI/NONE/<genome_name>/<file_name>
+         ```
+         Prior to running the workspace uploader, these directories should contain a GenBank file downloaded
+         using the NCBI downloader script.
+         A softlink is created by the downloader from the appropriate `collectionssource` directory (see below),
+         and when an upload is complete a FASTA file and an `uploaded.yaml` file should be present.
+
+       * WS source data directory
+         ```text
+         sourcedata/WS/[env]/[workspace_id]/[UPA]/[UPA].fa or [UPA].meta
+         ```
+         After an upload is complete, these directories should contain a FASTA file and a metadata file.
+         This script generates the metadata file upon the successful upload of a genome object. 
+         The FASTA file is hardlinked into the corresponding `collectionssource`directory, which is a
+         softlink to a `sourcedata/WS` directory.
+
+       * Softlinks for collections
+         ```text
+         collectionssource/NONE/[kbase_collection]/[source_ver]/[genome_id]/
+         collectionssource/[env]/[kbase_collection]/[source_ver]/[UPA]/
+         ```
+         These directories are subsets of the `sourcedir` directories - currently either the `NCBI` directory
+         or the `WS` directory. More data source directories may be added in future.
+         The environment parameter `[env]` is one of the KBase environments, either `CI`, `NEXT`,
+         `APPDEV`, or `PROD`, if the data source is from KBase. Otherwise the environment is `NONE`
+         for non-KBase sources (currently only NCBI).
+         
+         The directories are always softlinks into the `sourcedir` directory structure. Effectively `sourcedir`
+         acts like a cache, and establishing a new collection or new version of a collection just requires
+         fetching any data that does not yet exist in `sourcedir` and then softlinking the `sourcedir` directories
+         that are part of the collection. This prevents storing duplicate data that is otherwise shared between
+         collections or collection versions.
+
+         Following a successful upload of a genome object, the GenomeFileUtil will generate an associated
+         FASTA file linked to the assembly object, which will be originally stored in the job data directory.
+         Subsequently, the script will establish a hardlink for the FASTA file in both the collection source
+         directory and the corresponding workspace object source directory. In addition, this script creates an
+         uploaded.yaml file in the collection source directory containing the data to upload (the NONE
+         environment directory) and a meta.yaml file in the uploaded data collection source directory
+         (the directory with an environment and UPA).
+
+       * KBase SDK job directory
+         ```text
+         sdk_job_dir/[username]/
+         ```
+         (preserved with `--keep_job_dir` option, otherwise removed automatically)
 ## Schedule Taskfarmer Jobs
    * Example usage
      ```commandline
