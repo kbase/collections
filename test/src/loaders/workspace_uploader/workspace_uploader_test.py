@@ -432,7 +432,7 @@ def test_upload_assembly_to_workspace(setup_and_teardown):
             "workspace_id": 12345,
             "inputs": [
                 {
-                    "file": assembly_tuple.container_internal_file_dir,
+                    "file": assembly_tuple.container_internal_file,
                     "assembly_name": assembly_tuple.obj_name,
                     "object_metadata": {"load_id": "214"},
                 }
@@ -472,7 +472,7 @@ def test_upload_genome_to_workspace(setup_and_teardown):
     expected_assembly_tuple = workspace_uploader.WSObjTuple(
         obj_name=assembly_name,
         obj_coll_src_dir=genome_coll_src_dir,
-        container_internal_file_dir=container_dir / assembly_name)
+        container_internal_file=container_dir / assembly_name)
 
     expected_upload_results = [UploadResult(
         assembly_obj_info=assembly_obj_info,

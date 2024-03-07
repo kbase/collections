@@ -12,13 +12,13 @@ from src.common.common_helper import obj_info_to_upa
 
 WSObjTuple = namedtuple(
     "WSObjTuple",
-    ["obj_name", "obj_coll_src_dir", "container_internal_file_dir"],
+    ["obj_name", "obj_coll_src_dir", "container_internal_file"],
 )
 """
 WSObjTuple is a named tuple that contains the following fields:
 - obj_name: the name of the object (in many cases, also serves as the file name)
 - obj_coll_src_dir: the directory of the associated file in the collection source directory
-- container_internal_file_dir: the directory of the associated file in the docker container
+- container_internal_file: the associated file in the docker container
 """
 
 

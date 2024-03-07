@@ -243,8 +243,7 @@ def _upload_genomes_to_workspace(
 
     inputs = [
         {
-            # GFU has the capability to discern and retrieve the accurate GenBank file from the directory
-            "file": {'path': obj_tuple.container_internal_file_dir},
+            "file": {'path': obj_tuple.container_internal_file},
             "genome_name": obj_tuple.obj_name,
             "metadata": {"load_id": load_id},
         }
@@ -308,7 +307,7 @@ def _upload_assemblies_to_workspace(
     """
     inputs = [
         {
-            "file": obj_tuple.container_internal_file_dir,
+            "file": obj_tuple.container_internal_file,
             "assembly_name": obj_tuple.obj_name,
             "object_metadata": {"load_id": load_id},
         }
