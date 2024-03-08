@@ -322,15 +322,14 @@ def test_post_process_with_assembly_only(setup_and_teardown):
         "214",
         params.collection_source_dir,
         params.sourcedata_dir,
-        assembly_tuple,
-        "12345_58_1",
+        UploadResult(assembly_tuple=assembly_tuple, assembly_obj_info=ASSEMBLY_OBJ_INFOS[0])
     )
 
     data, uploaded = workspace_uploader._read_upload_status_yaml_file(
         "CI", 88888, "214", host_assembly_dir
     )
     expected_data = {
-        "CI": {88888: {"214": {"assembly_upa": "12345_58_1",
+        "CI": {88888: {"214": {"assembly_upa": "72231_60_1",
                                "assembly_filename": assembly_name,
                                "genome_upa": None,
                                "genome_filename": None}}}}
@@ -363,12 +362,10 @@ def test_post_process_with_genome(setup_and_teardown):
         "214",
         collections_source_dir,
         source_dir,
-        assembly_tuple,
-        "42_4_75",
-        genome_tuple=genome_tuple,
-        genome_upa="42_7_1",
-        assembly_obj_info=assembly_obj_info,
-        genome_obj_info=genome_obj_info
+        UploadResult(assembly_tuple=assembly_tuple,
+                     genome_tuple=genome_tuple,
+                     assembly_obj_info=assembly_obj_info,
+                     genome_obj_info=genome_obj_info)
     )
 
     data, uploaded = workspace_uploader._read_upload_status_yaml_file(

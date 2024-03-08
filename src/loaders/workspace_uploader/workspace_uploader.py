@@ -565,12 +565,7 @@ def _post_process(
     load_id: str,
     collections_source_dir: str,
     source_data_dir: str,
-    assembly_tuple: WSObjTuple,
-    assembly_upa: str,
-    genome_tuple: WSObjTuple = None,
-    genome_upa: str = None,
-    assembly_obj_info: list[Any] = None,
-    genome_obj_info: list[Any] = None,
+    upload_result: UploadResult,
 ) -> None:
     """
     Update the uploaded.yaml file in the genome directory with the object name and upa info.
@@ -580,22 +575,14 @@ def _post_process(
     Hardlink to the original object file in sourcedata to avoid duplicating the file.
     Creates a softlink from new_dir in collectionssource to the contents of target_dir in sourcedata.
     """
-    # TODO: make all parameters positional arguments
 
-    if bool(genome_tuple) != bool(genome_upa):  # xor
-        raise ValueError(
-            "Both genome_tuple and genome_upa must be provided if one of them is provided"
-        )
-
-    if genome_tuple and genome_upa:
-
-        if not assembly_obj_info or not genome_obj_info:
-            raise ValueError(
-                "Both assembly_obj_info and genome_obj_info must be provided"
-            )
-
-        _process_genome_objects(
-            collections_source_dir, source_data_dir, assembly_tuple, assembly_upa, assembly_obj_info, genome_obj_info)
+    if upload_result.is_genome:
+        _process_genome_objects(collections_source_dir,
+                                source_data_dir,
+                                upload_result.assembly_tuple,
+                                upload_result.assembly_upa,
+                                upload_result.assembly_obj_info,
+                                upload_result.genome_obj_info)
 
     # Update the 'uploaded.yaml' file, serving as a marker to indicate the successful upload of the object.
     # Ensure that this operation is the final step in the post-processing workflow
@@ -603,10 +590,10 @@ def _post_process(
         upload_env_key,
         workspace_id,
         load_id,
-        assembly_upa,
-        assembly_tuple,
-        genome_upa=genome_upa,
-        genome_tuple=genome_tuple,
+        upload_result.assembly_upa,
+        upload_result.assembly_tuple,
+        genome_upa=upload_result.genome_upa,
+        genome_tuple=upload_result.genome_tuple,
     )
 
 
@@ -780,12 +767,7 @@ def _upload_objects_in_parallel(
                 load_id,
                 collections_source_dir,
                 source_data_dir,
-                upload_result.assembly_tuple,
-                upload_result.assembly_upa,
-                genome_tuple=upload_result.genome_tuple,
-                genome_upa=upload_result.genome_upa,
-                assembly_obj_info=upload_result.assembly_obj_info,
-                genome_obj_info=upload_result.genome_obj_info
+                upload_result
             )
 
         uploaded_count += len(upload_results)
@@ -913,40 +895,25 @@ def main():
         ws_url = os.path.join(kb_base_url, "ws")
         ws = Workspace(ws_url, token=conf.token)
 
-        (uploaded_assembly_objs_info,
-         uploaded_genome_objs_info) = _query_workspace_with_load_id_mass(ws,
-                                                                         workspace_id,
-                                                                         load_id,
-                                                                         list(wait_to_upload_objs.keys()),
-                                                                         assembly_objs_only=create_assembly_only)
-        if create_assembly_only:
-            uploaded_obj_names = [info[1] for info in uploaded_assembly_objs_info]
-            uploaded_obj_upas = [obj_info_to_upa(info, underscore_sep=True) for info in uploaded_assembly_objs_info]
-        else:
-            uploaded_obj_names = [info[1] for info in uploaded_genome_objs_info]
-            uploaded_obj_upas = [obj_info_to_upa(info, underscore_sep=True) for info in uploaded_genome_objs_info]
+        wait_to_upload_tuples = _dict2tuple_list(wait_to_upload_objs)
+        upload_results = _process_failed_uploads(
+            ws, workspace_id, load_id, wait_to_upload_tuples, upload_assembly_only=create_assembly_only)
 
         # fix inconsistencies between the workspace and the local yaml files
-        if uploaded_obj_names:
+        if upload_results:
             print("Start failure recovery process ...")
-            wait_to_update_objs = {
-                obj_name: wait_to_upload_objs[obj_name]
-                for obj_name in uploaded_obj_names
-            }
-            uploaded_tuples = _dict2tuple_list(wait_to_update_objs)
-            for obj_tuple, upa in zip(uploaded_tuples, uploaded_obj_upas):
+            for upload_result in upload_results:
                 _post_process(
                     env,
                     workspace_id,
                     load_id,
                     collections_source_dir,
                     source_dir,
-                    obj_tuple,
-                    upa,
+                    upload_result
                 )
-            # remove objects that are already uploaded
-            for obj_name in uploaded_obj_names:
+                obj_name = upload_result.genome_tuple.obj_name if upload_result.is_genome else upload_result.assembly_tuple.obj_name
                 wait_to_upload_objs.pop(obj_name)
+
             print("Recovery process completed ...")
 
         if not wait_to_upload_objs:
