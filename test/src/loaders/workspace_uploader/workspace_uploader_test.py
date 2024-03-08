@@ -383,11 +383,11 @@ def test_post_process_with_genome(setup_and_teardown):
     assert uploaded
     assert expected_data == data
 
-    assembly_dest_file = source_dir / assembly_upa / f"{assembly_upa}.fna.gz"
     # check softlink
     assert os.readlink(os.path.join(collections_source_dir, assembly_upa)) == os.path.join(source_dir, assembly_upa)
     # check hardlink
     assembly_src_file = params.target_files[1]
+    assembly_dest_file = source_dir / assembly_upa / f"{assembly_upa}.fna.gz"
     assert os.path.samefile(assembly_src_file, assembly_dest_file)
     # check metadata file
     metadata_file = source_dir / assembly_upa / f"{assembly_upa}.meta"
