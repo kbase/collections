@@ -215,15 +215,17 @@ def test_update_upload_status_yaml_file(setup_and_teardown):
         assembly_name, assembly_dir, "/path/to/file/in/AssembilyUtil"
     )
 
+    upload_result = UploadResult(assembly_tuple=assembly_tuple, assembly_obj_info=ASSEMBLY_OBJ_INFOS[0])
+
     workspace_uploader._update_upload_status_yaml_file(
-        "CI", 12345, "214", "12345_58_1", assembly_tuple
+        "CI", 12345, "214", upload_result
     )
     data, uploaded = workspace_uploader._read_upload_status_yaml_file(
         "CI", 12345, "214", assembly_dir,
     )
 
     expected_data = {
-        "CI": {12345: {"214": {"assembly_upa": "12345_58_1",
+        "CI": {12345: {"214": {"assembly_upa": "72231_60_1",
                                "assembly_filename": assembly_name,
                                "genome_upa": None,
                                "genome_filename": None}}}}
@@ -233,7 +235,7 @@ def test_update_upload_status_yaml_file(setup_and_teardown):
 
     with pytest.raises(ValueError, match=f"already exists in workspace"):
         workspace_uploader._update_upload_status_yaml_file(
-            "CI", 12345, "214", "12345_58_1", assembly_tuple
+            "CI", 12345, "214", upload_result
         )
 
 
@@ -267,8 +269,9 @@ def test_fetch_objects_to_upload(setup_and_teardown):
         assembly_tuple = workspace_uploader.WSObjTuple(
             assembly_name, assembly_dir, "/path/to/file/in/AssembilyUtil"
         )
+        upload_result = UploadResult(assembly_tuple=assembly_tuple, assembly_obj_info=ASSEMBLY_OBJ_INFOS[0])
         workspace_uploader._update_upload_status_yaml_file(
-            "CI", 12345, "214", upa, assembly_tuple
+            "CI", 12345, "214", upload_result
         )
 
     (

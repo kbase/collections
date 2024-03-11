@@ -376,22 +376,20 @@ def _update_upload_status_yaml_file(
     upload_env_key: str,
     workspace_id: int,
     load_id: str,
-    assembly_upa: str,
-    assembly_tuple: WSObjTuple,
-    genome_upa: str = None,
-    genome_tuple: WSObjTuple = None,
+    upload_result: UploadResult,
 ) -> None:
     """
     Update the uploaded.yaml file in target genome_dir with newly uploaded WS object names and upa info.
     """
-    obj_tuple = genome_tuple if genome_tuple else assembly_tuple
+    is_genome = upload_result.is_genome
+    obj_tuple = upload_result.genome_tuple if is_genome else upload_result.assembly_tuple
 
     data, uploaded = _read_upload_status_yaml_file(
         upload_env_key,
         workspace_id,
         load_id,
         obj_tuple.obj_coll_src_dir,
-        create_assembly_only=not genome_tuple,
+        create_assembly_only=not is_genome,
     )
 
     if uploaded:
@@ -400,10 +398,10 @@ def _update_upload_status_yaml_file(
         )
 
     data[upload_env_key][workspace_id][load_id] = {
-        _KEY_ASSEMBLY_UPA: assembly_upa,
-        _KEY_ASSEMBLY_FILENAME: assembly_tuple.obj_name,
-        _KEY_GENOME_UPA: genome_upa,
-        _KEY_GENOME_FILENAME: genome_tuple.obj_name if genome_tuple else None,
+        _KEY_ASSEMBLY_UPA: upload_result.assembly_upa,
+        _KEY_ASSEMBLY_FILENAME: upload_result.assembly_tuple.obj_name,
+        _KEY_GENOME_UPA: upload_result.genome_upa,
+        _KEY_GENOME_FILENAME: upload_result.genome_tuple.obj_name if is_genome else None,
     }
 
     file_path = _get_yaml_file_path(obj_tuple.obj_coll_src_dir)
@@ -579,10 +577,8 @@ def _post_process(
     if upload_result.is_genome:
         _process_genome_objects(collections_source_dir,
                                 source_data_dir,
-                                upload_result.assembly_tuple,
-                                upload_result.assembly_upa,
-                                upload_result.assembly_obj_info,
-                                upload_result.genome_obj_info)
+                                upload_result,
+                                )
 
     # Update the 'uploaded.yaml' file, serving as a marker to indicate the successful upload of the object.
     # Ensure that this operation is the final step in the post-processing workflow
@@ -590,26 +586,21 @@ def _post_process(
         upload_env_key,
         workspace_id,
         load_id,
-        upload_result.assembly_upa,
-        upload_result.assembly_tuple,
-        genome_upa=upload_result.genome_upa,
-        genome_tuple=upload_result.genome_tuple,
+        upload_result,
     )
 
 
 def _process_genome_objects(
         collections_source_dir: str,
         source_data_dir: str,
-        assembly_tuple: WSObjTuple,
-        assembly_upa: str,
-        assembly_obj_info: list[Any],
-        genome_obj_info: list[Any],
+        upload_result: UploadResult,
 ) -> None:
     """
     Post process on successful genome uploads.
     """
     # create hardlink for the FASTA file from upload data collection source directory (e.g. GTDB)
     # to the corresponding workspace object directory.
+    assembly_tuple, assembly_upa = upload_result.assembly_tuple, upload_result.assembly_upa
     coll_src_assembly = Path(_get_source_file(assembly_tuple.obj_coll_src_dir, assembly_tuple.obj_name))
     ws_source_data_dir = os.path.join(source_data_dir, assembly_upa)
     os.makedirs(ws_source_data_dir, exist_ok=True)
@@ -621,7 +612,10 @@ def _process_genome_objects(
     loader_helper.create_hardlink_between_files(ws_src_assembly, coll_src_assembly)
 
     # create metadata file used by parser
-    loader_helper.create_meta_file(source_data_dir, assembly_upa, assembly_obj_info, genome_obj_info)
+    loader_helper.create_meta_file(source_data_dir,
+                                   assembly_upa,
+                                   upload_result.assembly_obj_info,
+                                   upload_result.genome_obj_info)
 
     # create a softlink from new_dir in collectionssource to the contents of target_dir in sourcedata
     new_dir = os.path.join(collections_source_dir, assembly_upa)
