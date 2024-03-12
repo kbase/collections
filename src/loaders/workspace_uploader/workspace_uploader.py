@@ -678,7 +678,7 @@ def _build_assembly_tuples(
     assembly_tuples = list()
 
     for genome_tuple, genome_obj_info in zip(genome_tuples, genome_obj_infos):
-        assembly_file = genome_tuple.obj_name + "_assembly.fasta"
+        assembly_file = genome_tuple.obj_name + "_assembly.fasta"  # matches the FASTA file name returned from GFU during successful upload process
         coll_src_assembly_path = os.path.join(genome_tuple.obj_coll_src_dir, assembly_file)
         if not os.path.exists(coll_src_assembly_path):
             _download_assembly_fasta_file(asu_client,
