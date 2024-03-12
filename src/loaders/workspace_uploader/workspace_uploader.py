@@ -661,9 +661,6 @@ def _download_assembly_fasta_file(
     loader_helper.create_hardlink_between_files(coll_src_assembly_path,
                                                 local_assembly_file)
 
-    if not os.path.exists(coll_src_assembly_path):
-        raise ValueError(f"Retrieving assembly file from Genome {genome_obj_info[1]} failed.")
-
     return containerized_assembly_file
 
 
