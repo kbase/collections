@@ -70,42 +70,42 @@ class UploadResult:
         self.is_genome = bool(self._genome_tuple) and bool(self._genome_obj_info)
 
     @property
-    def genome_upa(self):
+    def genome_upa(self) -> str:
         """
         Returns the UPA of the genome object (in format of wsid_objid_ver)
         """
         return obj_info_to_upa(self._genome_obj_info, underscore_sep=True) if self._genome_obj_info else None
 
     @property
-    def assembly_upa(self):
+    def assembly_upa(self) -> str:
         """
         Returns the UPA of the assembly object (in format of wsid_objid_ver)
         """
         return obj_info_to_upa(self._assembly_obj_info, underscore_sep=True)
 
     @property
-    def genome_obj_info(self):
+    def genome_obj_info(self) -> list[Any]:
         """
         Returns the info of the genome object
         """
         return self._genome_obj_info
 
     @property
-    def assembly_obj_info(self):
+    def assembly_obj_info(self) -> list[Any]:
         """
         Returns the info of the assembly object
         """
         return self._assembly_obj_info
 
     @property
-    def genome_tuple(self):
+    def genome_tuple(self) -> WSObjTuple:
         """
         Returns the WSObjTuple of the genome object
         """
         return self._genome_tuple
 
     @property
-    def assembly_tuple(self):
+    def assembly_tuple(self) -> WSObjTuple:
         """
         Returns the WSObjTuple of the assembly object
         """
