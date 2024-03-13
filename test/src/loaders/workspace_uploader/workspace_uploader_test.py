@@ -215,15 +215,17 @@ def test_update_upload_status_yaml_file(setup_and_teardown):
         assembly_name, assembly_dir, "/path/to/file/in/AssembilyUtil"
     )
 
+    upload_result = UploadResult(assembly_tuple=assembly_tuple, assembly_obj_info=ASSEMBLY_OBJ_INFOS[0])
+
     workspace_uploader._update_upload_status_yaml_file(
-        "CI", 12345, "214", "12345_58_1", assembly_tuple
+        "CI", 12345, "214", upload_result
     )
     data, uploaded = workspace_uploader._read_upload_status_yaml_file(
         "CI", 12345, "214", assembly_dir,
     )
 
     expected_data = {
-        "CI": {12345: {"214": {"assembly_upa": "12345_58_1",
+        "CI": {12345: {"214": {"assembly_upa": "72231_60_1",
                                "assembly_filename": assembly_name,
                                "genome_upa": None,
                                "genome_filename": None}}}}
@@ -233,7 +235,7 @@ def test_update_upload_status_yaml_file(setup_and_teardown):
 
     with pytest.raises(ValueError, match=f"already exists in workspace"):
         workspace_uploader._update_upload_status_yaml_file(
-            "CI", 12345, "214", "12345_58_1", assembly_tuple
+            "CI", 12345, "214", upload_result
         )
 
 
@@ -267,8 +269,9 @@ def test_fetch_objects_to_upload(setup_and_teardown):
         assembly_tuple = workspace_uploader.WSObjTuple(
             assembly_name, assembly_dir, "/path/to/file/in/AssembilyUtil"
         )
+        upload_result = UploadResult(assembly_tuple=assembly_tuple, assembly_obj_info=ASSEMBLY_OBJ_INFOS[0])
         workspace_uploader._update_upload_status_yaml_file(
-            "CI", 12345, "214", upa, assembly_tuple
+            "CI", 12345, "214", upload_result
         )
 
     (
@@ -322,15 +325,14 @@ def test_post_process_with_assembly_only(setup_and_teardown):
         "214",
         params.collection_source_dir,
         params.sourcedata_dir,
-        assembly_tuple,
-        "12345_58_1",
+        UploadResult(assembly_tuple=assembly_tuple, assembly_obj_info=ASSEMBLY_OBJ_INFOS[0])
     )
 
     data, uploaded = workspace_uploader._read_upload_status_yaml_file(
         "CI", 88888, "214", host_assembly_dir
     )
     expected_data = {
-        "CI": {88888: {"214": {"assembly_upa": "12345_58_1",
+        "CI": {88888: {"214": {"assembly_upa": "72231_60_1",
                                "assembly_filename": assembly_name,
                                "genome_upa": None,
                                "genome_filename": None}}}}
@@ -344,66 +346,63 @@ def test_post_process_with_genome(setup_and_teardown):
     params = setup_and_teardown
     collections_source_dir = params.collection_source_dir
     source_dir = params.sourcedata_dir
+    container_dir = Path(params.tmp_dir) / "kb/module/work/tmp"
+    container_dir.mkdir(parents=True)
+    assembly_coll_src_dir = params.assembly_dirs[1]
 
-    host_assembly_dir = params.assembly_dirs[1]
-    assembly_name = ASSEMBLY_NAMES[1]
-    src_file = params.target_files[1]
-    assembly_tuple = workspace_uploader.WSObjTuple(
-        assembly_name, host_assembly_dir, "/path/to/file/in/AssembilyUtil"
-    )
-    genome_name = GEMOME_NAMES[1]
-    genome_tuple = workspace_uploader.WSObjTuple(
-        genome_name, host_assembly_dir, "/path/to/file/in/GenomeUtil"
-    )
-    assembly_obj_info = [4, 'name', 'type', 'time', 75, 'user', 42, 'wsname', 'md5', 78, {'foo': 'bar'}]
-    genome_obj_info = [7, 'name', 'type', 'time', 1, 'user', 42, 'wsname', 'md5', 78, {}]
+    assembly_obj_info = ASSEMBLY_OBJ_INFOS[1]
+    genome_obj_info = GENOME_OBJ_INFOS[1]
+
+    assembly_name = assembly_obj_info[1]
+    genome_name = genome_obj_info[1]
+
+    assembly_tuple = workspace_uploader.WSObjTuple(assembly_name, assembly_coll_src_dir, container_dir / assembly_name)
+    genome_tuple = workspace_uploader.WSObjTuple(genome_name, assembly_coll_src_dir, container_dir / genome_name)
+
+    assembly_upa = obj_info_to_upa(assembly_obj_info, underscore_sep=True)
+    genome_upa = obj_info_to_upa(genome_obj_info, underscore_sep=True)
+
     workspace_uploader._post_process(
         "CI",
         88888,
         "214",
         collections_source_dir,
         source_dir,
-        assembly_tuple,
-        "42_4_75",
-        genome_tuple=genome_tuple,
-        genome_upa="42_7_1",
-        assembly_obj_info=assembly_obj_info,
-        genome_obj_info=genome_obj_info
+        UploadResult(assembly_tuple=assembly_tuple,
+                     genome_tuple=genome_tuple,
+                     assembly_obj_info=assembly_obj_info,
+                     genome_obj_info=genome_obj_info)
     )
 
     data, uploaded = workspace_uploader._read_upload_status_yaml_file(
-        "CI", 88888, "214", host_assembly_dir
+        "CI", 88888, "214", assembly_coll_src_dir
     )
 
-    expected_data = {
-        'CI': {88888: {'214':
-                           {'assembly_filename': assembly_name,
-                            'assembly_upa': '42_4_75',
-                            'genome_filename': genome_name,
-                            'genome_upa': '42_7_1'}}}}
+    expected_data = {'CI': {88888: {'214': {'assembly_filename': assembly_name,
+                                            'assembly_upa': assembly_upa,
+                                            'genome_filename': genome_name,
+                                            'genome_upa': genome_upa}}}}
 
     assert uploaded
     assert expected_data == data
 
-    assembly_dest_file = source_dir / "42_4_75" / "42_4_75.fna.gz"
     # check softlink
-    assert os.readlink(os.path.join(collections_source_dir, "42_4_75")) == os.path.join(
-        source_dir, "42_4_75"
-    )
+    assert os.readlink(os.path.join(collections_source_dir, assembly_upa)) == os.path.join(source_dir, assembly_upa)
     # check hardlink
-    assert os.path.samefile(src_file, assembly_dest_file)
-
+    assembly_src_file = params.target_files[1]
+    assembly_dest_file = source_dir / assembly_upa / f"{assembly_upa}.fna.gz"
+    assert os.path.samefile(assembly_src_file, assembly_dest_file)
     # check metadata file
-    metadata_file = source_dir / "42_4_75" / "42_4_75.meta"
+    metadata_file = source_dir / assembly_upa / f"{assembly_upa}.meta"
     with open(metadata_file, 'r') as file:
         data = json.load(file)
 
     expected_metadata = {
-        'upa': '42/4/75',
-        'name': 'name',
-        'timestamp': 'time',
-        'type': 'type',
-        'genome_upa': '42/7/1',
+        'upa': obj_info_to_upa(assembly_obj_info),
+        'name': assembly_obj_info[1],
+        'timestamp': assembly_obj_info[3],
+        'type': assembly_obj_info[2],
+        'genome_upa': obj_info_to_upa(genome_obj_info),
         'assembly_object_info': assembly_obj_info,
         'genome_object_info': genome_obj_info
     }

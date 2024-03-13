@@ -338,9 +338,14 @@ def is_upa_info_complete(upa_dir: str):
     Make sure it has all the right keys.
     """
     upa = os.path.basename(upa_dir)
-    fa_path = os.path.join(upa_dir, upa + ".fa")
+
+    # check if the FASTA file exists
+    if not any(os.path.exists(os.path.join(upa_dir, upa + ext)) for ext in loader_common_names.FASTA_FILE_EXT):
+        return False
+
+    # check if the metadata file exists and the content is valid
     meta_path = get_meta_file_path(os.path.dirname(upa_dir), upa)
-    if not os.path.exists(fa_path) or not os.path.exists(meta_path):
+    if not os.path.exists(meta_path):
         return False
     try:
         with open(meta_path, "r") as json_file:
@@ -437,7 +442,7 @@ def create_softlink_between_dirs(new_dir, target_dir):
         if (
                 os.path.isdir(new_dir)
                 and os.path.islink(new_dir)
-                and os.readlink(new_dir) == target_dir
+                and os.readlink(new_dir) == str(target_dir)
         ):
             return
         raise ValueError(
@@ -451,7 +456,7 @@ def create_softlink_between_files(new_file, target_file):
     Creates a softlink from new_file to the contents of target_file.
     """
     if os.path.exists(new_file):
-        if (os.path.islink(new_file) and os.readlink(new_file) == target_file):
+        if os.path.islink(new_file) and os.readlink(new_file) == str(target_file):
             return
         raise ValueError(
             f"{new_file} already exists and does not link to {target_file} as expected"
