@@ -1014,7 +1014,7 @@ def main():
             batch_size,
             source_dir,
             AssemblyUtil(conf.callback_url, service_ver=au_service_ver, token=conf.token),
-            GenomeFileUtil(conf.callback_url, service_ver=gfu_service_ver, token=conf.token), # TODO - add GFU service ver
+            GenomeFileUtil(conf.callback_url, service_ver=gfu_service_ver, token=conf.token),
             conf.job_data_dir,
             upload_assembly_only=create_assembly_only
         )
