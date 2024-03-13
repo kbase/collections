@@ -1025,8 +1025,8 @@ def main():
         if proc:
             proc.terminate()
 
-    if not keep_job_dir:
-        shutil.rmtree(job_dir)
+        if not keep_job_dir:
+            shutil.rmtree(job_dir)
 
 
 if __name__ == "__main__":
