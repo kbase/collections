@@ -1,0 +1,39 @@
+[Arango]
+    
+# The URL of an arango coordinator
+url = "http://localhost:8529"
+
+# The name of the ArangoDB database in which the service will store data
+database = "collections_test"
+
+# The username, if any, of a user with credentials enabling database write. Omit to connect with
+# default credentials.
+username = "root"
+
+# The password for the user, if any. Required if the username is provided.
+password = "foobar"
+
+[Authentication]
+
+# The URL of a KBase auth2 service
+url = "https://ci.kbase.us/services/auth"
+
+# KBase auth2 custom roles that signify that a user is an admin for the collections service
+# This is a comma delimited list, e.g. "KBASE_ADMIN, COLLECTION_SERVICE_ADMIN"
+admin_roles_full = "COLLECTION_SERVICE_ADMIN"
+
+[Service]
+
+# If the service is behind a reverse proxy that rewrites the service path, that path needs
+# to be defined here in order for the OpenAPI documentation to function.
+root_path = ""
+
+# Set to "true" to have the service create the database and collections on startup. Generally
+# this should be left as "false" since the database admins will want to create collections with
+# their sharding preferences.
+create_db_on_startup = "false"
+
+[Service_Dependencies]
+
+# The URL of a KBase workspace service
+workspace_url = "https://ci.kbase.us/services/ws"
