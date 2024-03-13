@@ -2,7 +2,8 @@
 usage: workspace_uploader.py [-h] --workspace_id WORKSPACE_ID [--kbase_collection KBASE_COLLECTION] [--source_ver SOURCE_VER]
                              [--root_dir ROOT_DIR] [--load_id LOAD_ID] [--token_filepath TOKEN_FILEPATH] [--env {CI,NEXT,APPDEV,PROD}]
                              [--create_assembly_only] [--upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]] [--batch_size BATCH_SIZE]
-                             [--cbs_max_tasks CBS_MAX_TASKS] [--au_service_ver AU_SERVICE_VER] [--keep_job_dir] [--as_catalog_admin]
+                             [--cbs_max_tasks CBS_MAX_TASKS] [--au_service_ver AU_SERVICE_VER] [--gfu_service_ver GFU_SERVICE_VER]
+                             [--keep_job_dir] [--as_catalog_admin]
 
 PROTOTYPE - Upload files to the workspace service (WSS). Note that the uploader determines whether a genome is already uploaded in
 one of two ways. First it consults the *.yaml files in each genomes directory; if that file shows the genome has been uploaded it skips it
@@ -45,6 +46,8 @@ optional arguments:
                         The maximum number of subtasks for the callback server (default: 20)
   --au_service_ver AU_SERVICE_VER
                         The service version of AssemblyUtil client('dev', 'beta', 'release', or a git commit) (default: release)
+  --gfu_service_ver GFU_SERVICE_VER
+                        The service version of GenomeFileUtil client('dev', 'beta', 'release', or a git commit) (default: release)
   --keep_job_dir        Keep SDK job directory after upload task is completed
   --as_catalog_admin    True means the provided user token has catalog admin privileges and will be used to retrieve secure SDK app
                         parameters from the catalog. If false, the default, SDK apps run as part of this application will not have access to
@@ -188,6 +191,13 @@ def _get_parser():
         type=str,
         default="release",
         help="The service version of AssemblyUtil client"
+        "('dev', 'beta', 'release', or a git commit)",
+    )
+    optional.add_argument(
+        "--gfu_service_ver",
+        type=str,
+        default="release",
+        help="The service version of GenomeFileUtil client"
         "('dev', 'beta', 'release', or a git commit)",
     )
     optional.add_argument(
@@ -875,6 +885,7 @@ def main():
     batch_size = args.batch_size
     cbs_max_tasks = args.cbs_max_tasks
     au_service_ver = args.au_service_ver
+    gfu_service_ver = args.gfu_service_ver
     keep_job_dir = args.keep_job_dir
     catalog_admin = args.as_catalog_admin
     load_id = args.load_id
@@ -1003,7 +1014,7 @@ def main():
             batch_size,
             source_dir,
             AssemblyUtil(conf.callback_url, service_ver=au_service_ver, token=conf.token),
-            GenomeFileUtil(conf.callback_url, service_ver=au_service_ver, token=conf.token), # TODO - add GFU service ver
+            GenomeFileUtil(conf.callback_url, service_ver=gfu_service_ver, token=conf.token), # TODO - add GFU service ver
             conf.job_data_dir,
             upload_assembly_only=create_assembly_only
         )
