@@ -17,6 +17,12 @@ def _run_eggnog_single(
         source_file: Path,
         output_dir: Path,
         debug: bool) -> None:
+
+    metadata_file = output_dir / EGGNOG_METADATA
+    if metadata_file.exists():
+        print(f"Skipping {source_file} as it has already been processed.")
+        return
+
     # RUN eggNOG for a single genome
     command = ['emapper.py',
                '-i', source_file,  # Input file.
@@ -30,7 +36,6 @@ def _run_eggnog_single(
     run_command(command, output_dir if debug else None)
 
     # Save run info to a metadata file in the output directory for parsing later
-    metadata_file = output_dir / EGGNOG_METADATA
     metadata = {'source_file': str(source_file),
                 'input_type': INPUT_TYPE}
     with open(metadata_file, 'w') as f:
