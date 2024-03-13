@@ -8,7 +8,7 @@ from src.loaders.common.loader_common_names import EGGNOG_METADATA
 from src.loaders.compute_tools.tool_common import ToolRunner, run_command
 
 INPUT_TYPE = 'proteins'
-THREADS = 128
+THREADS = 16
 
 
 def _run_eggnog_single(
