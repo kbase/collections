@@ -1,9 +1,10 @@
 """
-usage: workspace_uploader.py [-h] --workspace_id WORKSPACE_ID [--kbase_collection KBASE_COLLECTION] [--source_ver SOURCE_VER]
-                             [--root_dir ROOT_DIR] [--load_id LOAD_ID] [--token_filepath TOKEN_FILEPATH] [--env {CI,NEXT,APPDEV,PROD}]
-                             [--create_assembly_only] [--upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]] [--batch_size BATCH_SIZE]
-                             [--cbs_max_tasks CBS_MAX_TASKS] [--au_service_ver AU_SERVICE_VER] [--gfu_service_ver GFU_SERVICE_VER]
-                             [--keep_job_dir] [--as_catalog_admin]
+usage: workspace_uploader.py [-h] --workspace_id WORKSPACE_ID [--kbase_collection KBASE_COLLECTION]
+                             [--source_ver SOURCE_VER] [--root_dir ROOT_DIR] [--load_id LOAD_ID]
+                             [--token_filepath TOKEN_FILEPATH] [--env {CI,NEXT,APPDEV,PROD}]
+                             [--upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]] [--batch_size BATCH_SIZE]
+                             [--cbs_max_tasks CBS_MAX_TASKS] [--au_service_ver AU_SERVICE_VER]
+                             [--gfu_service_ver GFU_SERVICE_VER] [--keep_job_dir] [--as_catalog_admin]
 
 PROTOTYPE - Upload files to the workspace service (WSS). Note that the uploader determines whether a genome is already uploaded in
 one of two ways. First it consults the *.yaml files in each genomes directory; if that file shows the genome has been uploaded it skips it
@@ -35,11 +36,8 @@ optional arguments:
                         If not provided, the token must be provided in the `KB_AUTH_TOKEN` environment variable.
   --env {CI,NEXT,APPDEV,PROD}
                         KBase environment (default: PROD)
-  --create_assembly_only
-                        Create only assembly object. If not set create Genome object using genbank files by default.
   --upload_file_ext UPLOAD_FILE_EXT [UPLOAD_FILE_EXT ...]
-                        Upload only files that match given extensions. If not provided, uses the appropriate default extension
-                        depending on the create_assembly_only flag
+                        Upload only files that match given extensions. (default: ['genomic.gbff.gz'])
   --batch_size BATCH_SIZE
                         Number of files to upload per batch (default: 2500)
   --cbs_max_tasks CBS_MAX_TASKS
@@ -84,9 +82,8 @@ from src.loaders.workspace_uploader.upload_result import UploadResult, WSObjTupl
 # setup KB_AUTH_TOKEN as env or provide a token_filepath in --token_filepath
 # export KB_AUTH_TOKEN="your-kb-auth-token"
 
-_UPLOAD_ASSEMBLY_FILE_EXT = ["genomic.fna.gz"]
 _UPLOAD_GENOME_FILE_EXT = ["genomic.gbff.gz"]
-_JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER = "/kb/module/work/tmp"
+_JOB_DIR_IN_CONTAINER = "/kb/module/work/tmp"
 _UPLOADED_YAML = "uploaded.yaml"
 _WS_MAX_BATCH_SIZE = 10000
 
@@ -163,16 +160,11 @@ def _get_parser():
         help="KBase environment",
     )
     optional.add_argument(
-        "--create_assembly_only",
-        action="store_true",
-        help="Create only assembly object. If not set create Genome object using genbank files by default.",
-    )
-    optional.add_argument(
         "--upload_file_ext",
         type=str,
+        default=_UPLOAD_GENOME_FILE_EXT,
         nargs="+",
-        help="Upload only files that match given extensions. If not provided, uses the appropriate default extension "
-             "depending on the create_assembly_only flag",
+        help="Upload only files that match given extensions.",
     )
     optional.add_argument(
         "--batch_size",
@@ -213,10 +205,6 @@ def _get_parser():
         "SDK apps run as part of this application will not have access to catalog secure parameters.",
     )
     return parser
-
-
-def _get_default_file_ext(create_assembly_only: bool) -> list[str]:
-    return _UPLOAD_ASSEMBLY_FILE_EXT if create_assembly_only else _UPLOAD_GENOME_FILE_EXT
 
 
 def _get_yaml_file_path(obj_dir: str) -> str:
@@ -275,7 +263,7 @@ def _upload_genomes_to_workspace(
         # copy assembly file from tmp job dir to the sourcedata/NCBI directory
         container_assembly_path = Path(result_dict["assembly_path"])
         # remove prefix of the assembly_path
-        relative_assembly_path = container_assembly_path.relative_to(_JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER)
+        relative_assembly_path = container_assembly_path.relative_to(_JOB_DIR_IN_CONTAINER)
         local_assembly_path = Path(job_data_dir) / relative_assembly_path
         if not os.path.exists(local_assembly_path):
             raise ValueError(f"Assembly file {local_assembly_path} does not exist")
@@ -346,7 +334,6 @@ def _read_upload_status_yaml_file(
     workspace_id: int,
     load_id: str,
     obj_dir: str,
-    create_assembly_only: bool = True,
 ) -> tuple[dict[str, dict[int, list[str]]], bool]:
     """
     Get metadata and upload status of a WS object from the uploaded.yaml file.
@@ -357,8 +344,8 @@ def _read_upload_status_yaml_file(
             <load_id>:
                 assembly_upa: <assembly_upa>
                 assembly_filename: <assembly_filename>
-                genome_upa: <genome_upa> (can be None)
-                genome_filename: <genome_filename> (can be None)
+                genome_upa: <genome_upa>
+                genome_filename: <genome_filename>
     """
 
     if upload_env_key not in loader_common_names.KB_ENV:
@@ -373,11 +360,7 @@ def _read_upload_status_yaml_file(
 
     workspace_dict = data.setdefault(upload_env_key, {}).setdefault(workspace_id, {})
 
-    uploaded = load_id in workspace_dict
-
-    # In the event of genome upload and an assembly with the identical load_id has already been uploaded.
-    if not create_assembly_only:
-        uploaded = uploaded and workspace_dict[load_id].get(_KEY_GENOME_UPA)
+    uploaded = load_id in workspace_dict and workspace_dict[load_id].get(_KEY_GENOME_UPA)
 
     return data, uploaded
 
@@ -391,15 +374,13 @@ def _update_upload_status_yaml_file(
     """
     Update the uploaded.yaml file in target genome_dir with newly uploaded WS object names and upa info.
     """
-    is_genome = upload_result.is_genome
-    obj_tuple = upload_result.genome_tuple if is_genome else upload_result.assembly_tuple
+    obj_tuple = upload_result.genome_tuple
 
     data, uploaded = _read_upload_status_yaml_file(
         upload_env_key,
         workspace_id,
         load_id,
         obj_tuple.obj_coll_src_dir,
-        create_assembly_only=not is_genome,
     )
 
     if uploaded:
@@ -411,7 +392,7 @@ def _update_upload_status_yaml_file(
         _KEY_ASSEMBLY_UPA: upload_result.assembly_upa,
         _KEY_ASSEMBLY_FILENAME: upload_result.assembly_tuple.obj_name,
         _KEY_GENOME_UPA: upload_result.genome_upa,
-        _KEY_GENOME_FILENAME: upload_result.genome_tuple.obj_name if is_genome else None,
+        _KEY_GENOME_FILENAME: upload_result.genome_tuple.obj_name,
     }
 
     file_path = _get_yaml_file_path(obj_tuple.obj_coll_src_dir)
@@ -425,7 +406,6 @@ def _fetch_objects_to_upload(
     load_id: str,
     collection_source_dir: str,
     upload_file_ext: list[str],
-    create_assembly_only: bool = True,
 ) -> tuple[int, dict[str, str]]:
     count = 0
     wait_to_upload_objs = dict()
@@ -444,7 +424,7 @@ def _fetch_objects_to_upload(
             and f.endswith(tuple(upload_file_ext))
         ]
 
-        # Assembly and Genome (from genbank) object uploaders both only requires one file
+        # Genome (from genbank) object uploader only requires one file
         # Modify or skip this check if a different use case requires multiple files.
         if len(obj_file_list) != 1:
             raise ValueError(
@@ -460,7 +440,6 @@ def _fetch_objects_to_upload(
             workspace_id,
             load_id,
             obj_dir,
-            create_assembly_only=create_assembly_only,
         )
 
         if uploaded:
@@ -480,7 +459,6 @@ def _query_workspace_with_load_id(
     workspace_id: int,
     load_id: str,
     obj_names: list[str],
-    assembly_objs_only: bool = True,
 ) -> tuple[list[Any], list[Any]]:
     if len(obj_names) > _WS_MAX_BATCH_SIZE:
         raise ValueError(
@@ -492,25 +470,20 @@ def _query_workspace_with_load_id(
     if not uploaded_objs_info:
         return list(), list()
 
-    if assembly_objs_only:
-        _check_obj_type(workspace_id, load_id, uploaded_objs_info, {loader_common_names.OBJECTS_NAME_ASSEMBLY})
-        assembly_objs_info = uploaded_objs_info
-        genome_objs_info = list()
-    else:
-        _check_obj_type(workspace_id, load_id, uploaded_objs_info, {loader_common_names.OBJECTS_NAME_GENOME})
-        genome_objs_info = uploaded_objs_info
-        assembly_objs_ref = list()
-        for info in genome_objs_info:
-            try:
-                assembly_objs_ref.append(info[10]["Assembly Object"])
-            except KeyError:
-                genome_ref = obj_info_to_upa(info)
-                raise ValueError(
-                    f"Genome object {genome_ref} does not have an assembly object linked to it"
-                )
+    _check_obj_type(workspace_id, load_id, uploaded_objs_info, {loader_common_names.OBJECTS_NAME_GENOME})
+    genome_objs_info = uploaded_objs_info
+    assembly_objs_ref = list()
+    for info in genome_objs_info:
+        try:
+            assembly_objs_ref.append(info[10]["Assembly Object"])
+        except KeyError:
+            genome_ref = obj_info_to_upa(info)
+            raise ValueError(
+                f"Genome object {genome_ref} does not have an assembly object linked to it"
+            )
 
-        assembly_objs_spec = [{"ref": ref} for ref in assembly_objs_ref]
-        assembly_objs_info = ws.get_object_info3({"objects": assembly_objs_spec, "includeMetadata": 1})["infos"]
+    assembly_objs_spec = [{"ref": ref} for ref in assembly_objs_ref]
+    assembly_objs_info = ws.get_object_info3({"objects": assembly_objs_spec, "includeMetadata": 1})["infos"]
 
     return assembly_objs_info, genome_objs_info
 
@@ -534,7 +507,6 @@ def _query_workspace_with_load_id_mass(
     load_id: str,
     obj_names: list[str],
     batch_size: int = _WS_MAX_BATCH_SIZE,
-    assembly_objs_only: bool = True,
 ) -> tuple[list[Any], list[Any]]:
 
     uploaded_assembly_objs_info, uploaded_genome_objs_info = [], []
@@ -544,8 +516,7 @@ def _query_workspace_with_load_id_mass(
          uploaded_genome_objs_info_batch) = _query_workspace_with_load_id(ws,
                                                                           workspace_id,
                                                                           load_id,
-                                                                          obj_names[i:i + batch_size],
-                                                                          assembly_objs_only=assembly_objs_only)
+                                                                          obj_names[i:i + batch_size])
 
         uploaded_assembly_objs_info.extend(uploaded_assembly_objs_info_batch)
         uploaded_genome_objs_info.extend(uploaded_genome_objs_info_batch)
@@ -578,17 +549,16 @@ def _post_process(
     """
     Update the uploaded.yaml file in the genome directory with the object name and upa info.
 
-    If genome_tuple and genome_upa are provided, the function will also:
+    The function will also:
     Create a standard entry in sourcedata/workspace for each object.
     Hardlink to the original object file in sourcedata to avoid duplicating the file.
     Creates a softlink from new_dir in collectionssource to the contents of target_dir in sourcedata.
     """
 
-    if upload_result.is_genome:
-        _process_genome_objects(collections_source_dir,
-                                source_data_dir,
-                                upload_result,
-                                )
+    _process_genome_objects(collections_source_dir,
+                            source_data_dir,
+                            upload_result,
+                            )
 
     # Update the 'uploaded.yaml' file, serving as a marker to indicate the successful upload of the object.
     # Ensure that this operation is the final step in the post-processing workflow
@@ -632,23 +602,6 @@ def _process_genome_objects(
     loader_helper.create_softlink_between_dirs(new_dir, ws_source_data_dir)
 
 
-def _process_batch_upload(
-        obj_tuples: list[WSObjTuple],
-        workspace_id: int,
-        load_id: str,
-        asu_client: AssemblyUtil,
-        gfu_client: GenomeFileUtil,
-        job_data_dir: str,
-        upload_assembly_only: bool = True,
-) -> list[UploadResult]:
-    if upload_assembly_only:
-        upload_results = _upload_assemblies_to_workspace(asu_client, workspace_id, load_id, obj_tuples)
-    else:
-        upload_results = _upload_genomes_to_workspace(gfu_client, workspace_id, load_id, obj_tuples, job_data_dir)
-
-    return upload_results
-
-
 def _download_assembly_fasta_file(
         asu_client: AssemblyUtil,
         genome_obj_info: list[Any],
@@ -665,7 +618,7 @@ def _download_assembly_fasta_file(
         raise ValueError(f"Genome object {genome_obj_info[1]} does not have an assembly object linked to it")
     containerized_assembly_file = Path(asu_client.get_assembly_as_fasta({"ref": assembly_upa})["path"])
     # remove prefix of the assembly_path
-    relative_assembly_path = containerized_assembly_file.relative_to(_JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER)
+    relative_assembly_path = containerized_assembly_file.relative_to(_JOB_DIR_IN_CONTAINER)
     local_assembly_file = Path(job_data_dir) / relative_assembly_path
 
     loader_helper.create_hardlink_between_files(coll_src_assembly_path,
@@ -709,7 +662,6 @@ def _process_failed_uploads(
         obj_tuples: list[WSObjTuple],
         asu_client: AssemblyUtil,
         job_data_dir: str,
-        upload_assembly_only: bool = True
 ) -> list[UploadResult]:
 
     # figure out uploads that succeeded
@@ -720,38 +672,28 @@ def _process_failed_uploads(
      uploaded_genome_obj_infos) = _query_workspace_with_load_id_mass(ws,
                                                                      workspace_id,
                                                                      load_id,
-                                                                     list(name2tuple.keys()),
-                                                                     assembly_objs_only=upload_assembly_only)
+                                                                     list(name2tuple.keys())
+                                                                     )
 
-    if upload_assembly_only:
-        batch_uploaded_assembly_tuples = [name2tuple[info[1]] for info in uploaded_assembly_obj_infos]
-
-        for assembly_obj_info, assembly_tuple in zip(uploaded_assembly_obj_infos, batch_uploaded_assembly_tuples):
-            upload_result = UploadResult(
-                assembly_obj_info=assembly_obj_info,
-                assembly_tuple=assembly_tuple
-            )
-            upload_results.append(upload_result)
-    else:
-        batch_uploaded_genome_tuples = [name2tuple[info[1]] for info in uploaded_genome_obj_infos]
-        batch_assembly_tuples = _build_assembly_tuples(batch_uploaded_genome_tuples,
-                                                       uploaded_genome_obj_infos,
-                                                       asu_client,
-                                                       job_data_dir)
-        for (genome_obj_info,
-             assembly_obj_info,
-             genome_tuple,
-             assembly_tuple) in zip(uploaded_genome_obj_infos,
-                                    uploaded_assembly_obj_infos,
-                                    batch_uploaded_genome_tuples,
-                                    batch_assembly_tuples):
-            upload_result = UploadResult(
-                genome_obj_info=genome_obj_info,
-                assembly_obj_info=assembly_obj_info,
-                genome_tuple=genome_tuple,
-                assembly_tuple=assembly_tuple,
-            )
-            upload_results.append(upload_result)
+    batch_uploaded_genome_tuples = [name2tuple[info[1]] for info in uploaded_genome_obj_infos]
+    batch_assembly_tuples = _build_assembly_tuples(batch_uploaded_genome_tuples,
+                                                   uploaded_genome_obj_infos,
+                                                   asu_client,
+                                                   job_data_dir)
+    for (genome_obj_info,
+         assembly_obj_info,
+         genome_tuple,
+         assembly_tuple) in zip(uploaded_genome_obj_infos,
+                                uploaded_assembly_obj_infos,
+                                batch_uploaded_genome_tuples,
+                                batch_assembly_tuples):
+        upload_result = UploadResult(
+            genome_obj_info=genome_obj_info,
+            assembly_obj_info=assembly_obj_info,
+            genome_tuple=genome_tuple,
+            assembly_tuple=assembly_tuple,
+        )
+        upload_results.append(upload_result)
 
     return upload_results
 
@@ -768,7 +710,6 @@ def _upload_objects_in_parallel(
         asu_client: AssemblyUtil,
         gfu_client: GenomeFileUtil,
         job_data_dir: str,
-        upload_assembly_only: bool = True,
 ) -> int:
     """
     Upload objects to the target workspace in parallel using multiprocessing.
@@ -785,7 +726,6 @@ def _upload_objects_in_parallel(
         asu_client: AssemblyUtil client
         gfu_client: GenomeFileUtil client
         job_data_dir: the job directory to store object files
-        upload_assembly_only: upload assembly only if True, otherwise upload genome only
 
     Returns:
         number of object files have been successfully uploaded from wait_to_upload_objs
@@ -798,13 +738,12 @@ def _upload_objects_in_parallel(
     upload_results = list()
     for obj_tuples in _gen(wait_to_upload_objs, batch_size):
         try:
-            upload_results = _process_batch_upload(obj_tuples,
-                                                   workspace_id,
-                                                   load_id,
-                                                   asu_client,
-                                                   gfu_client,
-                                                   job_data_dir,
-                                                   upload_assembly_only=upload_assembly_only)
+            upload_results = _upload_genomes_to_workspace(gfu_client,
+                                                          workspace_id,
+                                                          load_id,
+                                                          obj_tuples,
+                                                          job_data_dir)
+
         except Exception as e:
             traceback.print_exc()
             uploaded_fail = True
@@ -814,8 +753,7 @@ def _upload_objects_in_parallel(
                                                          load_id,
                                                          obj_tuples,
                                                          asu_client,
-                                                         job_data_dir,
-                                                         upload_assembly_only=upload_assembly_only)
+                                                         job_data_dir)
             except Exception as e:
                 print(
                     f"WARNING: There are inconsistencies between "
@@ -851,7 +789,7 @@ def _upload_objects_in_parallel(
 def _dict2tuple_list(objs_dict: dict[str, str]) -> list[WSObjTuple]:
     ws_object_tuple_list = [
         WSObjTuple(
-            i[0], i[1], os.path.join(_JOB_DIR_IN_ASSEMBLYUTIL_CONTAINER, i[0])
+            i[0], i[1], os.path.join(_JOB_DIR_IN_CONTAINER, i[0])
         )
         for i in objs_dict.items()
     ]
@@ -880,8 +818,7 @@ def main():
     source_version = getattr(args, loader_common_names.SOURCE_VER_ARG_NAME)
     root_dir = getattr(args, loader_common_names.ROOT_DIR_ARG_NAME)
     token_filepath = args.token_filepath
-    create_assembly_only = args.create_assembly_only
-    upload_file_ext = args.upload_file_ext or _get_default_file_ext(create_assembly_only)
+    upload_file_ext = args.upload_file_ext
     batch_size = args.batch_size
     cbs_max_tasks = args.cbs_max_tasks
     au_service_ver = args.au_service_ver
@@ -953,7 +890,6 @@ def main():
             load_id,
             collection_source_dir,
             upload_file_ext,
-            create_assembly_only=create_assembly_only
         )
 
         # set up workspace client
@@ -968,7 +904,7 @@ def main():
             wait_to_upload_tuples,
             AssemblyUtil(conf.callback_url, service_ver=au_service_ver, token=conf.token),
             conf.job_data_dir,
-            upload_assembly_only=create_assembly_only)
+        )
 
         # fix inconsistencies between the workspace and the local yaml files
         if upload_results:
@@ -982,7 +918,7 @@ def main():
                     source_dir,
                     upload_result
                 )
-                obj_name = upload_result.genome_tuple.obj_name if upload_result.is_genome else upload_result.assembly_tuple.obj_name
+                obj_name = upload_result.genome_tuple.obj_name
                 wait_to_upload_objs.pop(obj_name)
 
             print("Recovery process completed ...")
@@ -1016,7 +952,6 @@ def main():
             AssemblyUtil(conf.callback_url, service_ver=au_service_ver, token=conf.token),
             GenomeFileUtil(conf.callback_url, service_ver=gfu_service_ver, token=conf.token),
             conf.job_data_dir,
-            upload_assembly_only=create_assembly_only
         )
 
         upload_time = (time.time() - start) / 60
