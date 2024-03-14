@@ -292,43 +292,6 @@ def _upload_genomes_to_workspace(
     return upload_results
 
 
-def _upload_assemblies_to_workspace(
-    asu: AssemblyUtil,
-    workspace_id: int,
-    load_id: str,
-    ws_obj_tuples: list[WSObjTuple],
-) -> list[UploadResult]:
-    """
-    Upload assembly files to the target workspace in batch. The bulk method fails
-    and an error will be thrown if any of the assembly files in batch fails to upload.
-    The order of elements in the returned list corresponds to the order of `ws_obj_tuples`.
-    """
-    inputs = [
-        {
-            "file": obj_tuple.container_internal_file,
-            "assembly_name": obj_tuple.obj_name,
-            "object_metadata": {"load_id": load_id},
-        }
-        for obj_tuple in ws_obj_tuples
-    ]
-
-    assembly_ref = asu.save_assemblies_from_fastas(
-        {"workspace_id": workspace_id, "inputs": inputs}
-    )
-
-    upload_results = []
-    for result_dict, obj_tuple in zip(assembly_ref["results"], ws_obj_tuples):
-        assembly_obj_info = result_dict["object_info"]
-        upload_result = UploadResult(
-            assembly_obj_info=assembly_obj_info,
-            assembly_tuple=obj_tuple,
-        )
-
-        upload_results.append(upload_result)
-
-    return upload_results
-
-
 def _read_upload_status_yaml_file(
     upload_env_key: str,
     workspace_id: int,
