@@ -30,6 +30,9 @@ def _run_eggnog_single(
                                    # Save result file to source file directory. Expecting 'emapper.annotations', 'emapper.hits' and  'emapper.seed_orthologs' files.
                '--itype', f'{INPUT_TYPE}',
                '--cpu', f'{THREADS}',
+               '-excel',
+               '--sensmode', 'fast',
+               '--dmnd_iterate', 'no',
                '--override'  # Overwrites output files if they exist from previous runs.
                ]
 
