@@ -15,7 +15,7 @@ from src.loaders.common import loader_helper
 from src.loaders.workspace_uploader import workspace_uploader
 from src.loaders.workspace_uploader.upload_result import UploadResult
 
-ASSEMBLY_DIR_NAMES = ["GCF_000979855.1", "GCF_000979175.1"]
+GENOME_DIR_NAMES = ["GCF_000979855.1", "GCF_000979175.1"]
 ASSEMBLY_NAMES = [
     "GCF_000979855.1_gtlEnvA5udCFS_genomic.fna.gz",
     "GCF_000979175.1_gtlEnvA5udCFS_genomic.fna.gz",
@@ -148,14 +148,14 @@ def setup_and_teardown():
     collection_source_dir.mkdir()
 
     genome_dirs, assembly_files, genbank_files = list(), list(), list()
-    for assembly_dir_name, assembly_name, genome_name in zip(ASSEMBLY_DIR_NAMES, ASSEMBLY_NAMES, GEMOME_NAMES):
-        target_dir_path = sourcedata_dir.joinpath(assembly_dir_name)
+    for genome_dir_name, assembly_name, genome_name in zip(GENOME_DIR_NAMES, ASSEMBLY_NAMES, GEMOME_NAMES):
+        target_dir_path = sourcedata_dir.joinpath(genome_dir_name)
         target_dir_path.mkdir()
         assembly_file_path = target_dir_path.joinpath(assembly_name)
         assembly_file_path.touch()
         genbank_file_path = target_dir_path.joinpath(genome_name)
         genbank_file_path.touch()
-        new_dir_path = collection_source_dir.joinpath(assembly_dir_name)
+        new_dir_path = collection_source_dir.joinpath(genome_dir_name)
         os.symlink(
             target_dir_path.resolve(), new_dir_path.resolve(), target_is_directory=True
         )
