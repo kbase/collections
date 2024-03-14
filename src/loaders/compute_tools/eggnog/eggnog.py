@@ -50,7 +50,7 @@ def _run_eggnog_single(
 
 
 def main():
-    runner = ToolRunner("eggNOG")
+    runner = ToolRunner("eggnog")
     runner.parallel_single_execution(_run_eggnog_single, unzip=True)
 
 
