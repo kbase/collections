@@ -236,6 +236,7 @@ async def main():
             print("Huzzah! Nothing to be done.")
         print()
         store = await ArangoStorage.create(db)
+        await analyzers.install_analyzers(store)  # must happen before creating views
         await _update_views(store)
     finally:
         await cli.close()
