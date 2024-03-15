@@ -26,7 +26,7 @@ def _run_mash_single(
                                    # Save result file to source file directory. The suffix '.msh' will be appended.
                '-k', f'{kmer_size}',
                '-s', f'{sketch_size}',
-               '-p', program_threads,
+               '-p', f'{program_threads}',
                source_file]
 
     run_command(command, output_dir if debug else None)

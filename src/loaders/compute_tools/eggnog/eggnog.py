@@ -33,7 +33,7 @@ def _run_eggnog_single(
                '-o', output_dir / source_file.name,  # Output prefix.
                                                      # Save result file to collectiondata directory. Expecting 'emapper.annotations', 'emapper.hits' and  'emapper.seed_orthologs' files.
                '--itype', f'{INPUT_TYPE}',
-               '--cpu', program_threads,
+               '--cpu', f'{program_threads}',
                '--excel',
                '--sensmode', 'fast',
                '--dmnd_iterate', 'no',
