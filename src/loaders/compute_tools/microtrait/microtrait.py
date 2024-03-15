@@ -204,6 +204,10 @@ def _run_microtrait(
     #     object returned by the
     #     extract_traits function.
 
+    # programe_threads is not used in this function, but it is kept for consistency with another tools (e.g., eggnog, mash)
+    # since extract_traits function doesn't take the number of threads as an argument
+    # https://github.com/ukaraoz/microtrait/blob/master/R/extract_traits.R#L22-L26
+
     # Load the R script as an R function
     r_script = """
         library(microtrait)
