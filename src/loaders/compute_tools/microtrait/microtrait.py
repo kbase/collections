@@ -186,7 +186,13 @@ def _process_trait_counts(
     return heatmap_row, cells_meta, traits_meta
 
 
-def _run_microtrait(tool_safe_data_id: str, data_id: str, fna_file: Path, genome_dir: Path, debug: bool):
+def _run_microtrait(
+        tool_safe_data_id: str,
+        data_id: str,
+        fna_file: Path,
+        genome_dir: Path,
+        program_threads: int,
+        debug: bool):
     # run microtrait.extract_traits on the genome file
     # https://github.com/ukaraoz/microtrait
 

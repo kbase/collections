@@ -298,6 +298,7 @@ class ToolRunner:
                  meta.get(loader_common_names.META_UNCOMPRESSED_FILE,
                           meta[loader_common_names.META_SOURCE_FILE]),
                  output_dir,
+                 self._program_threads,
                  self._debug))
 
         try:

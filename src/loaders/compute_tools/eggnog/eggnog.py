@@ -12,7 +12,6 @@ from src.loaders.common.loader_common_names import EGGNOG_METADATA
 from src.loaders.compute_tools.tool_common import ToolRunner, run_command
 
 INPUT_TYPE = 'proteins'
-THREADS = 8
 
 
 def _run_eggnog_single(
@@ -20,6 +19,7 @@ def _run_eggnog_single(
         data_id: str,
         source_file: Path,
         output_dir: Path,
+        program_threads: int,
         debug: bool) -> None:
 
     metadata_file = output_dir / EGGNOG_METADATA
@@ -33,7 +33,7 @@ def _run_eggnog_single(
                '-o', output_dir / source_file.name,  # Output prefix.
                                                      # Save result file to collectiondata directory. Expecting 'emapper.annotations', 'emapper.hits' and  'emapper.seed_orthologs' files.
                '--itype', f'{INPUT_TYPE}',
-               '--cpu', f'{THREADS}',
+               '--cpu', program_threads,
                '--excel',
                '--sensmode', 'fast',
                '--dmnd_iterate', 'no',
