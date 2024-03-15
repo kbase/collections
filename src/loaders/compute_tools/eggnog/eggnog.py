@@ -12,7 +12,7 @@ from src.loaders.common.loader_common_names import EGGNOG_METADATA
 from src.loaders.compute_tools.tool_common import ToolRunner, run_command
 
 INPUT_TYPE = 'proteins'
-THREADS = 4
+THREADS = 8
 
 
 def _run_eggnog_single(
