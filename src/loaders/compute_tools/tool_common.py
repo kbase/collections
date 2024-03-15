@@ -246,7 +246,7 @@ class ToolRunner:
             data_ids = all_data_ids
         return list(set(data_ids))
 
-    def parallel_single_execution(self, tool_callable: Callable[[str, str, Path, Path, bool], None], unzip=False):
+    def parallel_single_execution(self, tool_callable: Callable[[str, str, Path, Path, int, bool], None], unzip=False):
         """
         Run a tool by a single data file, storing the results in a single batch directory with
         the individual runs stored in directories by the data ID.
@@ -379,7 +379,7 @@ class ToolRunner:
             self,
             threads: int,
             tool_callable: Callable[..., None],
-            args: List[Tuple[Dict[str, GenomeTuple], Path, int, bool]],
+            args: List[Tuple[Dict[str, GenomeTuple], Path, int, bool]] | List[Tuple[str, str, Path, Path, int, bool]],
             start: datetime.datetime,
             total: bool,
     ):
