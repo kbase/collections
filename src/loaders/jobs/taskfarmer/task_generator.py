@@ -52,14 +52,13 @@ running 4 batches in parallel per NERSC node resulted in optimal performance, de
 TOOLS_AVAILABLE = ['gtdb_tk', 'checkm2', 'microtrait', 'mash', 'eggnog']
 
 # estimated execution time (in minutes) for each tool to process a chunk of data
-TASK_META = {'gtdb_tk': {'chunk_size': 1000, 'exe_time': 65},
-             'eggnog': {'chunk_size': 1000, 'exe_time': 65},  # TODO: update this value after performance testing
+TASK_META = {'gtdb_tk': {'chunk_size': 1000, 'exe_time': 65, 'tasks_per_node': 4},
+             'eggnog': {'chunk_size': 100, 'exe_time': 15, 'node_time_limit': 0.5},  # Memory intensive tool - reserve more nodes with less node reservation time
              'default': {'chunk_size': 5000, 'exe_time': 60}}
 NODE_TIME_LIMIT = 5  # hours  # TODO: automatically calculate this based on tool execution time and NODE_THREADS
 MAX_NODE_NUM = 100  # maximum number of nodes to use
-# The THREADS variable controls the number of parallel tasks per node
-# TODO: make this configurable based on tool used. At present, we have set the value to 4 for optimal performance with GTDB-Tk.
-NODE_THREADS = 4
+# Used as THREADS variable in the batch script which controls the number of parallel tasks per node
+TASKS_PER_NODE = 1
 
 REGISTRY = 'ghcr.io/kbase/collections'
 VERSION_FILE = 'versions.yaml'
@@ -205,8 +204,16 @@ def _create_task_list(
     program_threads: number of threads to use per task
     For instance, if "threads" is set to 128 and "program_threads" to 32, then each task will run 4 batches in parallel.
 
-    We have chosen to use "taskfarmer" for parallelization, which means that "threads" and "program_threads" should
-    have the same value. This ensures that parallelization only happens between tasks, and not within them.
+    For tools capable of processing a batch of genomes, such as GTDB-TK and checkm2,
+    we have chosen to utilize the THREADS variable within Taskfarmer batch script (submit_taskfarmer.sl) for parallelization,
+    which means that "threads" and "program_threads" should have the same value.
+    This ensures that parallelization only happens between tasks, and not within them.
+
+    For tools that can only handle genomes individually, such as microtrait, mash and eggNOG,
+    we still use the THREADS variable for task parallelization. However, within each task, we further parallelize tool
+    execution using the 'threads' variable. For instance, with 'threads' set to 16 and 'tasks_per_node' set to 4,
+    each node will concurrently execute 4 tasks, with each task executing 16 parallel tool operations.
+
 
     TODO: make threads/program_threads configurable based on tool used. However, for the time being, we have set
     these parameters to 32 and , since this value has produced the highest throughput in our experiments.
@@ -259,15 +266,45 @@ def _cal_node_num(tool, n_jobs):
     """
 
     tool_exe_time = TASK_META.get(tool, TASK_META['default'])['exe_time']
-    jobs_per_node = NODE_TIME_LIMIT * 60 // tool_exe_time
+    max_jobs_per_node = max(_get_node_time_limit(tool) * 60 // tool_exe_time, 1) * _get_note_task_count(tool)
 
-    num_nodes = math.ceil(n_jobs / jobs_per_node)
+    num_nodes = math.ceil(n_jobs / max_jobs_per_node)
 
     if num_nodes > MAX_NODE_NUM:
         raise ValueError(f"The number of nodes required ({num_nodes}) is greater than the maximum "
                          f"number of nodes allowed ({MAX_NODE_NUM}).")
 
     return num_nodes
+
+
+def _get_note_task_count(tool: str) -> int:
+    """
+    Get the number of parallel tasks to run on a node
+    """
+
+    return TASK_META.get(tool, TASK_META['default']).get('tasks_per_node', TASKS_PER_NODE)
+
+
+def _get_node_time_limit(tool: str) -> float:
+    """
+    Get the time limit for the node we reserved for the task
+
+    By default, we set the time limit to NODE_TIME_LIMIT (5 hours).
+    If in TASK_META, the tool has a different time limit (node_time_limit), we will use that.
+    """
+
+    return TASK_META.get(tool, TASK_META['default']).get('node_time_limit', NODE_TIME_LIMIT)
+
+
+def _float_to_time(float_hours: float) -> str:
+    """
+    Convert a floating point number of hours to a time string in the format HH:MM:SS
+    """
+    hours = int(float_hours)
+    decimal_part = float_hours - hours
+    minutes = int(decimal_part * 60)
+    seconds = int(decimal_part * 3600) % 60
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
 def _create_batch_script(job_dir, task_list_file, n_jobs, tool):
@@ -281,13 +318,13 @@ def _create_batch_script(job_dir, task_list_file, n_jobs, tool):
 
 #SBATCH -N {node_num + 1} -c 256
 #SBATCH -q regular
-#SBATCH --time={NODE_TIME_LIMIT}:00:00
+#SBATCH --time={_float_to_time(_get_node_time_limit(tool))}
 #SBATCH -C cpu
 
 module load taskfarmer
 
 cd {job_dir}
-export THREADS={NODE_THREADS}
+export THREADS={_get_note_task_count(tool)}
 
 runcommands.sh {task_list_file}'''
 
