@@ -266,7 +266,7 @@ def _cal_node_num(tool, n_jobs):
     """
 
     tool_exe_time = TASK_META.get(tool, TASK_META['default'])['exe_time']
-    max_jobs_per_node = max(_get_node_time_limit(tool) * 60 // tool_exe_time, 1) * _get_note_task_count(tool)
+    max_jobs_per_node = max(_get_node_time_limit(tool) * 60 // tool_exe_time, 1) * _get_node_task_count(tool)
 
     num_nodes = math.ceil(n_jobs / max_jobs_per_node)
 
@@ -277,7 +277,7 @@ def _cal_node_num(tool, n_jobs):
     return num_nodes
 
 
-def _get_note_task_count(tool: str) -> int:
+def _get_node_task_count(tool: str) -> int:
     """
     Get the number of parallel tasks to run on a node
     """
@@ -324,7 +324,7 @@ def _create_batch_script(job_dir, task_list_file, n_jobs, tool):
 module load taskfarmer
 
 cd {job_dir}
-export THREADS={_get_note_task_count(tool)}
+export THREADS={_get_node_task_count(tool)}
 
 runcommands.sh {task_list_file}'''
 
