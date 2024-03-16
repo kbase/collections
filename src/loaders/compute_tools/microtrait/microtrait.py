@@ -186,7 +186,13 @@ def _process_trait_counts(
     return heatmap_row, cells_meta, traits_meta
 
 
-def _run_microtrait(tool_safe_data_id: str, data_id: str, fna_file: Path, genome_dir: Path, debug: bool):
+def _run_microtrait(
+        tool_safe_data_id: str,
+        data_id: str,
+        fna_file: Path,
+        genome_dir: Path,
+        program_threads: int,
+        debug: bool):
     # run microtrait.extract_traits on the genome file
     # https://github.com/ukaraoz/microtrait
 
@@ -197,6 +203,10 @@ def _run_microtrait(tool_safe_data_id: str, data_id: str, fna_file: Path, genome
     #   * A genes_detected_table file (CSV format) retrieved from the result microtrait_result
     #     object returned by the
     #     extract_traits function.
+
+    # programe_threads is not used in this function, but it is kept for consistency with another tools (e.g., eggnog, mash)
+    # since extract_traits function doesn't take the number of threads as an argument
+    # https://github.com/ukaraoz/microtrait/blob/master/R/extract_traits.R#L22-L26
 
     # Load the R script as an R function
     r_script = """
