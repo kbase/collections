@@ -368,16 +368,16 @@ def _fetch_objects_to_upload(
     upload_env_key: str,
     workspace_id: int,
     load_id: str,
-    ncbi_coll_src_dir: str,
+    external_coll_src_dir: str,
     upload_file_ext: list[str],
 ) -> tuple[int, dict[str, str]]:
     count = 0
     wait_to_upload_objs = dict()
 
     obj_dirs = [
-        os.path.join(ncbi_coll_src_dir, d)
-        for d in os.listdir(ncbi_coll_src_dir)
-        if os.path.isdir(os.path.join(ncbi_coll_src_dir, d))
+        os.path.join(external_coll_src_dir, d)
+        for d in os.listdir(external_coll_src_dir)
+        if os.path.isdir(os.path.join(external_coll_src_dir, d))
     ]
 
     for obj_dir in obj_dirs:
@@ -927,7 +927,7 @@ def _prepare_directories(
     Prepare directories used for the uploader.
     """
     job_dir = loader_helper.make_job_dir(root_dir, username)
-    ncbi_coll_src_dir = loader_helper.make_collection_source_dir(
+    external_coll_src_dir = loader_helper.make_collection_source_dir(
         root_dir, loader_common_names.DEFAULT_ENV, kbase_collection, source_version
     )
     ws_coll_src_dir = loader_helper.make_collection_source_dir(
@@ -935,7 +935,7 @@ def _prepare_directories(
     )
     source_dir = loader_helper.make_sourcedata_ws_dir(root_dir, env, workspace_id)
 
-    return job_dir, ncbi_coll_src_dir, ws_coll_src_dir, source_dir
+    return job_dir, external_coll_src_dir, ws_coll_src_dir, source_dir
 
 
 def _create_ws_clients(
@@ -961,7 +961,7 @@ def _fetch_objs_to_upload(
         ws: Workspace,
         workspace_id: int,
         load_id: str,
-        ncbi_coll_src_dir: str,
+        external_coll_src_dir: str,
         ws_coll_src_dir: str,
         source_dir: str,
         upload_file_ext: list[str],
@@ -974,7 +974,7 @@ def _fetch_objs_to_upload(
     Check if the objects are already uploaded to the workspace and perform recovery if needed.
     """
     count, wait_to_upload_objs = _fetch_objects_to_upload(
-        env, workspace_id, load_id, ncbi_coll_src_dir, upload_file_ext)
+        env, workspace_id, load_id, external_coll_src_dir, upload_file_ext)
 
     # check if the objects are already uploaded to the workspace
     obj_names_processed = _check_existing_uploads_and_recovery(
@@ -1010,7 +1010,7 @@ def main():
      keep_job_dir, catalog_admin, load_id, env, kb_base_url) = _get_parser_args()
 
     username = os.getlogin()
-    job_dir, ncbi_coll_src_dir, ws_coll_src_dir, source_dir = _prepare_directories(
+    job_dir, external_coll_src_dir, ws_coll_src_dir, source_dir = _prepare_directories(
         root_dir, username, kbase_collection, source_version, env, workspace_id
     )
 
@@ -1026,7 +1026,7 @@ def main():
             kb_base_url, conf.callback_url, conf.token, au_service_ver, gfu_service_ver)
 
         wait_to_upload_objs, count = _fetch_objs_to_upload(
-            env, ws, workspace_id, load_id, ncbi_coll_src_dir, ws_coll_src_dir, source_dir, upload_file_ext, asu_client, conf.job_data_dir
+            env, ws, workspace_id, load_id, external_coll_src_dir, ws_coll_src_dir, source_dir, upload_file_ext, asu_client, conf.job_data_dir
         )
 
         _prepare_skd_job_dir_to_upload(conf, wait_to_upload_objs)
