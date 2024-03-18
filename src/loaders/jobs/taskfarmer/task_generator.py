@@ -42,7 +42,7 @@ With 4 batches running in parallel, each using 32 cores, it takes around 50 minu
 To reflect this, we have set the "threads" and "program_threads" parameters in "_create_task_list" to 32, 
 indicating that each batch will use 32 cores. We have also set the execution time for GTDB-Tk to 65 minutes, 
 with some additional buffer time. To allow for a sufficient number of batches to be run within a given time limit, 
-we have set the "NODE_TIME_LIMIT" to 5 hours. With these settings, we expect to be able to process up to 16 batches, 
+we have set the "NODE_TIME_LIMIT_DEFAULT" to 5 hours. With these settings, we expect to be able to process up to 16 batches, 
 or 16,000 genomes, per node within the 5-hour time limit. We plan to make these parameters configurable based on 
 the specific tool being used. After conducting performance tests, we found that utilizing 32 cores per batch and 
 running 4 batches in parallel per NERSC node resulted in optimal performance, despite each node having a total of 
@@ -55,10 +55,10 @@ TOOLS_AVAILABLE = ['gtdb_tk', 'checkm2', 'microtrait', 'mash', 'eggnog']
 TASK_META = {'gtdb_tk': {'chunk_size': 1000, 'exe_time': 65, 'tasks_per_node': 4},
              'eggnog': {'chunk_size': 100, 'exe_time': 15, 'node_time_limit': 0.5},  # Memory intensive tool - reserve more nodes with less node reservation time
              'default': {'chunk_size': 5000, 'exe_time': 60}}
-NODE_TIME_LIMIT = 5  # hours  # TODO: automatically calculate this based on tool execution time and NODE_THREADS
+NODE_TIME_LIMIT_DEFAULT = 5  # hours  # TODO: automatically calculate this based on tool execution time and NODE_THREADS
 MAX_NODE_NUM = 100  # maximum number of nodes to use
 # Used as THREADS variable in the batch script which controls the number of parallel tasks per node
-TASKS_PER_NODE = 1
+TASKS_PER_NODE_DEFAULT = 1
 
 REGISTRY = 'ghcr.io/kbase/collections'
 VERSION_FILE = 'versions.yaml'
@@ -282,7 +282,7 @@ def _get_node_task_count(tool: str) -> int:
     Get the number of parallel tasks to run on a node
     """
 
-    return TASK_META.get(tool, TASK_META['default']).get('tasks_per_node', TASKS_PER_NODE)
+    return TASK_META.get(tool, TASK_META['default']).get('tasks_per_node', TASKS_PER_NODE_DEFAULT)
 
 
 def _get_node_time_limit(tool: str) -> float:
@@ -293,7 +293,7 @@ def _get_node_time_limit(tool: str) -> float:
     If in TASK_META, the tool has a different time limit (node_time_limit), we will use that.
     """
 
-    return TASK_META.get(tool, TASK_META['default']).get('node_time_limit', NODE_TIME_LIMIT)
+    return TASK_META.get(tool, TASK_META['default']).get('node_time_limit', NODE_TIME_LIMIT_DEFAULT)
 
 
 def _float_to_time(float_hours: float) -> str:
