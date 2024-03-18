@@ -938,7 +938,7 @@ def _prepare_directories(
     return job_dir, external_coll_src_dir, ws_coll_src_dir, source_dir
 
 
-def _create_ws_clients(
+def _create_kbase_clients(
         kb_base_url,
         callback_url,
         token,
@@ -967,7 +967,7 @@ def _fetch_objs_to_upload(
         upload_file_ext: list[str],
         asu_client: AssemblyUtil,
         job_data_dir: str
-):
+) -> dict[str, str]:
     """
     Fetch objects to be uploaded to the workspace.
 
@@ -994,13 +994,13 @@ def _fetch_objs_to_upload(
 
     if not wait_to_upload_objs:
         print(f"All {count} files already exist in workspace {workspace_id}")
-        return wait_to_upload_objs, count
+        return wait_to_upload_objs
 
     wtus_len = len(wait_to_upload_objs)
     print(f"Originally planned to upload {count} object files")
     print(f"Detected {count - wtus_len} object files already exist in workspace")
 
-    return wait_to_upload_objs, count
+    return wait_to_upload_objs
 
 
 def main():
@@ -1022,12 +1022,14 @@ def main():
             print("Failed to start services. Exiting ...")
             return
 
-        ws, asu_client, gfu_client = _create_ws_clients(
+        ws, asu_client, gfu_client = _create_kbase_clients(
             kb_base_url, conf.callback_url, conf.token, au_service_ver, gfu_service_ver)
 
-        wait_to_upload_objs, count = _fetch_objs_to_upload(
+        wait_to_upload_objs = _fetch_objs_to_upload(
             env, ws, workspace_id, load_id, external_coll_src_dir, ws_coll_src_dir, source_dir, upload_file_ext, asu_client, conf.job_data_dir
         )
+        if not wait_to_upload_objs:
+            return
 
         _prepare_skd_job_dir_to_upload(conf, wait_to_upload_objs)
         print(f"{len(wait_to_upload_objs)} objects in {conf.job_data_dir} are ready to upload to workspace {workspace_id}")
