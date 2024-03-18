@@ -61,6 +61,7 @@ at docs/data_pipeline_procedure.md.
 import argparse
 import os
 import shutil
+import subprocess
 import time
 import traceback
 import uuid
@@ -367,16 +368,16 @@ def _fetch_objects_to_upload(
     upload_env_key: str,
     workspace_id: int,
     load_id: str,
-    collection_source_dir: str,
+    external_coll_src_dir: str,
     upload_file_ext: list[str],
 ) -> tuple[int, dict[str, str]]:
     count = 0
     wait_to_upload_objs = dict()
 
     obj_dirs = [
-        os.path.join(collection_source_dir, d)
-        for d in os.listdir(collection_source_dir)
-        if os.path.isdir(os.path.join(collection_source_dir, d))
+        os.path.join(external_coll_src_dir, d)
+        for d in os.listdir(external_coll_src_dir)
+        if os.path.isdir(os.path.join(external_coll_src_dir, d))
     ]
 
     for obj_dir in obj_dirs:
@@ -505,7 +506,7 @@ def _post_process(
     upload_env_key: str,
     workspace_id: int,
     load_id: str,
-    collections_source_dir: str,
+    ws_coll_src_dir: str,
     source_data_dir: str,
     upload_result: UploadResult,
 ) -> None:
@@ -518,7 +519,7 @@ def _post_process(
     Creates a softlink from new_dir in collectionssource to the contents of target_dir in sourcedata.
     """
 
-    _process_genome_objects(collections_source_dir,
+    _process_genome_objects(ws_coll_src_dir,
                             source_data_dir,
                             upload_result,
                             )
@@ -534,7 +535,7 @@ def _post_process(
 
 
 def _process_genome_objects(
-        collections_source_dir: str,
+        ws_coll_src_dir: str,
         source_data_dir: str,
         upload_result: UploadResult,
 ) -> None:
@@ -561,7 +562,7 @@ def _process_genome_objects(
                                    upload_result.genome_obj_info)
 
     # create a softlink from new_dir in collectionssource to the contents of target_dir in sourcedata
-    new_dir = os.path.join(collections_source_dir, assembly_upa)
+    new_dir = os.path.join(ws_coll_src_dir, assembly_upa)
     loader_helper.create_softlink_between_dirs(new_dir, ws_source_data_dir)
 
 
@@ -666,7 +667,7 @@ def _upload_objects_in_parallel(
         upload_env_key: str,
         workspace_id: int,
         load_id: str,
-        collections_source_dir: str,
+        ws_coll_src_dir: str,
         wait_to_upload_objs: dict[str, str],
         batch_size: int,
         source_data_dir: str,
@@ -682,7 +683,7 @@ def _upload_objects_in_parallel(
         upload_env_key: environment variable key in uploaded.yaml file
         workspace_id: target workspace id
         load_id: load id
-        collections_source_dir: a directory in collectionssource that creates new directories linking to sourcedata.  i.e. /root_dir/collectionssource
+        ws_coll_src_dir: a directory in collectionssource representing workspace that creates new directories linking to sourcedata.  i.e. /root_dir/collectionssource/<WS_ENV>/<KBASE_COLLECTION>/<SOURCE_VER>
         wait_to_upload_objs: a dictionary that maps object file name to object directory
         batch_size: a number of files to upload per batch
         source_data_dir: directory for all source data. i.e. /root_dir/sourcedata
@@ -730,7 +731,7 @@ def _upload_objects_in_parallel(
                 upload_env_key,
                 workspace_id,
                 load_id,
-                collections_source_dir,
+                ws_coll_src_dir,
                 source_data_dir,
                 upload_result
             )
@@ -772,7 +773,113 @@ def _gen(
         yield obj_tuple_list[idx: idx + batch_size]
 
 
-def main():
+def _check_existing_uploads_and_recovery(
+        ws: Workspace,
+        env: str,
+        workspace_id: int,
+        load_id: str,
+        ws_coll_src_dir: str,
+        source_dir: str,
+        wait_to_upload_objs: dict[str, str],
+        asu_client: AssemblyUtil,
+        job_data_dir: str,
+) -> list[str]:
+    """
+    Process existing uploads, perform post-processing, and handle recovery.
+    """
+    obj_names_processed = []
+
+    wait_to_upload_tuples = _dict2tuple_list(wait_to_upload_objs)
+    upload_results = _process_failed_uploads(
+        ws,
+        workspace_id,
+        load_id,
+        wait_to_upload_tuples,
+        asu_client,
+        job_data_dir,
+    )
+
+    # Fix inconsistencies between the workspace and the local yaml files
+    if upload_results:
+        print("Start failure recovery process ...")
+        for upload_result in upload_results:
+            _post_process(
+                env,
+                workspace_id,
+                load_id,
+                ws_coll_src_dir,
+                source_dir,
+                upload_result
+            )
+            obj_names_processed.append(upload_result.genome_tuple.obj_name)
+
+        print("Recovery process completed ...")
+
+    return obj_names_processed
+
+
+def _cleanup_resources(
+        conf: Conf,
+        proc: subprocess.Popen,
+        job_dir: str,
+        keep_job_dir: bool):
+    """
+    Cleanup resources including stopping callback server, terminating Podman service, and removing job directory.
+    """
+
+    # Stop callback server if it is on
+    if conf:
+        conf.stop_callback_server()
+
+    # Stop Podman service if it is on
+    if proc:
+        proc.terminate()
+
+    # Remove job directory if needed
+    if not keep_job_dir:
+        shutil.rmtree(job_dir)
+
+
+def _setup_and_start_services(
+        job_dir,
+        kb_base_url,
+        token_filepath,
+        cbs_max_tasks,
+        catalog_admin
+) -> tuple[subprocess.Popen | None, Conf | None]:
+    """
+    Setup and start services including Podman service and callback server.
+    """
+
+    # Setup container.conf file for the callback server logs if needed
+    if loader_helper.is_config_modification_required():
+        if click.confirm(
+                f"The config file at {loader_common_names.CONTAINERS_CONF_PATH}\n"
+                f"needs to be modified to allow for container logging.\n"
+                f"Params 'seccomp_profile' and 'log_driver' will be added/updated under section [containers]. Do so now?\n"
+        ):
+            loader_helper.setup_callback_server_logs()
+        else:
+            print("Permission denied and exiting ...")
+            return None, None
+
+    # Start podman service
+    uid = os.getuid()
+    proc = loader_helper.start_podman_service(uid)
+
+    # Set up configuration for uploader
+    conf = Conf(
+        job_dir=job_dir,
+        kb_base_url=kb_base_url,
+        token_filepath=token_filepath,
+        max_callback_server_tasks=cbs_max_tasks,
+        catalog_admin=catalog_admin,
+    )
+
+    return proc, conf
+
+
+def _get_parser_args():
     parser = _get_parser()
     args = parser.parse_args()
 
@@ -788,15 +895,11 @@ def main():
     gfu_service_ver = args.gfu_service_ver
     keep_job_dir = args.keep_job_dir
     catalog_admin = args.as_catalog_admin
-    load_id = args.load_id
-    if not load_id:
-        print("load_id is not provided. Generating a load_id ...")
-        load_id = uuid.uuid4().hex
+    load_id = args.load_id or uuid.uuid4().hex
     print(
         f"load_id is {load_id}.\n"
         f"Please keep using this load version until the load is complete!"
     )
-
     env = args.env
     kb_base_url = loader_common_names.KB_BASE_URL_MAP[env]
 
@@ -807,99 +910,129 @@ def main():
     if cbs_max_tasks <= 0:
         parser.error(f"cbs_max_tasks needs to be > 0")
 
-    uid = os.getuid()
-    username = os.getlogin()
+    return (workspace_id, kbase_collection, source_version, root_dir, token_filepath,
+            upload_file_ext, batch_size, cbs_max_tasks, au_service_ver, gfu_service_ver,
+            keep_job_dir, catalog_admin, load_id, env, kb_base_url)
 
+
+def _prepare_directories(
+        root_dir: str,
+        username: str,
+        kbase_collection: str,
+        source_version: str,
+        env: str,
+        workspace_id: int,
+) -> tuple[str, str, str, str]:
+    """
+    Prepare directories used for the uploader.
+    """
     job_dir = loader_helper.make_job_dir(root_dir, username)
-    collection_source_dir = loader_helper.make_collection_source_dir(
+    external_coll_src_dir = loader_helper.make_collection_source_dir(
         root_dir, loader_common_names.DEFAULT_ENV, kbase_collection, source_version
     )
-    collections_source_dir = loader_helper.make_collection_source_dir(
+    ws_coll_src_dir = loader_helper.make_collection_source_dir(
         root_dir, env, kbase_collection, source_version
     )
     source_dir = loader_helper.make_sourcedata_ws_dir(root_dir, env, workspace_id)
 
+    return job_dir, external_coll_src_dir, ws_coll_src_dir, source_dir
+
+
+def _create_kbase_clients(
+        kb_base_url,
+        callback_url,
+        token,
+        au_service_ver,
+        gfu_service_ver
+) -> tuple[Workspace, AssemblyUtil, GenomeFileUtil]:
+    """
+    Create workspace clients.
+    """
+    ws_url = os.path.join(kb_base_url, "ws")
+    ws = Workspace(ws_url, token=token)
+    asu_client = AssemblyUtil(callback_url, service_ver=au_service_ver, token=token)
+    gfu_client = GenomeFileUtil(callback_url, service_ver=gfu_service_ver, token=token)
+
+    return ws, asu_client, gfu_client
+
+
+def _fetch_objs_to_upload(
+        env: str,
+        ws: Workspace,
+        workspace_id: int,
+        load_id: str,
+        external_coll_src_dir: str,
+        ws_coll_src_dir: str,
+        source_dir: str,
+        upload_file_ext: list[str],
+        asu_client: AssemblyUtil,
+        job_data_dir: str
+) -> dict[str, str]:
+    """
+    Fetch objects to be uploaded to the workspace.
+
+    Check if the objects are already uploaded to the workspace and perform recovery if needed.
+    """
+    count, wait_to_upload_objs = _fetch_objects_to_upload(
+        env, workspace_id, load_id, external_coll_src_dir, upload_file_ext)
+
+    # check if the objects are already uploaded to the workspace
+    obj_names_processed = _check_existing_uploads_and_recovery(
+        ws,
+        env,
+        workspace_id,
+        load_id,
+        ws_coll_src_dir,
+        source_dir,
+        wait_to_upload_objs,
+        asu_client,
+        job_data_dir,
+    )
+
+    for obj_name in obj_names_processed:
+        wait_to_upload_objs.pop(obj_name)
+
+    if not wait_to_upload_objs:
+        print(f"All {count} files already exist in workspace {workspace_id}")
+        return wait_to_upload_objs
+
+    wtus_len = len(wait_to_upload_objs)
+    print(f"Originally planned to upload {count} object files")
+    print(f"Detected {count - wtus_len} object files already exist in workspace")
+
+    return wait_to_upload_objs
+
+
+def main():
+
+    (workspace_id, kbase_collection, source_version, root_dir, token_filepath,
+     upload_file_ext, batch_size, cbs_max_tasks, au_service_ver, gfu_service_ver,
+     keep_job_dir, catalog_admin, load_id, env, kb_base_url) = _get_parser_args()
+
+    username = os.getlogin()
+    job_dir, external_coll_src_dir, ws_coll_src_dir, source_dir = _prepare_directories(
+        root_dir, username, kbase_collection, source_version, env, workspace_id
+    )
+
     proc = None
     conf = None
-
     try:
-        # setup container.conf file for the callback server logs if needed
-        if loader_helper.is_config_modification_required():
-            if click.confirm(
-                f"The config file at {loader_common_names.CONTAINERS_CONF_PATH}\n"
-                f"needs to be modified to allow for container logging.\n"
-                f"Params 'seccomp_profile' and 'log_driver' will be added/updated under section [containers]. Do so now?\n"
-            ):
-                loader_helper.setup_callback_server_logs()
-            else:
-                print("Permission denied and exiting ...")
-                return
-
-        # start podman service
-        proc = loader_helper.start_podman_service(uid)
-
-        # set up conf for uploader, start callback server, and upload objects to workspace
-        conf = Conf(
-            job_dir=job_dir,
-            kb_base_url=kb_base_url,
-            token_filepath=token_filepath,
-            max_callback_server_tasks=cbs_max_tasks,
-            catalog_admin=catalog_admin,
-        )
-
-        count, wait_to_upload_objs = _fetch_objects_to_upload(
-            env,
-            workspace_id,
-            load_id,
-            collection_source_dir,
-            upload_file_ext,
-        )
-
-        # set up workspace client
-        ws_url = os.path.join(kb_base_url, "ws")
-        ws = Workspace(ws_url, token=conf.token)
-
-        wait_to_upload_tuples = _dict2tuple_list(wait_to_upload_objs)
-        upload_results = _process_failed_uploads(
-            ws,
-            workspace_id,
-            load_id,
-            wait_to_upload_tuples,
-            AssemblyUtil(conf.callback_url, service_ver=au_service_ver, token=conf.token),
-            conf.job_data_dir,
-        )
-
-        # fix inconsistencies between the workspace and the local yaml files
-        if upload_results:
-            print("Start failure recovery process ...")
-            for upload_result in upload_results:
-                _post_process(
-                    env,
-                    workspace_id,
-                    load_id,
-                    collections_source_dir,
-                    source_dir,
-                    upload_result
-                )
-                obj_name = upload_result.genome_tuple.obj_name
-                wait_to_upload_objs.pop(obj_name)
-
-            print("Recovery process completed ...")
-
-        if not wait_to_upload_objs:
-            print(
-                f"All {count} files already exist in workspace {workspace_id}"
-            )
+        proc, conf = _setup_and_start_services(job_dir, kb_base_url, token_filepath, cbs_max_tasks, catalog_admin)
+        if not proc or not conf:
+            print("Failed to start services. Exiting ...")
             return
 
-        wtus_len = len(wait_to_upload_objs)
-        print(f"Originally planned to upload {count} object files")
-        print(f"Detected {count - wtus_len} object files already exist in workspace")
+        ws, asu_client, gfu_client = _create_kbase_clients(
+            kb_base_url, conf.callback_url, conf.token, au_service_ver, gfu_service_ver)
+
+        wait_to_upload_objs = _fetch_objs_to_upload(
+            env, ws, workspace_id, load_id, external_coll_src_dir, ws_coll_src_dir, source_dir, upload_file_ext, asu_client, conf.job_data_dir
+        )
+        if not wait_to_upload_objs:
+            return
 
         _prepare_skd_job_dir_to_upload(conf, wait_to_upload_objs)
-        print(
-            f"{wtus_len} objects in {conf.job_data_dir} are ready to upload to workspace {workspace_id}"
-        )
+        print(f"{len(wait_to_upload_objs)} objects in {conf.job_data_dir} are ready to upload to workspace {workspace_id}")
 
         start = time.time()
 
@@ -908,12 +1041,12 @@ def main():
             env,
             workspace_id,
             load_id,
-            collections_source_dir,
+            ws_coll_src_dir,
             wait_to_upload_objs,
             batch_size,
             source_dir,
-            AssemblyUtil(conf.callback_url, service_ver=au_service_ver, token=conf.token),
-            GenomeFileUtil(conf.callback_url, service_ver=gfu_service_ver, token=conf.token),
+            asu_client,
+            gfu_client,
             conf.job_data_dir,
         )
 
@@ -926,16 +1059,7 @@ def main():
         )
 
     finally:
-        # stop callback server if it is on
-        if conf:
-            conf.stop_callback_server()
-
-        # stop podman service if it is on
-        if proc:
-            proc.terminate()
-
-        if not keep_job_dir:
-            shutil.rmtree(job_dir)
+        _cleanup_resources(conf, proc, job_dir, keep_job_dir)
 
 
 if __name__ == "__main__":
