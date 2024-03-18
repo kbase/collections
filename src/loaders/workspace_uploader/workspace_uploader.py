@@ -368,16 +368,16 @@ def _fetch_objects_to_upload(
     upload_env_key: str,
     workspace_id: int,
     load_id: str,
-    collection_source_dir: str,
+    ncbi_coll_src_dir: str,
     upload_file_ext: list[str],
 ) -> tuple[int, dict[str, str]]:
     count = 0
     wait_to_upload_objs = dict()
 
     obj_dirs = [
-        os.path.join(collection_source_dir, d)
-        for d in os.listdir(collection_source_dir)
-        if os.path.isdir(os.path.join(collection_source_dir, d))
+        os.path.join(ncbi_coll_src_dir, d)
+        for d in os.listdir(ncbi_coll_src_dir)
+        if os.path.isdir(os.path.join(ncbi_coll_src_dir, d))
     ]
 
     for obj_dir in obj_dirs:
@@ -506,7 +506,7 @@ def _post_process(
     upload_env_key: str,
     workspace_id: int,
     load_id: str,
-    collections_source_dir: str,
+    ws_coll_src_dir: str,
     source_data_dir: str,
     upload_result: UploadResult,
 ) -> None:
@@ -519,7 +519,7 @@ def _post_process(
     Creates a softlink from new_dir in collectionssource to the contents of target_dir in sourcedata.
     """
 
-    _process_genome_objects(collections_source_dir,
+    _process_genome_objects(ws_coll_src_dir,
                             source_data_dir,
                             upload_result,
                             )
@@ -535,7 +535,7 @@ def _post_process(
 
 
 def _process_genome_objects(
-        collections_source_dir: str,
+        ws_coll_src_dir: str,
         source_data_dir: str,
         upload_result: UploadResult,
 ) -> None:
@@ -562,7 +562,7 @@ def _process_genome_objects(
                                    upload_result.genome_obj_info)
 
     # create a softlink from new_dir in collectionssource to the contents of target_dir in sourcedata
-    new_dir = os.path.join(collections_source_dir, assembly_upa)
+    new_dir = os.path.join(ws_coll_src_dir, assembly_upa)
     loader_helper.create_softlink_between_dirs(new_dir, ws_source_data_dir)
 
 
@@ -667,7 +667,7 @@ def _upload_objects_in_parallel(
         upload_env_key: str,
         workspace_id: int,
         load_id: str,
-        collections_source_dir: str,
+        ws_coll_src_dir: str,
         wait_to_upload_objs: dict[str, str],
         batch_size: int,
         source_data_dir: str,
@@ -683,7 +683,7 @@ def _upload_objects_in_parallel(
         upload_env_key: environment variable key in uploaded.yaml file
         workspace_id: target workspace id
         load_id: load id
-        collections_source_dir: a directory in collectionssource that creates new directories linking to sourcedata.  i.e. /root_dir/collectionssource
+        ws_coll_src_dir: a directory in collectionssource representing workspace that creates new directories linking to sourcedata.  i.e. /root_dir/collectionssource/<WS_ENV>/<KBASE_COLLECTION>/<SOURCE_VER>
         wait_to_upload_objs: a dictionary that maps object file name to object directory
         batch_size: a number of files to upload per batch
         source_data_dir: directory for all source data. i.e. /root_dir/sourcedata
@@ -731,7 +731,7 @@ def _upload_objects_in_parallel(
                 upload_env_key,
                 workspace_id,
                 load_id,
-                collections_source_dir,
+                ws_coll_src_dir,
                 source_data_dir,
                 upload_result
             )
@@ -778,7 +778,7 @@ def _check_existing_uploads_and_recovery(
         env: str,
         workspace_id: int,
         load_id: str,
-        collections_source_dir: str,
+        ws_coll_src_dir: str,
         source_dir: str,
         wait_to_upload_objs: dict[str, str],
         asu_client: AssemblyUtil,
@@ -807,7 +807,7 @@ def _check_existing_uploads_and_recovery(
                 env,
                 workspace_id,
                 load_id,
-                collections_source_dir,
+                ws_coll_src_dir,
                 source_dir,
                 upload_result
             )
@@ -883,13 +883,14 @@ def _validate_arguments(
         workspace_id: int,
         batch_size: int,
         cbs_max_tasks: int,
+        parser: argparse.ArgumentParser
 ):
     if workspace_id <= 0:
-        raise ValueError("workspace_id needs to be > 0")
+        parser.error(f"workspace_id needs to be > 0")
     if batch_size <= 0:
-        raise ValueError("batch_size needs to be > 0")
+        parser.error(f"batch_size needs to be > 0")
     if cbs_max_tasks <= 0:
-        raise ValueError("cbs_max_tasks needs to be > 0")
+        parser.error(f"cbs_max_tasks needs to be > 0")
 
 
 def _prepare_directories(
@@ -904,15 +905,15 @@ def _prepare_directories(
     Prepare directories used for the uploader.
     """
     job_dir = loader_helper.make_job_dir(root_dir, username)
-    collection_source_dir = loader_helper.make_collection_source_dir(
+    ncbi_coll_src_dir = loader_helper.make_collection_source_dir(
         root_dir, loader_common_names.DEFAULT_ENV, kbase_collection, source_version
     )
-    collections_source_dir = loader_helper.make_collection_source_dir(
+    ws_coll_src_dir = loader_helper.make_collection_source_dir(
         root_dir, env, kbase_collection, source_version
     )
     source_dir = loader_helper.make_sourcedata_ws_dir(root_dir, env, workspace_id)
 
-    return job_dir, collection_source_dir, collections_source_dir, source_dir
+    return job_dir, ncbi_coll_src_dir, ws_coll_src_dir, source_dir
 
 
 def main():
@@ -939,10 +940,10 @@ def main():
     env = args.env
     kb_base_url = loader_common_names.KB_BASE_URL_MAP[env]
 
-    _validate_arguments(workspace_id, batch_size, cbs_max_tasks)
+    _validate_arguments(workspace_id, batch_size, cbs_max_tasks, parser)
 
     username = os.getlogin()
-    job_dir, collection_source_dir, collections_source_dir, source_dir = _prepare_directories(
+    job_dir, ncbi_coll_src_dir, ws_coll_src_dir, source_dir = _prepare_directories(
         root_dir, username, kbase_collection, source_version, env, workspace_id
     )
 
@@ -955,12 +956,7 @@ def main():
             return
 
         count, wait_to_upload_objs = _fetch_objects_to_upload(
-            env,
-            workspace_id,
-            load_id,
-            collection_source_dir,
-            upload_file_ext,
-        )
+            env, workspace_id, load_id, ncbi_coll_src_dir, upload_file_ext)
 
         # set up workspace client
         ws_url = os.path.join(kb_base_url, "ws")
@@ -974,7 +970,7 @@ def main():
             env,
             workspace_id,
             load_id,
-            collections_source_dir,
+            ws_coll_src_dir,
             source_dir,
             wait_to_upload_objs,
             asu_client,
@@ -1002,7 +998,7 @@ def main():
             env,
             workspace_id,
             load_id,
-            collections_source_dir,
+            ws_coll_src_dir,
             wait_to_upload_objs,
             batch_size,
             source_dir,
