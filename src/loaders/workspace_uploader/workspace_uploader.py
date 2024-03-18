@@ -61,6 +61,7 @@ at docs/data_pipeline_procedure.md.
 import argparse
 import os
 import shutil
+import subprocess
 import time
 import traceback
 import uuid
@@ -772,6 +773,148 @@ def _gen(
         yield obj_tuple_list[idx: idx + batch_size]
 
 
+def _check_existing_uploads_and_recovery(
+        ws: Workspace,
+        env: str,
+        workspace_id: int,
+        load_id: str,
+        collections_source_dir: str,
+        source_dir: str,
+        wait_to_upload_objs: dict[str, str],
+        asu_client: AssemblyUtil,
+        job_data_dir: str,
+) -> list[str]:
+    """
+    Process existing uploads, perform post-processing, and handle recovery.
+    """
+    obj_names_processed = []
+
+    wait_to_upload_tuples = _dict2tuple_list(wait_to_upload_objs)
+    upload_results = _process_failed_uploads(
+        ws,
+        workspace_id,
+        load_id,
+        wait_to_upload_tuples,
+        asu_client,
+        job_data_dir,
+    )
+
+    # Fix inconsistencies between the workspace and the local yaml files
+    if upload_results:
+        print("Start failure recovery process ...")
+        for upload_result in upload_results:
+            _post_process(
+                env,
+                workspace_id,
+                load_id,
+                collections_source_dir,
+                source_dir,
+                upload_result
+            )
+            obj_names_processed.append(upload_result.genome_tuple.obj_name)
+
+        print("Recovery process completed ...")
+
+    return obj_names_processed
+
+
+def _cleanup_resources(
+        conf: Conf,
+        proc: subprocess.Popen,
+        job_dir: str,
+        keep_job_dir: bool):
+    """
+    Cleanup resources including stopping callback server, terminating Podman service, and removing job directory.
+    """
+
+    # Stop callback server if it is on
+    if conf:
+        conf.stop_callback_server()
+
+    # Stop Podman service if it is on
+    if proc:
+        proc.terminate()
+
+    # Remove job directory if needed
+    if not keep_job_dir:
+        shutil.rmtree(job_dir)
+
+
+def _setup_and_start_services(
+        job_dir,
+        kb_base_url,
+        token_filepath,
+        cbs_max_tasks,
+        catalog_admin
+) -> tuple[subprocess.Popen | None, Conf | None]:
+    """
+    Setup and start services including Podman service and callback server.
+    """
+
+    # Setup container.conf file for the callback server logs if needed
+    if loader_helper.is_config_modification_required():
+        if click.confirm(
+                f"The config file at {loader_common_names.CONTAINERS_CONF_PATH}\n"
+                f"needs to be modified to allow for container logging.\n"
+                f"Params 'seccomp_profile' and 'log_driver' will be added/updated under section [containers]. Do so now?\n"
+        ):
+            loader_helper.setup_callback_server_logs()
+        else:
+            print("Permission denied and exiting ...")
+            return None, None
+
+    # Start podman service
+    uid = os.getuid()
+    proc = loader_helper.start_podman_service(uid)
+
+    # Set up configuration for uploader
+    conf = Conf(
+        job_dir=job_dir,
+        kb_base_url=kb_base_url,
+        token_filepath=token_filepath,
+        max_callback_server_tasks=cbs_max_tasks,
+        catalog_admin=catalog_admin,
+    )
+
+    return proc, conf
+
+
+def _validate_arguments(
+        workspace_id: int,
+        batch_size: int,
+        cbs_max_tasks: int,
+):
+    if workspace_id <= 0:
+        raise ValueError("workspace_id needs to be > 0")
+    if batch_size <= 0:
+        raise ValueError("batch_size needs to be > 0")
+    if cbs_max_tasks <= 0:
+        raise ValueError("cbs_max_tasks needs to be > 0")
+
+
+def _prepare_directories(
+        root_dir: str,
+        username: str,
+        kbase_collection: str,
+        source_version: str,
+        env: str,
+        workspace_id: int,
+) -> tuple[str, str, str, str]:
+    """
+    Prepare directories used for the uploader.
+    """
+    job_dir = loader_helper.make_job_dir(root_dir, username)
+    collection_source_dir = loader_helper.make_collection_source_dir(
+        root_dir, loader_common_names.DEFAULT_ENV, kbase_collection, source_version
+    )
+    collections_source_dir = loader_helper.make_collection_source_dir(
+        root_dir, env, kbase_collection, source_version
+    )
+    source_dir = loader_helper.make_sourcedata_ws_dir(root_dir, env, workspace_id)
+
+    return job_dir, collection_source_dir, collections_source_dir, source_dir
+
+
 def main():
     parser = _get_parser()
     args = parser.parse_args()
@@ -788,64 +931,28 @@ def main():
     gfu_service_ver = args.gfu_service_ver
     keep_job_dir = args.keep_job_dir
     catalog_admin = args.as_catalog_admin
-    load_id = args.load_id
-    if not load_id:
-        print("load_id is not provided. Generating a load_id ...")
-        load_id = uuid.uuid4().hex
+    load_id = args.load_id or uuid.uuid4().hex
     print(
         f"load_id is {load_id}.\n"
         f"Please keep using this load version until the load is complete!"
     )
-
     env = args.env
     kb_base_url = loader_common_names.KB_BASE_URL_MAP[env]
 
-    if workspace_id <= 0:
-        parser.error(f"workspace_id needs to be > 0")
-    if batch_size <= 0:
-        parser.error(f"batch_size needs to be > 0")
-    if cbs_max_tasks <= 0:
-        parser.error(f"cbs_max_tasks needs to be > 0")
+    _validate_arguments(workspace_id, batch_size, cbs_max_tasks)
 
-    uid = os.getuid()
     username = os.getlogin()
-
-    job_dir = loader_helper.make_job_dir(root_dir, username)
-    collection_source_dir = loader_helper.make_collection_source_dir(
-        root_dir, loader_common_names.DEFAULT_ENV, kbase_collection, source_version
+    job_dir, collection_source_dir, collections_source_dir, source_dir = _prepare_directories(
+        root_dir, username, kbase_collection, source_version, env, workspace_id
     )
-    collections_source_dir = loader_helper.make_collection_source_dir(
-        root_dir, env, kbase_collection, source_version
-    )
-    source_dir = loader_helper.make_sourcedata_ws_dir(root_dir, env, workspace_id)
 
     proc = None
     conf = None
-
     try:
-        # setup container.conf file for the callback server logs if needed
-        if loader_helper.is_config_modification_required():
-            if click.confirm(
-                f"The config file at {loader_common_names.CONTAINERS_CONF_PATH}\n"
-                f"needs to be modified to allow for container logging.\n"
-                f"Params 'seccomp_profile' and 'log_driver' will be added/updated under section [containers]. Do so now?\n"
-            ):
-                loader_helper.setup_callback_server_logs()
-            else:
-                print("Permission denied and exiting ...")
-                return
-
-        # start podman service
-        proc = loader_helper.start_podman_service(uid)
-
-        # set up conf for uploader, start callback server, and upload objects to workspace
-        conf = Conf(
-            job_dir=job_dir,
-            kb_base_url=kb_base_url,
-            token_filepath=token_filepath,
-            max_callback_server_tasks=cbs_max_tasks,
-            catalog_admin=catalog_admin,
-        )
+        proc, conf = _setup_and_start_services(job_dir, kb_base_url, token_filepath, cbs_max_tasks, catalog_admin)
+        if not proc or not conf:
+            print("Failed to start services. Exiting ...")
+            return
 
         count, wait_to_upload_objs = _fetch_objects_to_upload(
             env,
@@ -858,38 +965,27 @@ def main():
         # set up workspace client
         ws_url = os.path.join(kb_base_url, "ws")
         ws = Workspace(ws_url, token=conf.token)
+        asu_client = AssemblyUtil(conf.callback_url, service_ver=au_service_ver, token=conf.token)
+        gfu_client = GenomeFileUtil(conf.callback_url, service_ver=gfu_service_ver, token=conf.token)
 
-        wait_to_upload_tuples = _dict2tuple_list(wait_to_upload_objs)
-        upload_results = _process_failed_uploads(
+        # check if the objects are already uploaded to the workspace
+        obj_names_processed = _check_existing_uploads_and_recovery(
             ws,
+            env,
             workspace_id,
             load_id,
-            wait_to_upload_tuples,
-            AssemblyUtil(conf.callback_url, service_ver=au_service_ver, token=conf.token),
+            collections_source_dir,
+            source_dir,
+            wait_to_upload_objs,
+            asu_client,
             conf.job_data_dir,
         )
 
-        # fix inconsistencies between the workspace and the local yaml files
-        if upload_results:
-            print("Start failure recovery process ...")
-            for upload_result in upload_results:
-                _post_process(
-                    env,
-                    workspace_id,
-                    load_id,
-                    collections_source_dir,
-                    source_dir,
-                    upload_result
-                )
-                obj_name = upload_result.genome_tuple.obj_name
-                wait_to_upload_objs.pop(obj_name)
-
-            print("Recovery process completed ...")
+        for obj_name in obj_names_processed:
+            wait_to_upload_objs.pop(obj_name)
 
         if not wait_to_upload_objs:
-            print(
-                f"All {count} files already exist in workspace {workspace_id}"
-            )
+            print(f"All {count} files already exist in workspace {workspace_id}")
             return
 
         wtus_len = len(wait_to_upload_objs)
@@ -897,9 +993,7 @@ def main():
         print(f"Detected {count - wtus_len} object files already exist in workspace")
 
         _prepare_skd_job_dir_to_upload(conf, wait_to_upload_objs)
-        print(
-            f"{wtus_len} objects in {conf.job_data_dir} are ready to upload to workspace {workspace_id}"
-        )
+        print(f"{wtus_len} objects in {conf.job_data_dir} are ready to upload to workspace {workspace_id}")
 
         start = time.time()
 
@@ -912,8 +1006,8 @@ def main():
             wait_to_upload_objs,
             batch_size,
             source_dir,
-            AssemblyUtil(conf.callback_url, service_ver=au_service_ver, token=conf.token),
-            GenomeFileUtil(conf.callback_url, service_ver=gfu_service_ver, token=conf.token),
+            asu_client,
+            gfu_client,
             conf.job_data_dir,
         )
 
@@ -926,16 +1020,7 @@ def main():
         )
 
     finally:
-        # stop callback server if it is on
-        if conf:
-            conf.stop_callback_server()
-
-        # stop podman service if it is on
-        if proc:
-            proc.terminate()
-
-        if not keep_job_dir:
-            shutil.rmtree(job_dir)
+        _cleanup_resources(conf, proc, job_dir, keep_job_dir)
 
 
 if __name__ == "__main__":
