@@ -879,18 +879,40 @@ def _setup_and_start_services(
     return proc, conf
 
 
-def _validate_arguments(
-        workspace_id: int,
-        batch_size: int,
-        cbs_max_tasks: int,
-        parser: argparse.ArgumentParser
-):
+def _get_parser_args():
+    parser = _get_parser()
+    args = parser.parse_args()
+
+    workspace_id = args.workspace_id
+    kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
+    source_version = getattr(args, loader_common_names.SOURCE_VER_ARG_NAME)
+    root_dir = getattr(args, loader_common_names.ROOT_DIR_ARG_NAME)
+    token_filepath = args.token_filepath
+    upload_file_ext = args.upload_file_ext
+    batch_size = args.batch_size
+    cbs_max_tasks = args.cbs_max_tasks
+    au_service_ver = args.au_service_ver
+    gfu_service_ver = args.gfu_service_ver
+    keep_job_dir = args.keep_job_dir
+    catalog_admin = args.as_catalog_admin
+    load_id = args.load_id or uuid.uuid4().hex
+    print(
+        f"load_id is {load_id}.\n"
+        f"Please keep using this load version until the load is complete!"
+    )
+    env = args.env
+    kb_base_url = loader_common_names.KB_BASE_URL_MAP[env]
+
     if workspace_id <= 0:
         parser.error(f"workspace_id needs to be > 0")
     if batch_size <= 0:
         parser.error(f"batch_size needs to be > 0")
     if cbs_max_tasks <= 0:
         parser.error(f"cbs_max_tasks needs to be > 0")
+
+    return (workspace_id, kbase_collection, source_version, root_dir, token_filepath,
+            upload_file_ext, batch_size, cbs_max_tasks, au_service_ver, gfu_service_ver,
+            keep_job_dir, catalog_admin, load_id, env, kb_base_url)
 
 
 def _prepare_directories(
@@ -982,30 +1004,10 @@ def _fetch_objs_to_upload(
 
 
 def main():
-    parser = _get_parser()
-    args = parser.parse_args()
 
-    workspace_id = args.workspace_id
-    kbase_collection = getattr(args, loader_common_names.KBASE_COLLECTION_ARG_NAME)
-    source_version = getattr(args, loader_common_names.SOURCE_VER_ARG_NAME)
-    root_dir = getattr(args, loader_common_names.ROOT_DIR_ARG_NAME)
-    token_filepath = args.token_filepath
-    upload_file_ext = args.upload_file_ext
-    batch_size = args.batch_size
-    cbs_max_tasks = args.cbs_max_tasks
-    au_service_ver = args.au_service_ver
-    gfu_service_ver = args.gfu_service_ver
-    keep_job_dir = args.keep_job_dir
-    catalog_admin = args.as_catalog_admin
-    load_id = args.load_id or uuid.uuid4().hex
-    print(
-        f"load_id is {load_id}.\n"
-        f"Please keep using this load version until the load is complete!"
-    )
-    env = args.env
-    kb_base_url = loader_common_names.KB_BASE_URL_MAP[env]
-
-    _validate_arguments(workspace_id, batch_size, cbs_max_tasks, parser)
+    (workspace_id, kbase_collection, source_version, root_dir, token_filepath,
+     upload_file_ext, batch_size, cbs_max_tasks, au_service_ver, gfu_service_ver,
+     keep_job_dir, catalog_admin, load_id, env, kb_base_url) = _get_parser_args()
 
     username = os.getlogin()
     job_dir, ncbi_coll_src_dir, ws_coll_src_dir, source_dir = _prepare_directories(
