@@ -916,6 +916,71 @@ def _prepare_directories(
     return job_dir, ncbi_coll_src_dir, ws_coll_src_dir, source_dir
 
 
+def _create_ws_clients(
+        kb_base_url,
+        callback_url,
+        token,
+        au_service_ver,
+        gfu_service_ver
+) -> tuple[Workspace, AssemblyUtil, GenomeFileUtil]:
+    """
+    Create workspace clients.
+    """
+    ws_url = os.path.join(kb_base_url, "ws")
+    ws = Workspace(ws_url, token=token)
+    asu_client = AssemblyUtil(callback_url, service_ver=au_service_ver, token=token)
+    gfu_client = GenomeFileUtil(callback_url, service_ver=gfu_service_ver, token=token)
+
+    return ws, asu_client, gfu_client
+
+
+def _fetch_objs_to_upload(
+        env: str,
+        ws: Workspace,
+        workspace_id: int,
+        load_id: str,
+        ncbi_coll_src_dir: str,
+        ws_coll_src_dir: str,
+        source_dir: str,
+        upload_file_ext: list[str],
+        asu_client: AssemblyUtil,
+        job_data_dir: str
+):
+    """
+    Fetch objects to be uploaded to the workspace.
+
+    Check if the objects are already uploaded to the workspace and perform recovery if needed.
+    """
+    count, wait_to_upload_objs = _fetch_objects_to_upload(
+        env, workspace_id, load_id, ncbi_coll_src_dir, upload_file_ext)
+
+    # check if the objects are already uploaded to the workspace
+    obj_names_processed = _check_existing_uploads_and_recovery(
+        ws,
+        env,
+        workspace_id,
+        load_id,
+        ws_coll_src_dir,
+        source_dir,
+        wait_to_upload_objs,
+        asu_client,
+        job_data_dir,
+    )
+
+    for obj_name in obj_names_processed:
+        wait_to_upload_objs.pop(obj_name)
+
+    if not wait_to_upload_objs:
+        print(f"All {count} files already exist in workspace {workspace_id}")
+        return wait_to_upload_objs, count
+
+    wtus_len = len(wait_to_upload_objs)
+    print(f"Originally planned to upload {count} object files")
+    print(f"Detected {count - wtus_len} object files already exist in workspace")
+
+    return wait_to_upload_objs, count
+
+
 def main():
     parser = _get_parser()
     args = parser.parse_args()
@@ -955,41 +1020,15 @@ def main():
             print("Failed to start services. Exiting ...")
             return
 
-        count, wait_to_upload_objs = _fetch_objects_to_upload(
-            env, workspace_id, load_id, ncbi_coll_src_dir, upload_file_ext)
+        ws, asu_client, gfu_client = _create_ws_clients(
+            kb_base_url, conf.callback_url, conf.token, au_service_ver, gfu_service_ver)
 
-        # set up workspace client
-        ws_url = os.path.join(kb_base_url, "ws")
-        ws = Workspace(ws_url, token=conf.token)
-        asu_client = AssemblyUtil(conf.callback_url, service_ver=au_service_ver, token=conf.token)
-        gfu_client = GenomeFileUtil(conf.callback_url, service_ver=gfu_service_ver, token=conf.token)
-
-        # check if the objects are already uploaded to the workspace
-        obj_names_processed = _check_existing_uploads_and_recovery(
-            ws,
-            env,
-            workspace_id,
-            load_id,
-            ws_coll_src_dir,
-            source_dir,
-            wait_to_upload_objs,
-            asu_client,
-            conf.job_data_dir,
+        wait_to_upload_objs, count = _fetch_objs_to_upload(
+            env, ws, workspace_id, load_id, ncbi_coll_src_dir, ws_coll_src_dir, source_dir, upload_file_ext, asu_client, conf.job_data_dir
         )
 
-        for obj_name in obj_names_processed:
-            wait_to_upload_objs.pop(obj_name)
-
-        if not wait_to_upload_objs:
-            print(f"All {count} files already exist in workspace {workspace_id}")
-            return
-
-        wtus_len = len(wait_to_upload_objs)
-        print(f"Originally planned to upload {count} object files")
-        print(f"Detected {count - wtus_len} object files already exist in workspace")
-
         _prepare_skd_job_dir_to_upload(conf, wait_to_upload_objs)
-        print(f"{wtus_len} objects in {conf.job_data_dir} are ready to upload to workspace {workspace_id}")
+        print(f"{len(wait_to_upload_objs)} objects in {conf.job_data_dir} are ready to upload to workspace {workspace_id}")
 
         start = time.time()
 
