@@ -205,8 +205,9 @@ def _create_task_list(
     For instance, if "threads" is set to 128 and "program_threads" to 32, then each task will run 4 batches in parallel.
 
     For tools capable of processing a batch of genomes, such as GTDB-TK and checkm2,
-    we have chosen to utilize the THREADS variable within Taskfarmer batch script (submit_taskfarmer.sl) for parallelization,
-    which means that "threads" and "program_threads" should have the same value.
+    we have chosen to utilize the THREADS variable within Taskfarmer batch script (submit_taskfarmer.sl) for parallelization.
+    The 'program_threads' is configured to match the CPU count per execution. To ensure each thread handles only one
+    task at a time, both 'threads' and 'program_threads' should be set to the same value.
     This ensures that parallelization only happens between tasks, and not within them.
 
     For tools that can only handle genomes individually, such as microtrait, mash and eggNOG,
