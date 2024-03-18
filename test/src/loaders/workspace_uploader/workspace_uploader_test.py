@@ -534,7 +534,7 @@ def test_upload_genome_files_in_parallel(setup_and_teardown):
             upload_env_key="CI",
             workspace_id=72231,
             load_id="214",
-            collections_source_dir=collection_source_dir,
+            ws_coll_src_dir=collection_source_dir,
             wait_to_upload_objs=wait_to_upload_genomes,
             batch_size=2,
             source_data_dir=sourcedata_dir,
