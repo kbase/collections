@@ -210,12 +210,12 @@ def test_update_upload_status_yaml_file(setup_and_teardown):
     genome_dir = params.genome_dirs[0]
     assembly_name = ASSEMBLY_NAMES[0]
     assembly_tuple = workspace_uploader.WSObjTuple(
-        assembly_name, genome_dir, "/path/to/file/in/AssembilyUtil"
+        assembly_name, assembly_name, genome_dir, "/path/to/file/in/AssembilyUtil"
     )
 
     genome_name = GEMOME_NAMES[0]
     genome_tuple = workspace_uploader.WSObjTuple(
-        genome_name, genome_dir, "/path/to/file/in/GenomeFileUtil"
+        genome_name, genome_name, genome_dir, "/path/to/file/in/GenomeFileUtil"
     )
 
     upload_result = UploadResult(assembly_tuple=assembly_tuple,
@@ -272,10 +272,10 @@ def test_fetch_objects_to_upload(setup_and_teardown):
     # Both genome files will be skipped in the next fetch_assemblies_to_upload call
     for genome_name, assembly_name, genome_dir in zip(GEMOME_NAMES, ASSEMBLY_NAMES, genome_dirs):
         assembly_tuple = workspace_uploader.WSObjTuple(
-            assembly_name, genome_dir, "/path/to/file/in/AssembilyUtil"
+            assembly_name, assembly_name, genome_dir, "/path/to/file/in/AssembilyUtil"
         )
         genome_tuple = workspace_uploader.WSObjTuple(
-            genome_name, genome_dir, "/path/to/file/in/GenomeFileUtil"
+            genome_name, genome_name, genome_dir, "/path/to/file/in/GenomeFileUtil"
         )
         upload_result = UploadResult(assembly_tuple=assembly_tuple,
                                      assembly_obj_info=ASSEMBLY_OBJ_INFOS[0],
@@ -335,8 +335,8 @@ def test_post_process_with_genome(setup_and_teardown):
     assembly_name = assembly_obj_info[1]
     genome_name = genome_obj_info[1]
 
-    assembly_tuple = workspace_uploader.WSObjTuple(assembly_name, genome_coll_src_dir, container_dir / assembly_name)
-    genome_tuple = workspace_uploader.WSObjTuple(genome_name, genome_coll_src_dir, container_dir / genome_name)
+    assembly_tuple = workspace_uploader.WSObjTuple(assembly_name, assembly_name, genome_coll_src_dir, container_dir / assembly_name)
+    genome_tuple = workspace_uploader.WSObjTuple(genome_name, genome_name, genome_coll_src_dir, container_dir / genome_name)
 
     assembly_upa = obj_info_to_upa(assembly_obj_info, underscore_sep=True)
     genome_upa = obj_info_to_upa(genome_obj_info, underscore_sep=True)
@@ -410,7 +410,7 @@ def test_upload_genome_to_workspace(setup_and_teardown):
                                                          "assembly_info": assembly_obj_info,
                                                          "genome_info": genome_obj_info}]}
     genome_tuple = workspace_uploader.WSObjTuple(
-        genome_name, genome_coll_src_dir, genome_container_file
+        genome_name, genome_name, genome_coll_src_dir, genome_container_file
     )
 
     with patch.object(workspace_uploader, '_JOB_DIR_IN_CONTAINER', new=container_dir):
@@ -420,6 +420,7 @@ def test_upload_genome_to_workspace(setup_and_teardown):
 
     expected_assembly_tuple = workspace_uploader.WSObjTuple(
         obj_name=assembly_name,
+        obj_file_name=assembly_name,
         obj_coll_src_dir=genome_coll_src_dir,
         container_internal_file=container_dir / assembly_name)
 
@@ -463,12 +464,14 @@ def test_generator(setup_and_teardown):
         [
             workspace_uploader.WSObjTuple(
                 "GCF_000979855.1_gtlEnvA5udCFS_genomic.gbff.gz",
+                "GCF_000979855.1_gtlEnvA5udCFS_genomic.gbff.gz",
                 genome_dirs[0],
                 "/kb/module/work/tmp/GCF_000979855.1_gtlEnvA5udCFS_genomic.gbff.gz",
             )
         ],
         [
             workspace_uploader.WSObjTuple(
+                "GCF_000979175.1_gtlEnvA5udCFS_genomic.gbff.gz",
                 "GCF_000979175.1_gtlEnvA5udCFS_genomic.gbff.gz",
                 genome_dirs[1],
                 "/kb/module/work/tmp/GCF_000979175.1_gtlEnvA5udCFS_genomic.gbff.gz",
