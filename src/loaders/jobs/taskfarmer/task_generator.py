@@ -221,8 +221,8 @@ def _create_task_list(
     we still use the THREADS variable for task parallelization. However, within each task, we further parallelize tool
     execution using the 'threads' variable. For instance, with 'threads' set to 16 and 'tasks_per_node' set to 4,
     each node will concurrently execute 4 tasks, with each task executing 16 parallel tool operations.
-    
-    TODO: how does program_threads affect single genome tools?
+    'program_threads' is also utilized to match the operating system threads per tool execution.
+
     TODO: make threads/program_threads configurable based on tool used. However, for the time being, we have set
     these parameters to 32 since this value has produced the highest throughput for GTDB-TK in our experiments.
     """
