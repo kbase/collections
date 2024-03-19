@@ -211,7 +211,7 @@ def _create_task_list(
     threads. It determines the number of simultaneous tool executions per node.
     'program_threads' is configured to match the CPU count per task execution. To ensure each task handles only one
     tool execution at a time, both 'threads' and 'program_threads' should be set to the same value, due to the fact the
-    task generator program utilizes 'threads' divided 'program_threads' to determine the quantity of parallel execution
+    task generator program utilizes 'threads' divided by 'program_threads' to determine the quantity of parallel execution
     in a task.
     Setting 'threads' and 'program_threads' the same same number ensures that parallelization of tool executions
     only happens between tasks, and not within tasks.
