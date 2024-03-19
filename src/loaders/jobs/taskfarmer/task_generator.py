@@ -205,17 +205,23 @@ def _create_task_list(
     For instance, if "threads" is set to 128 and "program_threads" to 32, then each task will run 4 batches in parallel.
 
     For tools capable of processing a batch of genomes, such as GTDB-TK and checkm2,
-    we have chosen to utilize the THREADS variable within Taskfarmer batch script (submit_taskfarmer.sl) for parallelization.
-    The 'program_threads' is configured to match the CPU count per execution. To ensure each thread handles only one
-    task at a time, both 'threads' and 'program_threads' should be set to the same value. Due to the fact the underlying
-    program utilizes 'threads'/'program_threads' to determine the quantity of parallel execution on a thread.
-    Setting 'threads' and 'program_threads' the same same number ensures that parallelization only happens between tasks,
-    and not within tasks.
+    we have chosen to utilize the Slurm THREADS variable within Taskfarmer batch script (submit_taskfarmer.sl) for tool parallelization.
+    From here on we will call this value 'tasks' rather than 'threads' to avoid confusion with operating system
+    threads.
+    It determines the number of simultaneous tool executions per node.
+    'program_threads' is configured to match the CPU count per task execution. To ensure each task handles only one
+    tool execution at a time, both 'threads' and 'program_threads' should be set to the same value, due to the fact the task generator
+    program utilizes 'threads' divided 'program_threads' to determine the quantity of parallel execution in a task.
+    Setting 'threads' and 'program_threads' the same same number ensures that parallelization pf tool executions
+    only happens between tasks, and not within tasks.
+    Each tool execution is specified to use 'threads' operating system threads.
 
     For tools that can only handle genomes individually, such as microtrait, mash and eggNOG,
     we still use the THREADS variable for task parallelization. However, within each task, we further parallelize tool
     execution using the 'threads' variable. For instance, with 'threads' set to 16 and 'tasks_per_node' set to 4,
     each node will concurrently execute 4 tasks, with each task executing 16 parallel tool operations.
+    
+    TODO: how does program_threads affect single genome tools?
 
 
     TODO: make threads/program_threads configurable based on tool used. However, for the time being, we have set
