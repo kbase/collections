@@ -212,7 +212,7 @@ def _create_task_list(
     'program_threads' is configured to match the CPU count per task execution. To ensure each task handles only one
     tool execution at a time, both 'threads' and 'program_threads' should be set to the same value, due to the fact the task generator
     program utilizes 'threads' divided 'program_threads' to determine the quantity of parallel execution in a task.
-    Setting 'threads' and 'program_threads' the same same number ensures that parallelization pf tool executions
+    Setting 'threads' and 'program_threads' the same same number ensures that parallelization of tool executions
     only happens between tasks, and not within tasks.
     Each tool execution is specified to use 'threads' operating system threads.
 
@@ -222,10 +222,8 @@ def _create_task_list(
     each node will concurrently execute 4 tasks, with each task executing 16 parallel tool operations.
     
     TODO: how does program_threads affect single genome tools?
-
-
     TODO: make threads/program_threads configurable based on tool used. However, for the time being, we have set
-    these parameters to 32 and , since this value has produced the highest throughput in our experiments.
+    these parameters to 32 since this value has produced the highest throughput for GTDB-TK in our experiments.
     """
     source_data_dir = make_collection_source_dir(root_dir, env, kbase_collection, source_ver)
     genome_ids = [path for path in os.listdir(source_data_dir) if
