@@ -4,19 +4,14 @@ from typing import Any
 
 from src.common.common_helper import obj_info_to_upa
 
-# TODO: this struct assumes obj_name is the file name,
-#  but not true for downloaded fasta file associated with Assembly object
-#  This is okay for now as we are currently focusing solely on Genome/Assembly uploads and not a combination of both.
-# i.g. assembly object name: 'GCF_000979555.1_gtlEnvA5udCFS_genomic.gbff.gz_assembly'
-#      downloaded fasta file name: 'GCF_000979555.1_gtlEnvA5udCFS_genomic.gbff.gz_assembly.fasta'
-
 WSObjTuple = namedtuple(
     "WSObjTuple",
-    ["obj_name", "obj_coll_src_dir", "container_internal_file"],
+    ["obj_name", "obj_file_name", "obj_coll_src_dir", "container_internal_file"],
 )
 """
 WSObjTuple is a named tuple that contains the following fields:
-- obj_name: the name of the object (in many cases, also serves as the file name)
+- obj_name: the name of the object
+- obj_file_name: the file name of the associated file
 - obj_coll_src_dir: the directory of the associated file in the collection source directory
 - container_internal_file: the associated file path in the docker container
 """
