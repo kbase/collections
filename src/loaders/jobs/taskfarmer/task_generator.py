@@ -221,7 +221,9 @@ def _create_task_list(
     we still use the THREADS variable for task parallelization. However, within each task, we further parallelize tool
     execution using the 'threads' variable. For instance, with 'threads' set to 16 and 'tasks_per_node' set to 4,
     each node will concurrently execute 4 tasks, with each task executing 16 parallel tool operations.
-    'program_threads' is also utilized to match the operating system threads per tool execution.
+    Each tool will also use 'program_threads' operating threads, and so in the current example if 'program_threads'
+    is set to 8, the total number of operating system threads will be 4 * 16 * 8 = 512 threads. This is a significant
+    difference from the batch tasks described above
 
     TODO: make threads/program_threads configurable based on tool used. However, for the time being, we have set
     these parameters to 32 since this value has produced the highest throughput for GTDB-TK in our experiments.
