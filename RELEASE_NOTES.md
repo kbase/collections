@@ -5,6 +5,8 @@
 * Fixed a bug that caused requests with filters to fail for filter keys containing colons.
 * Adds eggNOG mapper as an experimental tool in the pipeline. It currently does not integrate
   into the collections pipeline proper.
+* Pipeline tools now have the number of threads to use for tool invocations in the argument list.
+* The `--create_assembly_only` CLI flag was removed from the workspace uploader.
 
 ## 0.1.1
 
