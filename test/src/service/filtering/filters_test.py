@@ -280,19 +280,19 @@ FOR doc IN @@view
         AND
         doc.load_ver == @load_ver
     ) AND (
-        IN_RANGE(doc.rangefield, @v1_low, @v1_high, true, true)
+        IN_RANGE(doc["rangefield"], @v1_low, @v1_high, true, true)
         AND
-        ANALYZER(STARTS_WITH(doc.prefixfield, v2_prefixes, LENGTH(v2_prefixes)), "text_en")
+        ANALYZER(STARTS_WITH(doc["prefixfield"], v2_prefixes, LENGTH(v2_prefixes)), "text_en")
         AND
-        doc.rangefield2 > @v3_low
+        doc["rangefield2"] > @v3_low
         AND
-        ANALYZER(v4_prefixes ALL == doc.fulltextfield, "text_rs")
+        ANALYZER(v4_prefixes ALL == doc["fulltextfield"], "text_rs")
         AND
-        doc.datefield <= @v5_high
+        doc["datefield"] <= @v5_high
         AND
-        NGRAM_MATCH(doc.ngramfield, @v6_input, 1, "ngram_stuff")
+        NGRAM_MATCH(doc["ngramfield"], @v6_input, 1, "ngram_stuff")
         AND
-        doc.strident == @v7_input
+        doc["strident"] == @v7_input
     )
     LIMIT @skip, @limit
     RETURN doc
@@ -351,19 +351,19 @@ RETURN COUNT(FOR doc IN @@view
         AND
         doc.load_ver == @load_ver
     ) AND (
-        IN_RANGE(doc.rangefield, @v1_low, @v1_high, true, true)
+        IN_RANGE(doc["rangefield"], @v1_low, @v1_high, true, true)
         AND
-        ANALYZER(STARTS_WITH(doc.prefixfield, v2_prefixes, LENGTH(v2_prefixes)), "text_en")
+        ANALYZER(STARTS_WITH(doc["prefixfield"], v2_prefixes, LENGTH(v2_prefixes)), "text_en")
         AND
-        doc.rangefield2 > @v3_low
+        doc["rangefield2"] > @v3_low
         AND
-        ANALYZER(v4_prefixes ALL == doc.fulltextfield, "text_rs")
+        ANALYZER(v4_prefixes ALL == doc["fulltextfield"], "text_rs")
         AND
-        doc.datefield <= @v5_high
+        doc["datefield"] <= @v5_high
         AND
-        NGRAM_MATCH(doc.ngramfield, @v6_input, 1, "ngram_stuff")
+        NGRAM_MATCH(doc["ngramfield"], @v6_input, 1, "ngram_stuff")
         AND
-        doc.strident == @v7_input
+        doc["strident"] == @v7_input
     )
     RETURN doc
 )
@@ -435,9 +435,9 @@ FOR d IN @@view
         AND
         d._mtchsel == @internal_selection_id
     ) AND (
-        IN_RANGE(d.rangefield, @v1_low, @v1_high, true, true)
+        IN_RANGE(d["rangefield"], @v1_low, @v1_high, true, true)
         OR
-        ANALYZER(STARTS_WITH(d.prefixfield, v2_prefixes, LENGTH(v2_prefixes)), "text_en")
+        ANALYZER(STARTS_WITH(d["prefixfield"], v2_prefixes, LENGTH(v2_prefixes)), "text_en")
     )
     SORT d.@sort @sortdir
     LIMIT @skip, @limit
@@ -479,11 +479,11 @@ FOR doc IN @@view
         AND
         doc.load_ver == @load_ver
         AND
-        doc.@keep0 != null
+        doc[@keep0] != null
         AND
-        doc.@keep1 != null
+        doc[@keep1] != null
     ) AND (
-        IN_RANGE(doc.rangefield, @v1_low, @v1_high, true, true)
+        IN_RANGE(doc["rangefield"], @v1_low, @v1_high, true, true)
     )
     LIMIT @skip, @limit
     RETURN KEEP(doc, @keep)
@@ -562,8 +562,8 @@ def test_filterset_aql_w_keep_filter():
 FOR doc IN @@collection
     FILTER doc.coll == @collid
     FILTER doc.load_ver == @load_ver
-    FILTER doc.@keep0 != null
-    FILTER doc.@keep1 != null
+    FILTER doc[@keep0] != null
+    FILTER doc[@keep1] != null
     LIMIT @skip, @limit
     RETURN KEEP(doc, @keep)
 """.strip() + "\n"
@@ -609,9 +609,9 @@ RETURN COUNT(FOR d IN @@view
         AND
         d._mtchsel == @internal_selection_id
     ) AND (
-        IN_RANGE(d.rangefield, @v1_low, @v1_high, true, true)
+        IN_RANGE(d["rangefield"], @v1_low, @v1_high, true, true)
         OR
-        ANALYZER(STARTS_WITH(d.prefixfield, v2_prefixes, LENGTH(v2_prefixes)), "text_en")
+        ANALYZER(STARTS_WITH(d["prefixfield"], v2_prefixes, LENGTH(v2_prefixes)), "text_en")
     )
     RETURN d
 )
@@ -683,7 +683,7 @@ FOR doc IN @@view
         AND
         doc.load_ver == @load_ver
     ) AND (
-        IN_RANGE(doc.rangefield, @v1_low, @v1_high, true, true)
+        IN_RANGE(doc["rangefield"], @v1_low, @v1_high, true, true)
     )
     SORT doc.@sort @sortdir
     LIMIT @skip, @limit
@@ -751,7 +751,7 @@ FOR doc IN @@view
         AND
         doc.load_ver == @load_ver
     ) AND (
-        IN_RANGE(doc.shoe_size, @v1_low, @v1_high, true, false)
+        IN_RANGE(doc["shoe_size"], @v1_low, @v1_high, true, false)
     )
     RETURN doc
 """.strip() + "\n"
