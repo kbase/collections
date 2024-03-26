@@ -69,7 +69,7 @@ class AbstractFilter(ABC):
         Convert the filter to lines of ArangoSearch AQL and bind variables.
         
         identifier - the identifier for where the search is to take place, for example
-            `doc.classification`. This will be inserted verbatim into the search constraint, e.g.
+            `doc["classification"]`. This will be inserted verbatim into the search constraint, e.g.
             `f"{identifer} > 47`
         var_prefix - a prefix to apply to variable names, including bind variables,
             to prevent collisions between multiple filters.
@@ -145,7 +145,7 @@ class BooleanFilter(AbstractFilter):
         Convert the filter to lines of ArangoSearch AQL and bind variables.
 
         identifier - the identifier for where the search is to take place, for example
-            `doc.classification`. This will be inserted verbatim into the search constraint, e.g.
+            `doc["classification"]`. This will be inserted verbatim into the search constraint, e.g.
             `f"{identifer} == true`
         var_prefix - a prefix to apply to variable names, including bind variables,
             to prevent collisions between multiple filters.
@@ -291,7 +291,7 @@ class RangeFilter(AbstractFilter):
         Convert the filter to lines of ArangoSearch AQL and bind variables.
         
         identifier - the identifier for where the search is to take place, for example
-            `doc.classification`. This will be inserted verbatim into the search constraint, e.g.
+            `doc["classification"]`. This will be inserted verbatim into the search constraint, e.g.
             `f"{identifer} > 47`
         var_prefix - a prefix to apply to variable names, including bind variables,
             to prevent collisions between multiple filters.
@@ -374,7 +374,7 @@ class StringFilter(AbstractFilter):
         Convert the filter to lines of ArangoSearch AQL and bind variables.
         
         identifier - the identifier for where the search is to take place, for example
-            `doc.classification`. This will be inserted verbatim into the search constraint, e.g.
+            `doc["classification"]. This will be inserted verbatim into the search constraint, e.g.
             `f"{identifer} > 47`
         var_prefix - a prefix to apply to variable names, including bind variables,
             to prevent collisions between multiple filters.
@@ -548,7 +548,7 @@ class FilterSet:
             "load_ver": self.load_ver,
         }
         for i, (field, filter_) in enumerate(self._filters.items(), start=1):
-            search_part = filter_.to_arangosearch_aql(f"{self.doc_var}.{field}", f"v{i}_")
+            search_part = filter_.to_arangosearch_aql(f"{self.doc_var}[\"{field}\"]", f"v{i}_")
             if search_part.variable_assignments:
                 for var, expression in search_part.variable_assignments.items():
                     var_lines.append(f"LET {var} = {expression}")
@@ -583,7 +583,7 @@ class FilterSet:
         aql += f"    FILTER {self.doc_var}.{names.FLD_LOAD_VERSION} == @load_ver\n"
         if self.keep_filter_nulls:
             for i, k in enumerate(self.keep):
-                aql += f"    FILTER {self.doc_var}.@keep{i} != null\n"
+                aql += f"    FILTER {self.doc_var}[@keep{i}] != null\n"
                 bind_vars[f"keep{i}"] = k
         matchsel = f"{self.doc_var}.{names.FLD_MATCHES_SELECTIONS}"
         if self.match_spec.get_subset_filtering_id():
@@ -644,7 +644,7 @@ class FilterSet:
         if self.keep_filter_nulls:
             for i, k in enumerate(self.keep):
                 aql += f"        AND\n"
-                aql += f"        {self.doc_var}.@keep{i} != null\n"
+                aql += f"        {self.doc_var}[@keep{i}] != null\n"
                 bind_vars[f"keep{i}"] = k
         if self.match_spec.get_subset_filtering_id():
             bind_vars["internal_match_id"] = self.match_spec.get_subset_filtering_id()
