@@ -39,7 +39,7 @@ ipython = "==8.22.1"
 pytest-asyncio = "==0.23.5"
 # currently for design/experiments/store_mongo.py
 pymongo = "==4.6.2"
-sourmash = "==4.8.6"
+sourmash = "==4.8.7"
 prometheus-client = "==0.20.0"
 pyqt5 = "==5.15.10"
 
