@@ -3,6 +3,9 @@
 This document provides step-by-step instructions on how to create and activate a new collection within the 
 Collections service. Before proceeding, ensure that you have the necessary permissions to create a new collection.
 
+Please consult the [Data Pipeline Procedure](data_pipeline_procedure.md) document for instructions on preparing 
+the data for the new collection if data is not yet available.
+
 ## Step 1: Verify Permissions
 Execute the following command to verify if you have the required permissions:
 
