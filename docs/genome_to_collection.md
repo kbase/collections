@@ -127,11 +127,11 @@ PYTHONPATH=. python src/loaders/genome_collection/parse_tool_results.py \
 # Parse genome taxa count information
 attri_file=${kbase_collection}_${load_ver}_checkm2_gtdb_tk_kbcoll_genome_attribs.jsonl
 PYTHONPATH=. python src/loaders/genome_collection/compute_genome_taxa_count.py \
-	../import_files/$env/$kbase_collection/$load_ver/$attri_file \
-	--load_ver $load_ver \
-	--kbase_collection $kbase_collection \
-	--env $env \
-	--input_source genome_attributes
+    ../import_files/$env/$kbase_collection/$load_ver/$attri_file \
+    --load_ver $load_ver \
+    --kbase_collection $kbase_collection \
+    --env $env \
+    --input_source genome_attributes
 ```
 
 ## Load parsed results to ArangoDB
