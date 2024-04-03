@@ -52,6 +52,42 @@ PYTHONPATH=. python src/loaders/ncbi_downloader/gtdb.py \
     --release_ver $gtdb_release_ver
 ```
 
+### Create KBase Genome objects from Genbank files
+Optionally, you can also download Genbank files from NCBI and create KBase Genome objects from them using the 
+following command. This process will also retrieve the FASTA file from the created Genome objects.
+
+```commandline
+# update arguments as needed
+
+# download Genbank files from NCBI based on GTDB version
+download_file_ext='genomic.gbff.gz'
+gtdb_release_ver=214
+
+PYTHONPATH=. python src/loaders/ncbi_downloader/gtdb.py \
+    --download_file_ext $download_file_ext \
+    --release_ver $gtdb_release_ver
+    
+# create KBase Genome objects from the downloaded Genbank files
+workspace_id=72231
+kbase_collection=GTDB
+source_verion=$gtdb_release_ver
+load_id=1
+au_service_ver=dev
+gfu_service_ver=dev
+cbs_max_tasks=10
+
+PYTHONPATH=. python src/loaders/workspace_uploader/workspace_uploader.py \
+    --workspace_id $workspace_id \
+    --kbase_collection $kbase_collection \
+    --source_ver $source_verion \
+    --env $env \
+    --token_filepath $token_filepath \
+    --au_service_ver $au_service_ver \
+    --gfu_service_ver $gfu_service_ver \
+    --cbs_max_tasks $cbs_max_tasks \
+    --load_id $load_id  
+```
+
 # Step 3: Execute tools on FASTA files
 
 Once the source data files are prepared, execute tools on these FASTA files. You can choose from various available 
@@ -64,12 +100,12 @@ load_ver=$source_verion
 source_file_ext=.fa
 
 PYTHONPATH=. python src/loaders/jobs/taskfarmer/task_generator.py \
-	--tool $tool \
-	--kbase_collection $kbase_collection \
-	--source_ver $source_ver \
-	--load_ver $load_ver \
-	--source_file_ext $source_file_ext \
-	--submit_job
+    --tool $tool \
+    --kbase_collection $kbase_collection \
+    --source_ver $source_ver \
+    --load_ver $load_ver \
+    --source_file_ext $source_file_ext \
+    --submit_job
 ```
 
 # Step 4: Parse and Load Tool Outputs
@@ -83,10 +119,10 @@ results and genome taxa count information.
 ```commandline
 # Parse tool computation results
 PYTHONPATH=. python src/loaders/genome_collection/parse_tool_results.py \
-	--kbase_collection $kbase_collection \
-	--source_ver $source_ver \
-	--load_ver $load_ver \
-	--env $env
+    --kbase_collection $kbase_collection \
+    --source_ver $source_ver \
+    --load_ver $load_ver \
+    --env $env
 	
 # Parse genome taxa count information
 attri_file=${kbase_collection}_${load_ver}_checkm2_gtdb_tk_kbcoll_genome_attribs.jsonl
@@ -115,12 +151,12 @@ ARANGO_DB=collections_dev           # arangoDB database name
 ARANGO_COLL=kbcoll_genome_attribs   # arangoDB collection name
 
 arangoimport --file $PARSED_FILE \
- --server.endpoint tcp://$FORWARD \
- --server.username $ARANGO_USER \
- --server.password $ARANGO_PW \
- --server.database $ARANGO_DB \
- --collection $ARANGO_COLL \
- --on-duplicate update
+    --server.endpoint tcp://$FORWARD \
+    --server.username $ARANGO_USER \
+    --server.password $ARANGO_PW \
+    --server.database $ARANGO_DB \
+    --collection $ARANGO_COLL \
+    --on-duplicate update
 ```
 
 # Step 5: Create and Active the Collection
