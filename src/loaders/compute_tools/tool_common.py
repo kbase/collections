@@ -348,10 +348,10 @@ class ToolRunner:
             start: datetime.datetime,
             total: bool,
     ):
-        pool = multiprocessing.Pool(processes=1)  # Taskfarmer facilitates concurrent task management
-        pool.starmap(tool_callable, args)
-        pool.close()
-        pool.join()
+
+        for arg in args:
+            tool_callable(*arg)
+
         prefix = "In total used" if total else "Used"
         print(f"{prefix} {round((time.time() - start) / 60, 2)} minutes to "
               + f"execute {self._tool} for {len(self._data_ids)} data units"
