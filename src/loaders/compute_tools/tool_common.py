@@ -262,7 +262,7 @@ class ToolRunner:
         Run a tool by a single data file, storing the results in a single batch directory with
         the individual runs stored in directories by the data ID.
 
-        One tool execution per data ID. Tool execution is in a serial manner (utilizing multiprocessing with a constant process count of 1).
+        One tool execution per data ID. Tool execution is in a serial manner.
         Results from execution need to be processed/parsed individually.
 
         Use case: microtrait - execute microtrait logic on each individual genome file. The result file is stored in
