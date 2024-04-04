@@ -15,7 +15,6 @@ import argparse
 import datetime
 import gzip
 import json
-import multiprocessing
 import os
 import re
 import shutil
