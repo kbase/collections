@@ -15,7 +15,6 @@ import argparse
 import datetime
 import gzip
 import json
-import math
 import multiprocessing
 import os
 import re
@@ -25,7 +24,7 @@ import time
 import uuid
 from collections import namedtuple
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Tuple, Union
+from typing import Callable, Dict, List, Tuple, Union
 
 import pandas as pd
 
@@ -33,11 +32,6 @@ from src.loaders.common import loader_common_names
 
 # TODO CODE add a common module for saving and loading the metadata shared between the compute
 #           and parser
-
-# Fraction amount of system cores can be utilized
-# (i.e. 0.5 - program will use 50% of total processors,
-#       0.1 - program will use 10% of total processors)
-_SYSTEM_UTILIZATION = 0.5  # This might need to be customizable per tool
 
 # source genome files can be missing for those collections
 # genomes with missing files will be skipped rather than raising an error
@@ -93,12 +87,8 @@ class ToolRunner:
                                 the source version)
           --root_dir ROOT_DIR   Root directory for the collections project.
                                 (default: /global/cfs/cdirs/kbase/collections)
-          --threads THREADS     Total number of threads used by the script. (default:
-                                half of system cpu count)
-          --program_threads PROGRAM_THREADS
+          --threads_per_tool_run THREADS_PER_TOOL_RUN
                                 Number of threads to execute a single tool command.
-                                threads / program_threads determines the number of
-                                batches. (default: 32)
           --node_id NODE_ID     node ID for running job
           --debug               Debug mode.
           --data_id_file DATA_ID_FILE
@@ -138,17 +128,12 @@ class ToolRunner:
                                      env,
                                      kbase_collection,
                                      source_ver)
-        self._threads = args.threads
-        self._program_threads = args.program_threads
+        self._threads_per_tool_run = args.threads_per_tool_run
         self._debug = args.debug
         self._data_id_file = args.data_id_file
         self._node_id = args.node_id
         self._source_file_ext = args.source_file_ext
         self._data_ids = self._get_data_ids()
-
-        if not self._threads:
-            self._threads = max(int(multiprocessing.cpu_count() * min(_SYSTEM_UTILIZATION, 1)), 1)
-        self._threads = max(1, self._threads)
 
         self._work_dir = Path(
             Path(root_dir),
@@ -195,13 +180,8 @@ class ToolRunner:
             help=f'{loader_common_names.ROOT_DIR_DESCR} (default: {loader_common_names.ROOT_DIR})'
         )
         optional.add_argument(
-            '--threads', type=int,
-            help='Total number of threads used by the script. (default: half of system cpu count)'
-        )
-        optional.add_argument(
-            '--program_threads', type=int, default=32,
-            help='Number of threads to execute a single tool command. '
-                 + 'threads / program_threads determines the number of batches. (default: 32)'
+            '--threads_per_tool_run', type=int, default=32,
+            help='Number of threads to execute a single tool command.'
         )
         optional.add_argument(
             '--node_id', type=str, default=str(uuid.uuid4()), help='node ID for running job'
@@ -246,29 +226,11 @@ class ToolRunner:
             data_ids = all_data_ids
         return list(set(data_ids))
 
-    def parallel_single_execution(self, tool_callable: Callable[[str, str, Path, Path, int, bool], None], unzip=False):
-        """
-        Run a tool by a single data file, storing the results in a single batch directory with
-        the individual runs stored in directories by the data ID.
+    def _prepare_execution(
+            self,
+            unzip: bool
+    ) -> Tuple[Path, Dict[str, Dict[str, Union[str, Path]]], List[str]]:
 
-        One tool execution per data ID. Tool execution is parallelized by the number of threads
-        specified in the constructor.
-        Results from execution need to be processed/parsed individually.
-
-        Use case: microtrait - execute microtrait logic on each individual genome file. The result file is stored in
-                  each individual genome directory. Parser program will parse the result file in each individual genome
-                  directory.
-
-        tool_callable - the callable for the tool that takes 5 arguments:
-            * The tool safe data ID
-            * The data ID
-            * The input file
-            * The output directory
-            * A debug boolean
-
-        unzip - if True, unzip the input file before passing it to the tool callable. (unzipped file will be deleted)
-        """
-        start = time.time()
         batch_dir, genomes_meta = _prepare_tool(
             self._work_dir,
             loader_common_names.COMPUTE_OUTPUT_NO_BATCH,
@@ -281,11 +243,50 @@ class ToolRunner:
             self._suffix_ids,
         )
 
-        unzipped_files_to_delete = list()
+        unzipped_files_to_delete = []
         if unzip:
             unzipped_files_to_delete = _unzip_files(genomes_meta)
 
-        # RUN tool in parallel with multiprocessing
+        return batch_dir, genomes_meta, unzipped_files_to_delete
+
+    def _finalize_execution(
+            self,
+            unzipped_files_to_delete: List[str],
+            genomes_meta: Dict[str, Dict[str, Union[str, Path]]],
+            batch_dir: Path):
+
+        if unzipped_files_to_delete:
+            print(f"Deleting {len(unzipped_files_to_delete)} unzipped files: {unzipped_files_to_delete[:5]}...")
+            for file in unzipped_files_to_delete:
+                os.remove(file)
+
+        create_metadata_file(genomes_meta, batch_dir)
+
+    def parallel_single_execution(self, tool_callable: Callable[[str, str, Path, Path, int, bool], None], unzip=False):
+        """
+        Run a tool by a single data file, storing the results in a single batch directory with
+        the individual runs stored in directories by the data ID.
+
+        One tool execution per data ID. Tool execution is in a serial manner (utilizing multiprocessing with a constant process count of 1).
+        Results from execution need to be processed/parsed individually.
+
+        Use case: microtrait - execute microtrait logic on each individual genome file. The result file is stored in
+                  each individual genome directory. Parser program will parse the result file in each individual genome
+                  directory.
+
+        tool_callable - the callable for the tool that takes 6 arguments:
+            * The tool safe data ID
+            * The data ID
+            * The input file
+            * The output directory
+            * The number of threads to use for the tool run
+            * A debug boolean
+
+        unzip - if True, unzip the input file before passing it to the tool callable. (unzipped file will be deleted)
+        """
+        start = time.time()
+        batch_dir, genomes_meta, unzipped_files_to_delete = self._prepare_execution(unzip)
+
         args_list = []
         for data_id, meta in genomes_meta.items():
             output_dir = batch_dir / data_id
@@ -298,27 +299,20 @@ class ToolRunner:
                  meta.get(loader_common_names.META_UNCOMPRESSED_FILE,
                           meta[loader_common_names.META_SOURCE_FILE]),
                  output_dir,
-                 self._program_threads,
+                 self._threads_per_tool_run,
                  self._debug))
 
         try:
-            self._execute(self._threads, tool_callable, args_list, start, False)
+            self._execute(tool_callable, args_list, start, False)
         finally:
-            if unzipped_files_to_delete:
-                print(f"Deleting {len(unzipped_files_to_delete)} unzipped files: {unzipped_files_to_delete[:5]}...")
-                for file in unzipped_files_to_delete:
-                    os.remove(file)
-
-        create_metadata_file(genomes_meta, batch_dir)
+            self._finalize_execution(unzipped_files_to_delete, genomes_meta, batch_dir)
 
     def parallel_batch_execution(self, tool_callable: Callable[[Dict[str, GenomeTuple], Path, int, bool], None],
                                  unzip=False):
         """
-        Run a tool in batched mode, where > 1 data file is processed by the tool in one
-        call. Each batch gets its own batch directory.
+        Run a tool in batched mode, where > 1 data file is processed by the tool in one call.
 
-        Data IDs are divided into batches, and each batch is processed in parallel. The tool execution results can
-        be consolidated into individual files for each batch
+        All data IDs are collectively processed in a single batch during tool execution.
 
         Use case: gtdb-tk - concurrently execute gtdb_tk on a batch of genomes, and one result file
                   (gtdbtk.ar53.summary.tsv) is produced per batch.
@@ -327,63 +321,35 @@ class ToolRunner:
         tool_callable - the callable for the tool that takes 4 arguments:
             * A dictionary of the tool safe data ID to the GenomeTuple
             * The output directory for results
-            * The number of threads to use for the batch
+            * The number of threads to use for the tool run
             * A debug boolean
         """
         start = time.time()
-        num_batches = max(math.floor(self._threads / self._program_threads), 1)
-        # distribute genome ids evenly across batches
-        chunk_size = math.ceil(len(self._data_ids) / num_batches)
-        batch_input = []
-        metas = []
-        unzipped_files_to_delete = list()
-        for batch_number, i in enumerate(range(0, len(self._data_ids), chunk_size)):
-            data_ids = self._data_ids[i: i + chunk_size]
-            batch_dir, meta = _prepare_tool(
-                self._work_dir,
-                batch_number,
-                self._node_id,
-                data_ids,
-                self._source_data_dir,
-                self._source_file_ext,
-                self._allow_missing_files,
-                self._tool_data_id_from_filename,
-                self._suffix_ids,
-            )
+        batch_dir, genomes_meta, unzipped_files_to_delete = self._prepare_execution(unzip)
 
-            if unzip:
-                unzipped_files_to_delete.extend(_unzip_files(meta))
+        ids_to_files = dict()
+        for data_id, m in genomes_meta.items():
+            # use the uncompressed file if it exists, otherwise use the source file
+            source_file = m.get(loader_common_names.META_UNCOMPRESSED_FILE,
+                                m[loader_common_names.META_SOURCE_FILE])
+            ids_to_files[m[loader_common_names.META_TOOL_IDENTIFIER]] = GenomeTuple(source_file, data_id)
 
-            metas.append((meta, batch_dir))
-            ids_to_files = dict()
-            for data_id, m in meta.items():
-                # use the uncompressed file if it exists, otherwise use the source file
-                source_file = m.get(loader_common_names.META_UNCOMPRESSED_FILE,
-                                    m[loader_common_names.META_SOURCE_FILE])
-                ids_to_files[m[loader_common_names.META_TOOL_IDENTIFIER]] = GenomeTuple(source_file, data_id)
-
-            batch_input.append((ids_to_files, batch_dir, self._program_threads, self._debug))
+        batch_input = [(ids_to_files, batch_dir, self._threads_per_tool_run, self._debug)]
 
         try:
-            self._execute(num_batches, tool_callable, batch_input, start, True)
+            self._execute(tool_callable, batch_input, start, True)
         finally:
-            if unzipped_files_to_delete:
-                print(f"Deleting {len(unzipped_files_to_delete)} unzipped files: {unzipped_files_to_delete[:5]}...")
-                for file in unzipped_files_to_delete:
-                    os.remove(file)
-
-        for meta in metas:
-            create_metadata_file(*meta)
+            self._finalize_execution(unzipped_files_to_delete, genomes_meta, batch_dir)
 
     def _execute(
             self,
-            threads: int,
             tool_callable: Callable[..., None],
             args: List[Tuple[Dict[str, GenomeTuple], Path, int, bool]] | List[Tuple[str, str, Path, Path, int, bool]],
             start: datetime.datetime,
             total: bool,
+            process_count: int = 1,
     ):
-        pool = multiprocessing.Pool(processes=threads)
+        pool = multiprocessing.Pool(processes=process_count)
         pool.starmap(tool_callable, args)
         pool.close()
         pool.join()
