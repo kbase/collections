@@ -251,16 +251,12 @@ class ToolRunner:
 
     def _finalize_execution(
             self,
-            unzipped_files_to_delete: List[str],
-            genomes_meta: Dict[str, Dict[str, Union[str, Path]]],
-            batch_dir: Path):
+            unzipped_files_to_delete: List[str]):
 
         if unzipped_files_to_delete:
             print(f"Deleting {len(unzipped_files_to_delete)} unzipped files: {unzipped_files_to_delete[:5]}...")
             for file in unzipped_files_to_delete:
                 os.remove(file)
-
-        create_metadata_file(genomes_meta, batch_dir)
 
     def parallel_single_execution(self, tool_callable: Callable[[str, str, Path, Path, int, bool], None], unzip=False):
         """
@@ -305,7 +301,9 @@ class ToolRunner:
         try:
             self._execute(tool_callable, args_list, start, False)
         finally:
-            self._finalize_execution(unzipped_files_to_delete, genomes_meta, batch_dir)
+            self._finalize_execution(unzipped_files_to_delete)
+
+        create_metadata_file(genomes_meta, batch_dir)
 
     def parallel_batch_execution(self, tool_callable: Callable[[Dict[str, GenomeTuple], Path, int, bool], None],
                                  unzip=False):
@@ -339,7 +337,9 @@ class ToolRunner:
         try:
             self._execute(tool_callable, batch_input, start, True)
         finally:
-            self._finalize_execution(unzipped_files_to_delete, genomes_meta, batch_dir)
+            self._finalize_execution(unzipped_files_to_delete)
+
+        create_metadata_file(genomes_meta, batch_dir)
 
     def _execute(
             self,
@@ -347,9 +347,8 @@ class ToolRunner:
             args: List[Tuple[Dict[str, GenomeTuple], Path, int, bool]] | List[Tuple[str, str, Path, Path, int, bool]],
             start: datetime.datetime,
             total: bool,
-            process_count: int = 1,
     ):
-        pool = multiprocessing.Pool(processes=process_count)
+        pool = multiprocessing.Pool(processes=1)  # Taskfarmer facilitates concurrent task management
         pool.starmap(tool_callable, args)
         pool.close()
         pool.join()
