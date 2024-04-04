@@ -1862,6 +1862,9 @@
             "version": "==1.2.1"
         },
         "coverage": {
+            "extras": [
+                "toml"
+            ],
             "hashes": [
                 "sha256:00838a35b882694afda09f85e469c96367daa3f3f2b097d846a7216993d37f4c",
                 "sha256:0513b9508b93da4e1716744ef6ebc507aff016ba115ffe8ecff744d1322a7b63",
@@ -2493,10 +2496,12 @@
         },
         "pyqt5-qt5": {
             "hashes": [
-                "sha256:141859f2ffe04cc6c5db970e2b6ad9f98897805d886a14c52614e3799daab6d6",
-                "sha256:92575a9e96a27c4ed67c56c7048ded7461a1655d5d21f0e05064664e6e9fcbdf"
+                "sha256:1988f364ec8caf87a6ee5d5a3a5210d57539988bf8e84714c7d60972692e2f4a",
+                "sha256:750b78e4dba6bdf1607febedc08738e318ea09e9b10aea9ff0d73073f11f6962",
+                "sha256:76980cd3d7ae87e3c7a33bfebfaee84448fd650bad6840471d6cae199b56e154",
+                "sha256:9cc7a768b1921f4b982ebc00a318ccb38578e44e45316c7a4a850e953e1dd327"
             ],
-            "version": "==5.15.13"
+            "version": "==5.15.2"
         },
         "pyqt5-sip": {
             "hashes": [
