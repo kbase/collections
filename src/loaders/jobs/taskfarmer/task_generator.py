@@ -50,7 +50,7 @@ TASKS_PER_NODE_DEFAULT = 1
 # Task metadata - tool specific parameters for task generation and execution
 # chunk_size is the quantity of genomes processed within each task (default is 5000)
 #    for batch genome tools, such as gtdb_tk and checkm2, the chunk_size specifies the number of genomes grouped
-#    together for processing in a batche by the tool
+#    together for processing in a batch by the tool
 #    for single genome tools, such as microtrait and mash, the chunk_size is the number of genomes to process in a
 #    serial manner
 # exe_time is the estimated execution time for a single task (default is 60 minutes)
