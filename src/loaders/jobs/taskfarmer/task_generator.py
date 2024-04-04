@@ -36,29 +36,32 @@ optional arguments:
   --force               Force overwrite of existing job directory
   --source_file_ext SOURCE_FILE_EXT
                         Select files from source data directory that match the given extension.
+  --threads_per_tool_run THREADS_PER_TOOL_RUN
+                        Number of threads to execute a single tool command. (default: 32)
                         
-Note: Based on our experiment with GTDB-Tk, we have determined that the optimal chunk size is 1000 genomes.
-With 4 batches running in parallel, each using 32 cores, it takes around 50 minutes to process a single chunk.
-To reflect this, we have set the "threads" and "program_threads" parameters in "_create_task_list" to 32, 
-indicating that each batch will use 32 cores. We have also set the execution time for GTDB-Tk to 65 minutes, 
-with some additional buffer time. To allow for a sufficient number of batches to be run within a given time limit, 
-we have set the "NODE_TIME_LIMIT_DEFAULT" to 5 hours. With these settings, we expect to be able to process up to 16 batches, 
-or 16,000 genomes, per node within the 5-hour time limit. We plan to make these parameters configurable based on 
-the specific tool being used. After conducting performance tests, we found that utilizing 32 cores per batch and 
-running 4 batches in parallel per NERSC node resulted in optimal performance, despite each node having a total of 
-256 cores.
 '''
 
 TOOLS_AVAILABLE = ['gtdb_tk', 'checkm2', 'microtrait', 'mash', 'eggnog']
 
-# estimated execution time (in minutes) for each tool to process a chunk of data
+NODE_TIME_LIMIT_DEFAULT = 5  # hours  # TODO: automatically calculate this based on tool execution time and NODE_THREADS
+# Used as THREADS variable in the batch script which controls the number of parallel tasks per node
+TASKS_PER_NODE_DEFAULT = 1
+
+# Task metadata - tool specific parameters for task generation and execution
+# chunk_size is the quantity of genomes processed within each task (default is 5000)
+#    for batch genome tools, such as gtdb_tk and checkm2, the chunk_size specifies the number of genomes grouped
+#    together for processing in a batche by the tool
+#    for single genome tools, such as microtrait and mash, the chunk_size is the number of genomes to process in a
+#    serial manner
+# exe_time is the estimated execution time for a single task (default is 60 minutes)
+# tasks_per_node is the number of parallel tasks to run on a node (default is 1)
+# node_time_limit is the time limit for the node we reserved for the task (default is 5 hours)
+# if no specific metadata is provided for a tool, the default values are used.
 TASK_META = {'gtdb_tk': {'chunk_size': 1000, 'exe_time': 65, 'tasks_per_node': 4},
              'eggnog': {'chunk_size': 100, 'exe_time': 15, 'node_time_limit': 0.5},  # Memory intensive tool - reserve more nodes with less node reservation time
              'default': {'chunk_size': 5000, 'exe_time': 60}}
-NODE_TIME_LIMIT_DEFAULT = 5  # hours  # TODO: automatically calculate this based on tool execution time and NODE_THREADS
 MAX_NODE_NUM = 100  # maximum number of nodes to use
-# Used as THREADS variable in the batch script which controls the number of parallel tasks per node
-TASKS_PER_NODE_DEFAULT = 1
+
 
 REGISTRY = 'ghcr.io/kbase/collections'
 VERSION_FILE = 'versions.yaml'
@@ -194,39 +197,10 @@ def _create_task_list(
         wrapper_file: str,
         job_dir: str,
         root_dir: str,
-        threads: int = 32,
-        program_threads: int = 32,
+        threads_per_tool_run: int,
         source_file_ext: str = 'genomic.fna.gz'):
     """
     Create task list file (tasks.txt)
-
-    threads: the total number of threads to use per node
-    program_threads: number of threads to use per task
-    For instance, if "threads" is set to 128 and "program_threads" to 32, then each task will run 4 batches in parallel.
-
-    For tools capable of processing a batch of genomes, such as GTDB-TK and checkm2,
-    we have chosen to utilize the Slurm THREADS variable within Taskfarmer batch script (submit_taskfarmer.sl) for tool
-    parallelization.
-    From here on we will call this value 'tasks' rather than 'threads' to avoid confusion with operating system
-    threads. It determines the number of simultaneous tool executions per node.
-    'program_threads' is configured to match the CPU count per task execution. To ensure each task handles only one
-    tool execution at a time, both 'threads' and 'program_threads' should be set to the same value, due to the fact the
-    task generator program utilizes 'threads' divided by 'program_threads' to determine the quantity of parallel execution
-    in a task.
-    Setting 'threads' and 'program_threads' the same same number ensures that parallelization of tool executions
-    only happens between tasks, and not within tasks.
-    Each tool execution is specified to use 'program_threads' operating system threads.
-
-    For tools that can only handle genomes individually, such as microtrait, mash and eggNOG,
-    we still use the THREADS variable for task parallelization. However, within each task, we further parallelize tool
-    execution using the 'threads' variable. For instance, with 'threads' set to 16 and 'tasks_per_node' set to 4,
-    each node will concurrently execute 4 tasks, with each task executing 16 parallel tool operations.
-    Each tool will also use 'program_threads' operating threads, and so in the current example if 'program_threads'
-    is set to 8, the total number of operating system threads will be 4 * 16 * 8 = 512 threads. This is a significant
-    difference from the batch tasks described above
-
-    TODO: make threads/program_threads configurable based on tool used. However, for the time being, we have set
-    these parameters to 32 since this value has produced the highest throughput for GTDB-TK in our experiments.
     """
     source_data_dir = make_collection_source_dir(root_dir, env, kbase_collection, source_ver)
     genome_ids = [path for path in os.listdir(source_data_dir) if
@@ -252,8 +226,7 @@ def _create_task_list(
                     'ROOT_DIR': root_dir,
                     'NODE_ID': f'job_{idx}',
                     'GENOME_ID_FILE': genome_id_file,
-                    'THREADS': threads,
-                    'PROGRAM_THREADS': program_threads,
+                    'THREADS_PER_TOOL_RUN': threads_per_tool_run,
                     'SOURCE_FILE_EXT': source_file_ext}
 
         for mount_vol, docker_vol in vol_mounts.items():
@@ -394,7 +367,10 @@ def main():
     optional.add_argument('--force', action='store_true', help='Force overwrite of existing job directory')
     optional.add_argument('--source_file_ext', type=str, default='.fa',
                           help='Select files from source data directory that match the given extension.')
-
+    optional.add_argument(
+        '--threads_per_tool_run', type=int, default=32,
+        help='Number of threads to execute a single tool command.'
+    )
     args = parser.parse_args()
 
     tool = args.tool
@@ -408,6 +384,7 @@ def main():
 
     source_data_dir = make_collection_source_dir(root_dir, env, kbase_collection, source_ver)
     source_file_ext = args.source_file_ext
+    threads_per_tool_run = args.threads_per_tool_run
 
     try:
         task_mgr = TFTaskManager(kbase_collection,
@@ -435,6 +412,7 @@ def main():
         wrapper_file,
         job_dir,
         root_dir,
+        threads_per_tool_run,
         source_file_ext=source_file_ext)
 
     batch_script = _create_batch_script(job_dir, task_list_file, n_jobs, tool)
