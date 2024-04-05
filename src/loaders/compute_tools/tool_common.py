@@ -227,7 +227,8 @@ class ToolRunner:
 
     def _prepare_execution(
             self,
-            unzip: bool
+            unzip: bool,
+            batch_tool: bool,
     ) -> Tuple[Path, Dict[str, Dict[str, Union[str, Path]]], List[str]]:
 
         batch_dir, genomes_meta = _prepare_tool(
@@ -239,6 +240,7 @@ class ToolRunner:
             self._allow_missing_files,
             self._tool_data_id_from_filename,
             self._suffix_ids,
+            batch_tool,
         )
 
         unzipped_files_to_delete = []
@@ -279,7 +281,7 @@ class ToolRunner:
         unzip - if True, unzip the input file before passing it to the tool callable. (unzipped file will be deleted)
         """
         start = time.time()
-        batch_dir, genomes_meta, unzipped_files_to_delete = self._prepare_execution(unzip)
+        batch_dir, genomes_meta, unzipped_files_to_delete = self._prepare_execution(unzip, batch_tool=False)
 
         args_list = []
         for data_id, meta in genomes_meta.items():
@@ -321,7 +323,7 @@ class ToolRunner:
             * A debug boolean
         """
         start = time.time()
-        batch_dir, genomes_meta, unzipped_files_to_delete = self._prepare_execution(unzip)
+        batch_dir, genomes_meta, unzipped_files_to_delete = self._prepare_execution(unzip, batch_tool=True)
 
         ids_to_files = dict()
         for data_id, m in genomes_meta.items():
@@ -455,12 +457,19 @@ def _prepare_tool(
         allow_missing_files: bool,
         data_id_from_filename: bool,
         suffix_ids: bool,
+        batch_tool: bool,
 ) -> Tuple[Path, Dict[str, Dict[str, Union[str, Path]]]]:
     # Prepares for tool execution by creating a batch directory and retrieving data
     # files with associated metadata.
 
     # create a working directory for each job
-    batch_dir = work_dir / f'{job_id}_size_{len(data_ids)}'
+    # parser program will need `COMPUTE_OUTPUT_PREFIX` as dir name prefix to identify compute directories
+    # and `COMPUTE_OUTPUT_NO_BATCH` as dir name suffix to identify non-batch directories
+    batch_job_dir_identifier = '' if batch_tool else loader_common_names.COMPUTE_OUTPUT_NO_BATCH
+    batch_dir_name = (f'{loader_common_names.COMPUTE_OUTPUT_PREFIX}_{job_id}'
+                      f'_size_{len(data_ids)}{batch_job_dir_identifier}')
+    batch_dir = work_dir / batch_dir_name
+
     os.makedirs(batch_dir, exist_ok=True)
 
     # Retrieve genome files and associated metadata for each genome ID
