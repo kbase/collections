@@ -343,7 +343,7 @@ class ToolRunner:
     def _execute(
             self,
             tool_callable: Callable[..., None],
-            args: List[Tuple[Dict[str, GenomeTuple], Path, int, bool]] | List[Tuple[str, str, Path, Path, int, bool]],
+            args: Union[List[Tuple[Dict[str, GenomeTuple], Path, int, bool]], List[Tuple[str, str, Path, Path, int, bool]]],
             start: datetime.datetime,
             total: bool,
     ):
