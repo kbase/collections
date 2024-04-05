@@ -12,7 +12,7 @@ $env_tool run -n $CONDA_ENV \
   --kbase_collection $KBASE_COLLECTION \
   --root_dir $ROOT_DIR \
   --threads_per_tool_run $THREADS_PER_TOOL_RUN \
-  --node_id $NODE_ID \
+  --job_id $JOB_ID \
   --debug \
   --source_file_ext $SOURCE_FILE_EXT \
   --data_id_file $DATA_ID_FILE

@@ -88,7 +88,7 @@ class ToolRunner:
                                 (default: /global/cfs/cdirs/kbase/collections)
           --threads_per_tool_run THREADS_PER_TOOL_RUN
                                 Number of threads to execute a single tool command.
-          --node_id NODE_ID     node ID for running job
+          --job_id JOB_ID       job ID for running job
           --debug               Debug mode.
           --data_id_file DATA_ID_FILE
                                 tab separated file containing data ids for the running
@@ -130,7 +130,7 @@ class ToolRunner:
         self._threads_per_tool_run = args.threads_per_tool_run
         self._debug = args.debug
         self._data_id_file = args.data_id_file
-        self._node_id = args.node_id
+        self._job_id = args.job_id
         self._source_file_ext = args.source_file_ext
         self._data_ids = self._get_data_ids()
 
@@ -183,7 +183,7 @@ class ToolRunner:
             help='Number of threads to execute a single tool command.'
         )
         optional.add_argument(
-            '--node_id', type=str, default=str(uuid.uuid4()), help='node ID for running job'
+            '--job_id', type=str, default=str(uuid.uuid4()), help='job ID for running job'
         )
         optional.add_argument('--debug', action='store_true', help='Debug mode.')
         optional.add_argument(
@@ -232,8 +232,7 @@ class ToolRunner:
 
         batch_dir, genomes_meta = _prepare_tool(
             self._work_dir,
-            loader_common_names.COMPUTE_OUTPUT_NO_BATCH,
-            self._node_id,
+            self._job_id,
             self._data_ids,
             self._source_data_dir,
             self._source_file_ext,
@@ -449,8 +448,7 @@ def create_metadata_file(
 # other ways. Meh
 def _prepare_tool(
         work_dir: Path,
-        batch_id: str,
-        node_id: str,
+        job_id: str,
         data_ids: List[str],
         source_data_dir: Path,
         source_file_ext: str,
@@ -461,9 +459,8 @@ def _prepare_tool(
     # Prepares for tool execution by creating a batch directory and retrieving data
     # files with associated metadata.
 
-    # create working directory for each batch
-    batch_dir = work_dir / (f'{loader_common_names.COMPUTE_OUTPUT_PREFIX}{batch_id}_size_'
-                            + f'{len(data_ids)}_node_{node_id}')
+    # create a working directory for each job
+    batch_dir = work_dir / f'{job_id}_size_{len(data_ids)}'
     os.makedirs(batch_dir, exist_ok=True)
 
     # Retrieve genome files and associated metadata for each genome ID
