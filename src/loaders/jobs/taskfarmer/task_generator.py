@@ -36,8 +36,6 @@ optional arguments:
   --force               Force overwrite of existing job directory
   --source_file_ext SOURCE_FILE_EXT
                         Select files from source data directory that match the given extension.
-  --threads_per_tool_run THREADS_PER_TOOL_RUN
-                        Number of threads to execute a single tool command. (default: 32)
                         
 '''
 
@@ -47,6 +45,8 @@ NODE_TIME_LIMIT_DEFAULT = 5  # hours  # TODO: automatically calculate this based
 # Used as THREADS variable in the batch script which controls the number of parallel tasks per node
 TASKS_PER_NODE_DEFAULT = 1
 
+THREADS_PER_TOOL_RUN_DEFAULT = 32
+
 # Task metadata - tool specific parameters for task generation and execution
 # chunk_size is the quantity of genomes processed within each task (default is 5000)
 #    for batch genome tools, such as gtdb_tk and checkm2, the chunk_size specifies the number of genomes grouped
@@ -54,6 +54,7 @@ TASKS_PER_NODE_DEFAULT = 1
 #    for single genome tools, such as microtrait and mash, the chunk_size is the number of genomes to process in a
 #    serial manner
 # exe_time is the estimated execution time for a single task (default is 60 minutes)
+# threads_per_tool_run is the number of threads to use for each tool execution (default is 32)
 # tasks_per_node is the number of parallel tasks to run on a node (default is 1)
 # node_time_limit is the time limit for the node we reserved for the task (default is 5 hours)
 # if no specific metadata is provided for a tool, the default values are used.
@@ -197,7 +198,6 @@ def _create_task_list(
         wrapper_file: str,
         job_dir: str,
         root_dir: str,
-        threads_per_tool_run: int,
         source_file_ext: str = 'genomic.fna.gz'):
     """
     Create task list file (tasks.txt)
@@ -207,6 +207,7 @@ def _create_task_list(
                   os.path.isdir(os.path.join(source_data_dir, path))]
 
     chunk_size = TASK_META.get(tool, TASK_META['default'])['chunk_size']
+    threads_per_tool_run = TASK_META.get(tool, TASK_META['default']).get('threads_per_tool_run', THREADS_PER_TOOL_RUN_DEFAULT)
     genome_ids_chunks = [genome_ids[i: i + chunk_size] for i in range(0, len(genome_ids), chunk_size)]
 
     vol_mounts = _retrieve_tool_volume(tool, root_dir)
@@ -367,10 +368,6 @@ def main():
     optional.add_argument('--force', action='store_true', help='Force overwrite of existing job directory')
     optional.add_argument('--source_file_ext', type=str, default='.fa',
                           help='Select files from source data directory that match the given extension.')
-    optional.add_argument(
-        '--threads_per_tool_run', type=int, default=32,
-        help='Number of threads to execute a single tool command.'
-    )
     args = parser.parse_args()
 
     tool = args.tool
@@ -384,7 +381,6 @@ def main():
 
     source_data_dir = make_collection_source_dir(root_dir, env, kbase_collection, source_ver)
     source_file_ext = args.source_file_ext
-    threads_per_tool_run = args.threads_per_tool_run
 
     try:
         task_mgr = TFTaskManager(kbase_collection,
@@ -412,7 +408,6 @@ def main():
         wrapper_file,
         job_dir,
         root_dir,
-        threads_per_tool_run,
         source_file_ext=source_file_ext)
 
     batch_script = _create_batch_script(job_dir, task_list_file, n_jobs, tool)
