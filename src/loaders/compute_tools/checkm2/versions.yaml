@@ -20,3 +20,9 @@ versions:
     notes: |
       - create fatal error file for CheckM2
     reference_db_version: 1.0.1
+  - version: 0.1.4
+    date: 2024-04-05
+    notes: |
+      - Remove the 'threads' and 'program_threads' parameters
+      - and introduce the capability to specify the number of threads per tool run
+    reference_db_version: 1.0.1

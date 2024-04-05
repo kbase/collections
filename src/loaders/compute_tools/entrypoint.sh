@@ -11,9 +11,8 @@ $env_tool run -n $CONDA_ENV \
   --env $ENV \
   --kbase_collection $KBASE_COLLECTION \
   --root_dir $ROOT_DIR \
-  --threads $THREADS \
-  --program_threads $PROGRAM_THREADS \
+  --threads_per_tool_run $THREADS_PER_TOOL_RUN \
   --node_id $NODE_ID \
   --debug \
   --source_file_ext $SOURCE_FILE_EXT \
-  --data_id_file $GENOME_ID_FILE  # TODO DATA_ID rename to $DATA_ID_FILE for generality
+  --data_id_file $DATA_ID_FILE

@@ -191,7 +191,7 @@ def _run_microtrait(
         data_id: str,
         fna_file: Path,
         genome_dir: Path,
-        program_threads: int,
+        threads_per_tool_run: int,
         debug: bool):
     # run microtrait.extract_traits on the genome file
     # https://github.com/ukaraoz/microtrait
@@ -204,7 +204,7 @@ def _run_microtrait(
     #     object returned by the
     #     extract_traits function.
 
-    # programe_threads is not used in this function, but it is kept for consistency with another tools (e.g., eggnog, mash)
+    # threads_per_tool_run is not used in this function, but it is kept for consistency with another tools (e.g., eggnog, mash)
     # since extract_traits function doesn't take the number of threads as an argument
     # https://github.com/ukaraoz/microtrait/blob/master/R/extract_traits.R#L22-L26
 

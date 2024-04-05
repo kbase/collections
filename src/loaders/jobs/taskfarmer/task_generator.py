@@ -226,7 +226,7 @@ def _create_task_list(
                     'LOAD_VER': load_ver,
                     'ROOT_DIR': root_dir,
                     'NODE_ID': f'job_{idx}',
-                    'GENOME_ID_FILE': genome_id_file,
+                    'DATA_ID_FILE': genome_id_file,
                     'THREADS_PER_TOOL_RUN': threads_per_tool_run,
                     'SOURCE_FILE_EXT': source_file_ext}
 

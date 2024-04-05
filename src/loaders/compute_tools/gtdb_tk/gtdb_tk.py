@@ -67,7 +67,7 @@ def _get_id_and_error_message_mapping(file_path: str):
 def _run_gtdb_tk(
         ids_to_files: Dict[str, GenomeTuple],
         output_dir: Path,
-        threads: int,
+        threads_per_tool_run: int,
         debug: bool,
 ):
     size = len(ids_to_files)
@@ -89,7 +89,7 @@ def _run_gtdb_tk(
                '--batchfile', str(batch_file_path),
                '--out_dir', str(output_dir),
                '--force',
-               '--cpus', str(threads),
+               '--cpus', str(threads_per_tool_run),
                '--skip_ani_screen',
                ]
     command.append('--debug') if debug else None
