@@ -13,6 +13,6 @@ versions:
     date: 2024-04-05
     notes: |
       - Remove the 'threads' and 'program_threads' parameters 
-      and introduce the capability to specify the number of threads per tool run
+        and introduce the capability to specify the number of threads per tool run
       - pass job_id to the tool container and remove node_id
     reference_db_version: 5.0.2
