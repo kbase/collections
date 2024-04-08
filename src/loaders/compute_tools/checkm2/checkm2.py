@@ -25,7 +25,7 @@ SELECTED_CHECKM2_FEATURES = {'Completeness', 'Contamination'}
 def _run_checkm2(
         ids_to_files: Dict[str, GenomeTuple],
         output_dir: Path,
-        threads: int,
+        threads_per_tool_run: int,
         debug: bool,
 ):
     size = len(ids_to_files)
@@ -35,7 +35,7 @@ def _run_checkm2(
     # RUN checkM2 predict
     command = ['checkm2', 'predict',
                '--output-directory', str(output_dir),
-               '--threads', str(threads),
+               '--threads', str(threads_per_tool_run),
                '--force',  # will overwrite output directory contents
                '--input'] + [str(v.source_file) for v in ids_to_files.values()]
 

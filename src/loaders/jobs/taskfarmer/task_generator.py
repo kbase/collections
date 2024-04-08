@@ -3,6 +3,8 @@ import math
 import os
 import shutil
 
+import click
+
 import src.loaders.jobs.taskfarmer.taskfarmer_common as tf_common
 from src.loaders.common import loader_common_names
 from src.loaders.common.loader_helper import make_collection_source_dir
@@ -45,7 +47,7 @@ NODE_TIME_LIMIT_DEFAULT = 5  # hours
 # Used as THREADS variable in the batch script which controls the number of parallel tasks per node
 TASKS_PER_NODE_DEFAULT = 1
 
-THREADS_PER_TOOL_RUN_DEFAULT = 32
+SYSTEM_CPU_CORES = 256  # number of CPU cores available on the NERSC nodes
 
 # Task metadata - tool specific parameters for task generation and execution
 # chunk_size is the quantity of genomes processed within each task (default is 5000)
@@ -58,7 +60,7 @@ THREADS_PER_TOOL_RUN_DEFAULT = 32
 # tasks_per_node is the number of parallel tasks to run on a node (default is 1)
 # node_time_limit is the time limit for the node we reserved for the task (default is 5 hours)
 # if no specific metadata is provided for a tool, the default values are used.
-TASK_META = {'gtdb_tk': {'chunk_size': 1000, 'exe_time': 65, 'tasks_per_node': 4},
+TASK_META = {'gtdb_tk': {'chunk_size': 1000, 'exe_time': 65, 'tasks_per_node': 4, 'threads_per_tool_run': 32},
              'eggnog': {'chunk_size': 100, 'exe_time': 15, 'node_time_limit': 0.5},  # Memory intensive tool - reserve more nodes with less node reservation time
              'default': {'chunk_size': 5000, 'exe_time': 60}}
 MAX_NODE_NUM = 100  # maximum number of nodes to use
@@ -189,6 +191,21 @@ def _create_genome_id_file(genome_ids, genome_id_file):
     _write_to_file(genome_id_file, content)
 
 
+def _get_threads_per_tool_run(tool: str) -> int:
+    """
+    Get the number of threads to use for each tool execution
+    """
+
+    # If the tool has a specific number of threads per tool run, use that
+    threads_per_tool_run = TASK_META.get(tool, TASK_META['default']).get('threads_per_tool_run')
+    if threads_per_tool_run:
+        return threads_per_tool_run
+
+    threads_per_tool_run = SYSTEM_CPU_CORES // _get_node_task_count(tool)
+
+    return threads_per_tool_run
+
+
 def _create_task_list(
         env: str,
         kbase_collection: str,
@@ -207,7 +224,7 @@ def _create_task_list(
                   os.path.isdir(os.path.join(source_data_dir, path))]
 
     chunk_size = TASK_META.get(tool, TASK_META['default'])['chunk_size']
-    threads_per_tool_run = TASK_META.get(tool, TASK_META['default']).get('threads_per_tool_run', THREADS_PER_TOOL_RUN_DEFAULT)
+    threads_per_tool_run = _get_threads_per_tool_run(tool)
     genome_ids_chunks = [genome_ids[i: i + chunk_size] for i in range(0, len(genome_ids), chunk_size)]
 
     vol_mounts = _retrieve_tool_volume(tool, root_dir)
@@ -225,8 +242,8 @@ def _create_task_list(
                     'SOURCE_VER': source_ver,
                     'LOAD_VER': load_ver,
                     'ROOT_DIR': root_dir,
-                    'NODE_ID': f'job_{idx}',
-                    'GENOME_ID_FILE': genome_id_file,
+                    'JOB_ID': idx,
+                    'DATA_ID_FILE': genome_id_file,
                     'THREADS_PER_TOOL_RUN': threads_per_tool_run,
                     'SOURCE_FILE_EXT': source_file_ext}
 
@@ -315,7 +332,7 @@ runcommands.sh {task_list_file}'''
     batch_script_file = os.path.join(job_dir, tf_common.BATCH_SCRIPT)
     _write_to_file(batch_script_file, batch_script)
 
-    return batch_script_file
+    return batch_script_file, node_num
 
 
 def _create_job_dir(job_dir, destroy_old_job_dir=False):
@@ -410,14 +427,20 @@ def main():
         root_dir,
         source_file_ext=source_file_ext)
 
-    batch_script = _create_batch_script(job_dir, task_list_file, n_jobs, tool)
+    batch_script, node_num = _create_batch_script(job_dir, task_list_file, n_jobs, tool)
 
     if args.submit_job:
-        try:
-            task_mgr.submit_job()
-        except PreconditionError as e:
-            raise ValueError(f'Error submitting job:\n{e}\n'
-                             f'Please use the --force flag to overwrite the previous run.') from e
+        confirmation = click.confirm(f"The task will reserve {node_num} nodes, "
+                                     f"with a maximum total runtime of {node_num * _get_node_time_limit(tool)} hours.\n"
+                                     f"Please confirm to proceed.")
+        if confirmation:
+            try:
+                task_mgr.submit_job()
+            except PreconditionError as e:
+                raise ValueError(f'Error submitting job:\n{e}\n'
+                                 f'Please use the --force flag to overwrite the previous run.') from e
+        else:
+            print('Job submission cancelled.')
     else:
         print(f'Please go to Job Directory: {job_dir} and submit the batch script: {batch_script} to the scheduler.')
 

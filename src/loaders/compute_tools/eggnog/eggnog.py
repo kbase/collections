@@ -19,7 +19,7 @@ def _run_eggnog_single(
         data_id: str,
         source_file: Path,
         output_dir: Path,
-        program_threads: int,
+        threads_per_tool_run: int,
         debug: bool) -> None:
 
     metadata_file = output_dir / EGGNOG_METADATA
@@ -33,7 +33,7 @@ def _run_eggnog_single(
                '-o', output_dir / source_file.name,  # Output prefix.
                                                      # Save result file to collectiondata directory. Expecting 'emapper.annotations', 'emapper.hits' and  'emapper.seed_orthologs' files.
                '--itype', f'{INPUT_TYPE}',
-               '--cpu', f'{program_threads}',
+               '--cpu', f'{threads_per_tool_run}',
                '--excel',
                '--sensmode', 'fast',
                '--dmnd_iterate', 'no',

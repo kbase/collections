@@ -323,10 +323,12 @@ def _process_fatal_error_tools(check_fatal_error_tools: set[str],
     for tool in check_fatal_error_tools:
         result_dir = _locate_dir(root_dir, env, kbase_collection, load_ver, tool=tool)
         batch_dirs = _get_batch_dirs(result_dir)
-        batch_no_batch_prefix = loader_common_names.COMPUTE_OUTPUT_PREFIX + loader_common_names.COMPUTE_OUTPUT_NO_BATCH
-        if len(batch_dirs) == 1 and batch_dirs[0].startswith(batch_no_batch_prefix):
+
+        # For non-batched tools, such as mash, retrieve individual genome subdirectories
+        if len(batch_dirs) == 1 and loader_common_names.COMPUTE_OUTPUT_NO_BATCH in batch_dirs[0]:
             batch_dirs = [os.path.join(batch_dirs[0], d) for d in os.listdir(os.path.join(result_dir, batch_dirs[0]))
                           if os.path.isdir(os.path.join(result_dir, batch_dirs[0], d))]
+
         for batch_dir in batch_dirs:
             data_dir = os.path.join(result_dir, batch_dir)
             fatal_error_file = os.path.join(data_dir, loader_common_names.FATAL_ERROR_FILE)
