@@ -15,6 +15,8 @@ ssh perlmutter.nersc.gov
 
 ## Step 2: Prepare Source Data Files (FASTA)
 
+To run the collections pipeline you will need data uploaded as Genome objects in a KBase Narrative. You can use the Narrative interface to upload data. Additionally, for NCBI data, there are command line based options provided below.
+
 ### If you already have a KBase narrative with target Genome objects
 If you already possess a KBase narrative containing the desired Genome objects, download the FASTA files associated with
 the Genome objects from the KBase workspace to NERSC. The following command facilitates this process:
