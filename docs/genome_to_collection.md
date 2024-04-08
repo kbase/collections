@@ -3,6 +3,8 @@
 This guide outlines the process of creating and activating a new collection from KBase narrative with Genome workspace
 objects.
 
+Note that for all commands you can run `--help` to get more information about the various CLI options.
+
 ## Step 1: NERSC Account Setup
 The commands provided in this document are intended for execution within the terminals of 
 [NERSC Perlmutter](https://docs.nersc.gov/systems/perlmutter/). 
