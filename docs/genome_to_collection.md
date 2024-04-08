@@ -36,11 +36,13 @@ PYTHONPATH=. python src/loaders/workspace_downloader/workspace_downloader.py \
     --workspace_id $workspace_id \
     --kbase_collection $kbase_collection \
     --source_ver $source_verion \
-    --root_dir $root_dir \
     --env $env \
     --token_filepath $token_filepath \
     --retrieve_sample 
 ```
+Please note that the `retrieve_sample` argument is optional and will download the sample data associated with the Genome 
+object. If no sample is associated with the Genome object, please remove this argument.
+
 
 ### Download FASTA files from NCBI based on GTDB version
 Alternatively, if you don't possess a KBase narrative, you can download FASTA files from NCBI based on GTDB version 
@@ -76,9 +78,6 @@ workspace_id=72231
 kbase_collection=GTDB
 source_verion=$gtdb_release_ver
 load_id=1
-au_service_ver=dev
-gfu_service_ver=dev
-cbs_max_tasks=10
 
 PYTHONPATH=. python src/loaders/workspace_uploader/workspace_uploader.py \
     --workspace_id $workspace_id \
@@ -86,16 +85,18 @@ PYTHONPATH=. python src/loaders/workspace_uploader/workspace_uploader.py \
     --source_ver $source_verion \
     --env $env \
     --token_filepath $token_filepath \
-    --au_service_ver $au_service_ver \
-    --gfu_service_ver $gfu_service_ver \
-    --cbs_max_tasks $cbs_max_tasks \
     --load_id $load_id  
 ```
 
 # Step 3: Execute tools on FASTA files
 
+**This step involves submitting jobs to the NERSC Slurm cluster for processing the source data files and will consume 
+project NERSC allocation. Please ensure that you have the necessary permissions and resources available before 
+executing.**
+
 Once the source data files are prepared, execute tools on these FASTA files. You can choose from various available 
 tools such as gtdb_tk, checkm2, microtrait, or mash.
+
 
 ```commandline
 # update arguments as needed
@@ -140,6 +141,15 @@ PYTHONPATH=. python src/loaders/genome_collection/compute_genome_taxa_count.py \
 
 ## Load parsed results to ArangoDB
 
+The output of the parsing script can be imported into ArangoDB. The JSONL result files are found in the directory 
+structure: <root_dir>/import_files/<env>/<kbase_collection>/<source_ver>.
+
+All JSONL files in the directory should be imported into the ArangoDB collection. The Arango collection corresponding 
+to each JSONL file is derived from the suffix of the file name following `kbcoll`.
+For example, `<kbase_collection>_<source_ver>_checkm2_gtdb_tk_kbcoll_genome_attribs.jsonl` will be loaded into the
+`kbcoll_genome_attribs` collection.
+
+**Note:** Please update `PARSED_FILE` and `ARANGO_COLL` with the appropriate file path and collection name.
 ```commandline
 # set up an SSH tunnel (Not required when using an internal KBase machine such as dev03) 
 USER_NAME=user_name                 # user name for login1.berkeley.kbase.us
@@ -160,25 +170,28 @@ arangoimport --file $PARSED_FILE \
     --server.password $ARANGO_PW \
     --server.database $ARANGO_DB \
     --collection $ARANGO_COLL \
-    --on-duplicate update
+    --on-duplicate update           # performs a merge operation and update existing documents with new attribute values from incoming documents 
 ```
 
 # Step 5: Create and Active the Collection
 
+The Collections endpoint facilitates the creation and activation of collections. Access to the Collections API is 
+provided through the Swagger UI, accessible at the KBase_domain/services/collections/docs URL. For instance, 
+you can access the Collections API for the CI environment via the following link: [CI Collections API](https://ci.kbase.us/services/collections/docs).
+
 ## 5.1: Verify Permissions
-Before proceeding to create and activate the collection, execute the following command to verify if you have the 
-required permissions:
 
-```
-# Set the server URL and associated token
-SERVER='https://ci.kbase.us/services/collections'
-TOKEN='your_token_here' 
+Before proceeding with the creation and activation of the collection, it's essential to confirm that you possess 
+the requisite permissions.
 
-curl -X 'GET' \
-"$SERVER/whoami/" \
--H 'accept: application/json' \
--H "Authorization: Bearer $TOKEN"
-```
+To verify your permissions, please begin by authorizing with the KBase Token.
+
+![Authorize](screenshots/authorize.png)
+
+Subsequently, execute the `whoami` endpoint.
+
+![Whoami](screenshots/whoami_endpoint.png)
+
 Example response:
 ```
 {"user":"tgu2","is_service_admin":true}
@@ -187,52 +200,34 @@ Ensure that the "is_service_admin" field is set to true in the response. If it's
 contact system administrator to grant you the necessary permissions.
 
 ## 5.2: Create (Save) a New Collection
-Utilize the `Save Collection` endpoint to create a new collection. Execute the following command to create a new collection:
+The next step is to create a new collection with new or updated data.
 
-```
-COLL_ID='GTDB'
-VER_TAG='r207.kbase.2'
-DATA='{"key1": "value1", "key2": "value2"}'
-curl -X 'PUT' \
-  "$SERVER/collections/$COLL_ID/versions/$VER_TAG/" \
-  -H 'accept: application/json' \
-  -H "Authorization: Bearer $TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d "$DATA"
-```
+### 5.2.1: Retrieve existing collection data
+If you're updating an existing collection or uncertain about collection's data structure, you can retrieve the data 
+from the currently activated collection by using the `get_collection` endpoint.
 
-If a previous version of the collection exists with a different version tag, you can obtain the current activated
-collection data by running the following command:
-```
-curl -X 'GET' \
-  "$SERVER/collections/$COLL_ID/" \
-  -H 'accept: application/json'
-```
+![Get Collection](screenshots/get_collection_endpoint.png)
+
+
+### 5.2.2: Save the New Collection
+Following that, you can store the updated collection data by invoking the `save_collection` endpoint.
+
+![Save Collection](screenshots/save_collection_endpoint.png)
 
 ## 5.3: Activate The New Collection
 There are two ways to activate a collection:
 
 ### Method 1: Activation by Version Tag
-You can activate the collection using a specific version tag with the following command:
+You can activate the collection using a specific version tag by executing the `activate_collection_by_ver_num` endpoint.
 
-```
-curl -X 'PUT' \
-  "$SERVER/collections/$COLL_ID/versions/tag/$VER_TAG/activate/" \
-  -H 'accept: application/json' \
-  -H "Authorization: Bearer $TOKEN"
-```
+![Activate Collection_by_tag](screenshots/activate_collection_ver_tag.png)
 
 ### Method 2: Activation by Version Number
-Alternatively, you can activate the collection using its version number which is provided by the response of the 
-`Save Collection` endpoint as the `ver_num`.
+Alternatively, you can activate the collection by executing the `activate_collection_by_num`  endpoint using its version 
+number which is provided by the response of the `Save Collection` endpoint as the `ver_num`.
 
-```
-VERSION_NUM='14'
-curl -X 'PUT' \
-  "$SERVER/collections/$COLL_ID/versions/num/$VERSION_NUM/activate/" \
-  -H 'accept: application/json' \
-  -H "Authorization: Bearer $TOKEN"
-```
+![Activate Collection_by_num](screenshots/activate_collection_ver_num.png)
+
 
 Now, the new collection is successfully created and activated. You can access and verify the collection data via 
 the KBase Collections UI ([CI](https://ci.kbase.us/collections)) or the Collections swagger API 
