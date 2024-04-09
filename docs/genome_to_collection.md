@@ -5,7 +5,7 @@ objects.
 
 Note that for all commands you can run `--help` to get more information about the various CLI options.
 
-## Step 1: NERSC Account Setup
+## [Step 1: NERSC Account Setup](#step-1-nersc-account-setup)
 The commands provided in this document are intended for execution within the terminals of 
 [NERSC Perlmutter](https://docs.nersc.gov/systems/perlmutter/). 
 If you don't have a NERSC account yet, you can create one via [Iris](https://docs.nersc.gov/iris/).
@@ -15,7 +15,7 @@ Before proceeding, please ensure that you have an active NERSC account and are l
 ssh perlmutter.nersc.gov
 ```
 
-## Step 2: Prepare Source Data Files (FASTA)
+## [Step 2: Prepare Source Data Files (FASTA)](#step-2-prepare-source-data-files-fasta)
 
 To run the collections pipeline you will need data uploaded as Genome objects in a KBase Narrative. You can use the Narrative interface to upload data. Additionally, for NCBI data, there are command line based options provided below.
 
@@ -88,7 +88,7 @@ PYTHONPATH=. python src/loaders/workspace_uploader/workspace_uploader.py \
     --load_id $load_id  
 ```
 
-# Step 3: Execute tools on FASTA files
+# [Step 3: Execute tools on FASTA files](#step-3-execute-tools-on-fasta-files)
 
 **This step involves submitting jobs to the NERSC Slurm cluster for processing the source data files and will consume 
 project NERSC allocation. Please ensure that you have the necessary permissions and resources available before 
@@ -113,9 +113,8 @@ PYTHONPATH=. python src/loaders/jobs/taskfarmer/task_generator.py \
     --submit_job
 ```
 
-# Step 4: Parse and Load Tool Outputs
+# [Step 4: Parse and Load Tool Outputs](#step-4-parse-and-load-tool-outputs)
 
-## Parse tool results
 
 ### Parse tool computation results
 Parsing tool results for extracting insights from the processed data. This step involves parsing tool computation 
@@ -139,7 +138,7 @@ PYTHONPATH=. python src/loaders/genome_collection/compute_genome_taxa_count.py \
     --input_source genome_attributes
 ```
 
-## Load parsed results to ArangoDB
+### Load parsed results to ArangoDB
 
 The output of the parsing script can be imported into ArangoDB. The JSONL result files are found in the directory 
 structure: <root_dir>/import_files/<env>/<kbase_collection>/<source_ver>.
@@ -170,16 +169,21 @@ arangoimport --file $PARSED_FILE \
     --server.password $ARANGO_PW \
     --server.database $ARANGO_DB \
     --collection $ARANGO_COLL \
-    --on-duplicate update           # performs a merge operation and update existing documents with new attribute values from incoming documents 
+    --on-duplicate replace          # replaces the existing document entirely
 ```
 
-# Step 5: Create and Active the Collection
+### Create homology matchers in ArangoDB
+For result files, follow the instructions outlined in the 
+[Homology Service](https://github.com/jgi-kbase/AssemblyHomologyService) to upload them to the homology server. 
+Ensure to utilize the namespace when creating the collection with a homology matcher.
+
+# [Step 5: Create and Active the Collection](#step-5-create-and-active-the-collection)
 
 The Collections endpoint facilitates the creation and activation of collections. Access to the Collections API is 
 provided through the Swagger UI, accessible at the KBase_domain/services/collections/docs URL. For instance, 
 you can access the Collections API for the CI environment via the following link: [CI Collections API](https://ci.kbase.us/services/collections/docs).
 
-## 5.1: Verify Permissions
+## [5.1: Verify Permissions](#verify-permissions)
 
 Before proceeding with the creation and activation of the collection, it's essential to confirm that you possess 
 the requisite permissions.
@@ -199,30 +203,108 @@ Example response:
 Ensure that the "is_service_admin" field is set to true in the response. If it's false or if you encounter any errors, 
 contact system administrator to grant you the necessary permissions.
 
-## 5.2: Create (Save) a New Collection
+## [5.2: Create (Save) a New Collection](#create-save-a-new-collection)
 The next step is to create a new collection with new or updated data.
 
-### 5.2.1: Retrieve existing collection data
+### [5.2.1: Retrieve existing collection data](#retrieve-existing-collection-data)
 If you're updating an existing collection or uncertain about collection's data structure, you can retrieve the data 
 from the currently activated collection by using the `get_collection` endpoint.
 
 ![Get Collection](screenshots/get_collection_endpoint.png)
 
 
-### 5.2.2: Save the New Collection
+**example return**
+```commandline
+{
+  "name": "Plant Microbe Interfaces",
+  "ver_src": "2023.11",
+  "desc": "The goal of the Plant-Microbe Interfaces SFA is to gain a deeper understanding of the diversity and functioning of mutually beneficial interactions between plants and microbes in the rhizosphere.",
+  "icon_url": "https://ci.kbase.us/services/shock-api/node/674c4e6b-851f-4ee2-ad5a-35effeb8cd68/?download_raw",
+  "attribution": "This collection was contributed by the Plant Microbe Interfaces (PMI) Science Focus Area (SFA). For more details, see [TODO: FAIR Narrative doi], and https://www.kbase.us/research/doktycz-sfa.\n\nKBase will automatically cite any data from this collection used in a Narrative. If you would like to acknowledge the collection, please copy the text below:\n\nThe authors would like to acknowledge the KBase collection, PMI, supported by the Genomic Science Program, U.S. Department of Energy, Office of Science, Biological and Environmental Research at Oak Ridge National Laboratory under contract DE-AC05-00OR22725, for sharing their data at https://ci-europa.kbase.us/collections/PMI.",
+  "data_products": [
+    {
+      "product": "biolog",
+      "version": "2023.11",
+      "search_view": null
+    },
+    {
+      "product": "genome_attribs",
+      "version": "2023.11",
+      "search_view": "genome_attribs_c7a2b9d"
+    },
+    {
+      "product": "microtrait",
+      "version": "2023.11",
+      "search_view": null
+    },
+    {
+      "product": "taxa_count",
+      "version": "2023.11",
+      "search_view": null
+    }
+  ],
+  "matchers": [
+    {
+      "matcher": "gtdb_lineage",
+      "parameters": {
+        "gtdb_versions": [
+          "214.0",
+          "214.1"
+        ]
+      }
+    },
+    {
+      "matcher": "minhash_homology",
+      "parameters": {
+        "service_wizard_url": "https://ci.kbase.us/services/service_wizard",
+        "sketch_database_name": "Collections_CI_PMI2023_11"
+      }
+    }
+  ],
+  "default_select": "genome_attribs",
+  "metadata": null,
+  "id": "PMI",
+  "ver_tag": "2023.11_r5",
+  "ver_num": 14,
+  "date_create": "2024-01-12T16:17:21.213453+00:00",
+  "user_create": "tgu2",
+  "date_active": "2024-01-12T16:17:41.694010+00:00",
+  "user_active": "tgu2"
+}
+```
+
+
+Each collection can have multiple data products, matchers, and other metadata.
+
+- The `data_products` field contains
+information about the data products associated with the collection. 
+  - Each data product has a `product` field that specifies the product name. Currently, the supported products 
+    are `genome_attribs`, `microtrait`, `taxa_count`, `samples` and `biolog`. 
+  - Each product is assigned a version field that indicates the load version of the product. This version corresponds 
+    to the load version defined in [Step 3](#step-3-execute-tools-on-fasta-files) above, where tools were executed on 
+    the source data files.
+  - Each product also includes a `search_view` field, indicating the associated search view. For `microtrait`, 
+    `taxa_count`, and `biolog` product, this field should be set to `null`, as the system will automatically retrieve 
+    the correct search view. However, for `genome_attribs` and `samples`, it should match the value of the previous 
+    `search_view` field. If you've created a new search view with [service_manager](../src/service_manager.py) in 
+    ArangoDB, you can specify it here to utilize it for the new collection.
+
+- The `matchers` field contains information about the matchers used for the collection. 
+
+### [5.2.2: Save the New Collection](#save-the-new-collection)
 Following that, you can store the updated collection data by invoking the `save_collection` endpoint.
 
 ![Save Collection](screenshots/save_collection_endpoint.png)
 
-## 5.3: Activate The New Collection
+## [5.3: Activate The New Collection](#activate-the-new-collection)
 There are two ways to activate a collection:
 
-### Method 1: Activation by Version Tag
+### [Method 1: Activation by Version Tag](#activation-by-version-tag)
 You can activate the collection using a specific version tag by executing the `activate_collection_by_ver_num` endpoint.
 
 ![Activate Collection_by_tag](screenshots/activate_collection_ver_tag.png)
 
-### Method 2: Activation by Version Number
+### [Method 2: Activation by Version Number](#activation-by-version-number)
 Alternatively, you can activate the collection by executing the `activate_collection_by_num`  endpoint using its version 
 number which is provided by the response of the `Save Collection` endpoint as the `ver_num`.
 
