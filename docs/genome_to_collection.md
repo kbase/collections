@@ -153,8 +153,7 @@ arangoimport --file $PARSED_FILE \
     --server.username $ARANGO_USER \
     --server.password $ARANGO_PW \
     --server.database $ARANGO_DB \
-    --collection $ARANGO_COLL \
-    --on-duplicate replace          # replaces the existing document entirely
+    --collection $ARANGO_COLL
 ```
 
 ### Create homology matchers in ArangoDB
