@@ -193,8 +193,8 @@ contact system administrator to grant you the necessary permissions.
 The next step is to create a new collection with new or updated data.
 
 ### [5.2.1: Retrieve existing collection data](#retrieve-existing-collection-data)
-If you're updating an existing collection or uncertain about collection's data structure, you can retrieve the data 
-from the currently activated collection by using the `get_collection` endpoint.
+If you're updating an existing collection or creating a new collection and need an example data structure,
+you can retrieve the data from a currently activated collection by using the `get_collection` endpoint.
 
 ![Get Collection](screenshots/get_collection_endpoint.png)
 
