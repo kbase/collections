@@ -43,21 +43,6 @@ PYTHONPATH=. python src/loaders/workspace_downloader/workspace_downloader.py \
 Please note that the `retrieve_sample` argument is optional and will download the sample data associated with the Genome 
 object. If no sample is associated with the Genome object, please remove this argument.
 
-
-### Download FASTA files from NCBI based on GTDB version
-Alternatively, if you don't possess a KBase narrative, you can download FASTA files from NCBI based on GTDB version 
-using the following command:
-
-```commandline
-# update arguments as needed
-download_file_ext='genomic.fna.gz'
-gtdb_release_ver=214
-
-PYTHONPATH=. python src/loaders/ncbi_downloader/gtdb.py \
-    --download_file_ext $download_file_ext \
-    --release_ver $gtdb_release_ver
-```
-
 ### Create KBase Genome objects from Genbank files
 Optionally, you can also download Genbank files from NCBI and create KBase Genome objects from them using the 
 following command. This process will also retrieve the FASTA file from the created Genome objects.
