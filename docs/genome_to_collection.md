@@ -25,9 +25,9 @@ the Genome objects from the KBase workspace to NERSC. The following command faci
 
 ```commandline
 # update arguments as needed
-workspace_id=69739
-kbase_collection=ENIGMA
-source_verion=2023.10
+workspace_id=69278
+kbase_collection=PMI
+source_verion=2023.09
 env=CI
 token_filepath=path/to/token_file.txt  # This is a single-line file with the KBase token 
 
@@ -200,17 +200,12 @@ from the currently activated collection by using the `get_collection` endpoint.
 **example return**
 ```commandline
 {
-  "name": "Plant Microbe Interfaces",
+  "name": "ENIGMA",
   "ver_src": "2023.11",
-  "desc": "The goal of the Plant-Microbe Interfaces SFA is to gain a deeper understanding of the diversity and functioning of mutually beneficial interactions between plants and microbes in the rhizosphere.",
-  "icon_url": "https://ci.kbase.us/services/shock-api/node/674c4e6b-851f-4ee2-ad5a-35effeb8cd68/?download_raw",
-  "attribution": "This collection was contributed by the Plant Microbe Interfaces (PMI) Science Focus Area (SFA). For more details, see [TODO: FAIR Narrative doi], and https://www.kbase.us/research/doktycz-sfa.\n\nKBase will automatically cite any data from this collection used in a Narrative. If you would like to acknowledge the collection, please copy the text below:\n\nThe authors would like to acknowledge the KBase collection, PMI, supported by the Genomic Science Program, U.S. Department of Energy, Office of Science, Biological and Environmental Research at Oak Ridge National Laboratory under contract DE-AC05-00OR22725, for sharing their data at https://ci-europa.kbase.us/collections/PMI.",
+  "desc": "Ecosystems and Networks Integrated with Genes and Molecular Assemblies",
+  "icon_url": "https://ci.kbase.us/services/shock-api/node/9af1c606-724a-4a63-ab64-8191a89dd462/?download_raw",
+  "attribution": "This collection was contributed by the Ecosystems and Networks Integrated with Genes and Molecular Assemblies (ENIGMA) Science Focus Area (SFA). For more details, see [FAIR Narrative doi], and https://www.kbase.us/research/adams-sfa.\nKBase will automatically cite any data from this collection used in a Narrative. If you would like to acknowledge the collection, please copy the text below:\nThe authors would like to acknowledge the KBase collection, ENIGMA, supported by Genomic Science Program, U.S. Department of Energy, Office of Science, Biological and Environmental Research under Contract No. [###], for sharing their data at https://ci-europa.kbase.us/collections/GROW",
   "data_products": [
-    {
-      "product": "biolog",
-      "version": "2023.11",
-      "search_view": null
-    },
     {
       "product": "genome_attribs",
       "version": "2023.11",
@@ -220,6 +215,11 @@ from the currently activated collection by using the `get_collection` endpoint.
       "product": "microtrait",
       "version": "2023.11",
       "search_view": null
+    },
+    {
+      "product": "samples",
+      "version": "2023.11",
+      "search_view": "samples_0bd4242"
     },
     {
       "product": "taxa_count",
@@ -241,18 +241,18 @@ from the currently activated collection by using the `get_collection` endpoint.
       "matcher": "minhash_homology",
       "parameters": {
         "service_wizard_url": "https://ci.kbase.us/services/service_wizard",
-        "sketch_database_name": "Collections_CI_PMI2023_11"
+        "sketch_database_name": "Collections_CI_ENIGMA2023_11"
       }
     }
   ],
   "default_select": "genome_attribs",
   "metadata": null,
-  "id": "PMI",
-  "ver_tag": "2023.11_r5",
-  "ver_num": 14,
-  "date_create": "2024-01-12T16:17:21.213453+00:00",
+  "id": "ENIGMA",
+  "ver_tag": "2023.11_r9",
+  "ver_num": 13,
+  "date_create": "2024-01-31T03:22:34.785596+00:00",
   "user_create": "tgu2",
-  "date_active": "2024-01-12T16:17:41.694010+00:00",
+  "date_active": "2024-01-31T03:22:49.149964+00:00",
   "user_active": "tgu2"
 }
 ```
