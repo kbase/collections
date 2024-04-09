@@ -25,9 +25,9 @@ the Genome objects from the KBase workspace to NERSC. The following command faci
 
 ```commandline
 # update arguments as needed
-workspace_id=69278
-kbase_collection=PMI
-source_verion=2023.09
+workspace_id=69739
+kbase_collection=ENIGMA
+source_verion=2023.10
 env=CI
 token_filepath=path/to/token_file.txt  # This is a single-line file with the KBase token 
 
