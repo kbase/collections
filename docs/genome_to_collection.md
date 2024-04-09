@@ -260,14 +260,13 @@ from the currently activated collection by using the `get_collection` endpoint.
 
 Each collection can have multiple data products, matchers, and other metadata.
 
-- The `data_products` field contains
-information about the data products associated with the collection. 
-  - Each data product has a `product` field that specifies the product name. Currently, the supported products 
+- The `data_products` field contains information about the data products associated with the collection. 
+  - **product**: Each data product has a `product` field that specifies the product name. Currently, the supported products 
     are `genome_attribs`, `microtrait`, `taxa_count`, `samples` and `biolog`. 
-  - Each product is assigned a version field that indicates the load version of the product. This version corresponds 
-    to the load version defined in [Step 3](#step-3-execute-tools-on-fasta-files) above, where tools were executed on 
-    the source data files.
-  - Each product also includes a `search_view` field, indicating the associated search view. For `microtrait`, 
+  - **version**: Each product is assigned a version field that indicates the load version of the product. This version 
+    corresponds to the load version defined in [Step 3](#step-3-execute-tools-on-fasta-files) above, where tools were 
+    executed on the source data files.
+  - **search_view**: Each product also includes a `search_view` field, indicating the associated search view. For `microtrait`, 
     `taxa_count`, and `biolog` product, this field should be set to `null`, as the system will automatically retrieve 
     the correct search view. However, for `genome_attribs` and `samples`, it should match the value of the previous 
     `search_view` field. If you've created a new search view with [service_manager](../src/service_manager.py) in 
@@ -276,7 +275,11 @@ information about the data products associated with the collection.
 - The `matchers` field contains information about the matchers used for the collection. 
 
 ### [5.2.2: Save the New Collection](#save-the-new-collection)
-Following that, you can store the updated collection data by invoking the `save_collection` endpoint.
+Following that, you can adjust and store the updated collection data, then execute the `save_collection` endpoint by
+providing a new version tag.
+
+**Note:** You do not need `id`, `ver_tag`, `ver_num`, `date_create`, `user_create`, `date_active`, and `user_active`
+fields in the request body. The system will automatically generate these fields.
 
 ![Save Collection](screenshots/save_collection_endpoint.png)
 
