@@ -159,7 +159,8 @@ arangoimport --file $PARSED_FILE \
 ```
 
 ### Create homology matchers in ArangoDB
-For generated sketch file (`<kbase_collection>_<source_ver>_merged_sketch.msh`), follow the instructions outlined in the 
+For generated sketch file (`<kbase_collection>_<source_ver>_merged_sketch.msh`) and sequence metadata file 
+(`<kbase_collection>_<source_ver>_seq_metadata.jsonl`), follow the instructions outlined in the 
 [Homology Service](https://github.com/jgi-kbase/AssemblyHomologyService) to upload them to the homology server. 
 Ensure to utilize the namespace when creating the collection with a homology matcher.
 
