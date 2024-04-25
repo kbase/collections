@@ -246,15 +246,14 @@ def generate_pmi_biolog_heatmap_data(
                 FLD_ARANGO_KEY: collection_data_id_key(kbase_collection, load_ver, cell_uuid),
             })
 
-        row_data = {FLD_KBASE_ID: assembly_ref,
-                    FLD_KB_DISPLAY_NAME: assembly_name,
+        row_data = {FLD_KB_DISPLAY_NAME: assembly_name,
                     FIELD_HEATMAP_ROW_CELLS: cells,
                     FIELD_HEATMAP_ROW_META: {'growth_media': row[GROWTH_MEDIA_COL_NAME], }}
         transform_heatmap_row_cells(row_data)
 
         # append a document for the heatmap rows
         heatmap_rows.append(dict(row_data,
-                                 **init_row_doc(kbase_collection, load_ver, assembly_ref)))
+                                 **init_row_doc(kbase_collection, load_ver, assembly_ref.replace('/', '_'))))
 
     heatmap_meta_dict[FIELD_HEATMAP_MIN_VALUE] = min_value
     heatmap_meta_dict[FIELD_HEATMAP_MAX_VALUE] = max_value
