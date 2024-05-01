@@ -35,7 +35,7 @@ requests-toolbelt = "==1.0.0"
 pytest = "==7.4.4"
 coverage = "==7.4.4"
 pytest-cov = "==5.0.0"
-ipython = "==8.23.0"
+ipython = "==8.24.0"
 pytest-asyncio = "==0.23.6"
 # currently for design/experiments/store_mongo.py
 pymongo = "==4.6.3"
