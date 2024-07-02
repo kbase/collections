@@ -211,7 +211,7 @@ class ToolRunner:
             with self._data_id_file:
                 df = pd.read_csv(self._data_id_file, sep='\t')
                 try:
-                    data_ids = df[loader_common_names.DATA_ID_COLUMN_HEADER]
+                    data_ids = df[loader_common_names.DATA_ID_COLUMN_HEADER].astype(str).tolist()  # convert to string in case of int directory names
                 except KeyError:
                     raise ValueError(
                         f"Please ensure {loader_common_names.DATA_ID_COLUMN_HEADER} column exists in the "

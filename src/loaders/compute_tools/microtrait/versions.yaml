@@ -19,3 +19,7 @@ versions:
       - Remove the 'threads' and 'program_threads' parameters 
         and introduce the capability to specify the number of threads per tool run
       - pass job_id to the tool container and remove node_id
+  - version: 0.1.5
+    date: 2024-06-25
+    notes: |
+      - Bug fix: tool_common.py - Converted Data IDs to string format to ensure proper comparison with associated folder names
