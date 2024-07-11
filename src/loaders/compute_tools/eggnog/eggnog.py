@@ -37,6 +37,7 @@ def _run_eggnog_single(
                '--excel',
                '--sensmode', 'fast',
                '--dmnd_iterate', 'no',
+               '--dbmem',  # optionally, requires ~44 GB of memory but can increase annotation speed
                '--override'  # Overwrites output files if they exist from previous runs.
                ]
 

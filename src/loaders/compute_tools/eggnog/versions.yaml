@@ -22,3 +22,9 @@ versions:
     notes: |
       - Bug fix: tool_common.py - Converted Data IDs to string format to ensure proper comparison with associated folder names
     reference_db_version: 5.0.2
+
+  - version: 0.1.4
+    date: 2024-07-10
+    notes: |
+      - use --dbmem option to increase annotation speed
+    reference_db_version: 5.0.2
