@@ -155,10 +155,8 @@ def _run_gtdb_tk(
                 'version': '2.3.2',
                 'command': command,
                 "reference_db": {
-                    "path": "global/cfs/cdirs/kbase/collections/libraries/gtdb_tk/release214",
-                    "location": "NERSC",
                     "version": "release214",
-                },
+                    },
                 'ids_to_files': ids_to_files}
     create_tool_metadata(output_dir, metadata)
 

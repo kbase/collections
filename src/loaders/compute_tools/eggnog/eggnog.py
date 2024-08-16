@@ -49,10 +49,8 @@ def _run_eggnog_single(
                 'version': '2.1.12',
                 'command': command,
                 "reference_db": {
-                    "path": "global/cfs/cdirs/kbase/collections/libraries/eggnog/5.0.2",
-                    "location": "NERSC",
                     "version": "5.0.2",
-                },
+                    },
                 }
     create_tool_metadata(output_dir, metadata)
 
