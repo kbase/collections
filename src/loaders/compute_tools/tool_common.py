@@ -600,12 +600,18 @@ def create_fatal_tuple(
 
 def create_tool_metadata(output_dir: Path, metadata: Dict[str, str]):
     """
-    Create a metadata file for a tool run.
+    Save the metadata as a JSON file to the specified output directory.
+
+    Args:
+        output_dir (Path): The directory where the metadata file will be saved.
+        metadata (Dict[str, str]): A dictionary containing metadata key-value pairs.
     """
     required_keys = loader_common_names.TOOL_METADATA_REQUIRED_KEYS
 
     if not all(key in metadata for key in required_keys):
-        raise ValueError(f"Missing required keys in metadata: {required_keys}")
+        missing_keys = [key for key in required_keys if key not in metadata]
+        raise ValueError(f"Missing required keys in metadata: {missing_keys}")
+
     metadata_file = output_dir / TOOL_METADATA
     with open(metadata_file, 'w') as f:
         json.dump(metadata, f, indent=4)
