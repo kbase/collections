@@ -41,3 +41,8 @@ versions:
     notes: |
       - Bug fix: tool_common.py - Converted Data IDs to string format to ensure proper comparison with associated folder names
     reference_db_version: release214
+  - version: 0.1.7
+    date: 2024-08-16
+    notes: |
+      - Create metadata file after running GTDB-Tk
+    reference_db_version: release214

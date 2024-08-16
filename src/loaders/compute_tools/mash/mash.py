@@ -1,11 +1,9 @@
 """
 Run Mash on a set of assemblies.
 """
-import json
 from pathlib import Path
 
-from src.loaders.common.loader_common_names import MASH_METADATA
-from src.loaders.compute_tools.tool_common import ToolRunner, run_command
+from src.loaders.compute_tools.tool_common import ToolRunner, run_command, create_tool_metadata
 
 KMER_SIZE = 19
 SKETCH_SIZE = 10000
@@ -32,14 +30,16 @@ def _run_mash_single(
     run_command(command, output_dir if debug else None)
 
     # Save run info to a metadata file in the output directory for parsing later
-    metadata_file = output_dir / MASH_METADATA
     metadata = {'source_file': str(source_file),
                 # Append '.msh' to the source file name to generate the sketch file name (default by Mash sketch)
                 'sketch_file': str(source_file) + '.msh',
                 'kmer_size': kmer_size,
-                'sketch_size': sketch_size}
-    with open(metadata_file, 'w') as f:
-        json.dump(metadata, f, indent=4)
+                'sketch_size': sketch_size,
+                'data_id': data_id,
+                'tool_name': 'mash',
+                'version': '2.0',
+                'command': command}
+    create_tool_metadata(output_dir, metadata)
 
 
 def main():

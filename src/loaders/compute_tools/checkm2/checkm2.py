@@ -12,6 +12,7 @@ from src.loaders.compute_tools.tool_common import (
     run_command,
     write_fatal_tuples_to_dict,
     create_fatal_tuple,
+    create_tool_metadata,
 )
 from src.loaders.compute_tools.tool_result_parser import (
     process_genome_attri_result,
@@ -67,6 +68,12 @@ def _run_checkm2(
         fatal_tuple = create_fatal_tuple(missing_id, ids_to_files, error_message)
         fatal_tuples.append(fatal_tuple)
     write_fatal_tuples_to_dict(fatal_tuples, output_dir)
+
+    metadata = {'tool': 'checkm2',
+                'version': '1.0.1',
+                'command': command,
+                'reference_db': 'diamond_db ver unknown - saved copy in NERSC at global/cfs/cdirs/kbase/collections/libraries/checkm2/1.0.1/uniref100.KO.1.dmnd',}
+    create_tool_metadata(output_dir, metadata)
 
 
 def main():

@@ -19,6 +19,7 @@ from src.loaders.compute_tools.tool_common import (
     find_gtdbtk_summary_files,
     run_command,
     write_fatal_tuples_to_dict,
+    create_tool_metadata,
 )
 from src.loaders.compute_tools.tool_result_parser import (
     process_genome_attri_result,
@@ -149,6 +150,12 @@ def _run_gtdb_tk(
                                 ids_to_files,
                                 summary_files,
                                 )
+
+    metadata = {'tool': 'gtdb_tk',
+                'version': '2.3.2',
+                'command': command,
+                'reference_db': 'release214',}
+    create_tool_metadata(output_dir, metadata)
 
 
 def main():
