@@ -1,5 +1,6 @@
 FROM continuumio/miniconda3:22.11.1
 
+# NOTE: If the tool version changes, ensure the metadata information saved after running the tool in the _run_gtdb_tk method is updated
 ENV GTDB_VER 2.3.2
 ENV CONDA_ENV gtdbtk-$GTDB_VER
 ENV PYTHON_VER 3.8

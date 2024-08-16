@@ -28,3 +28,6 @@ versions:
     notes: |
       - Create metadata file after running Eggnog
     reference_db_version: 5.0.2
+
+#Please keep this reminder at the end of this file
+#NOTE: If the db version changes, ensure the metadata information saved after running the tool in the _run_eggnog_single method is updated

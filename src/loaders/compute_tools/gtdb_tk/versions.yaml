@@ -46,3 +46,6 @@ versions:
     notes: |
       - Create metadata file after running GTDB-Tk
     reference_db_version: release214
+
+#Please keep this reminder at the end of this file
+#NOTE: If the db version changes, ensure the metadata information saved after running the tool in the _run_gtdb_tk method is updated

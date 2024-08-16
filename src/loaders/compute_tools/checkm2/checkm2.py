@@ -72,12 +72,12 @@ def _run_checkm2(
     metadata = {'tool': 'checkm2',
                 'version': '1.0.1',
                 'command': command,
-                 "reference_db": {
-                     "path": "/global/cfs/cdirs/kbase/collections/libraries/checkm2/1.0.1/uniref100.KO.1.dmnd",
-                     "location": "NERSC",
-                     "version": None,
-                     "comment": "diamond_db, ver unknown",
-                 },
+                "reference_db": {
+                    "path": "/global/cfs/cdirs/kbase/collections/libraries/checkm2/1.0.1/uniref100.KO.1.dmnd",
+                    "location": "NERSC",
+                    "version": None,
+                    "comment": "diamond_db, ver unknown",
+                },
                 'ids_to_files': ids_to_files}
     create_tool_metadata(output_dir, metadata)
 

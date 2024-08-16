@@ -1,5 +1,6 @@
 FROM continuumio/miniconda3:24.1.2-0
 
+# NOTE: If the tool version changes, ensure the metadata information saved after running the tool in the _run_eggnog_single method is updated
 ENV EGGNOG_VER 2.1.12
 ENV CONDA_ENV eggnog-$EGGNOG_VER
 ENV PYTHON_VER 3.11
