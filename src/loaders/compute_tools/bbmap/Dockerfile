@@ -11,6 +11,7 @@ RUN conda config --add channels conda-forge
 # Install BBMap
 ARG PYTHON_VER=3.11
 RUN conda create -n $CONDA_ENV python=$PYTHON_VER bbmap=$BBMAP_VER
+RUN conda install -n $CONDA_ENV pandas=2.2.2 jsonlines=4.0.0
 
 # Activate the environment
 RUN echo "source activate $CONDA_ENV" >> ~/.bashrc
