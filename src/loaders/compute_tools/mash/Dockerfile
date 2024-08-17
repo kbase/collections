@@ -5,6 +5,7 @@ RUN apt-get update && \
 
 # Set the Mash version argument
 # using version 2.0 to maintain compatibility with the homology service
+# NOTE: If the tool version changes, ensure the metadata information saved after running the tool in the _run_mash_single method is updated
 ARG MASH_VER=2.0
 ENV CONDA_ENV mash-$MASH_VER
 

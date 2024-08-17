@@ -244,7 +244,7 @@ def _process_mash_tool(root_dir: str,
             if data_id in fatal_ids:
                 continue
             data_dir = Path(result_dir, batch_dir, data_id)
-            with open(data_dir / loader_common_names.MASH_METADATA, 'r') as file:
+            with open(data_dir / loader_common_names.TOOL_METADATA, 'r') as file:
                 metadata = json.load(file)
 
             sketch_file = metadata['sketch_file']

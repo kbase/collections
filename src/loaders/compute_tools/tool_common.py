@@ -28,6 +28,7 @@ from typing import Callable, Dict, List, Tuple, Union
 import pandas as pd
 
 from src.loaders.common import loader_common_names
+from src.loaders.common.loader_common_names import TOOL_METADATA
 
 # TODO CODE add a common module for saving and loading the metadata shared between the compute
 #           and parser
@@ -211,7 +212,8 @@ class ToolRunner:
             with self._data_id_file:
                 df = pd.read_csv(self._data_id_file, sep='\t')
                 try:
-                    data_ids = df[loader_common_names.DATA_ID_COLUMN_HEADER].astype(str).tolist()  # convert to string in case of int directory names
+                    data_ids = df[loader_common_names.DATA_ID_COLUMN_HEADER].astype(
+                        str).tolist()  # convert to string in case of int directory names
                 except KeyError:
                     raise ValueError(
                         f"Please ensure {loader_common_names.DATA_ID_COLUMN_HEADER} column exists in the "
@@ -344,7 +346,8 @@ class ToolRunner:
     def _execute(
             self,
             tool_callable: Callable[..., None],
-            args: Union[List[Tuple[Dict[str, GenomeTuple], Path, int, bool]], List[Tuple[str, str, Path, Path, int, bool]]],
+            args: Union[
+                List[Tuple[Dict[str, GenomeTuple], Path, int, bool]], List[Tuple[str, str, Path, Path, int, bool]]],
             start: datetime.datetime,
             total: bool,
     ):
@@ -593,6 +596,25 @@ def create_fatal_tuple(
     source_file_path = genome_tuple.source_file
     fatal_tuple = FatalTuple(data_id, error_message, str(source_file_path), stacktrace)
     return fatal_tuple
+
+
+def create_tool_metadata(output_dir: Path, metadata: Dict[str, str]):
+    """
+    Save the metadata as a JSON file to the specified output directory.
+
+    Args:
+        output_dir (Path): The directory where the metadata file will be saved.
+        metadata (Dict[str, str]): A dictionary containing metadata key-value pairs.
+    """
+    required_keys = loader_common_names.TOOL_METADATA_REQUIRED_KEYS
+
+    if not all(key in metadata for key in required_keys):
+        missing_keys = [key for key in required_keys if key not in metadata]
+        raise ValueError(f"Missing required keys in metadata: {missing_keys}")
+
+    metadata_file = output_dir / TOOL_METADATA
+    with open(metadata_file, 'w') as f:
+        json.dump(metadata, f, indent=4)
 
 
 if __name__ == "__main__":

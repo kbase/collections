@@ -91,11 +91,11 @@ META_FILE_NAME = "meta_filename"
 OBJECTS_NAME_ASSEMBLY = "KBaseGenomeAnnotations.Assembly"
 OBJECTS_NAME_GENOME = "KBaseGenomes.Genome"
 
-# The metadata file name created during the Mash run
-MASH_METADATA = 'mash_run_metadata.json'
+# The metadata file name created during the tool's execution
+TOOL_METADATA = 'tool_metadata.json'
 
-# The metadata file name created during the Eggnog run
-EGGNOG_METADATA = 'eggnog_run_metadata.json'
+# Tool metadata file required keys
+TOOL_METADATA_REQUIRED_KEYS = ['tool_name', 'version', 'command']
 
 # The fatal error file created if a data file cannot be successfully processed
 FATAL_ERROR_FILE = "fatal_error.json"

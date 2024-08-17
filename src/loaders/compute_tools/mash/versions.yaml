@@ -17,3 +17,7 @@ versions:
     date: 2024-06-25
     notes: |
       - Bug fix: tool_common.py - Converted Data IDs to string format to ensure proper comparison with associated folder names
+  - version: 0.1.5
+    date: 2024-08-16
+    notes: |
+      - Create metadata file after running Mash

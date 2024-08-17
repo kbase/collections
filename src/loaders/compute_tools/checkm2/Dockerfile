@@ -1,5 +1,6 @@
 FROM continuumio/miniconda3:22.11.1
 
+# NOTE: If the tool version changes, ensure the metadata information saved after running the tool in the _run_checkm2 method is updated
 ARG CHECKM2_VER=1.0.1
 ENV CONDA_ENV checkm2-$CHECKM2_VER
 

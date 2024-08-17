@@ -32,3 +32,11 @@ versions:
     notes: |
       - Bug fix: tool_common.py - Converted Data IDs to string format to ensure proper comparison with associated folder names
     reference_db_version: 1.0.1
+  - version: 0.1.6
+    date: 2024-08-16
+    notes: |
+      - Create metadata file after running CheckM2
+    reference_db_version: 1.0.1
+
+#Please keep this reminder at the end of this file
+#NOTE: If the db version changes, ensure the metadata information saved after running the tool in the _run_checkm2 method is updated
