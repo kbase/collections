@@ -18,7 +18,6 @@ def _run_bbmap_single(
         output_dir: Path,
         threads_per_tool_run: int,
         debug: bool) -> None:
-
     metadata_file = output_dir / TOOL_METADATA
     if metadata_file.exists():
         print(f"Skipping {source_file} as it has already been processed.")
@@ -28,6 +27,8 @@ def _run_bbmap_single(
         'stats.sh',
         'in=' + str(source_file),
         'out=' + str(output_dir / 'result.json'),
+        'format=8',  # output in JSON format
+        'overwrite=true'
     ]
 
     run_command(command, output_dir if debug else None)
@@ -37,7 +38,8 @@ def _run_bbmap_single(
                 'version': '39.06',
                 'command': command,
                 'data_id': data_id,
-                'source_file': str(source_file),}
+                'source_file': str(source_file),
+                }
     create_tool_metadata(output_dir, metadata)
 
 
