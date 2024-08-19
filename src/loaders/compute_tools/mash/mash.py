@@ -20,7 +20,6 @@ def _run_mash_single(
         debug: bool,
         kmer_size: int = KMER_SIZE,
         sketch_size: int = SKETCH_SIZE) -> None:
-
     start = time.time()
     print(f'Start executing Mash for {data_id}')
 
@@ -32,7 +31,7 @@ def _run_mash_single(
     # RUN mash sketch for a single genome
     command = ['mash', 'sketch',
                '-o', source_file,  # Output prefix.
-                                   # Save result file to source file directory. The suffix '.msh' will be appended.
+               # Save result file to source file directory. The suffix '.msh' will be appended.
                '-k', f'{kmer_size}',
                '-s', f'{sketch_size}',
                '-p', f'{threads_per_tool_run}',
@@ -46,19 +45,22 @@ def _run_mash_single(
         f'Used {round(run_time / 60, 2)} minutes to execute Mash for {data_id}')
 
     # Save run info to a metadata file in the output directory for parsing later
-    metadata = {'source_file': str(source_file),
-                # Append '.msh' to the source file name to generate the sketch file name (default by Mash sketch)
-                'sketch_file': str(source_file) + '.msh',
-                'kmer_size': kmer_size,
-                'sketch_size': sketch_size,
-                'data_id': data_id,
-                'tool_name': 'mash',
-                'version': '2.0',
-                'command': command,
-                'run_time': round(run_time, 2),
-                'batch_size': 1,
-                }
-    create_tool_metadata(output_dir, metadata)
+    additional_metadata = {
+        'source_file': str(source_file),
+        # Append '.msh' to the source file name to generate the sketch file name (default by Mash sketch)
+        'sketch_file': str(source_file) + '.msh',
+        'kmer_size': kmer_size,
+        'sketch_size': sketch_size,
+        'data_id': data_id,
+    }
+    create_tool_metadata(
+        output_dir,
+        tool_name="mash",
+        version="2.0",
+        command=command,
+        run_time=round(run_time, 2),
+        batch_size=1,
+        additional_metadata=additional_metadata)
 
 
 def main():

@@ -94,9 +94,6 @@ OBJECTS_NAME_GENOME = "KBaseGenomes.Genome"
 # The metadata file name created during the tool's execution
 TOOL_METADATA = 'tool_metadata.json'
 
-# Tool metadata file required keys
-TOOL_METADATA_REQUIRED_KEYS = ['tool_name', 'version', 'command', 'run_time', 'batch_size']
-
 # The fatal error file created if a data file cannot be successfully processed
 FATAL_ERROR_FILE = "fatal_error.json"
 

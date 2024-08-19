@@ -21,7 +21,6 @@ def _run_eggnog_single(
         output_dir: Path,
         threads_per_tool_run: int,
         debug: bool) -> None:
-
     start = time.time()
     print(f'Start executing EggNog for {data_id}')
 
@@ -34,7 +33,7 @@ def _run_eggnog_single(
     command = ['emapper.py',
                '-i', source_file,  # Input file.
                '-o', output_dir / source_file.name,  # Output prefix.
-                                                     # Save result file to collectiondata directory. Expecting 'emapper.annotations', 'emapper.hits' and  'emapper.seed_orthologs' files.
+               # Save result file to collectiondata directory. Expecting 'emapper.annotations', 'emapper.hits' and  'emapper.seed_orthologs' files.
                '--itype', f'{INPUT_TYPE}',
                '--cpu', f'{threads_per_tool_run}',
                '--excel',
@@ -51,19 +50,21 @@ def _run_eggnog_single(
         f'Used {round(run_time / 60, 2)} minutes to execute EggNog for {data_id}')
 
     # Save run info to a metadata file in the output directory for parsing later
-    metadata = {'source_file': str(source_file),
-                'input_type': INPUT_TYPE,
-                'data_id': data_id,
-                'tool_name': 'eggnog',
-                'version': '2.1.12',
-                'command': command,
-                "reference_db": {
-                    "version": "5.0.2",
-                    },
-                'run_time': round(run_time, 2),
-                'batch_size': 1,
-                }
-    create_tool_metadata(output_dir, metadata)
+    additional_metadata = {
+        'source_file': str(source_file),
+        'data_id': data_id,
+        "reference_db": {
+            "version": "5.0.2",
+        },
+    }
+    create_tool_metadata(
+        output_dir,
+        tool_name="eggnog",
+        version="2.1.12",
+        command=command,
+        run_time=round(run_time, 2),
+        batch_size=1,
+        additional_metadata=additional_metadata)
 
 
 def main():

@@ -20,7 +20,6 @@ from src.loaders.compute_tools.tool_common import (
     run_command,
     write_fatal_tuples_to_dict,
     create_tool_metadata,
-    make_json_serializable,
 )
 from src.loaders.compute_tools.tool_result_parser import (
     process_genome_attri_result,
@@ -153,16 +152,20 @@ def _run_gtdb_tk(
         f'Used {round(run_time / 60, 2)} minutes to execute gtdbtk classify_wf for '
         f'{size} genomes')
 
-    metadata = {'tool_name': 'gtdb_tk',
-                'version': '2.3.2',
-                'command': command,
-                "reference_db": {
-                    "version": "release214",
-                    },
-                'ids_to_files': make_json_serializable(ids_to_files),
-                'run_time': round(run_time, 2),
-                'batch_size': size,}
-    create_tool_metadata(output_dir, metadata)
+    additional_metadata = {
+        "reference_db": {
+            "version": "release214",
+        },
+        'ids_to_files': ids_to_files,
+    }
+    create_tool_metadata(
+        output_dir,
+        tool_name="gtdb_tk",
+        version="2.3.2",
+        command=command,
+        run_time=round(run_time, 2),
+        batch_size=size,
+        additional_metadata=additional_metadata, )
 
 
 def main():

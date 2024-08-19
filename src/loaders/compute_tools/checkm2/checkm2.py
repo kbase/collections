@@ -13,7 +13,6 @@ from src.loaders.compute_tools.tool_common import (
     write_fatal_tuples_to_dict,
     create_fatal_tuple,
     create_tool_metadata,
-    make_json_serializable,
 )
 from src.loaders.compute_tools.tool_result_parser import (
     process_genome_attri_result,
@@ -72,18 +71,22 @@ def _run_checkm2(
           + f"for {size} genomes"
           )
 
-    metadata = {'tool_name': 'checkm2',
-                'version': '1.0.1',
-                'command': command,
-                "reference_db": {
-                    "version": None,
-                    "comment": "diamond_db, ver unknown",
-                    },
-                'ids_to_files': make_json_serializable(ids_to_files),
-                'run_time': round(run_time, 2),
-                'batch_size': size,
-                }
-    create_tool_metadata(output_dir, metadata)
+    additional_metadata = {
+        "reference_db": {
+            "version": None,
+            "comment": "diamond_db, ver unknown",
+        },
+        'ids_to_files': ids_to_files,
+    }
+    create_tool_metadata(
+        output_dir,
+        tool_name="checkm2",
+        version="1.0.1",
+        command=command,
+        run_time=round(run_time, 2),
+        batch_size=size,
+        additional_metadata=additional_metadata,
+    )
 
 
 def main():

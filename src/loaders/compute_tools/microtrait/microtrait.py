@@ -22,7 +22,7 @@ from src.common.product_models.heatmap_common_models import (
     FIELD_HEATMAP_CATEGORY,
     FIELD_HEATMAP_CELL_DETAIL_ENTRY_ID,
     FIELD_HEATMAP_CELL_DETAIL_ENTRY_VALUE,
-    ColumnType,)
+    ColumnType, )
 from src.common.storage.field_names import FLD_KBASE_ID
 from src.loaders.common import loader_common_names
 from src.loaders.compute_tools.tool_common import (
@@ -278,15 +278,22 @@ def _run_microtrait(
         f'Used {round(run_time / 60, 2)} minutes to execute Microtrait for {data_id}')
 
     # Save run info to a metadata file in the output directory for parsing later
-    metadata = {'source_file': str(fna_file),
-                'data_id': data_id,
-                'tool_name': 'microtrait',
-                'version': 'ukaraoz/microtrait - release tag kb',
-                'command': 'None - R script',
-                'run_time': round(run_time, 2),
-                'batch_size': 1,
-                }
-    create_tool_metadata(genome_dir, metadata)
+    additional_metadata = {
+        'source_file': str(fna_file),
+        'data_id': data_id,
+    }
+    create_tool_metadata(
+        genome_dir,
+        tool_name="microtrait",
+        version={
+            'git_url': 'https://github.com/ukaraoz/microtrait',
+            'release_tag': 'kb',
+        },
+        command=["None - R script"],
+        run_time=round(run_time, 2),
+        batch_size=1,
+        additional_metadata=additional_metadata,
+    )
 
 
 def main():

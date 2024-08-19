@@ -598,23 +598,41 @@ def create_fatal_tuple(
     return fatal_tuple
 
 
-def create_tool_metadata(output_dir: Path, metadata: Dict[str, str]):
+def create_tool_metadata(
+        output_dir: Path,
+        tool_name: str,
+        version: str | Dict[str, str],
+        command: List[str],
+        run_time: float,
+        batch_size: int,
+        additional_metadata: Dict = None
+):
     """
     Save the metadata as a JSON file to the specified output directory.
 
     Args:
         output_dir (Path): The directory where the metadata file will be saved.
-        metadata (Dict[str, str]): A dictionary containing metadata key-value pairs.
+        tool_name (str): The name of the tool.
+        version (str | Dict[str, str]): The version information of the tool.
+        command (List[str]): The command used to run the tool.
+        run_time (float): The time taken to run the tool.
+        batch_size (int): The number of data units processed in the batch.
+        additional_metadata (Dict[str, str]): A dictionary containing additional metadata key-value pairs.
     """
-    required_keys = loader_common_names.TOOL_METADATA_REQUIRED_KEYS
-
-    if not all(key in metadata for key in required_keys):
-        missing_keys = [key for key in required_keys if key not in metadata]
-        raise ValueError(f"Missing required keys in metadata: {missing_keys}")
+    metadata = {
+        'tool_name': tool_name,
+        'version': version,
+        'command': command,
+        'run_time': run_time,
+        'batch_size': batch_size,
+    }
+    # Add additional metadata if provided
+    if additional_metadata:
+        metadata.update(additional_metadata)
 
     metadata_file = output_dir / TOOL_METADATA
     with open(metadata_file, 'w') as f:
-        json.dump(metadata, f, indent=4)
+        json.dump(make_json_serializable(metadata), f, indent=4)
 
 
 def make_json_serializable(obj):
