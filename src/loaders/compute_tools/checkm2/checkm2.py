@@ -80,7 +80,7 @@ def _run_checkm2(
                     "comment": "diamond_db, ver unknown",
                     },
                 'ids_to_files': make_json_serializable(ids_to_files),
-                'run_time': run_time,
+                'run_time': round(run_time, 2),
                 'batch_size': size,
                 }
     create_tool_metadata(output_dir, metadata)

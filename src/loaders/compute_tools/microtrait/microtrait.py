@@ -283,7 +283,7 @@ def _run_microtrait(
                 'tool_name': 'microtrait',
                 'version': 'None',
                 'command': 'None - R script',
-                'run_time': run_time,
+                'run_time': round(run_time, 2),
                 'batch_size': 1,
                 }
     create_tool_metadata(genome_dir, metadata)

@@ -60,7 +60,7 @@ def _run_eggnog_single(
                 "reference_db": {
                     "version": "5.0.2",
                     },
-                'run_time': run_time,
+                'run_time': round(run_time, 2),
                 'batch_size': 1,
                 }
     create_tool_metadata(output_dir, metadata)

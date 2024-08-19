@@ -55,7 +55,7 @@ def _run_mash_single(
                 'tool_name': 'mash',
                 'version': '2.0',
                 'command': command,
-                'run_time': run_time,
+                'run_time': round(run_time, 2),
                 'batch_size': 1,
                 }
     create_tool_metadata(output_dir, metadata)
