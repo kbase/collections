@@ -20,6 +20,7 @@ from src.loaders.compute_tools.tool_common import (
     run_command,
     write_fatal_tuples_to_dict,
     create_tool_metadata,
+    make_json_serializable,
 )
 from src.loaders.compute_tools.tool_result_parser import (
     process_genome_attri_result,
@@ -157,7 +158,7 @@ def _run_gtdb_tk(
                 "reference_db": {
                     "version": "release214",
                     },
-                'ids_to_files': ids_to_files}
+                'ids_to_files': make_json_serializable(ids_to_files)}
     create_tool_metadata(output_dir, metadata)
 
 

@@ -13,6 +13,7 @@ from src.loaders.compute_tools.tool_common import (
     write_fatal_tuples_to_dict,
     create_fatal_tuple,
     create_tool_metadata,
+    make_json_serializable,
 )
 from src.loaders.compute_tools.tool_result_parser import (
     process_genome_attri_result,
@@ -76,13 +77,13 @@ def _run_checkm2(
                     "version": None,
                     "comment": "diamond_db, ver unknown",
                     },
-                'ids_to_files': ids_to_files}
+                'ids_to_files': make_json_serializable(ids_to_files)}
     create_tool_metadata(output_dir, metadata)
 
 
 def main():
     runner = ToolRunner("checkm2", tool_data_id_from_filename=True)
-    runner.parallel_batch_execution(_run_checkm2, unzip=True)
+    runner.parallel_batch_execution(_run_checkm2)
 
 
 if __name__ == "__main__":

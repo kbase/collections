@@ -617,6 +617,33 @@ def create_tool_metadata(output_dir: Path, metadata: Dict[str, str]):
         json.dump(metadata, f, indent=4)
 
 
+def make_json_serializable(obj):
+    """
+    Recursively converts non-JSON-serializable objects in the input to a JSON-serializable format.
+
+    Args:
+        obj: The object to be converted. This can be a dictionary, list, tuple, or any other object.
+
+    Returns:
+        A JSON-serializable object where non-serializable objects are converted to appropriate formats.
+    """
+    if isinstance(obj, dict):
+        return {k: make_json_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [make_json_serializable(item) for item in obj]
+    elif isinstance(obj, tuple):
+        return tuple(make_json_serializable(item) for item in obj)
+    elif isinstance(obj, set):
+        return list(make_json_serializable(item) for item in obj)
+    elif isinstance(obj, Path):
+        return str(obj)
+    elif isinstance(obj, (datetime.datetime, datetime.date, datetime.time)):
+        return obj.isoformat()
+    # Add more cases if needed, for other non-serializable types
+    else:
+        return obj
+
+
 if __name__ == "__main__":
     # mostly just here to allow easily getting the help info with --help:
     ToolRunner("fake_tool")
