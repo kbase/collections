@@ -69,7 +69,7 @@ def _run_checkm2(
         fatal_tuples.append(fatal_tuple)
     write_fatal_tuples_to_dict(fatal_tuples, output_dir)
 
-    metadata = {'tool': 'checkm2',
+    metadata = {'tool_name': 'checkm2',
                 'version': '1.0.1',
                 'command': command,
                 "reference_db": {

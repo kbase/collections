@@ -151,7 +151,7 @@ def _run_gtdb_tk(
                                 summary_files,
                                 )
 
-    metadata = {'tool': 'gtdb_tk',
+    metadata = {'tool_name': 'gtdb_tk',
                 'version': '2.3.2',
                 'command': command,
                 "reference_db": {
