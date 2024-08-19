@@ -1,6 +1,7 @@
 """
 Run Mash on a set of assemblies.
 """
+import time
 from pathlib import Path
 
 from src.loaders.compute_tools.tool_common import ToolRunner, run_command, create_tool_metadata
@@ -18,6 +19,10 @@ def _run_mash_single(
         debug: bool,
         kmer_size: int = KMER_SIZE,
         sketch_size: int = SKETCH_SIZE) -> None:
+
+    start = time.time()
+    print(f'Start executing Mash for {data_id}')
+
     # RUN mash sketch for a single genome
     command = ['mash', 'sketch',
                '-o', source_file,  # Output prefix.
@@ -29,6 +34,11 @@ def _run_mash_single(
 
     run_command(command, output_dir if debug else None)
 
+    end_time = time.time()
+    run_time = end_time - start
+    print(
+        f'Used {round(run_time / 60, 2)} minutes to execute Mash for {data_id}')
+
     # Save run info to a metadata file in the output directory for parsing later
     metadata = {'source_file': str(source_file),
                 # Append '.msh' to the source file name to generate the sketch file name (default by Mash sketch)
@@ -38,7 +48,10 @@ def _run_mash_single(
                 'data_id': data_id,
                 'tool_name': 'mash',
                 'version': '2.0',
-                'command': command}
+                'command': command,
+                'run_time': run_time,
+                'batch_size': 1,
+                }
     create_tool_metadata(output_dir, metadata)
 
 

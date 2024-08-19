@@ -98,11 +98,6 @@ def _run_gtdb_tk(
     print(f'running {" ".join(command)}')
     run_command(command, output_dir / "classify_wf_log" if debug else None)
 
-    end_time = time.time()
-    print(
-        f'Used {round((end_time - start) / 60, 2)} minutes to execute gtdbtk classify_wf for '
-        f'{len(ids_to_files)} genomes')
-
     summary_files = find_gtdbtk_summary_files(output_dir)
     if not summary_files:
         raise ValueError(f"No summary files exist for gtdb-tk in the specified "
@@ -152,13 +147,21 @@ def _run_gtdb_tk(
                                 summary_files,
                                 )
 
+    end_time = time.time()
+    run_time = end_time - start
+    print(
+        f'Used {round(run_time / 60, 2)} minutes to execute gtdbtk classify_wf for '
+        f'{size} genomes')
+
     metadata = {'tool_name': 'gtdb_tk',
                 'version': '2.3.2',
                 'command': command,
                 "reference_db": {
                     "version": "release214",
                     },
-                'ids_to_files': make_json_serializable(ids_to_files)}
+                'ids_to_files': make_json_serializable(ids_to_files),
+                'run_time': run_time,
+                'batch_size': size,}
     create_tool_metadata(output_dir, metadata)
 
 

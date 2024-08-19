@@ -27,6 +27,7 @@ versions:
     date: 2024-08-16
     notes: |
       - Create metadata file after running Eggnog
+      - Include execution time in metadata
     reference_db_version: 5.0.2
 
 #Please keep this reminder at the end of this file

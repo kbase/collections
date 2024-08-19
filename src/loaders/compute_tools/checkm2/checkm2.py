@@ -46,10 +46,6 @@ def _run_checkm2(
     # checkm2 will clear output_dir before it starts, which will delete any log files
     log_dir = output_dir.parent / ("checkm2_log_" + output_dir.parts[-1])
     run_command(command, log_dir if debug else None)
-    end_time = time.time()
-    print(f"Used {round((end_time - start) / 60, 2)} minutes to execute checkM2 predict "
-          + f"for {size} genomes"
-          )
 
     tool_file_name, genome_id_col = 'quality_report.tsv', 'Name'
     genome_attri_docs = process_genome_attri_result(output_dir,
@@ -70,6 +66,12 @@ def _run_checkm2(
         fatal_tuples.append(fatal_tuple)
     write_fatal_tuples_to_dict(fatal_tuples, output_dir)
 
+    end_time = time.time()
+    run_time = end_time - start
+    print(f"Used {round(run_time / 60, 2)} minutes to execute checkM2 predict "
+          + f"for {size} genomes"
+          )
+
     metadata = {'tool_name': 'checkm2',
                 'version': '1.0.1',
                 'command': command,
@@ -77,7 +79,10 @@ def _run_checkm2(
                     "version": None,
                     "comment": "diamond_db, ver unknown",
                     },
-                'ids_to_files': make_json_serializable(ids_to_files)}
+                'ids_to_files': make_json_serializable(ids_to_files),
+                'run_time': run_time,
+                'batch_size': size,
+                }
     create_tool_metadata(output_dir, metadata)
 
 

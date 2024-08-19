@@ -47,6 +47,7 @@ versions:
       - Create metadata file after running GTDB-Tk
       - Fix a typo for 'tool_name' metadata field
       - Add method to ensure 'ids_to_files' is JSON serializable
+      - Include execution time in metadata
     reference_db_version: release214
 
 #Please keep this reminder at the end of this file
