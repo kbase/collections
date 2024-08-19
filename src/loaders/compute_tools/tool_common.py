@@ -601,7 +601,7 @@ def create_fatal_tuple(
 def create_tool_metadata(
         output_dir: Path,
         tool_name: str,
-        version: str | Dict[str, str],
+        version: Union[str, Dict[str, str]],
         command: List[str],
         run_time: float,
         batch_size: int,
