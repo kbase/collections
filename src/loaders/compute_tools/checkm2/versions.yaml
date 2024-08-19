@@ -37,6 +37,7 @@ versions:
     notes: |
       - Create metadata file after running CheckM2
       - Fix a typo for 'tool_name' metadata field
+      - Running the logic for uncompressing source files by default
     reference_db_version: 1.0.1
 
 #Please keep this reminder at the end of this file

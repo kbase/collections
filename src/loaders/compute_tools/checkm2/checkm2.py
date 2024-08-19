@@ -82,7 +82,7 @@ def _run_checkm2(
 
 def main():
     runner = ToolRunner("checkm2", tool_data_id_from_filename=True)
-    runner.parallel_batch_execution(_run_checkm2)
+    runner.parallel_batch_execution(_run_checkm2, unzip=True)
 
 
 if __name__ == "__main__":
