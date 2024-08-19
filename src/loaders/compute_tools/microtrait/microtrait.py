@@ -281,7 +281,7 @@ def _run_microtrait(
     metadata = {'source_file': str(fna_file),
                 'data_id': data_id,
                 'tool_name': 'microtrait',
-                'version': 'None',
+                'version': 'ukaraoz/microtrait - release tag kb',
                 'command': 'None - R script',
                 'run_time': round(run_time, 2),
                 'batch_size': 1,
