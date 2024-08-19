@@ -4,6 +4,7 @@ Run Mash on a set of assemblies.
 import time
 from pathlib import Path
 
+from src.loaders.common.loader_common_names import TOOL_METADATA
 from src.loaders.compute_tools.tool_common import ToolRunner, run_command, create_tool_metadata
 
 KMER_SIZE = 19
@@ -22,6 +23,11 @@ def _run_mash_single(
 
     start = time.time()
     print(f'Start executing Mash for {data_id}')
+
+    metadata_file = output_dir / TOOL_METADATA
+    if metadata_file.exists():
+        print(f"Skipping {source_file} as it has already been processed.")
+        return
 
     # RUN mash sketch for a single genome
     command = ['mash', 'sketch',

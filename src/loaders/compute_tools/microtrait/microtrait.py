@@ -213,6 +213,11 @@ def _run_microtrait(
     start = time.time()
     print(f'Start executing Microtrait for {data_id}')
 
+    metadata_file = genome_dir / loader_common_names.TOOL_METADATA
+    if metadata_file.exists():
+        print(f"Skipping {fna_file} as it has already been processed.")
+        return
+
     # Load the R script as an R function
     r_script = """
         library(microtrait)
