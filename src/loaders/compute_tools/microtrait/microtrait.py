@@ -2,6 +2,7 @@
 Runs microtrait on a set of assemblies.
 """
 import os
+import time
 import uuid
 from pathlib import Path
 from typing import Any
@@ -21,13 +22,14 @@ from src.common.product_models.heatmap_common_models import (
     FIELD_HEATMAP_CATEGORY,
     FIELD_HEATMAP_CELL_DETAIL_ENTRY_ID,
     FIELD_HEATMAP_CELL_DETAIL_ENTRY_VALUE,
-    ColumnType,)
+    ColumnType, )
 from src.common.storage.field_names import FLD_KBASE_ID
 from src.loaders.common import loader_common_names
 from src.loaders.compute_tools.tool_common import (
     FatalTuple,
     ToolRunner,
     write_fatal_tuples_to_dict,
+    create_tool_metadata,
 )
 from src.loaders.compute_tools.tool_result_parser import (
     create_jsonl_files,
@@ -208,6 +210,14 @@ def _run_microtrait(
     # since extract_traits function doesn't take the number of threads as an argument
     # https://github.com/ukaraoz/microtrait/blob/master/R/extract_traits.R#L22-L26
 
+    start = time.time()
+    print(f'Start executing Microtrait for {data_id}')
+
+    metadata_file = genome_dir / loader_common_names.TOOL_METADATA
+    if metadata_file.exists():
+        print(f"Skipping {fna_file} as it has already been processed.")
+        return
+
     # Load the R script as an R function
     r_script = """
         library(microtrait)
@@ -261,6 +271,29 @@ def _run_microtrait(
     create_jsonl_files(genome_dir / MICROTRAIT_META, traits_meta)
     create_jsonl_files(genome_dir / MICROTRAIT_CELLS, cells_meta)
     create_jsonl_files(genome_dir / MICROTRAIT_DATA, heatmap_row)
+
+    end_time = time.time()
+    run_time = end_time - start
+    print(
+        f'Used {round(run_time / 60, 2)} minutes to execute Microtrait for {data_id}')
+
+    # Save run info to a metadata file in the output directory for parsing later
+    additional_metadata = {
+        'source_file': str(fna_file),
+        'data_id': data_id,
+    }
+    create_tool_metadata(
+        genome_dir,
+        tool_name="microtrait",
+        version={
+            'git_url': 'https://github.com/ukaraoz/microtrait',
+            'release_tag': 'kb',
+        },
+        command=["None - R script"],
+        run_time=round(run_time, 2),
+        batch_size=1,
+        additional_metadata=additional_metadata,
+    )
 
 
 def main():
