@@ -59,7 +59,7 @@ def _run_bbmap_single(
 
 def main():
     runner = ToolRunner("bbmap")
-    runner.parallel_single_execution(_run_bbmap_single, unzip=True)
+    runner.parallel_single_execution(_run_bbmap_single)
 
 
 if __name__ == "__main__":
