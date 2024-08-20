@@ -21,3 +21,4 @@ versions:
     date: 2024-08-16
     notes: |
       - Create metadata file after running Mash
+      - Include execution time in metadata
