@@ -10,6 +10,7 @@
 * Converted Data IDs to string format to ensure proper comparison with associated folder names
 * Fix `kbase_id` formate for biolog parser script
 * Added a guide for process from KBase Genome to Collections.
+* The task generator now asks for confirmation before submitting a job.
 
 ## 0.1.2
 
