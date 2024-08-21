@@ -1,5 +1,17 @@
 # KBase Collections Release Notes
 
+## 0.1.3
+
+* Added BBMap tool to the CDM pipeline.
+* Included metadata file generation after each tool's execution.
+* Updated Python library dependencies to the latest versions.
+* Standardized thread management logic across all tools.
+* Pass `job_id` to the tool container and remove `node_id`.
+* Converted Data IDs to string format to ensure proper comparison with associated folder names
+* Fix `kbase_id` formate for biolog parser script
+* Added a guide for process from KBase Genome to Collections.
+* The task generator now asks for confirmation before submitting a job.
+
 ## 0.1.2
 
 * Fixed a bug that caused requests with filters to fail for filter keys containing colons.

@@ -41,7 +41,7 @@ optional arguments:
                         
 '''
 
-TOOLS_AVAILABLE = ['gtdb_tk', 'checkm2', 'microtrait', 'mash', 'eggnog']
+TOOLS_AVAILABLE = ['gtdb_tk', 'checkm2', 'microtrait', 'mash', 'eggnog', 'bbmap']
 
 NODE_TIME_LIMIT_DEFAULT = 5  # hours
 # Used as THREADS variable in the batch script which controls the number of parallel tasks per node
