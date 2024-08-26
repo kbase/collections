@@ -38,10 +38,15 @@ optional arguments:
   --force               Force overwrite of existing job directory
   --source_file_ext SOURCE_FILE_EXT
                         Select files from source data directory that match the given extension.
-                        
+ 
+TODO: The recommended approach by NERSC for running tasks with intensive I/O tools (most of our tools), is to utilize 
+the scratch directory. Before executing the task, source data and reference libraries should be copied to the scratch 
+directory. Soft links (such as for collection sources) should be created as needed. Once the task is complete, 
+the results should be copied back to the user's directory. For more information, refer to the NERSC documentation:
+https://docs.nersc.gov/filesystems/perlmutter-scratch/                      
 '''
 
-TOOLS_AVAILABLE = ['gtdb_tk', 'checkm2', 'microtrait', 'mash', 'eggnog', 'bbmap']
+TOOLS_AVAILABLE = ['gtdb_tk', 'checkm2', 'microtrait', 'mash', 'eggnog', 'bbmap', 'busco']
 
 NODE_TIME_LIMIT_DEFAULT = 5  # hours
 # Used as THREADS variable in the batch script which controls the number of parallel tasks per node
@@ -62,9 +67,9 @@ SYSTEM_CPU_CORES = 256  # number of CPU cores available on the NERSC nodes
 # if no specific metadata is provided for a tool, the default values are used.
 TASK_META = {'gtdb_tk': {'chunk_size': 1000, 'exe_time': 65, 'tasks_per_node': 4, 'threads_per_tool_run': 32},
              'eggnog': {'chunk_size': 100, 'exe_time': 15, 'node_time_limit': 0.5},  # Memory intensive tool - reserve more nodes with less node reservation time
+             'busco': {'chunk_size': 50, 'exe_time': 90, 'node_time_limit': 1.5},  # 1.5 minutes per genome with a single task per node on the user's drive. TODO: Aim to test multi-threading per node along with scratch execution, and adjust `tasks_per_node` accordingly.
              'default': {'chunk_size': 5000, 'exe_time': 60}}
 MAX_NODE_NUM = 100  # maximum number of nodes to use
-
 
 REGISTRY = 'ghcr.io/kbase/collections'
 VERSION_FILE = 'versions.yaml'
