@@ -33,6 +33,8 @@ def _run_busco_single(
     version_file = os.path.join(current_dir, 'versions.yaml')
     ref_db_version = extract_latest_reference_db_version(version_file)
 
+    # Please refer to https://docs.google.com/document/d/15yV-S41Iqe20F-I2MRLWdzJwVdr8QKUfZPw7oq8WvB0/edit#heading=h.elgudks5mtxu
+    # for more information on the BUSCO command options we are using here.
     command = [
         'busco',
         '-i', str(source_file),
@@ -59,7 +61,7 @@ def _run_busco_single(
         'source_file': str(source_file),
         'data_id': data_id,
         "reference_db": {
-            "version": "odb10",
+            "version": ref_db_version,
         },
     }
     create_tool_metadata(

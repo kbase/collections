@@ -7,6 +7,3 @@ versions:
     notes: |
       - initial BUSCO implementation
     reference_db_version: odb10
-
-#Please keep this reminder at the end of this file
-#NOTE: If the db verllsion changes, ensure the metadata information saved after running the tool in the _run_busco_single method is updated

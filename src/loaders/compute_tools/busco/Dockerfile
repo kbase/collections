@@ -13,6 +13,8 @@ RUN conda config --add channels conda-forge
 ARG PYTHON_VER=3.9
 RUN conda create -n $CONDA_ENV python=$PYTHON_VER
 RUN conda install -n $CONDA_ENV pandas=2.2.2 jsonlines=4.0.0 mamba=1.5.8 pyyaml=6.0.1
+# Suggestions from BUSCO team to use mamba for speeding up the installation process:
+# https://busco.ezlab.org/busco_userguide.html#installation-with-conda
 RUN conda run -n $CONDA_ENV mamba install -c bioconda -c conda-forge -y busco=$BUSCO_VER
 
 # Activate the environment
