@@ -61,7 +61,7 @@ SYSTEM_CPU_CORES = 256  # number of CPU cores available on the NERSC nodes
 #    for single genome tools, such as microtrait and mash, the chunk_size is the number of genomes to process in a
 #    serial manner
 # exe_time is the estimated execution time for a single task (default is 60 minutes)
-# threads_per_tool_run is the number of threads to use for each tool execution (default is 32)
+# threads_per_tool_run is the number of threads to use for each tool execution (default is SYSTEM_CPU_CORES (256) / number of parallel tasks per node)
 # tasks_per_node is the number of parallel tasks to run on a node (default is 1)
 # node_time_limit is the time limit for the node we reserved for the task (default is 5 hours)
 # if no specific metadata is provided for a tool, the default values are used.
