@@ -2,7 +2,7 @@
 
 ## 0.1.3
 
-* Added BBMap tool to the CDM pipeline.
+* Added BBMap and BUSCO tool to the CDM pipeline.
 * Included metadata file generation after each tool's execution.
 * Updated Python library dependencies to the latest versions.
 * Standardized thread management logic across all tools.
