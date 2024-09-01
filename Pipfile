@@ -33,7 +33,7 @@ pytest = "==8.3.2"
 coverage = "==7.6.1"
 pytest-cov = "==5.0.0"
 ipython = "==8.26.0"
-pytest-asyncio = "==0.23.8"
+pytest-asyncio = "==0.24.0"
 # currently for design/experiments/store_mongo.py
 pymongo = "==4.8.0"
 sourmash = "==4.8.11"
